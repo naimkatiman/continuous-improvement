@@ -118,49 +118,35 @@ fi
 mkdir -p "$PROJECT_DIR"
 
 NEW_COUNT=0
-while IFS= read -r -d '' block; do
-  [[ -z "$block" ]] && continue
-  # Extract id from the block
-  INSTINCT_ID=$(echo "$block" | grep -oP '(?<=^id: ).*' | head -1 | tr -d '"' | tr -d "'")
-  if [[ -n "$INSTINCT_ID" ]]; then
-    DEST="${PROJECT_DIR}/${INSTINCT_ID}.yaml"
-    printf '%s\n' "$block" > "$DEST"
-    echo "  + ${INSTINCT_ID} → ${DEST}"
-    NEW_COUNT=$((NEW_COUNT + 1))
-  fi
-done < <(printf '%s\0' "$RESULT" | sed 's/\n---\n/\x00/g')
+INSTINCT_ID=""
+BLOCK=""
 
-# Fallback: if the splitting didn't work, try line-based parsing
-if (( NEW_COUNT == 0 )); then
-  # Try splitting on --- delimiter
-  INSTINCT_ID=""
-  BLOCK=""
-  while IFS= read -r line; do
-    if [[ "$line" == "---" ]] && [[ -n "$BLOCK" ]]; then
-      if [[ -n "$INSTINCT_ID" ]]; then
-        DEST="${PROJECT_DIR}/${INSTINCT_ID}.yaml"
-        printf '%s\n' "$BLOCK" > "$DEST"
-        echo "  + ${INSTINCT_ID} → ${DEST}"
-        NEW_COUNT=$((NEW_COUNT + 1))
-      fi
-      INSTINCT_ID=""
-      BLOCK=""
-    else
-      BLOCK="${BLOCK}${line}"$'\n'
-      if [[ "$line" =~ ^id:\ (.+) ]]; then
-        INSTINCT_ID="${BASH_REMATCH[1]}"
-        INSTINCT_ID="${INSTINCT_ID//\"/}"
-        INSTINCT_ID="${INSTINCT_ID//\'/}"
-      fi
+while IFS= read -r line; do
+  if [[ "$line" == "---" ]] && [[ -n "$BLOCK" ]]; then
+    if [[ -n "$INSTINCT_ID" ]]; then
+      DEST="${PROJECT_DIR}/${INSTINCT_ID}.yaml"
+      printf '%s\n' "$BLOCK" > "$DEST"
+      echo "  + ${INSTINCT_ID} -> ${DEST}"
+      NEW_COUNT=$((NEW_COUNT + 1))
     fi
-  done <<< "$RESULT"
-  # Handle last block
-  if [[ -n "$INSTINCT_ID" ]] && [[ -n "$BLOCK" ]]; then
-    DEST="${PROJECT_DIR}/${INSTINCT_ID}.yaml"
-    printf '%s\n' "$BLOCK" > "$DEST"
-    echo "  + ${INSTINCT_ID} → ${DEST}"
-    NEW_COUNT=$((NEW_COUNT + 1))
+    INSTINCT_ID=""
+    BLOCK=""
+  else
+    BLOCK="${BLOCK}${line}"$'\n'
+    if [[ "$line" =~ ^id:\ (.+) ]]; then
+      INSTINCT_ID="${BASH_REMATCH[1]}"
+      INSTINCT_ID="${INSTINCT_ID//\"/}"
+      INSTINCT_ID="${INSTINCT_ID//\'/}"
+    fi
   fi
+done <<< "$RESULT"
+
+# Handle last block
+if [[ -n "$INSTINCT_ID" ]] && [[ -n "$BLOCK" ]]; then
+  DEST="${PROJECT_DIR}/${INSTINCT_ID}.yaml"
+  printf '%s\n' "$BLOCK" > "$DEST"
+  echo "  + ${INSTINCT_ID} -> ${DEST}"
+  NEW_COUNT=$((NEW_COUNT + 1))
 fi
 
 echo ""

@@ -284,7 +284,7 @@ if (args.includes("--uninstall")) {
 }
 
 console.log(`
-continuous-improvement v2.1
+continuous-improvement v2.2
 Research → Plan → Execute → Verify → Reflect → Learn → Iterate
 `);
 

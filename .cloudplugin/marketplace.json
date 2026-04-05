@@ -1,7 +1,7 @@
 {
   "name": "continuous-improvement",
-  "version": "1.0.0",
-  "description": "Install structured self-improvement loops into any AI agent — research, plan, execute, verify, reflect, iterate",
+  "version": "2.1.0",
+  "description": "7-law discipline framework with auto-leveling instinct learning for AI agents — research, plan, execute, verify, reflect, learn, iterate",
   "author": "naimkatiman",
   "license": "MIT",
   "repository": "https://github.com/naimkatiman/continuous-improvement",
