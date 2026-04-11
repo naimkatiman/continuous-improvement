@@ -4,6 +4,20 @@ All notable changes to this skill are documented here.
 
 ---
 
+## [3.1.0] — 2026-04-11
+
+### Fixed
+- **Package metadata** — repository URL now uses `git+https://...git` format per npm best practices
+- **Bin paths** — normalized from `./bin/` to `bin/` for consistent resolution across npm versions
+
+### Added
+- **Daily improvement reports** — automated `REPORTS/daily-improvement.md` for tracking repo evolution
+- **Node.js engine constraint** — `engines.node >= 18` enforced in package.json to match CI matrix
+- **Code coverage** in CI — `--experimental-test-coverage` for zero-dependency coverage reporting
+- **CodeQL security scanning** — GitHub-native static analysis for JavaScript and shell injection risks
+
+---
+
 ## [3.0.0] — 2026-04-06
 
 ### Added

@@ -24,6 +24,10 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Run tests with coverage (Node 22 only)
+        if: matrix.node-version == 22
+        run: node --test --experimental-test-coverage test/*.test.mjs
+
       - name: Verify zero dependencies
         run: |
           if [ -f node_modules/.package-lock.json ]; then

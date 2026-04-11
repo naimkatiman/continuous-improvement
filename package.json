@@ -59,5 +59,8 @@
     "plugins/",
     "instinct-packs/"
   ],
-  "type": "module"
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  }
 }
