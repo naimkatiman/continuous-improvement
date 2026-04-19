@@ -37,10 +37,10 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "clean": "node -e \"const fs=require('node:fs'); for (const dir of ['bin','test']) { if (!fs.existsSync(dir)) continue; for (const file of fs.readdirSync(dir)) { if (file.endsWith('.mjs')) fs.rmSync(dir + '/' + file, { force: true }); } }\"",
+    "clean": "node -e \"const fs=require('node:fs'); for (const dir of ['bin','test','lib']) { if (!fs.existsSync(dir)) continue; for (const file of fs.readdirSync(dir)) { if (file.endsWith('.mjs')) fs.rmSync(dir + '/' + file, { force: true }); } }\"",
     "test": "npm run build && node --test test/*.test.mjs",
     "lint": "node bin/lint-transcript.mjs --help",
-    "verify:generated": "npm run build && git diff --exit-code -- bin test"
+    "verify:generated": "npm run build && git diff --exit-code -- bin test lib"
   },
   "files": [
     "SKILL.md",
@@ -50,16 +50,13 @@
     "llms.txt",
     "action.yml",
     "bin/",
+    "lib/",
     "hooks/",
     "commands/",
     "skills/",
     "templates/",
     "plugins/",
-    "instinct-packs/",
-    "src/cli-anything.mjs",
-    "src/compound-engineering.mjs",
-    "src/pm-skills.mjs",
-    "src/unified-plugin.mjs"
+    "instinct-packs/"
   ],
   "type": "module",
   "devDependencies": {

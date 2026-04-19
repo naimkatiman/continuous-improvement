@@ -1,283 +1,228 @@
-#!/usr/bin/env node
-
-/**
- * Test suite for PM-Skills collection
- */
-
-import { strict as assert } from 'node:assert';
-import { test, describe } from 'node:test';
-import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
-import { join } from 'node:path';
-import PMSkills from '../src/pm-skills.mjs';
-
-describe('PM-Skills', () => {
-  let pmSkills;
-  let testDir;
-
-  test.before(async () => {
-    testDir = join(process.cwd(), 'test-pm');
-    
-    pmSkills = new PMSkills({
-      workspace: join(testDir, 'workspace'),
-      verbose: false
+import assert from "node:assert/strict";
+import { access, readFile, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { after, before, describe, test } from "node:test";
+import PMSkills from "../lib/pm-skills.mjs";
+describe("PM-Skills", () => {
+    let pmSkills;
+    let testDir = "";
+    before(() => {
+        testDir = join(process.cwd(), "test-pm");
+        pmSkills = new PMSkills({
+            workspace: join(testDir, "workspace"),
+            verbose: false,
+        });
     });
-  });
-
-  test.after(async () => {
-    // Clean up test directory
-    try {
-      await rm(testDir, { recursive: true, force: true });
-    } catch (error) {
-      // Ignore cleanup errors
-    }
-  });
-
-  test('should list available skills', () => {
-    const skills = pmSkills.getAvailableSkills();
-    
-    assert(Array.isArray(skills));
-    assert.strictEqual(skills.length, 8);
-    
-    const skillNames = skills.map(s => s.name);
-    assert(skillNames.includes('growthLoops'));
-    assert(skillNames.includes('marketResearch'));
-    assert(skillNames.includes('gtmStrategy'));
-    assert(skillNames.includes('userPersonas'));
-    assert(skillNames.includes('competitiveAnalysis'));
-    assert(skillNames.includes('valueProposition'));
-    assert(skillNames.includes('productRoadmap'));
-    assert(skillNames.includes('metricsDefinition'));
-  });
-
-  test('should execute growth loops skill', async () => {
-    const input = {
-      product: { name: 'Test Product' },
-      users: [{ type: 'business' }],
-      metrics: { revenue: 'subscription' }
-    };
-
-    const result = await pmSkills.executeSkill('growthLoops', input);
-
-    assert(result.loops);
-    assert(result.loops.acquisition);
-    assert(result.loops.activation);
-    assert(result.loops.retention);
-    assert(result.loops.referral);
-    assert(result.loops.revenue);
-    assert(result.insights);
-    assert(result.recommendations);
-    assert(result.kpis);
-    assert(result.timestamp);
-    assert(result.savedTo);
-  });
-
-  test('should execute market research skill', async () => {
-    const input = {
-      product: { name: 'Test Product' },
-      industry: 'Technology',
-      targetMarket: { segment: 'SMB' }
-    };
-
-    const result = await pmSkills.executeSkill('marketResearch', input);
-
-    assert(result.research);
-    assert(result.research.marketSize);
-    assert(result.research.trends);
-    assert(result.research.competitors);
-    assert(result.research.opportunities);
-    assert(result.research.threats);
-    assert(result.research.customerNeeds);
-    assert(result.insights);
-    assert(result.recommendations);
-    assert(result.risks);
-    assert(result.opportunities);
-    assert(result.timestamp);
-  });
-
-  test('should execute GTM strategy skill', async () => {
-    const input = {
-      product: { name: 'Test Product' },
-      market: { size: 'Large', competition: 'Medium' },
-      budget: '$50,000',
-      timeline: '12 weeks'
-    };
-
-    const result = await pmSkills.executeSkill('gtmStrategy', input);
-
-    assert(result.strategy);
-    assert(result.strategy.positioning);
-    assert(result.strategy.pricing);
-    assert(result.strategy.channels);
-    assert(result.strategy.launch);
-    assert(result.strategy.sales);
-    assert(result.strategy.marketing);
-    assert(result.insights);
-    assert(result.recommendations);
-    assert(result.timeline);
-    assert(result.budget);
-    assert(result.kpis);
-    assert(result.timestamp);
-  });
-
-  test('should execute user personas skill', async () => {
-    const input = {
-      targetUsers: [{ role: 'manager' }, { role: 'developer' }],
-      researchData: { interviews: 10, surveys: 50 }
-    };
-
-    const result = await pmSkills.executeSkill('userPersonas', input);
-
-    assert(result.personas);
-    assert(result.journeys);
-    assert(Array.isArray(result.personas));
-    assert(result.personas.length > 0);
-    assert(result.personas[0].name);
-    assert(result.personas[0].role);
-    assert(result.personas[0].demographics);
-    assert(result.personas[0].goals);
-    assert(result.personas[0].painPoints);
-    assert(result.insights);
-    assert(result.recommendations);
-    assert(result.timestamp);
-  });
-
-  test('should execute competitive analysis skill', async () => {
-    const input = {
-      product: { name: 'Test Product', features: ['A', 'B'] },
-      competitors: [{ name: 'Competitor A', features: ['A', 'C'] }],
-      market: { growth: 'High' }
-    };
-
-    const result = await pmSkills.executeSkill('competitiveAnalysis', input);
-
-    assert(result.analysis);
-    assert(result.analysis.directCompetitors);
-    assert(result.analysis.indirectCompetitors);
-    assert(result.analysis.positioning);
-    assert(result.analysis.strengths);
-    assert(result.analysis.weaknesses);
-    assert(result.analysis.opportunities);
-    assert(result.analysis.threats);
-    assert(result.insights);
-    assert(result.recommendations);
-    assert(result.timestamp);
-  });
-
-  test('should execute value proposition skill', async () => {
-    const input = {
-      product: { name: 'Test Product', benefits: ['Efficiency', 'Cost savings'] },
-      customers: { pains: ['Manual work'], gains: ['Automation'] },
-      market: { competition: 'High' }
-    };
-
-    const result = await pmSkills.executeSkill('valueProposition', input);
-
-    assert(result.analysis);
-    assert(result.analysis.customerJobs);
-    assert(result.analysis.pains);
-    assert(result.analysis.gains);
-    assert(result.analysis.products);
-    assert(result.analysis.valueProposition);
-    assert(result.analysis.validation);
-    assert(result.insights);
-    assert(result.recommendations);
-    assert(result.timestamp);
-  });
-
-  test('should execute product roadmap skill', async () => {
-    const input = {
-      product: { name: 'Test Product', stage: 'MVP' },
-      vision: 'Become market leader',
-      goals: ['Increase users', 'Improve retention'],
-      resources: { team: 5, budget: '$100k' }
-    };
-
-    const result = await pmSkills.executeSkill('productRoadmap', input);
-
-    assert(result.roadmap);
-    assert(result.roadmap.vision);
-    assert(result.roadmap.strategy);
-    assert(result.roadmap.initiatives);
-    assert(result.roadmap.features);
-    assert(result.roadmap.timeline);
-    assert(result.roadmap.dependencies);
-    assert(result.roadmap.risks);
-    assert(result.insights);
-    assert(result.recommendations);
-    assert(result.kpis);
-    assert(result.timestamp);
-  });
-
-  test('should execute metrics definition skill', async () => {
-    const input = {
-      product: { type: 'SaaS', stage: 'Growth' },
-      business: { model: 'Subscription', market: 'B2B' },
-      goals: ['Revenue growth', 'User retention']
-    };
-
-    const result = await pmSkills.executeSkill('metricsDefinition', input);
-
-    assert(result.metrics);
-    assert(result.metrics.productMetrics);
-    assert(result.metrics.businessMetrics);
-    assert(result.metrics.userMetrics);
-    assert(result.metrics.technicalMetrics);
-    assert(result.metrics.kpis);
-    assert(result.metrics.reporting);
-    assert(result.insights);
-    assert(result.recommendations);
-    assert(result.implementation);
-    assert(result.timestamp);
-  });
-
-  test('should run comprehensive product analysis', async () => {
-    const productInfo = {
-      product: { name: 'Test Product', type: 'SaaS' },
-      industry: 'Technology',
-      targetMarket: { segment: 'SMB', size: 'Medium' }
-    };
-
-    const result = await pmSkills.runProductAnalysis(productInfo);
-
-    assert(result.results);
-    assert(result.summary);
-    assert(result.savedTo);
-    
-    // Check that all skills were attempted
-    assert(Object.keys(result.results).length === 8);
-    
-    // Check summary
-    assert.strictEqual(result.summary.totalSkills, 8);
-    assert(result.summary.completedSkills >= 0);
-    assert(Array.isArray(result.summary.keyInsights));
-    assert(Array.isArray(result.summary.recommendations));
-    assert(Array.isArray(result.summary.risks));
-    assert(Array.isArray(result.summary.opportunities));
-  });
-
-  test('should handle invalid skill names', async () => {
-    try {
-      await pmSkills.executeSkill('invalidSkill', {});
-      assert.fail('Should have thrown an error');
-    } catch (error) {
-      assert(error.message.includes('Unknown skill'));
-    }
-  });
-
-  test('should save results to workspace', async () => {
-    const input = { product: { name: 'Test' } };
-    const result = await pmSkills.executeSkill('growthLoops', input);
-
-    // Check that file was created
-    const fs = await import('node:fs/promises');
-    try {
-      await fs.access(result.savedTo);
-      const content = await fs.readFile(result.savedTo, 'utf8');
-      const parsed = JSON.parse(content);
-      assert(parsed.loops);
-      assert(parsed.timestamp);
-    } catch (error) {
-      assert.fail('Result file was not created or is invalid');
-    }
-  });
+    after(async () => {
+        try {
+            await rm(testDir, { recursive: true, force: true });
+        }
+        catch {
+            // ignore cleanup errors
+        }
+    });
+    test("should list available skills", () => {
+        const skills = pmSkills.getAvailableSkills();
+        assert.ok(Array.isArray(skills));
+        assert.equal(skills.length, 8);
+        const skillNames = skills.map((s) => s.name);
+        for (const name of [
+            "growthLoops",
+            "marketResearch",
+            "gtmStrategy",
+            "userPersonas",
+            "competitiveAnalysis",
+            "valueProposition",
+            "productRoadmap",
+            "metricsDefinition",
+        ]) {
+            assert.ok(skillNames.includes(name));
+        }
+    });
+    test("should execute growth loops skill", async () => {
+        const result = await pmSkills.executeSkill("growthLoops", {
+            product: { name: "Test Product" },
+            users: [{ type: "business" }],
+            metrics: { revenue: "subscription" },
+        });
+        const loops = result.loops;
+        assert.ok(loops);
+        assert.ok(loops.acquisition);
+        assert.ok(loops.activation);
+        assert.ok(loops.retention);
+        assert.ok(loops.referral);
+        assert.ok(loops.revenue);
+        assert.ok(result.insights);
+        assert.ok(result.recommendations);
+        assert.ok(result.kpis);
+        assert.ok(result.timestamp);
+        assert.ok(result.savedTo);
+    });
+    test("should execute market research skill", async () => {
+        const result = await pmSkills.executeSkill("marketResearch", {
+            product: { name: "Test Product" },
+            industry: "Technology",
+            targetMarket: { segment: "SMB" },
+        });
+        const research = result.research;
+        assert.ok(research);
+        assert.ok(research.marketSize);
+        assert.ok(research.trends);
+        assert.ok(research.competitors);
+        assert.ok(research.opportunities);
+        assert.ok(research.threats);
+        assert.ok(research.customerNeeds);
+        assert.ok(result.insights);
+        assert.ok(result.recommendations);
+        assert.ok(result.risks);
+        assert.ok(result.opportunities);
+        assert.ok(result.timestamp);
+    });
+    test("should execute GTM strategy skill", async () => {
+        const result = await pmSkills.executeSkill("gtmStrategy", {
+            product: { name: "Test Product" },
+            market: { size: "Large", competition: "Medium" },
+            budget: "$50,000",
+            timeline: "12 weeks",
+        });
+        const strategy = result.strategy;
+        assert.ok(strategy);
+        assert.ok(strategy.positioning);
+        assert.ok(strategy.pricing);
+        assert.ok(strategy.channels);
+        assert.ok(strategy.launch);
+        assert.ok(strategy.sales);
+        assert.ok(strategy.marketing);
+        assert.ok(result.insights);
+        assert.ok(result.recommendations);
+        assert.ok(result.timeline);
+        assert.ok(result.budget);
+        assert.ok(result.kpis);
+        assert.ok(result.timestamp);
+    });
+    test("should execute user personas skill", async () => {
+        const result = await pmSkills.executeSkill("userPersonas", {
+            targetUsers: [{ role: "manager" }, { role: "developer" }],
+            researchData: { interviews: 10, surveys: 50 },
+        });
+        const personas = result.personas;
+        assert.ok(result.personas);
+        assert.ok(result.journeys);
+        assert.ok(Array.isArray(personas));
+        assert.ok(personas.length > 0);
+        assert.ok(personas[0].name);
+        assert.ok(personas[0].role);
+        assert.ok(personas[0].demographics);
+        assert.ok(personas[0].goals);
+        assert.ok(personas[0].painPoints);
+        assert.ok(result.insights);
+        assert.ok(result.recommendations);
+        assert.ok(result.timestamp);
+    });
+    test("should execute competitive analysis skill", async () => {
+        const result = await pmSkills.executeSkill("competitiveAnalysis", {
+            product: { name: "Test Product", features: ["A", "B"] },
+            competitors: [{ name: "Competitor A", features: ["A", "C"] }],
+            market: { growth: "High" },
+        });
+        const analysis = result.analysis;
+        assert.ok(analysis);
+        assert.ok(analysis.directCompetitors);
+        assert.ok(analysis.indirectCompetitors);
+        assert.ok(analysis.positioning);
+        assert.ok(analysis.strengths);
+        assert.ok(analysis.weaknesses);
+        assert.ok(analysis.opportunities);
+        assert.ok(analysis.threats);
+        assert.ok(result.insights);
+        assert.ok(result.recommendations);
+        assert.ok(result.timestamp);
+    });
+    test("should execute value proposition skill", async () => {
+        const result = await pmSkills.executeSkill("valueProposition", {
+            product: { name: "Test Product", benefits: ["Efficiency", "Cost savings"] },
+            customers: { pains: ["Manual work"], gains: ["Automation"] },
+            market: { competition: "High" },
+        });
+        const analysis = result.analysis;
+        assert.ok(analysis);
+        assert.ok(analysis.customerJobs);
+        assert.ok(analysis.pains);
+        assert.ok(analysis.gains);
+        assert.ok(analysis.products);
+        assert.ok(analysis.valueProposition);
+        assert.ok(analysis.validation);
+        assert.ok(result.insights);
+        assert.ok(result.recommendations);
+        assert.ok(result.timestamp);
+    });
+    test("should execute product roadmap skill", async () => {
+        const result = await pmSkills.executeSkill("productRoadmap", {
+            product: { name: "Test Product", stage: "MVP" },
+            vision: "Become market leader",
+            goals: ["Increase users", "Improve retention"],
+            resources: { team: 5, budget: "$100k" },
+        });
+        const roadmap = result.roadmap;
+        assert.ok(roadmap);
+        assert.ok(roadmap.vision);
+        assert.ok(roadmap.strategy);
+        assert.ok(roadmap.initiatives);
+        assert.ok(roadmap.features);
+        assert.ok(roadmap.timeline);
+        assert.ok(roadmap.dependencies);
+        assert.ok(roadmap.risks);
+        assert.ok(result.insights);
+        assert.ok(result.recommendations);
+        assert.ok(result.kpis);
+        assert.ok(result.timestamp);
+    });
+    test("should execute metrics definition skill", async () => {
+        const result = await pmSkills.executeSkill("metricsDefinition", {
+            product: { type: "SaaS", stage: "Growth" },
+            business: { model: "Subscription", market: "B2B" },
+            goals: ["Revenue growth", "User retention"],
+        });
+        const metrics = result.metrics;
+        assert.ok(metrics);
+        assert.ok(metrics.productMetrics);
+        assert.ok(metrics.businessMetrics);
+        assert.ok(metrics.userMetrics);
+        assert.ok(metrics.technicalMetrics);
+        assert.ok(metrics.kpis);
+        assert.ok(metrics.reporting);
+        assert.ok(result.insights);
+        assert.ok(result.recommendations);
+        assert.ok(result.implementation);
+        assert.ok(result.timestamp);
+    });
+    test("should run comprehensive product analysis", async () => {
+        const productInfo = {
+            product: { name: "Test Product", type: "SaaS" },
+            industry: "Technology",
+            targetMarket: { segment: "SMB", size: "Medium" },
+        };
+        const result = await pmSkills.runProductAnalysis(productInfo);
+        assert.ok(result.results);
+        assert.ok(result.summary);
+        assert.ok(result.savedTo);
+        assert.equal(Object.keys(result.results).length, 8);
+        assert.equal(result.summary.totalSkills, 8);
+        assert.ok(result.summary.completedSkills >= 0);
+        assert.ok(Array.isArray(result.summary.keyInsights));
+        assert.ok(Array.isArray(result.summary.recommendations));
+        assert.ok(Array.isArray(result.summary.risks));
+        assert.ok(Array.isArray(result.summary.opportunities));
+    });
+    test("should handle invalid skill names", async () => {
+        await assert.rejects(() => pmSkills.executeSkill("invalidSkill", {}), /Unknown skill/);
+    });
+    test("should save results to workspace", async () => {
+        const result = await pmSkills.executeSkill("growthLoops", { product: { name: "Test" } });
+        await access(result.savedTo);
+        const content = await readFile(result.savedTo, "utf8");
+        const parsed = JSON.parse(content);
+        assert.ok(parsed.loops);
+        assert.ok(parsed.timestamp);
+    });
 });

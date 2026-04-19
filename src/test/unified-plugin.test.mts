@@ -1,0 +1,360 @@
+import assert from "node:assert/strict";
+import { readFile, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { after, before, describe, test } from "node:test";
+
+import UnifiedContinuousImprovement from "../lib/unified-plugin.mjs";
+import type { ProjectContext } from "../lib/unified-plugin.mjs";
+
+describe("Unified Continuous Improvement Plugin", () => {
+  let unifiedPlugin: UnifiedContinuousImprovement;
+  let testDir = "";
+
+  before(() => {
+    testDir = join(process.cwd(), "test-unified");
+    unifiedPlugin = new UnifiedContinuousImprovement({
+      workspace: join(testDir, "workspace"),
+      verbose: false,
+    });
+  });
+
+  after(async () => {
+    try {
+      await rm(testDir, { recursive: true, force: true });
+    } catch {
+      // ignore cleanup errors
+    }
+  });
+
+  const ctx = (): ProjectContext => unifiedPlugin.projectContext as ProjectContext;
+
+  test("should initialize plugin with correct configuration", () => {
+    assert.ok(unifiedPlugin);
+    assert.ok(unifiedPlugin.cliAnything);
+    assert.ok(unifiedPlugin.compoundEngineering);
+    assert.ok(unifiedPlugin.pmSkills);
+    assert.equal(unifiedPlugin.options.workspace, join(testDir, "workspace"));
+  });
+
+  test("should initialize new project successfully", async () => {
+    const result = await unifiedPlugin.initializeProject({
+      name: "TestProject",
+      objective: "Build a test application",
+      industry: "Technology",
+      targetMarket: { segment: "SMB" },
+    });
+
+    assert.ok(result.projectId);
+    assert.equal(result.projectId, "TestProject");
+    assert.ok(result.sessionId);
+    assert.ok(result.pmAnalysis);
+    assert.ok(Array.isArray(result.nextSteps));
+
+    assert.equal(ctx().name, "TestProject");
+    assert.ok(unifiedPlugin.currentSession);
+    assert.equal(unifiedPlugin.currentSession?.objective, "Build a test application");
+  });
+
+  test("should execute research phase", async () => {
+    await unifiedPlugin.initializeProject({
+      name: "ResearchTest",
+      objective: "Test research phase",
+    });
+
+    const result = await unifiedPlugin.executeResearchPhase({
+      repositoryPath: "./test-repo",
+    });
+
+    assert.ok(result.brainstorm);
+    assert.ok(result.pmInsights);
+    assert.ok(result.recommendations);
+    assert.ok(result.completedAt);
+
+    assert.ok(result.brainstorm.ideas);
+    assert.ok(result.brainstorm.constraints);
+    assert.ok(result.brainstorm.assumptions);
+    assert.ok(result.brainstorm.risks);
+    assert.ok(result.brainstorm.opportunities);
+
+    assert.equal(ctx().phases.research.status, "completed");
+  });
+
+  test("should execute planning phase", async () => {
+    await unifiedPlugin.initializeProject({
+      name: "PlanningTest",
+      objective: "Test planning phase",
+    });
+    await unifiedPlugin.executeResearchPhase();
+
+    const result = await unifiedPlugin.executePlanningPhase({
+      timeline: "2 weeks",
+      budget: "$5000",
+    });
+
+    assert.ok(result.corePlan);
+    assert.ok(result.integratedTimeline);
+    assert.ok(result.risks);
+    assert.ok(result.completedAt);
+
+    assert.ok(result.corePlan.objective);
+    assert.ok(result.corePlan.approach);
+    assert.ok(result.corePlan.steps);
+    assert.ok(result.corePlan.timeline);
+    assert.ok(result.corePlan.successCriteria);
+
+    assert.equal(ctx().phases.planning.status, "completed");
+  });
+
+  test("should execute execution phase", async () => {
+    await unifiedPlugin.initializeProject({
+      name: "ExecutionTest",
+      objective: "Test execution phase",
+    });
+    await unifiedPlugin.executeResearchPhase();
+    await unifiedPlugin.executePlanningPhase();
+
+    const progressCallback = (message: string): void => {
+      assert.equal(typeof message, "string");
+    };
+
+    const result = await unifiedPlugin.executeWorkingPhase(progressCallback);
+
+    assert.ok(result.coreWork);
+    assert.ok(result.metrics);
+    assert.ok(result.issues);
+    assert.ok(result.solutions);
+    assert.ok(result.completedAt);
+
+    assert.ok(Array.isArray(result.coreWork.steps));
+    assert.equal(ctx().phases.execution.status, "completed");
+  });
+
+  test("should execute review phase", async () => {
+    await unifiedPlugin.initializeProject({
+      name: "ReviewTest",
+      objective: "Test review phase",
+    });
+    await unifiedPlugin.executeResearchPhase();
+    await unifiedPlugin.executePlanningPhase();
+    await unifiedPlugin.executeWorkingPhase();
+
+    const result = await unifiedPlugin.executeReviewPhase({
+      quality: "high",
+      performance: "fast",
+    });
+
+    assert.ok(result.coreReview);
+    assert.ok(result.performanceReview);
+    assert.ok(result.processImprovements);
+    assert.ok(result.comprehensiveReport);
+    assert.ok(result.learnings);
+    assert.ok(result.recommendations);
+    assert.ok(result.completedAt);
+
+    assert.ok(result.coreReview.review);
+    assert.ok(Array.isArray(result.coreReview.learnings));
+
+    assert.equal(ctx().phases.review.status, "completed");
+    assert.ok(ctx().completedAt);
+  });
+
+  test("should execute complete workflow end-to-end", async () => {
+    const result = await unifiedPlugin.executeCompleteWorkflow(
+      {
+        name: "WorkflowTest",
+        objective: "Test complete workflow",
+        industry: "Software",
+        targetMarket: { segment: "Enterprise" },
+      },
+      {
+        researchContext: { repositoryPath: "./test-repo" },
+        progressCallback: (message) => {
+          assert.equal(typeof message, "string");
+        },
+      },
+    );
+
+    assert.equal(result.project, "WorkflowTest");
+    assert.ok(result.sessionId);
+    assert.ok(result.phases);
+    assert.ok(result.summary);
+    assert.ok(result.completedAt);
+
+    assert.ok(result.phases.initialization);
+    assert.ok(result.phases.research);
+    assert.ok(result.phases.planning);
+    assert.ok(result.phases.execution);
+    assert.ok(result.phases.review);
+
+    assert.equal(ctx().phases.review.status, "completed");
+  });
+
+  test("should get project status", async () => {
+    const emptyPlugin = new UnifiedContinuousImprovement({
+      workspace: join(testDir, "empty-workspace"),
+      verbose: false,
+    });
+
+    const emptyStatus = await emptyPlugin.getProjectStatus();
+    assert.equal(emptyStatus.status, "No active project");
+
+    await unifiedPlugin.initializeProject({
+      name: "StatusTest",
+      objective: "Test status reporting",
+    });
+
+    const status = await unifiedPlugin.getProjectStatus();
+
+    assert.equal(status.project, "StatusTest");
+    assert.ok(status.sessionId);
+    assert.ok(status.currentPhase);
+    assert.ok(status.phaseStatus);
+    assert.ok(status.progress);
+    assert.ok(status.nextSteps);
+
+    assert.equal(typeof status.progress!.completed, "number");
+    assert.equal(typeof status.progress!.total, "number");
+    assert.equal(typeof status.progress!.percentage, "number");
+  });
+
+  test("should handle errors gracefully", async () => {
+    const newPlugin = new UnifiedContinuousImprovement({
+      workspace: join(testDir, "error-test"),
+      verbose: false,
+    });
+
+    await assert.rejects(() => newPlugin.executeResearchPhase(), /No active session/);
+
+    await newPlugin.initializeProject({
+      name: "ErrorTest",
+      objective: "Test error handling",
+    });
+
+    await assert.rejects(
+      () => newPlugin.executePlanningPhase(),
+      /Research phase must be completed first/,
+    );
+  });
+
+  test("should generate next steps correctly", () => {
+    const nextSteps = unifiedPlugin.getNextSteps("research");
+    assert.ok(Array.isArray(nextSteps));
+    assert.ok(nextSteps.some((step) => step.toLowerCase().includes("brainstorm")));
+
+    const planningSteps = unifiedPlugin.getNextSteps("planning");
+    assert.ok(planningSteps.some((step) => step.toLowerCase().includes("plan")));
+
+    const completedSteps = unifiedPlugin.getNextSteps("completed");
+    assert.ok(
+      completedSteps.some(
+        (step) => step.includes("next iteration") || step.includes("Apply learnings"),
+      ),
+    );
+  });
+
+  test("should calculate progress correctly", () => {
+    ctx().phases = {
+      research: { status: "completed", startedAt: null },
+      planning: { status: "completed", startedAt: null },
+      execution: { status: "active", startedAt: null },
+      review: { status: "pending", startedAt: null },
+    };
+
+    const progress = unifiedPlugin.calculateProgress();
+
+    assert.equal(progress.completed, 2);
+    assert.equal(progress.total, 4);
+    assert.equal(progress.percentage, 50);
+  });
+
+  test("should identify current phase correctly", () => {
+    ctx().phases = {
+      research: { status: "completed", startedAt: null },
+      planning: { status: "active", startedAt: null },
+      execution: { status: "pending", startedAt: null },
+      review: { status: "pending", startedAt: null },
+    };
+    assert.equal(unifiedPlugin.getCurrentPhase(), "planning");
+
+    ctx().phases = {
+      research: { status: "completed", startedAt: null },
+      planning: { status: "completed", startedAt: null },
+      execution: { status: "completed", startedAt: null },
+      review: { status: "completed", startedAt: null },
+    };
+    assert.equal(unifiedPlugin.getCurrentPhase(), "completed");
+
+    ctx().phases = {
+      research: { status: "pending", startedAt: null },
+      planning: { status: "pending", startedAt: null },
+      execution: { status: "pending", startedAt: null },
+      review: { status: "pending", startedAt: null },
+    };
+    assert.equal(unifiedPlugin.getCurrentPhase(), "research");
+  });
+
+  test("should extract key insights from PM analysis", () => {
+    const mockPMAnalysis = {
+      summary: {
+        totalSkills: 2,
+        completedSkills: 2,
+        keyInsights: ["Insight 1", "Insight 2"],
+        recommendations: [],
+        risks: [],
+        opportunities: [],
+      },
+      results: {
+        skill1: { insights: ["Skill Insight 1"], timestamp: "t", savedTo: "x" },
+        skill2: { insights: ["Skill Insight 2", "Skill Insight 3"], timestamp: "t", savedTo: "x" },
+      },
+      savedTo: "mock",
+    };
+
+    const insights = unifiedPlugin.extractKeyInsights(mockPMAnalysis);
+
+    assert.ok(Array.isArray(insights));
+    assert.ok(insights.length <= 10);
+    assert.ok(insights.includes("Insight 1"));
+    assert.ok(insights.includes("Skill Insight 1"));
+  });
+
+  test("should aggregate risks from multiple sources", () => {
+    const corePlan = {
+      objective: "o",
+      approach: "a",
+      steps: [],
+      timeline: {},
+      resources: {},
+      risks: ["Risk 1", "Risk 2"],
+      mitigations: [],
+      decisions: [],
+      successCriteria: [],
+      timestamp: "t",
+    };
+    const gtmStrategy = { strategy: { risks: ["Risk 2", "Risk 3"] } };
+    const roadmap = { roadmap: { risks: ["Risk 4"] } };
+
+    const risks = unifiedPlugin.aggregateRisks(corePlan, gtmStrategy, roadmap);
+
+    assert.ok(Array.isArray(risks));
+    assert.equal(risks.length, 4);
+    for (const r of ["Risk 1", "Risk 2", "Risk 3", "Risk 4"]) {
+      assert.ok(risks.includes(r));
+    }
+  });
+
+  test("should save and load project context", async () => {
+    await unifiedPlugin.initializeProject({
+      name: "PersistenceTest",
+      objective: "Test persistence",
+    });
+
+    const contextPath = join(unifiedPlugin.options.workspace, "project-context.json");
+    const content = await readFile(contextPath, "utf8");
+    const savedContext = JSON.parse(content) as ProjectContext;
+
+    assert.equal(savedContext.name, "PersistenceTest");
+    assert.equal(savedContext.objective, "Test persistence");
+    assert.ok(savedContext.initializedAt);
+  });
+});
