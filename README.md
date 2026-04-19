@@ -103,6 +103,11 @@ Agent: **[Law 1: Research]** Searching for existing rate limiting...
 
 ## Install
 
+### Platform requirements
+
+- **Node.js** 18, 20, or 22
+- **bash** — required for the observation hooks (`hooks/observe.sh`, `hooks/session.sh`). Claude Code on macOS/Linux already uses bash. On **Windows**, install Git Bash or WSL and make sure `bash` is on `PATH`. If you don't have bash, you can still use MCP mode (`--mode mcp`) or paste `SKILL.md` directly into your agent — both paths are bash-free.
+
 ### Beginner (default) — just hooks, no setup needed
 
 ```bash
