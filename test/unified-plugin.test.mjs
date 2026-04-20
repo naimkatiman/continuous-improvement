@@ -274,6 +274,138 @@ describe("Unified Continuous Improvement Plugin", () => {
             assert.ok(risks.includes(r));
         }
     });
+    test("should derive integrated timeline dependencies and milestones", () => {
+        const corePlan = {
+            objective: "o",
+            approach: "a",
+            steps: [
+                { description: "Inspect current implementation", estimatedTime: "20 minutes" },
+                { description: "Implement smallest slice", estimatedTime: "45 minutes" },
+            ],
+            timeline: { estimated: "85 minutes" },
+            resources: {},
+            risks: [],
+            mitigations: [],
+            decisions: [],
+            successCriteria: [],
+            timestamp: "t",
+        };
+        const gtmStrategy = {
+            timeline: { totalDuration: "12 weeks" },
+            strategy: {
+                launch: {
+                    phases: [
+                        { phase: "Pre-launch", duration: "2 weeks" },
+                        { phase: "Launch", duration: "1 week" },
+                    ],
+                },
+            },
+        };
+        const roadmap = {
+            roadmap: {
+                timeline: { quarters: { "Q1 2024": ["Inspect current implementation"] } },
+                initiatives: [{ name: "Mobile App Launch", timeline: "Q2 2024", priority: "High" }],
+                dependencies: ["Mobile app depends on API development"],
+            },
+        };
+        const timeline = unifiedPlugin.createIntegratedTimeline(corePlan, gtmStrategy, roadmap);
+        assert.ok(Array.isArray(timeline.dependencies));
+        assert.ok(Array.isArray(timeline.milestones));
+        assert.ok(timeline.dependencies.some((dependency) => String(dependency).includes("depends on")));
+        assert.ok(timeline.milestones.some((milestone) => JSON.stringify(milestone).includes("Mobile App Launch")));
+    });
+    test("should derive execution metrics from work results", () => {
+        const metrics = unifiedPlugin.trackExecutionMetrics({
+            steps: [
+                {
+                    step: "Implement feature slice",
+                    status: "completed",
+                    startTime: "2024-01-01T10:00:00.000Z",
+                    endTime: "2024-01-01T10:40:00.000Z",
+                    issues: [],
+                    solutions: [],
+                    artifacts: [],
+                },
+                {
+                    step: "Run verification and regression checks",
+                    status: "completed",
+                    startTime: "2024-01-01T10:40:00.000Z",
+                    endTime: "2024-01-01T11:00:00.000Z",
+                    issues: ["Fix failing test"],
+                    solutions: ["Adjusted assertion"],
+                    artifacts: [],
+                },
+            ],
+            issues: ["Fix failing test"],
+            solutions: ["Adjusted assertion"],
+            timestamp: "2024-01-01T11:00:00.000Z",
+        });
+        assert.equal(metrics.stepsCompleted, 2);
+        assert.equal(metrics.issuesResolved, 1);
+        assert.equal(metrics.timeSpent, "1 hour");
+        assert.ok(metrics.qualityScore >= 0.7);
+    });
+    test("should generate workflow summary and detailed report from project context", async () => {
+        await unifiedPlugin.initializeProject({
+            name: "SummaryTest",
+            objective: "Validate reporting",
+        });
+        ctx().phases = {
+            research: { status: "completed", startedAt: "2024-01-01T09:00:00.000Z" },
+            planning: { status: "completed", startedAt: "2024-01-01T09:30:00.000Z" },
+            execution: { status: "completed", startedAt: "2024-01-01T10:00:00.000Z" },
+            review: { status: "completed", startedAt: "2024-01-01T11:00:00.000Z" },
+        };
+        ctx().executionResults = {
+            completedAt: "2024-01-01T11:00:00.000Z",
+            coreWork: {
+                steps: [],
+                issues: ["Regression risk"],
+                solutions: ["Added verification"],
+                timestamp: "2024-01-01T11:00:00.000Z",
+            },
+            issues: ["Regression risk"],
+            metrics: {
+                stepsCompleted: 3,
+                issuesResolved: 1,
+                timeSpent: "1 hour",
+                qualityScore: 0.8,
+            },
+            solutions: ["Added verification"],
+            toolExecution: null,
+        };
+        ctx().reviewResults = {
+            completedAt: "2024-01-01T11:30:00.000Z",
+            coreReview: {
+                review: {
+                    sessionId: "session-1",
+                    objective: "Validate reporting",
+                    overallScore: 88,
+                    strengths: ["Kept scope tight"],
+                    weaknesses: [],
+                    improvements: ["Expand automated coverage"],
+                    unexpectedOutcomes: [],
+                    processMetrics: {},
+                    outcomeMetrics: {},
+                    recommendations: ["Expand automated coverage"],
+                    timestamp: "2024-01-01T11:30:00.000Z",
+                },
+                learnings: [],
+            },
+            comprehensiveReport: {},
+            learnings: [],
+            performanceReview: {},
+            processImprovements: {},
+            recommendations: ["Expand automated coverage"],
+        };
+        const summary = unifiedPlugin.generateWorkflowSummary();
+        const report = unifiedPlugin.generateComprehensiveReport();
+        assert.match(summary, /SummaryTest/);
+        assert.match(summary, /recommendation/);
+        assert.match(report.executiveSummary, /SummaryTest/);
+        assert.equal(report.detailedAnalysis.progress.percentage, 100);
+        assert.ok(Array.isArray(report.recommendations));
+    });
     test("should save and load project context", async () => {
         await unifiedPlugin.initializeProject({
             name: "PersistenceTest",

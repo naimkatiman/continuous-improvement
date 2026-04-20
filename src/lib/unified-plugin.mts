@@ -171,6 +171,48 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function roundTo(value: number, decimals = 2): number {
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
+}
+
+function parseMinutes(value: string | undefined): number {
+  if (!value) {
+    return 0;
+  }
+
+  const normalized = value.toLowerCase();
+  const hourMatch = normalized.match(/(\d+)\s*hour/);
+  if (hourMatch) {
+    return Number.parseInt(hourMatch[1] ?? "0", 10) * 60;
+  }
+
+  const minuteMatch = normalized.match(/(\d+)\s*minute/);
+  if (minuteMatch) {
+    return Number.parseInt(minuteMatch[1] ?? "0", 10);
+  }
+
+  return 0;
+}
+
+function formatMinutes(totalMinutes: number): string {
+  const minutes = Math.max(0, Math.round(totalMinutes));
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+
+  if (hours === 0) {
+    return `${minutes} minutes`;
+  }
+  if (remainingMinutes === 0) {
+    return hours === 1 ? "1 hour" : `${hours} hours`;
+  }
+  return `${hours}h ${remainingMinutes}m`;
+}
+
 export default class UnifiedContinuousImprovement {
   public readonly options: ResolvedUnifiedOptions;
   public readonly cliAnything: CLIAnything;
@@ -533,8 +575,8 @@ export default class UnifiedContinuousImprovement {
         marketing: this.pickObject(gtmStrategy, ["timeline"]) ?? {},
         product: this.pickObject(roadmap, ["roadmap", "timeline"]) ?? {},
       },
-      dependencies: this.extractDependencies(),
-      milestones: this.extractMilestones(),
+      dependencies: this.extractDependencies(corePlan, gtmStrategy, roadmap),
+      milestones: this.extractMilestones(corePlan, gtmStrategy, roadmap),
     };
   }
 
@@ -556,37 +598,76 @@ export default class UnifiedContinuousImprovement {
   }
 
   executeGeneratedTools(cliTools: GenerateCLIResult, workResults: WorkLog): ToolExecution {
+    const integrationPoints = this.identifyIntegrationPoints(cliTools, workResults);
     return {
       toolsGenerated: cliTools.commands?.length ?? 0,
-      executionStatus: "ready",
-      integrationPoints: this.identifyIntegrationPoints(workResults),
+      executionStatus:
+        (cliTools.commands?.length ?? 0) === 0
+          ? "no-tools-generated"
+          : integrationPoints.length > 0
+            ? "integration-ready"
+            : "generated",
+      integrationPoints,
     };
   }
 
-  identifyIntegrationPoints(workResults: WorkLog): string[] {
-    const integrationPoints = [
-      "build automation",
-      "testing automation",
-      "deployment automation",
-    ];
+  identifyIntegrationPoints(cliTools: GenerateCLIResult, workResults: WorkLog): string[] {
+    const integrationPoints = new Set<string>();
 
-    if (!workResults.steps.length) {
-      return integrationPoints.slice(0, 1);
+    for (const command of cliTools.commands ?? []) {
+      switch (command.category) {
+        case "build":
+          integrationPoints.add("build automation");
+          break;
+        case "testing":
+        case "quality":
+          integrationPoints.add("testing automation");
+          break;
+        case "deployment":
+          integrationPoints.add("deployment automation");
+          break;
+        case "development":
+        case "lifecycle":
+        case "core":
+          integrationPoints.add("developer workflow");
+          break;
+        case "setup":
+          integrationPoints.add("environment setup");
+          break;
+        default:
+          break;
+      }
     }
 
-    return integrationPoints.filter((point) =>
-      workResults.steps.some(
-        (step) => step.step && step.step.toLowerCase().includes(point),
-      ),
-    );
+    for (const step of workResults.steps) {
+      const description = step.step.toLowerCase();
+      if (description.includes("verify") || description.includes("test")) {
+        integrationPoints.add("testing automation");
+      }
+      if (description.includes("build")) {
+        integrationPoints.add("build automation");
+      }
+      if (description.includes("deploy")) {
+        integrationPoints.add("deployment automation");
+      }
+      if (description.includes("document")) {
+        integrationPoints.add("documentation workflow");
+      }
+    }
+
+    if (integrationPoints.size === 0 && workResults.steps.length > 0) {
+      integrationPoints.add("developer workflow");
+    }
+
+    return Array.from(integrationPoints);
   }
 
   trackExecutionMetrics(workResults: WorkLog): ExecutionMetrics {
     return {
       stepsCompleted: workResults.steps.filter((s) => s.status === "completed").length,
       issuesResolved: workResults.solutions.length,
-      timeSpent: this.calculateTimeSpent(),
-      qualityScore: this.calculateQualityScore(),
+      timeSpent: this.calculateTimeSpent(workResults),
+      qualityScore: this.calculateQualityScore(workResults),
     };
   }
 
@@ -594,11 +675,24 @@ export default class UnifiedContinuousImprovement {
     executionResults: ExecutionResults,
     plannedMetrics: Record<string, unknown> | undefined,
   ): Record<string, unknown> {
+    const variance = this.calculateMetricVariance(
+      executionResults.metrics,
+      plannedMetrics?.metrics,
+    );
+    const performanceScore = this.calculatePerformanceScore(
+      executionResults.metrics,
+      variance,
+    );
+
     return {
       actualMetrics: executionResults.metrics,
       plannedMetrics: plannedMetrics?.metrics,
-      variance: this.calculateMetricVariance(),
-      performanceScore: this.calculatePerformanceScore(),
+      variance,
+      performanceScore,
+      recommendations: this.buildPerformanceRecommendations(
+        executionResults.metrics,
+        variance,
+      ),
     };
   }
 
@@ -681,53 +775,384 @@ export default class UnifiedContinuousImprovement {
     return stepMap[currentPhase] ?? ["Initialize project"];
   }
 
-  extractDependencies(): unknown[] {
-    return [];
+  extractDependencies(
+    corePlan: Plan,
+    gtmStrategy: Record<string, unknown> | null,
+    roadmap: Record<string, unknown> | null,
+  ): unknown[] {
+    const dependencies = new Set<string>();
+    for (let i = 1; i < corePlan.steps.length; i++) {
+      const current = corePlan.steps[i]?.description;
+      const previous = corePlan.steps[i - 1]?.description;
+      if (current && previous) {
+        dependencies.add(`${current} depends on ${previous}`);
+      }
+    }
+
+    const roadmapDependencies = this.pickArray(roadmap, ["roadmap", "dependencies"]);
+    if (roadmapDependencies) {
+      for (const dependency of roadmapDependencies) {
+        if (typeof dependency === "string") {
+          dependencies.add(dependency);
+        }
+      }
+    }
+
+    const launchPhases = this.pickArray(gtmStrategy, ["strategy", "launch", "phases"]);
+    if (launchPhases) {
+      for (let i = 1; i < launchPhases.length; i++) {
+        const previous = this.pickString(launchPhases[i - 1], ["phase"]);
+        const current = this.pickString(launchPhases[i], ["phase"]);
+        if (previous && current) {
+          dependencies.add(`Launch phase "${current}" follows "${previous}"`);
+        }
+      }
+    }
+
+    return Array.from(dependencies);
   }
-  extractMilestones(): unknown[] {
-    return [];
+  extractMilestones(
+    corePlan: Plan,
+    gtmStrategy: Record<string, unknown> | null,
+    roadmap: Record<string, unknown> | null,
+  ): unknown[] {
+    const milestones = new Map<string, Record<string, unknown>>();
+
+    corePlan.steps.forEach((step, index) => {
+      milestones.set(step.description, {
+        name: step.description,
+        source: "core-plan",
+        order: index + 1,
+        eta: step.estimatedTime ?? null,
+      });
+    });
+
+    const roadmapInitiatives = this.pickArray(roadmap, ["roadmap", "initiatives"]);
+    if (roadmapInitiatives) {
+      for (const initiative of roadmapInitiatives) {
+        const name = this.pickString(initiative, ["name"]);
+        if (!name) continue;
+        milestones.set(name, {
+          name,
+          source: "roadmap",
+          timeline: this.pickString(initiative, ["timeline"]),
+          priority: this.pickString(initiative, ["priority"]),
+        });
+      }
+    }
+
+    const launchPhases = this.pickArray(gtmStrategy, ["strategy", "launch", "phases"]);
+    if (launchPhases) {
+      for (const phase of launchPhases) {
+        const name = this.pickString(phase, ["phase"]);
+        if (!name) continue;
+        milestones.set(name, {
+          name,
+          source: "gtm-launch",
+          duration: this.pickString(phase, ["duration"]),
+        });
+      }
+    }
+
+    return Array.from(milestones.values());
   }
-  calculateTimeSpent(): string {
-    return "2 hours";
+  calculateTimeSpent(workResults: WorkLog): string {
+    let totalMinutes = 0;
+
+    for (const step of workResults.steps) {
+      const actualMinutes = this.durationBetween(step.startTime, step.endTime);
+      totalMinutes += actualMinutes > 0 ? actualMinutes : this.estimateStepMinutes(step.step);
+    }
+
+    if (totalMinutes === 0 && workResults.steps.length > 0) {
+      totalMinutes = workResults.steps.length * 15;
+    }
+
+    return formatMinutes(totalMinutes);
   }
-  calculateQualityScore(): number {
-    return 0.85;
+  calculateQualityScore(workResults: WorkLog): number {
+    const totalSteps = Math.max(workResults.steps.length, 1);
+    const completedSteps = workResults.steps.filter((step) => step.status === "completed").length;
+    const failedSteps = workResults.steps.filter((step) => step.status === "failed").length;
+    const unresolvedIssues = Math.max(0, workResults.issues.length - workResults.solutions.length);
+
+    const completionRatio = completedSteps / totalSteps;
+    const resolutionRatio = Math.min(workResults.solutions.length, workResults.issues.length || 1) /
+      totalSteps;
+    const score =
+      0.45 +
+      completionRatio * 0.35 +
+      resolutionRatio * 0.15 -
+      (failedSteps / totalSteps) * 0.2 -
+      (unresolvedIssues / totalSteps) * 0.1;
+
+    return roundTo(clamp(score, 0, 1));
   }
-  calculateMetricVariance(): Record<string, unknown> {
-    return {};
+  calculateMetricVariance(
+    actualMetrics: ExecutionMetrics,
+    plannedMetrics: unknown,
+  ): Record<string, unknown> {
+    const actualMetricKeys = Object.keys(actualMetrics);
+    const plannedMetricGroups =
+      plannedMetrics && typeof plannedMetrics === "object" && !Array.isArray(plannedMetrics)
+        ? Object.keys(plannedMetrics as Record<string, unknown>)
+        : [];
+    const coverageRatio =
+      plannedMetricGroups.length === 0
+        ? 1
+        : roundTo(
+            clamp(actualMetricKeys.length / plannedMetricGroups.length, 0, 1),
+          );
+
+    return {
+      actualMetricKeys,
+      plannedMetricGroups,
+      coverageRatio,
+      missingMetricGroups: plannedMetricGroups.slice(actualMetricKeys.length),
+    };
   }
-  calculatePerformanceScore(): number {
-    return 0.8;
+  calculatePerformanceScore(
+    actualMetrics: ExecutionMetrics,
+    variance: Record<string, unknown>,
+  ): number {
+    const coverageRatio =
+      typeof variance.coverageRatio === "number" ? variance.coverageRatio : 0.5;
+    const deliveryBonus = actualMetrics.stepsCompleted > 0 ? 0.1 : 0;
+    return roundTo(
+      clamp(actualMetrics.qualityScore * 0.6 + coverageRatio * 0.3 + deliveryBonus, 0, 1),
+    );
   }
   identifyProcessEfficiencies(): unknown[] {
-    return [];
+    const context = this.projectContext as ProjectContext;
+    const efficiencies: string[] = [];
+
+    if (context.researchResults?.pmInsights.length) {
+      efficiencies.push(
+        `Research captured ${context.researchResults.pmInsights.length} PM insight(s) before planning`,
+      );
+    }
+    if (context.planningResults?.corePlan.steps.length) {
+      efficiencies.push(
+        `Planning broke the work into ${context.planningResults.corePlan.steps.length} executable step(s)`,
+      );
+    }
+    if (context.executionResults?.solutions.length) {
+      efficiencies.push(
+        `Execution resolved ${context.executionResults.solutions.length} issue(s) during delivery`,
+      );
+    }
+    if (context.reviewResults?.learnings.length) {
+      efficiencies.push(
+        `Review captured ${context.reviewResults.learnings.length} reusable learning(s)`,
+      );
+    }
+
+    return efficiencies;
   }
   analyzeBottlenecks(): unknown[] {
-    return [];
+    const context = this.projectContext as ProjectContext;
+    const bottlenecks: string[] = [];
+
+    if (
+      context.executionResults &&
+      context.executionResults.issues.length > context.executionResults.solutions.length
+    ) {
+      bottlenecks.push("Execution surfaced more issues than documented solutions");
+    }
+    if (!context.researchResults?.cliTools && context.executionResults?.coreWork.steps.length) {
+      bottlenecks.push("No generated CLI integration was available during execution");
+    }
+    if (
+      context.reviewResults &&
+      context.reviewResults.recommendations.length === 0
+    ) {
+      bottlenecks.push("Review phase closed without concrete follow-up recommendations");
+    }
+
+    return bottlenecks.length > 0
+      ? bottlenecks
+      : ["No material workflow bottlenecks detected from the recorded state"];
   }
   identifyImprovementOpportunities(): string[] {
-    return [];
+    const context = this.projectContext as ProjectContext;
+    const opportunities = new Set<string>();
+
+    for (const risk of context.planningResults?.risks ?? []) {
+      opportunities.add(`Mitigate planning risk: ${risk}`);
+    }
+    for (const improvement of context.reviewResults?.coreReview.review.improvements ?? []) {
+      opportunities.add(improvement);
+    }
+    for (const recommendation of context.reviewResults?.recommendations ?? []) {
+      opportunities.add(recommendation);
+    }
+    if (!context.researchResults?.cliTools) {
+      opportunities.add("Generate repo-aware CLI tooling for repetitive workflow steps");
+    }
+
+    return Array.from(opportunities).slice(0, 6);
   }
   assessAutomationPotential(): string {
-    return "high";
+    const context = this.projectContext as ProjectContext;
+    const toolCount = context.researchResults?.cliTools?.commands.length ?? 0;
+    const integrationCount = context.executionResults?.toolExecution?.integrationPoints.length ?? 0;
+
+    if (toolCount >= 5 || integrationCount >= 3) {
+      return "high";
+    }
+    if (toolCount > 0 || integrationCount > 0 || (context.executionResults?.coreWork.steps.length ?? 0) >= 4) {
+      return "medium";
+    }
+    return "low";
   }
   createExecutiveSummary(): string {
-    return "Project completed successfully";
+    const context = this.projectContext as ProjectContext;
+    if (!context.name) {
+      return "No active project context is available.";
+    }
+
+    const progress = this.calculateProgress();
+    const issues = context.executionResults?.issues.length ?? 0;
+    const learnings = context.reviewResults?.learnings.length ?? 0;
+    return `${context.name} reached ${progress.completed}/${progress.total} workflow phases (${progress.percentage}%) with ${issues} tracked issue(s) and ${learnings} captured learning(s).`;
   }
   createDetailedAnalysis(): Record<string, unknown> {
-    return {};
+    const context = this.projectContext as ProjectContext;
+    return {
+      project: context.name ?? null,
+      objective: context.objective ?? null,
+      currentPhase: this.getCurrentPhase(),
+      progress: this.calculateProgress(),
+      phaseStatus: context.phases ?? {},
+      research: {
+        pmInsights: context.researchResults?.pmInsights.length ?? 0,
+        recommendations: context.researchResults?.recommendations.length ?? 0,
+        generatedCliCommands: context.researchResults?.cliTools?.commands.length ?? 0,
+      },
+      planning: {
+        steps: context.planningResults?.corePlan.steps.length ?? 0,
+        risks: context.planningResults?.risks.length ?? 0,
+        milestones: context.planningResults?.integratedTimeline.milestones.length ?? 0,
+      },
+      execution: {
+        metrics: context.executionResults?.metrics ?? null,
+        issues: context.executionResults?.issues.length ?? 0,
+        solutions: context.executionResults?.solutions.length ?? 0,
+      },
+      review: {
+        overallScore: context.reviewResults?.coreReview.review.overallScore ?? null,
+        recommendations: context.reviewResults?.recommendations.length ?? 0,
+      },
+    };
   }
   createStrategicRecommendations(): string[] {
-    return [];
+    const context = this.projectContext as ProjectContext;
+    const recommendations = new Set<string>();
+
+    for (const nextStep of this.getNextSteps(this.getCurrentPhase())) {
+      recommendations.add(nextStep);
+    }
+    for (const recommendation of context.reviewResults?.recommendations ?? []) {
+      recommendations.add(recommendation);
+    }
+    for (const risk of context.planningResults?.risks.slice(0, 3) ?? []) {
+      recommendations.add(`Reduce delivery risk: ${risk}`);
+    }
+
+    return Array.from(recommendations).slice(0, 6);
   }
   planNextPhase(): string {
-    return "Ready for next iteration";
+    const currentPhase = this.getCurrentPhase();
+    const strategicRecommendations = this.createStrategicRecommendations();
+
+    if (currentPhase === "completed") {
+      return strategicRecommendations[0] ?? "Start the next iteration from review learnings.";
+    }
+
+    const nextStep = this.getNextSteps(currentPhase)[0];
+    return nextStep
+      ? `Continue by prioritizing: ${nextStep}`
+      : "Continue with the next queued workflow phase.";
   }
   createAppendices(): Record<string, unknown> {
-    return {};
+    const context = this.projectContext as ProjectContext;
+    return {
+      sessionId: context.sessionId ?? null,
+      cliOutputPath: context.researchResults?.cliTools?.outputPath ?? null,
+      topRisks: context.planningResults?.risks.slice(0, 5) ?? [],
+      learnings:
+        context.reviewResults?.learnings.slice(0, 5).map((learning) => ({
+          summary: learning.summary,
+          confidence: learning.confidence,
+          category: learning.category,
+        })) ?? [],
+    };
   }
   generateWorkflowSummary(): string {
-    return "All phases completed successfully";
+    const context = this.projectContext as ProjectContext;
+    if (!context.name) {
+      return "No workflow has been started.";
+    }
+
+    const progress = this.calculateProgress();
+    const issues = context.executionResults?.issues.length ?? 0;
+    const recommendations = context.reviewResults?.recommendations.length ?? 0;
+    const learnings = context.reviewResults?.learnings.length ?? 0;
+    return `${context.name}: ${progress.completed}/${progress.total} phases completed, ${issues} issue(s) tracked, ${recommendations} recommendation(s) generated, ${learnings} learning(s) captured.`;
+  }
+
+  buildPerformanceRecommendations(
+    actualMetrics: ExecutionMetrics,
+    variance: Record<string, unknown>,
+  ): string[] {
+    const recommendations: string[] = [];
+    const coverageRatio =
+      typeof variance.coverageRatio === "number" ? variance.coverageRatio : 1;
+    const missingGroups = Array.isArray(variance.missingMetricGroups)
+      ? variance.missingMetricGroups
+      : [];
+
+    if (actualMetrics.qualityScore < 0.75) {
+      recommendations.push("Improve verification depth to raise execution quality");
+    }
+    if (coverageRatio < 0.75) {
+      recommendations.push("Align execution metrics more closely with planned measurement areas");
+    }
+    if (missingGroups.length > 0) {
+      recommendations.push(
+        `Fill metric gaps for: ${missingGroups.slice(0, 2).join(", ")}`,
+      );
+    }
+
+    return recommendations;
+  }
+
+  durationBetween(startTime: string, endTime: string | undefined): number {
+    if (!endTime) {
+      return 0;
+    }
+
+    const start = new Date(startTime).getTime();
+    const end = new Date(endTime).getTime();
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+      return 0;
+    }
+
+    return Math.max(1, Math.round((end - start) / 60000));
+  }
+
+  estimateStepMinutes(step: string): number {
+    const normalized = step.toLowerCase();
+    if (normalized.includes("implement") || normalized.includes("build")) return 45;
+    if (
+      normalized.includes("verify") ||
+      normalized.includes("test") ||
+      normalized.includes("validate")
+    ) {
+      return 20;
+    }
+    if (normalized.includes("document") || normalized.includes("review")) return 15;
+    return 30;
   }
 
   log(message: string): void {
@@ -766,6 +1191,15 @@ export default class UnifiedContinuousImprovement {
       current = (current as Record<string, unknown>)[key];
     }
     return Array.isArray(current) ? current : null;
+  }
+
+  private pickString(source: unknown, path: string[]): string | null {
+    let current = source;
+    for (const key of path) {
+      if (!current || typeof current !== "object") return null;
+      current = (current as Record<string, unknown>)[key];
+    }
+    return typeof current === "string" ? current : null;
   }
 }
 

@@ -46,13 +46,19 @@ describe("Compound Engineering", () => {
 
     const brainstormResults = await compoundEngineering.brainstorm({
       context: "Some context for brainstorming",
+      timeline: "2 weeks",
     });
 
-    assert.ok(brainstormResults.ideas);
-    assert.ok(brainstormResults.constraints);
-    assert.ok(brainstormResults.assumptions);
-    assert.ok(brainstormResults.risks);
-    assert.ok(brainstormResults.opportunities);
+    assert.ok(brainstormResults.ideas.length > 0);
+    assert.ok(brainstormResults.constraints.length > 0);
+    assert.ok(brainstormResults.assumptions.length > 0);
+    assert.ok(brainstormResults.risks.length > 0);
+    assert.ok(brainstormResults.opportunities.length > 0);
+    assert.ok(
+      brainstormResults.constraints.some((constraint) =>
+        constraint.toLowerCase().includes("timeline"),
+      ),
+    );
     assert.ok(brainstormResults.timestamp);
   });
 
@@ -78,6 +84,9 @@ describe("Compound Engineering", () => {
     assert.ok(plan.risks);
     assert.ok(plan.mitigations);
     assert.ok(plan.successCriteria);
+    assert.ok(plan.decisions.length >= 2);
+    assert.ok((plan.resources.tools as unknown[]).length > 0);
+    assert.ok((plan.timeline.estimated as string).length > 0);
     assert.ok(plan.timestamp);
   });
 
@@ -180,15 +189,35 @@ describe("Compound Engineering", () => {
 
   test("createExecutionSteps returns structured steps", () => {
     const steps = compoundEngineering.createExecutionSteps(
-      { description: "Test approach" },
-      [],
+      { description: "Build a test API integration" },
+      ["API contract must remain stable"],
     );
     assert.ok(Array.isArray(steps));
     assert.ok(steps.length > 0);
+    assert.ok(
+      steps.some((step) => step.description.toLowerCase().includes("validate constraints")),
+    );
+    assert.ok(
+      steps.some((step) => step.description.toLowerCase().includes("verification")),
+    );
     for (const s of steps) {
       assert.ok(s.description);
       assert.ok(s.estimatedTime);
     }
+  });
+
+  test("reviewPhase identifies weaknesses for shallow brainstorming output", () => {
+    const review = compoundEngineering.reviewPhase("brainstorming", {
+      ideas: [],
+      constraints: [],
+      assumptions: [],
+      risks: [],
+      opportunities: [],
+      timestamp: new Date().toISOString(),
+    });
+
+    assert.ok(review.weaknesses.length > 0);
+    assert.ok(review.improvements.length > 0);
   });
 
   test("should calculate process metrics correctly", () => {

@@ -7,8 +7,8 @@
  * language models can drive automatically.
  */
 
+import { existsSync } from "node:fs";
 import { access, chmod, mkdir, readFile, writeFile } from "node:fs/promises";
-import { execSync } from "node:child_process";
 import { join } from "node:path";
 
 export type CommandType = "script" | "binary" | "generated";
@@ -170,17 +170,16 @@ export default class CLIAnything {
     if (allDeps.python || allDeps["python-shell"]) return "python-wrapper";
     if (allDeps.docker || allDeps["dockerode"]) return "docker-tool";
 
-    try {
-      const files = execSync("ls -la", { cwd: repoPath, encoding: "utf8" });
-      if (files.includes("Dockerfile")) return "docker-project";
-      if (files.includes("requirements.txt") || files.includes("setup.py")) {
-        return "python-project";
-      }
-      if (files.includes("Cargo.toml")) return "rust-project";
-      if (files.includes("go.mod")) return "go-project";
-    } catch {
-      // Directory listing failed; fall through.
+    if (existsSync(join(repoPath, "Dockerfile"))) return "docker-project";
+    if (
+      existsSync(join(repoPath, "requirements.txt")) ||
+      existsSync(join(repoPath, "setup.py")) ||
+      existsSync(join(repoPath, "pyproject.toml"))
+    ) {
+      return "python-project";
     }
+    if (existsSync(join(repoPath, "Cargo.toml"))) return "rust-project";
+    if (existsSync(join(repoPath, "go.mod"))) return "go-project";
 
     return "generic";
   }

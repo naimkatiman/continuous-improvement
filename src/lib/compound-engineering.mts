@@ -143,6 +143,51 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function formatMinutes(totalMinutes: number): string {
+  const minutes = Math.max(0, Math.round(totalMinutes));
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+
+  if (hours === 0) {
+    return `${minutes} minutes`;
+  }
+  if (remainingMinutes === 0) {
+    return hours === 1 ? "1 hour" : `${hours} hours`;
+  }
+  return `${hours}h ${remainingMinutes}m`;
+}
+
+function parseEstimatedMinutes(value: string | undefined): number {
+  if (!value) {
+    return 0;
+  }
+
+  const normalized = value.toLowerCase();
+  const rangeMatch = normalized.match(/(\d+)\s*-\s*(\d+)/);
+  if (rangeMatch) {
+    const low = Number.parseInt(rangeMatch[1] ?? "0", 10);
+    const high = Number.parseInt(rangeMatch[2] ?? "0", 10);
+    const average = Math.round((low + high) / 2);
+    return normalized.includes("hour") ? average * 60 : average;
+  }
+
+  const hourMatch = normalized.match(/(\d+)\s*hour/);
+  if (hourMatch) {
+    return Number.parseInt(hourMatch[1] ?? "0", 10) * 60;
+  }
+
+  const minuteMatch = normalized.match(/(\d+)\s*minute/);
+  if (minuteMatch) {
+    return Number.parseInt(minuteMatch[1] ?? "0", 10);
+  }
+
+  return 0;
+}
+
 export default class CompoundEngineering {
   public readonly options: ResolvedCompoundOptions;
   public currentSession: Session | null = null;
@@ -185,24 +230,21 @@ export default class CompoundEngineering {
 
   async brainstorm(context: Record<string, unknown> = {}): Promise<BrainstormResults> {
     const session = this.requireSession();
+    const phaseStart = new Date().toISOString();
     session.phase = "brainstorming";
+    session.phases.brainstorming.startTime ||= phaseStart;
     session.phases.brainstorming.status = "active";
 
     const relevantLearnings = this.getRelevantLearnings("brainstorming");
-    // Prompt is generated purely for downstream callers (e.g. LLMs). We still
-    // produce an empty structure so the pipeline continues deterministically.
-    void this.generateBrainstormPrompt(session.objective, context, relevantLearnings);
-
-    const brainstormResults: BrainstormResults = {
-      ideas: [],
-      constraints: [],
-      assumptions: [],
-      risks: [],
-      opportunities: [],
-      timestamp: new Date().toISOString(),
-    };
+    const brainstormResults = this.generateBrainstormResults(
+      session.objective,
+      context,
+      relevantLearnings,
+    );
 
     session.artifacts.brainstorming = brainstormResults;
+    session.phases.brainstorming.endTime = new Date().toISOString();
+    session.phases.brainstorming.status = "completed";
     await this.saveSession();
 
     this.log(`💭 Brainstorming phase completed`);
@@ -214,8 +256,11 @@ export default class CompoundEngineering {
     preferences: Record<string, unknown> = {},
   ): Promise<Plan> {
     const session = this.requireSession();
+    const phaseStart = new Date().toISOString();
     session.phase = "planning";
     session.phases.brainstorming.status = "completed";
+    session.phases.brainstorming.endTime ||= phaseStart;
+    session.phases.planning.startTime ||= phaseStart;
     session.phases.planning.status = "active";
 
     const normalized: BrainstormResults = {
@@ -232,6 +277,8 @@ export default class CompoundEngineering {
 
     session.artifacts.planning = plan;
     session.decisions.push(...plan.decisions);
+    session.phases.planning.endTime = new Date().toISOString();
+    session.phases.planning.status = "completed";
     await this.saveSession();
 
     this.log(`📋 Planning phase completed`);
@@ -243,8 +290,11 @@ export default class CompoundEngineering {
     progressCallback: ((message: string) => void) | null = null,
   ): Promise<WorkLog> {
     const session = this.requireSession();
+    const phaseStart = new Date().toISOString();
     session.phase = "working";
     session.phases.planning.status = "completed";
+    session.phases.planning.endTime ||= phaseStart;
+    session.phases.working.startTime ||= phaseStart;
     session.phases.working.status = "active";
 
     const workLog: WorkLog = {
@@ -265,6 +315,8 @@ export default class CompoundEngineering {
     }
 
     session.artifacts.working = workLog;
+    session.phases.working.endTime = new Date().toISOString();
+    session.phases.working.status = "completed";
     await this.saveSession();
 
     this.log(`🔧 Working phase completed`);
@@ -276,8 +328,11 @@ export default class CompoundEngineering {
     criteria: unknown = null,
   ): Promise<ReviewOutput> {
     const session = this.requireSession();
+    const phaseStart = new Date().toISOString();
     session.phase = "reviewing";
     session.phases.working.status = "completed";
+    session.phases.working.endTime ||= phaseStart;
+    session.phases.reviewing.startTime ||= phaseStart;
     session.phases.reviewing.status = "active";
 
     const normalized: WorkLog = {
@@ -342,22 +397,27 @@ Structure your response as JSON with keys: ideas, constraints, assumptions, risk
     preferences: Record<string, unknown>,
     relevantLearnings: Learning[],
   ): Plan {
-    void preferences;
+    const approach = this.selectApproach(brainstormResults.ideas);
+    const steps = this.createExecutionSteps(approach, brainstormResults.constraints);
+    const decisions = this.buildPlanDecisions(
+      objective,
+      brainstormResults.constraints,
+      relevantLearnings,
+      preferences,
+    );
 
     const plan: Plan = {
       objective,
-      approach: this.selectApproach(brainstormResults.ideas),
-      steps: [],
-      timeline: this.estimateTimeline(),
-      resources: this.identifyResources(),
+      approach,
+      steps,
+      timeline: this.estimateTimeline(steps),
+      resources: this.identifyResources(steps, brainstormResults.constraints, relevantLearnings),
       risks: brainstormResults.risks,
       mitigations: this.createMitigations(brainstormResults.risks),
-      decisions: [],
-      successCriteria: this.defineSuccessCriteria(),
+      decisions,
+      successCriteria: this.defineSuccessCriteria(objective, brainstormResults.constraints),
       timestamp: new Date().toISOString(),
     };
-
-    plan.steps = this.createExecutionSteps(plan.approach, brainstormResults.constraints);
 
     if (relevantLearnings.length > 0) {
       plan.considerations = relevantLearnings.map((l) => l.summary);
@@ -520,27 +580,104 @@ Structure your response as JSON with keys: ideas, constraints, assumptions, risk
   }
 
   selectApproach(ideas: Array<string | Idea>): Idea | string {
-    return ideas[0] ?? { description: "Default approach", pros: [], cons: [] };
+    if (ideas.length === 0) {
+      return {
+        description: "Incremental implementation with explicit verification checkpoints",
+        pros: ["Keeps scope tight", "Reduces regressions"],
+        cons: [],
+      };
+    }
+
+    const scoredIdeas = ideas.map((idea, index) => {
+      if (typeof idea === "string") {
+        return { idea, score: 1 - index * 0.01 };
+      }
+
+      const pros = idea.pros?.length ?? 0;
+      const cons = idea.cons?.length ?? 0;
+      const hasDescription = idea.description ? 1 : 0;
+      return {
+        idea,
+        score: pros * 2 + hasDescription - cons - index * 0.01,
+      };
+    });
+
+    scoredIdeas.sort((left, right) => right.score - left.score);
+    return scoredIdeas[0]?.idea ?? ideas[0]!;
   }
 
-  estimateTimeline(): Record<string, unknown> {
+  estimateTimeline(steps: PlanStep[]): Record<string, unknown> {
+    const workingMinutes = steps.reduce(
+      (total, step) => total + parseEstimatedMinutes(step.estimatedTime),
+      0,
+    );
+    const planningMinutes = 20;
+    const brainstormingMinutes = 20;
+    const reviewingMinutes = 15;
+    const totalMinutes =
+      brainstormingMinutes + planningMinutes + workingMinutes + reviewingMinutes;
+
     return {
-      estimated: "2-4 hours",
+      estimated: formatMinutes(totalMinutes),
       phases: {
-        brainstorming: "30 minutes",
-        planning: "30 minutes",
-        working: "1-3 hours",
-        reviewing: "30 minutes",
+        brainstorming: formatMinutes(brainstormingMinutes),
+        planning: formatMinutes(planningMinutes),
+        working: formatMinutes(workingMinutes),
+        reviewing: formatMinutes(reviewingMinutes),
       },
     };
   }
 
-  identifyResources(): Record<string, unknown> {
+  identifyResources(
+    steps: PlanStep[],
+    constraints: string[],
+    relevantLearnings: Learning[],
+  ): Record<string, unknown> {
+    const tools = new Set<string>();
+    const dependencies = new Set<string>();
+
+    for (const step of steps) {
+      const description = step.description.toLowerCase();
+      if (description.includes("review") || description.includes("inspect")) {
+        tools.add("code search");
+      }
+      if (
+        description.includes("implement") ||
+        description.includes("build") ||
+        description.includes("deliver")
+      ) {
+        tools.add("editor/runtime");
+      }
+      if (
+        description.includes("verify") ||
+        description.includes("test") ||
+        description.includes("validate")
+      ) {
+        tools.add("test runner");
+      }
+      if (description.includes("document")) {
+        tools.add("documentation");
+      }
+    }
+
+    for (const constraint of constraints) {
+      const normalized = constraint.toLowerCase();
+      if (normalized.includes("api")) dependencies.add("api contract");
+      if (normalized.includes("database") || normalized.includes("schema")) {
+        dependencies.add("data model");
+      }
+      if (normalized.includes("service")) dependencies.add("service boundary");
+      if (normalized.includes("ui") || normalized.includes("frontend")) {
+        dependencies.add("ui surface");
+      }
+      if (normalized.includes("test")) dependencies.add("existing test coverage");
+    }
+
     return {
-      tools: [],
-      dependencies: [],
-      skills: [],
-      time: "2-4 hours",
+      tools: Array.from(tools),
+      dependencies: Array.from(dependencies),
+      skills: relevantLearnings.slice(0, 3).map((learning) => learning.summary),
+      time: this.estimateTimeline(steps).estimated,
     };
   }
 
@@ -551,22 +688,56 @@ Structure your response as JSON with keys: ideas, constraints, assumptions, risk
     }));
   }
 
-  defineSuccessCriteria(): string[] {
-    return [
-      "Objective achieved according to specifications",
-      "No critical issues or regressions",
-      "Process followed all phases correctly",
-      "Learnings documented for future use",
+  defineSuccessCriteria(objective: string, constraints: string[]): string[] {
+    const criteria = [
+      `Deliver the objective: ${objective}`,
+      "Complete verification without critical regressions",
+      "Document decisions and learnings for the next iteration",
     ];
+
+    if (constraints.length > 0) {
+      criteria.push(`Satisfy key constraints: ${constraints.slice(0, 2).join("; ")}`);
+    }
+
+    return criteria;
   }
 
-  createExecutionSteps(_approach: Idea | string, _constraints: string[]): PlanStep[] {
-    return [
-      { description: "Set up development environment", estimatedTime: "15 minutes" },
-      { description: "Implement core functionality", estimatedTime: "1-2 hours" },
-      { description: "Test and validate", estimatedTime: "30 minutes" },
-      { description: "Finalize and document", estimatedTime: "15 minutes" },
+  createExecutionSteps(approach: Idea | string, constraints: string[]): PlanStep[] {
+    const approachDescription =
+      typeof approach === "string"
+        ? approach
+        : approach.description ?? "the chosen implementation path";
+    const normalizedApproach = approachDescription.replace(/\.$/, "").toLowerCase();
+    const steps: PlanStep[] = [
+      {
+        description: "Inspect the existing implementation surface and confirm the smallest safe change",
+        estimatedTime: "20 minutes",
+      },
+      {
+        description: `Implement ${normalizedApproach}`,
+        estimatedTime: "45 minutes",
+      },
     ];
+
+    if (constraints.length > 0) {
+      steps.push({
+        description: `Validate constraints and edge cases: ${constraints.slice(0, 2).join("; ")}`,
+        estimatedTime: "20 minutes",
+      });
+    }
+
+    steps.push(
+      {
+        description: "Run targeted verification and regression checks",
+        estimatedTime: "20 minutes",
+      },
+      {
+        description: "Document decisions, learnings, and follow-up work",
+        estimatedTime: "15 minutes",
+      },
+    );
+
+    return steps;
   }
 
   checkForKnownIssues(step: PlanStep): string[] {
@@ -593,13 +764,77 @@ Structure your response as JSON with keys: ideas, constraints, assumptions, risk
 
   reviewPhase(
     phase: string,
-    _artifact: unknown,
+    artifact: unknown,
   ): { improvements: string[]; strengths: string[]; weaknesses: string[] } {
-    return {
-      strengths: [`Phase ${phase} completed systematically`],
-      weaknesses: [],
-      improvements: [],
-    };
+    const strengths: string[] = [];
+    const weaknesses: string[] = [];
+    const improvements: string[] = [];
+
+    if (phase === "brainstorming") {
+      const brainstorm = artifact as BrainstormResults;
+      if (brainstorm.ideas.length > 0) {
+        strengths.push(`Brainstorm produced ${brainstorm.ideas.length} concrete approach ideas`);
+      } else {
+        weaknesses.push("Brainstorming did not capture any concrete approaches");
+        improvements.push("Capture at least one concrete approach before planning");
+      }
+      if (brainstorm.risks.length > 0) {
+        strengths.push(`Brainstorm surfaced ${brainstorm.risks.length} delivery risks early`);
+      } else {
+        weaknesses.push("Brainstorming did not identify delivery risks");
+      }
+      if (brainstorm.constraints.length === 0) {
+        improvements.push("Record explicit constraints to keep the plan grounded");
+      }
+    } else if (phase === "planning") {
+      const plan = artifact as Plan;
+      if (plan.steps.length > 0) {
+        strengths.push(`Plan defines ${plan.steps.length} executable steps`);
+      } else {
+        weaknesses.push("Planning produced no executable steps");
+      }
+      if (plan.successCriteria.length > 0) {
+        strengths.push("Plan includes explicit success criteria");
+      } else {
+        weaknesses.push("Plan is missing success criteria");
+        improvements.push("Define verification-oriented success criteria");
+      }
+      if (plan.risks.length === 0) {
+        improvements.push("Capture at least one explicit risk and mitigation");
+      }
+    } else if (phase === "working") {
+      const work = artifact as WorkLog;
+      const completedSteps = work.steps.filter((step) => step.status === "completed").length;
+      const failedSteps = work.steps.filter((step) => step.status === "failed").length;
+      if (completedSteps > 0) {
+        strengths.push(`Execution completed ${completedSteps}/${work.steps.length} planned steps`);
+      }
+      if (work.solutions.length > 0) {
+        strengths.push(`Execution documented ${work.solutions.length} issue resolution(s)`);
+      }
+      if (failedSteps > 0) {
+        weaknesses.push(`${failedSteps} execution step(s) failed`);
+      }
+      if (work.issues.length > work.solutions.length) {
+        improvements.push("Close the gap between discovered issues and documented solutions");
+      }
+    } else if (phase === "reviewing") {
+      const review = artifact as Review;
+      if (review.recommendations.length > 0) {
+        strengths.push(`Review produced ${review.recommendations.length} follow-up recommendation(s)`);
+      } else {
+        weaknesses.push("Review phase produced no follow-up recommendations");
+      }
+      if (review.overallScore < 80) {
+        improvements.push("Increase verification depth before closing the session");
+      }
+    }
+
+    if (strengths.length === 0 && weaknesses.length === 0 && improvements.length === 0) {
+      strengths.push(`Phase ${phase} completed and recorded`);
+    }
+
+    return { strengths, weaknesses, improvements };
   }
 
   calculateProcessMetrics(session: Session): Record<string, unknown> {
@@ -663,6 +898,120 @@ Structure your response as JSON with keys: ideas, constraints, assumptions, risk
     const tech = (learning.context as { technology?: string } | undefined)?.technology;
     if (tech) tags.push(tech);
     return tags;
+  }
+
+  generateBrainstormResults(
+    objective: string,
+    context: Record<string, unknown>,
+    relevantLearnings: Learning[],
+  ): BrainstormResults {
+    const contextEntries = Object.entries(context).filter(
+      ([, value]) =>
+        value !== undefined &&
+        value !== null &&
+        !(typeof value === "string" && value.trim().length === 0),
+    );
+    const contextLabels = contextEntries.map(([key]) => this.humanizeKey(key));
+    const leadLearning = relevantLearnings[0];
+
+    const ideas: Array<string | Idea> = [
+      `Deliver the smallest verifiable slice of "${objective}" first`,
+      contextLabels.length > 0
+        ? `Reuse existing context around ${contextLabels.slice(0, 2).join(" and ")} before introducing new work`
+        : "Inspect the current implementation before changing anything",
+    ];
+
+    if (leadLearning) {
+      ideas.push({
+        description: "Apply the strongest relevant prior learning to reduce repeated mistakes",
+        pros: [leadLearning.summary],
+        cons: [],
+      });
+    }
+
+    const constraints = contextEntries.map(
+      ([key, value]) =>
+        `${this.humanizeKey(key)}: ${this.summarizeContextValue(value)}`,
+    );
+
+    const assumptions = [
+      "The task can be delivered incrementally with verification checkpoints",
+      contextEntries.length > 0
+        ? "The supplied context reflects the current project constraints"
+        : "Additional project constraints will surface during implementation",
+    ];
+
+    const risks = [
+      "Existing implementation may already cover part of the objective",
+      constraints.length > 0
+        ? `Constraints may limit the solution space: ${constraints[0]}`
+        : "Unstated constraints may appear during execution",
+    ];
+
+    const opportunities = [
+      "Reuse existing implementation instead of creating parallel paths",
+      relevantLearnings.length > 0
+        ? "Promote repeatable learnings into default workflow habits"
+        : "Capture a reusable learning from this session",
+    ];
+
+    return {
+      ideas,
+      constraints,
+      assumptions,
+      risks,
+      opportunities,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  buildPlanDecisions(
+    objective: string,
+    constraints: string[],
+    relevantLearnings: Learning[],
+    preferences: Record<string, unknown>,
+  ): string[] {
+    const decisions = [
+      `Optimize for an incremental delivery path for: ${objective}`,
+      "Keep verification as a first-class step instead of a final afterthought",
+    ];
+
+    if (constraints.length > 0) {
+      decisions.push(`Honor the recorded constraints before expanding scope`);
+    }
+
+    if (Object.keys(preferences).length > 0) {
+      decisions.push("Respect explicit execution preferences supplied for the session");
+    }
+
+    if (relevantLearnings.length > 0) {
+      decisions.push(`Reuse prior learning: ${relevantLearnings[0]!.summary}`);
+    }
+
+    return decisions;
+  }
+
+  humanizeKey(key: string): string {
+    return key
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+      .replace(/[_-]+/g, " ")
+      .toLowerCase();
+  }
+
+  summarizeContextValue(value: unknown): string {
+    if (typeof value === "string") {
+      return value.length > 60 ? `${value.slice(0, 57)}...` : value;
+    }
+    if (typeof value === "number" || typeof value === "boolean") {
+      return String(value);
+    }
+    if (Array.isArray(value)) {
+      return value.slice(0, 3).map((item) => this.summarizeContextValue(item)).join(", ");
+    }
+    if (value && typeof value === "object") {
+      return `object with keys: ${Object.keys(value as Record<string, unknown>).slice(0, 3).join(", ")}`;
+    }
+    return "unspecified";
   }
 
   log(message: string): void {

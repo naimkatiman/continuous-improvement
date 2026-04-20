@@ -106,4 +106,22 @@ describe("CLI-Anything", () => {
             assert.equal(cliAnything.detectProjectType(".", packageJson), expected);
         }
     });
+    test("should detect marker-file project types without shell commands", async () => {
+        const dockerRepo = join(testDir, "docker-repo");
+        const pythonRepo = join(testDir, "python-repo");
+        const goRepo = join(testDir, "go-repo");
+        const rustRepo = join(testDir, "rust-repo");
+        await mkdir(dockerRepo, { recursive: true });
+        await mkdir(pythonRepo, { recursive: true });
+        await mkdir(goRepo, { recursive: true });
+        await mkdir(rustRepo, { recursive: true });
+        await writeFile(join(dockerRepo, "Dockerfile"), "FROM node:20\n");
+        await writeFile(join(pythonRepo, "pyproject.toml"), "[project]\nname='demo'\n");
+        await writeFile(join(goRepo, "go.mod"), "module example.com/demo\n");
+        await writeFile(join(rustRepo, "Cargo.toml"), "[package]\nname='demo'\n");
+        assert.equal(cliAnything.detectProjectType(dockerRepo, {}), "docker-project");
+        assert.equal(cliAnything.detectProjectType(pythonRepo, {}), "python-project");
+        assert.equal(cliAnything.detectProjectType(goRepo, {}), "go-project");
+        assert.equal(cliAnything.detectProjectType(rustRepo, {}), "rust-project");
+    });
 });
