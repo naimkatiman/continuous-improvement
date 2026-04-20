@@ -1,0 +1,29 @@
+{
+  "name": "continuous-improvement",
+  "version": "3.2.0",
+  "description": "The 7 Laws of AI Agent Discipline with Claude Code and Codex-ready skills, hooks, commands, instinct packs, and MCP tools.",
+  "author": {
+    "name": "naimkatiman",
+    "url": "https://github.com/naimkatiman"
+  },
+  "homepage": "https://github.com/naimkatiman/continuous-improvement#readme",
+  "repository": "https://github.com/naimkatiman/continuous-improvement",
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "claude-code-skill",
+    "ai-agent",
+    "agent-skill",
+    "ai-discipline",
+    "mulahazah",
+    "instinct",
+    "hooks",
+    "mcp",
+    "mcp-server",
+    "cursor",
+    "codex",
+    "gemini-cli",
+    "github-action",
+    "transcript-linter"
+  ]
+}

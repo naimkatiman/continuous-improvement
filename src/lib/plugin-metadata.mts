@@ -114,6 +114,39 @@ export interface CodexMarketplaceManifest {
   }>;
 }
 
+export interface ClaudePluginManifest {
+  author: {
+    name: string;
+    url?: string;
+  };
+  description: string;
+  homepage: string;
+  keywords: string[];
+  license: string;
+  name: string;
+  repository: string;
+  version: string;
+}
+
+export interface ClaudePluginMarketplaceManifest {
+  description: string;
+  name: string;
+  owner: {
+    name: string;
+  };
+  plugins: Array<{
+    author: {
+      name: string;
+    };
+    category: string;
+    description: string;
+    homepage: string;
+    name: string;
+    source: "./";
+    version: string;
+  }>;
+}
+
 interface ToolCatalogEntry extends ToolDefinition {
   manifestWhat: string;
 }
@@ -164,6 +197,9 @@ const CODEX_PLUGIN_INTERFACE: CodexPluginInterface = {
   ],
   brandColor: "#15803D",
 };
+const CLAUDE_PLUGIN_CATEGORY = "productivity";
+const SHARED_PLUGIN_DESCRIPTION =
+  "The 7 Laws of AI Agent Discipline with Claude Code and Codex-ready skills, hooks, commands, instinct packs, and MCP tools.";
 
 export function isPluginMode(value: string | undefined): value is PluginMode {
   return value === "beginner" || value === "expert";
@@ -450,8 +486,7 @@ export function getCodexPluginManifest(): CodexPluginManifest {
   return {
     name: PACKAGE_NAME,
     version: VERSION,
-    description:
-      "The 7 Laws of AI Agent Discipline with Codex-ready skills, hooks, commands, instinct packs, and MCP tools.",
+    description: SHARED_PLUGIN_DESCRIPTION,
     author: AUTHOR,
     homepage: HOMEPAGE_URL,
     repository: REPOSITORY_URL,
@@ -461,6 +496,19 @@ export function getCodexPluginManifest(): CodexPluginManifest {
     hooks: "./hooks/hooks.json",
     mcpServers: "./.mcp.json",
     interface: { ...CODEX_PLUGIN_INTERFACE },
+  };
+}
+
+export function getClaudePluginManifest(): ClaudePluginManifest {
+  return {
+    name: PACKAGE_NAME,
+    version: VERSION,
+    description: SHARED_PLUGIN_DESCRIPTION,
+    author: AUTHOR,
+    homepage: HOMEPAGE_URL,
+    repository: REPOSITORY_URL,
+    license: "MIT",
+    keywords: [...KEYWORDS],
   };
 }
 
@@ -515,6 +563,30 @@ export function getCodexMarketplaceManifest(): CodexMarketplaceManifest {
           authentication: "ON_INSTALL",
         },
         category: CODEX_PLUGIN_INTERFACE.category,
+      },
+    ],
+  };
+}
+
+export function getClaudePluginMarketplaceManifest(): ClaudePluginMarketplaceManifest {
+  return {
+    name: `${PACKAGE_NAME}-dev`,
+    description:
+      "Development marketplace for the Continuous Improvement Claude Code plugin.",
+    owner: {
+      name: AUTHOR.name,
+    },
+    plugins: [
+      {
+        name: PACKAGE_NAME,
+        description: SHARED_PLUGIN_DESCRIPTION,
+        version: VERSION,
+        source: "./",
+        author: {
+          name: AUTHOR.name,
+        },
+        category: CLAUDE_PLUGIN_CATEGORY,
+        homepage: REPOSITORY_URL,
       },
     ],
   };
