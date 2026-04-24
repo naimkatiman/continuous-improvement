@@ -1,6 +1,6 @@
 {
   "name": "continuous-improvement",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "description": "The 7 Laws of AI Agent Discipline — stop your agent from skipping steps, guessing, and declaring 'done' without verifying. Auto-leveling instinct learning with MCP server, GitHub Action transcript linter, and starter instinct packs for Claude Code, Cursor, Codex, Gemini CLI.",
   "keywords": [
     "claude-code",

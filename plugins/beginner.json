@@ -1,6 +1,6 @@
 {
   "name": "continuous-improvement",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "mode": "beginner",
   "description": "Beginner plugin: 3 core tools for status, instincts, and reflection. Minimal MCP surface, easy to maintain.",
   "tools": [

@@ -35,7 +35,7 @@ async function writeBundledSkills() {
     const sourceSkillsDir = join(REPO_ROOT, "skills");
     const targetSkillsDir = join(CODEX_PLUGIN_DIR, "skills");
     const companionSkills = (await readdir(sourceSkillsDir))
-        .filter((file) => file.endsWith(".md") && file !== "README.md")
+        .filter((file) => /^[a-z][a-z0-9-]*\.md$/.test(file))
         .sort();
     const bundledSkillNames = [PACKAGE_NAME, ...companionSkills.map((file) => basename(file, ".md"))];
     await mkdir(targetSkillsDir, { recursive: true });

@@ -142,7 +142,10 @@ That's it. For Claude Code, this installs:
 
 After install, confirm it worked by running `/discipline` or `/dashboard` inside Claude Code. Both are no-ops if the skill did not land.
 
-> **CLI aliases.** The npm package exposes three bins: `continuous-improvement` (main CLI), `ci` (shorthand for the same CLI), and `ci-lint-transcript` (GitHub Action entrypoint). Anywhere you see `npx continuous-improvement ...` you can substitute `npx ci ...`.
+> **CLI surfaces.** The npm package exposes three bins:
+> - `continuous-improvement` — installer / uninstaller for the skill, hooks, commands, and MCP server (`npx continuous-improvement install`, `--mode`, `--pack`, `--uninstall`).
+> - `ci` — a separate unified workflow CLI with `init`, `workflow`, `research`, `planning`, `execution`, `review`, `status`, `cli`, `pm`, `compound`, `learnings`, and `config` subcommands. It is not an alias for the installer. See [`docs/unified-plugin-guide.md`](docs/unified-plugin-guide.md).
+> - `ci-lint-transcript` — standalone entrypoint used by the GitHub Action to lint agent transcripts.
 
 ### Expert — full power with MCP server
 
