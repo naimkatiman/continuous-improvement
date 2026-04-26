@@ -124,7 +124,31 @@ At end-of-run, emit a Reflection block:
 - What failed: <concrete slips, skipped verifications, missed approvals>
 - What I'd do differently: <specific change for next time>
 - Rule to add: <one-line instinct candidate>
+- Iteration — Next best recommendations (ranked, top 3):
+  1. <primary — strongest next core-development move>
+  2. <alternative — different angle>
+  3. <alternative — smaller/larger scope>
 ```
+
+The "Iteration — Next best recommendations" field is the Law 6 handoff. List the **top 3 ranked** core-development moves that advance the system based on what is now true in the codebase — what to build, fix, refactor, or investigate next. Item #1 is the strongest recommendation; #2 and #3 give the user alternative directions to pick from. NOT git steps (commit, push, PR), NOT verification re-runs (tests, type-check), NOT deploy actions — those belong in the Phase 7 end-of-run summary.
+
+Format per item: `<verb> <object at path:line> (<why, one clause grounded in current context>)`.
+
+Good examples (development progression):
+- `Wire the quiz prize-line writer in src/scheduled.ts (real_contest writer is wired; quiz path is recognized but inert)`
+- `Refactor the duplicated 4-mode switch shared by /admin/mode and contestModeGuard (drift risk after this session's mode add)`
+- `Investigate the intermittent Saturday cron skip in src/scheduled.ts:625 (one missed activation last week, root cause unknown)`
+
+Anti-examples (rejected — these are workflow, not development):
+- `Commit and push the changes` → Phase 7 summary, not here
+- `Re-run the full test suite` → already done in Phase 4 verification
+- `Deploy to prod` → operational, needs-approval
+
+Rules:
+- Always exactly 3 items, ranked. Not 2, not 5.
+- All 3 must be distinct directions — do not pad with rephrases of #1.
+- If fewer than 3 real moves exist, fill remaining slots with `None — goal met from this angle.` rather than inventing busywork.
+- If the original recommendation list is fully resolved across all angles, write `1. None — goal met, stop.` and omit #2 and #3.
 
 If an `~/.claude/instincts/<project-hash>/observations.jsonl` exists, append this reflection as one JSONL line. This feeds the instinct system (Law 7) per the core `continuous-improvement` skill.
 

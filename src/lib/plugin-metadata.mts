@@ -50,68 +50,20 @@ export interface PluginManifest {
   version: string;
 }
 
-export interface CodexPluginAuthor {
+export interface PluginAuthor {
   name: string;
   url?: string;
 }
 
-export interface CodexPluginInterface {
-  brandColor: string;
-  capabilities: string[];
-  category: string;
-  defaultPrompt: string[];
-  developerName: string;
-  displayName: string;
-  longDescription: string;
-  shortDescription: string;
-  websiteURL: string;
-}
-
-export interface CodexPluginManifest {
-  author: CodexPluginAuthor;
-  description: string;
-  homepage: string;
-  hooks: string;
-  interface: CodexPluginInterface;
-  keywords: string[];
-  license: string;
-  mcpServers: string;
-  name: string;
-  repository: string;
-  skills: string;
-  version: string;
-}
-
-export interface CodexPluginHookCommand {
+export interface PluginHookCommand {
   command: string;
   timeout: number;
   type: "command";
 }
 
-export interface CodexPluginHooksConfig {
+export interface PluginHooksConfig {
   description: string;
-  hooks: Partial<Record<HookType, Array<{ hooks: CodexPluginHookCommand[] }>>>;
-}
-
-export type CodexPluginMcpConfig = Record<string, { args: string[]; command: string }>;
-
-export interface CodexMarketplaceManifest {
-  interface: {
-    displayName: string;
-  };
-  name: string;
-  plugins: Array<{
-    category: string;
-    name: string;
-    policy: {
-      authentication: "ON_INSTALL" | "ON_USE";
-      installation: "AVAILABLE" | "INSTALLED_BY_DEFAULT" | "NOT_AVAILABLE";
-    };
-    source: {
-      path: string;
-      source: "local";
-    };
-  }>;
+  hooks: Partial<Record<HookType, Array<{ hooks: PluginHookCommand[] }>>>;
 }
 
 export interface ClaudePluginManifest {
@@ -159,7 +111,7 @@ interface ModeMetadata {
 
 const REPOSITORY_URL = "https://github.com/naimkatiman/continuous-improvement";
 const HOMEPAGE_URL = `${REPOSITORY_URL}#readme`;
-const AUTHOR: CodexPluginAuthor = {
+const AUTHOR: PluginAuthor = {
   name: "naimkatiman",
   url: "https://github.com/naimkatiman",
 };
@@ -174,32 +126,12 @@ const KEYWORDS = [
   "hooks",
   "mcp",
   "mcp-server",
-  "cursor",
-  "codex",
-  "gemini-cli",
   "github-action",
   "transcript-linter",
 ];
-const CODEX_PLUGIN_INTERFACE: CodexPluginInterface = {
-  displayName: "Continuous Improvement",
-  shortDescription:
-    "7 Laws, learning hooks, and MCP tools that keep coding agents disciplined.",
-  longDescription:
-    "Continuous Improvement packages the 7 Laws of AI Agent Discipline for Codex with reusable skills, slash commands, observation hooks, instinct packs, and an expert MCP server that captures patterns over time.",
-  developerName: AUTHOR.name,
-  category: "Productivity",
-  capabilities: ["Read", "Write"],
-  websiteURL: REPOSITORY_URL,
-  defaultPrompt: [
-    "Apply the 7 Laws before editing this codebase.",
-    "Initialize planning-with-files for this task.",
-    "Reflect on this session and extract new instincts.",
-  ],
-  brandColor: "#15803D",
-};
 const CLAUDE_PLUGIN_CATEGORY = "productivity";
 const SHARED_PLUGIN_DESCRIPTION =
-  "The 7 Laws of AI Agent Discipline with Claude Code and Codex-ready skills, hooks, commands, instinct packs, and MCP tools.";
+  "The 7 Laws of AI Agent Discipline for Claude Code — skills, hooks, commands, instinct packs, and MCP tools.";
 
 export function isPluginMode(value: string | undefined): value is PluginMode {
   return value === "beginner" || value === "expert";
@@ -482,23 +414,6 @@ export function getPluginManifest(mode: PluginMode): PluginManifest {
   };
 }
 
-export function getCodexPluginManifest(): CodexPluginManifest {
-  return {
-    name: PACKAGE_NAME,
-    version: VERSION,
-    description: SHARED_PLUGIN_DESCRIPTION,
-    author: AUTHOR,
-    homepage: HOMEPAGE_URL,
-    repository: REPOSITORY_URL,
-    license: "MIT",
-    keywords: [...KEYWORDS],
-    skills: "./skills/",
-    hooks: "./hooks/hooks.json",
-    mcpServers: "./.mcp.json",
-    interface: { ...CODEX_PLUGIN_INTERFACE },
-  };
-}
-
 export function getClaudePluginManifest(): ClaudePluginManifest {
   return {
     name: PACKAGE_NAME,
@@ -512,7 +427,7 @@ export function getClaudePluginManifest(): ClaudePluginManifest {
   };
 }
 
-export function getCodexPluginHooksConfig(): CodexPluginHooksConfig {
+export function getPluginHooksConfig(): PluginHooksConfig {
   const observeCommand = {
     type: "command" as const,
     command: "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/observe.sh\"",
@@ -533,38 +448,6 @@ export function getCodexPluginHooksConfig(): CodexPluginHooksConfig {
       SessionStart: [{ hooks: [sessionCommand] }],
       SessionEnd: [{ hooks: [sessionCommand] }],
     },
-  };
-}
-
-export function getCodexPluginMcpConfig(): CodexPluginMcpConfig {
-  return {
-    [PACKAGE_NAME]: {
-      command: "node",
-      args: ["./bin/mcp-server.mjs", "--mode", "expert"],
-    },
-  };
-}
-
-export function getCodexMarketplaceManifest(): CodexMarketplaceManifest {
-  return {
-    name: PACKAGE_NAME,
-    interface: {
-      displayName: CODEX_PLUGIN_INTERFACE.displayName,
-    },
-    plugins: [
-      {
-        name: PACKAGE_NAME,
-        source: {
-          source: "local",
-          path: `./plugins/${PACKAGE_NAME}`,
-        },
-        policy: {
-          installation: "AVAILABLE",
-          authentication: "ON_INSTALL",
-        },
-        category: CODEX_PLUGIN_INTERFACE.category,
-      },
-    ],
   };
 }
 

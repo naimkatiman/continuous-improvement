@@ -7,7 +7,7 @@
   "plugins": [
     {
       "name": "continuous-improvement",
-      "description": "The 7 Laws of AI Agent Discipline with Claude Code and Codex-ready skills, hooks, commands, instinct packs, and MCP tools.",
+      "description": "The 7 Laws of AI Agent Discipline for Claude Code — skills, hooks, commands, instinct packs, and MCP tools.",
       "version": "3.3.0",
       "source": "./",
       "author": {

@@ -1,18 +1,13 @@
 #!/usr/bin/env node
 
 /**
- * continuous-improvement installer
+ * continuous-improvement installer (Claude Code)
  *
  * Usage:
- *   npx continuous-improvement install                          # auto-detect & install (beginner)
- *   npx continuous-improvement install --target claude          # install to ~/.claude/skills/ + Mulahazah
- *   npx continuous-improvement install --target openclaw        # install to ~/.openclaw/skills/
- *   npx continuous-improvement install --target cursor          # install to ~/.cursor/skills/
- *   npx continuous-improvement install --target all             # install to all detected targets
- *   npx continuous-improvement install --mode beginner          # hooks only (default)
- *   npx continuous-improvement install --mode expert            # hooks + MCP server + session hooks
- *   npx continuous-improvement install --mode mcp               # MCP server only (any editor)
- *   npx continuous-improvement install --uninstall              # remove from all targets
+ *   npx continuous-improvement install                # beginner mode (default)
+ *   npx continuous-improvement install --mode expert  # + MCP server + session hooks
+ *   npx continuous-improvement install --pack react   # load starter instinct pack
+ *   npx continuous-improvement install --uninstall    # remove everything
  */
 
 import {
@@ -31,14 +26,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 
-type InstallMode = "beginner" | "expert" | "mcp";
-type TargetKey = "claude" | "openclaw" | "cursor" | "codex";
+type InstallMode = "beginner" | "expert";
 type HookType = "PreToolUse" | "PostToolUse" | "SessionStart" | "SessionEnd";
-
-interface TargetConfig {
-  dir: string;
-  label: string;
-}
 
 interface HookCommand {
   command: string;
@@ -93,11 +82,7 @@ function getHomeDir(): string {
 }
 
 function isInstallMode(value: string | undefined): value is InstallMode {
-  return value === "beginner" || value === "expert" || value === "mcp";
-}
-
-function isTargetKey(value: string | undefined): value is TargetKey {
-  return value === "claude" || value === "openclaw" || value === "cursor" || value === "codex";
+  return value === "beginner" || value === "expert";
 }
 
 function getErrorMessage(error: unknown): string {
@@ -117,62 +102,17 @@ const modeIndex = rawArgs.indexOf("--mode");
 const requestedMode = modeIndex !== -1 ? rawArgs[modeIndex + 1] : undefined;
 const INSTALL_MODE: InstallMode = isInstallMode(requestedMode) ? requestedMode : "beginner";
 
-const TARGETS: Record<TargetKey, TargetConfig> = {
-  claude: {
-    label: "Claude Code",
-    dir: join(getHomeDir(), ".claude", "skills", SKILL_NAME),
-  },
-  openclaw: {
-    label: "OpenClaw",
-    dir: join(getHomeDir(), ".openclaw", "skills", SKILL_NAME),
-  },
-  cursor: {
-    label: "Cursor",
-    dir: join(getHomeDir(), ".cursor", "skills", SKILL_NAME),
-  },
-  codex: {
-    label: "Codex",
-    dir: join(getHomeDir(), ".codex", "skills", SKILL_NAME),
-  },
-};
+const SKILL_DIR = join(getHomeDir(), ".claude", "skills", SKILL_NAME);
 
-function detectTargets(): TargetKey[] {
-  const detected: TargetKey[] = [];
-  for (const [key, target] of Object.entries(TARGETS) as Array<[TargetKey, TargetConfig]>) {
-    const parentDir = dirname(target.dir);
-    const configDir = dirname(parentDir);
-    if (existsSync(configDir)) {
-      detected.push(key);
-    }
-  }
-  return detected;
-}
-
-function installTo(key: TargetKey): boolean {
-  const target = TARGETS[key];
-
+function installSkill(): boolean {
   try {
-    if (INSTALL_MODE === "mcp") {
-      if (key === "claude") {
-        setupMulahazah();
-        console.log(`  ✓ ${target.label} → MCP server only`);
-      } else {
-        console.log(`  ⊘ ${target.label} — MCP mode only applies to Claude Code`);
-      }
-      return true;
-    }
-
-    mkdirSync(target.dir, { recursive: true });
-    copyFileSync(SKILL_SOURCE, join(target.dir, "SKILL.md"));
-    console.log(`  ✓ ${target.label} → ${target.dir}/SKILL.md`);
-
-    if (key === "claude") {
-      setupMulahazah();
-    }
-
+    mkdirSync(SKILL_DIR, { recursive: true });
+    copyFileSync(SKILL_SOURCE, join(SKILL_DIR, "SKILL.md"));
+    console.log(`  ✓ Claude Code skill → ${SKILL_DIR}/SKILL.md`);
+    setupMulahazah();
     return true;
   } catch (error) {
-    console.error(`  ✗ ${target.label}: ${getErrorMessage(error)}`);
+    console.error(`  ✗ Install failed: ${getErrorMessage(error)}`);
     return false;
   }
 }
@@ -216,7 +156,7 @@ function setupMulahazah(): void {
 
   patchClaudeSettings(observeDest);
 
-  if (INSTALL_MODE === "expert" || INSTALL_MODE === "mcp") {
+  if (INSTALL_MODE === "expert") {
     setupMcpServer();
   }
 }
@@ -224,7 +164,6 @@ function setupMulahazah(): void {
 function setupMcpServer(): void {
   const home = getHomeDir();
   const mcpServerPath = join(REPO_ROOT, "bin", "mcp-server.mjs");
-  const mcpMode: "beginner" | "expert" = INSTALL_MODE === "mcp" ? "beginner" : "expert";
   const settingsPath = join(home, ".claude", "settings.json");
   const settings = existsSync(settingsPath) ? readJsonFile<ClaudeSettings>(settingsPath) : {};
 
@@ -237,14 +176,13 @@ function setupMcpServer(): void {
     settings.mcpServers = {};
   }
 
-  const alreadySetup = settings.mcpServers["continuous-improvement"];
-  if (!alreadySetup) {
+  if (!settings.mcpServers["continuous-improvement"]) {
     settings.mcpServers["continuous-improvement"] = {
       command: "node",
-      args: [mcpServerPath, "--mode", mcpMode],
+      args: [mcpServerPath, "--mode", "expert"],
     };
     writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
-    console.log(`  ✓ MCP server registered (mode: ${mcpMode})`);
+    console.log("  ✓ MCP server registered (mode: expert)");
   } else {
     console.log("  ✓ MCP server already registered — no change");
   }
@@ -266,7 +204,7 @@ function setupMcpServer(): void {
   if (!desktopConfig.mcpServers["continuous-improvement"]) {
     desktopConfig.mcpServers["continuous-improvement"] = {
       command: "node",
-      args: [mcpServerPath, "--mode", mcpMode],
+      args: [mcpServerPath, "--mode", "expert"],
     };
     writeFileSync(desktopConfigPath, JSON.stringify(desktopConfig, null, 2) + "\n");
     console.log("  ✓ Claude Desktop MCP config updated");
@@ -351,18 +289,13 @@ function uninstallAll(): void {
   const home = getHomeDir();
   let removed = 0;
 
-  for (const [, target] of Object.entries(TARGETS) as Array<[TargetKey, TargetConfig]>) {
-    const skillFile = join(target.dir, "SKILL.md");
-    if (!existsSync(skillFile)) {
-      continue;
-    }
-
+  if (existsSync(SKILL_DIR)) {
     try {
-      rmSync(target.dir, { recursive: true });
-      console.log(`  ✓ Removed skill from ${target.label}`);
+      rmSync(SKILL_DIR, { recursive: true });
+      console.log("  ✓ Removed Claude Code skill");
       removed++;
     } catch (error) {
-      console.error(`  ✗ ${target.label}: ${getErrorMessage(error)}`);
+      console.error(`  ✗ Skill removal failed: ${getErrorMessage(error)}`);
     }
   }
 
@@ -458,31 +391,18 @@ function printUsage(): void {
 Usage: npx continuous-improvement install [options]
 
 Options:
-  --target <name>   Install to specific target (claude, openclaw, cursor, codex, all)
   --mode <mode>     Installation mode:
-                      beginner  — hooks only, no MCP server (default)
-                      expert    — hooks + MCP server + session hooks + all tools
-                      mcp       — MCP server only (works with any MCP client)
-  --uninstall       Remove from all targets
+                      beginner  — hooks + skill + commands (default)
+                      expert    — beginner + MCP server + session hooks
+  --pack <name>     Load a starter instinct pack (react, python, go)
+  --uninstall       Remove all installed files
   --help            Show this help
 
-Modes explained:
-  BEGINNER (default)   Just works. Hooks capture silently, instincts grow over time.
-                       3 tools via /continuous-improvement command.
-
-  EXPERT               Everything in beginner + MCP server with 12 tools:
-                       planning files, import/export, manual instinct creation,
-                       observation viewer, confidence tuning. Plus session hooks.
-
-  MCP                  MCP server only — for editors that support MCP but not
-                       Claude Code hooks (Cursor, Zed, Windsurf, VS Code).
-
 Examples:
-  npx continuous-improvement install                        # beginner (default)
-  npx continuous-improvement install --mode expert          # full power
-  npx continuous-improvement install --mode mcp             # MCP server only
-  npx continuous-improvement install --target all            # install everywhere
-  npx continuous-improvement install --uninstall             # remove all
+  npx continuous-improvement install                # beginner (default)
+  npx continuous-improvement install --mode expert  # full power
+  npx continuous-improvement install --pack react   # load React instincts
+  npx continuous-improvement install --uninstall    # remove everything
 `);
 }
 
@@ -516,48 +436,17 @@ if (args.includes("--uninstall")) {
 }
 
 console.log(`
-continuous-improvement v3.2 (mode: ${INSTALL_MODE})
+continuous-improvement (mode: ${INSTALL_MODE})
 Research → Plan → Execute → Verify → Reflect → Learn → Iterate
 `);
 
-const targetIndex = args.indexOf("--target");
-let targets: TargetKey[];
+console.log("Installing to Claude Code...\n");
 
-if (targetIndex !== -1 && args[targetIndex + 1]) {
-  const requested = args[targetIndex + 1]?.toLowerCase();
-  if (requested === "all") {
-    targets = Object.keys(TARGETS) as TargetKey[];
-  } else if (isTargetKey(requested)) {
-    targets = [requested];
-  } else {
-    console.error(`Unknown target: ${requested}`);
-    console.error(`Available: ${Object.keys(TARGETS).join(", ")}, all`);
-    process.exit(1);
-  }
-} else {
-  targets = detectTargets();
-  if (targets.length === 0) {
-    console.log("No supported agent configs detected. Installing to Claude Code by default.\n");
-    targets = ["claude"];
-  } else {
-    console.log(`Detected: ${targets.map((target) => TARGETS[target].label).join(", ")}\n`);
-  }
-}
+const installed = installSkill() ? 1 : 0;
 
-console.log("Installing...\n");
-
-let installed = 0;
-for (const target of targets) {
-  if (installTo(target)) {
-    installed++;
-  }
-}
-
-const hasClaude = targets.includes("claude");
 const modeInfo: Record<InstallMode, string> = {
   beginner: "Hooks are capturing silently. System auto-levels as you use it.",
   expert: "Full plugin active: hooks + MCP server + session hooks. 12 tools available.",
-  mcp: "MCP server registered. Connect from any MCP-compatible editor.",
 };
 
 const packIndex = rawArgs.indexOf("--pack");
@@ -607,8 +496,9 @@ if (packIndex !== -1 && rawArgs[packIndex + 1]) {
 }
 
 console.log(`
-${installed > 0 ? "Done." : "Failed."} Installed to ${installed}/${targets.length} target(s).
-${hasClaude ? `\n${modeInfo[INSTALL_MODE]}` : ""}
+${installed === 1 ? "Done." : "Failed."}
+${modeInfo[INSTALL_MODE]}
+
 Next steps:
   1. Start a new Claude Code session
   2. Say: "Use the continuous-improvement framework to [your task]"
@@ -616,6 +506,5 @@ Next steps:
   4. After your first task, run: /continuous-improvement
   5. Try: /discipline for quick reference, /dashboard for instinct health
 ${INSTALL_MODE === "expert" ? "\nMCP tools available: ci_status, ci_instincts, ci_reflect, ci_reinforce,\n  ci_create_instinct, ci_observations, ci_export, ci_import, ci_plan_init,\n  ci_plan_status, ci_dashboard, ci_load_pack" : ""}
-${INSTALL_MODE === "mcp" ? "\nMCP tools available: ci_status, ci_instincts, ci_reflect" : ""}
 Available instinct packs: npx continuous-improvement install --pack react|python|go
 `);

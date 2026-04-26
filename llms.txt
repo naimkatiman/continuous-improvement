@@ -18,9 +18,27 @@ npx continuous-improvement install
 2. Plan Is Sacred — state WILL/WILL NOT/VERIFY before acting
 3. One Thing at a Time — complete and verify one task before the next
 4. Verify Before Reporting — "done" requires actual proof
-5. Reflect After Sessions — capture what worked and what failed
+5. Reflect After Sessions — capture what worked, what failed, and the top-3 next moves
 6. Iterate One Change — one change, verify, then next
 7. Learn From Every Session — patterns become instincts
+
+## Reflection Block (Law 5 -> Law 6 Handoff)
+
+Each reflection ends with a ranked top-3 of concrete core-development next moves:
+
+```
+## Reflection
+- What worked:
+- What failed:
+- What I'd do differently:
+- Rule to add:
+- Iteration — Next best recommendations (ranked, top 3):
+  1. <primary>
+  2. <alternative — different angle>
+  3. <alternative — smaller/larger scope>
+```
+
+The Iteration field is build/fix/refactor/investigate moves only — not git steps, not verification re-runs, not deploy actions. Format per item: `<verb> <object at path:line> (<why>)`. Full spec in SKILL.md.
 
 ## Key Concepts
 
@@ -41,10 +59,7 @@ This workflow is explicit and opt-in. Files are created in the git root when ava
 
 ## Works With
 
-- Claude Code (full support: skill + hooks + MCP server)
-- Cursor, Zed, Windsurf, VS Code (MCP server)
-- Codex, Gemini CLI, OpenClaw (skill only)
-- Any LLM (paste SKILL.md into system prompt)
+- Claude Code (full support: skill + hooks + MCP server + slash commands + auto-leveling instincts)
 
 ## Links
 

@@ -50,12 +50,12 @@ describe("installer", () => {
       env: { ...process.env, HOME: tempHome },
       encoding: "utf8",
     });
-    assert.match(output, /--target/);
+    assert.match(output, /--mode/);
     assert.match(output, /--uninstall/);
   });
 
-  it("installs skill to claude target", () => {
-    execFileSync("node", [INSTALL_SCRIPT, "install", "--target", "claude"], {
+  it("installs skill to Claude Code", () => {
+    execFileSync("node", [INSTALL_SCRIPT, "install"], {
       env: { ...process.env, HOME: tempHome },
       encoding: "utf8",
     });
@@ -101,7 +101,7 @@ describe("installer", () => {
   });
 
   it("does not duplicate hooks on re-install", () => {
-    execFileSync("node", [INSTALL_SCRIPT, "install", "--target", "claude"], {
+    execFileSync("node", [INSTALL_SCRIPT, "install"], {
       env: { ...process.env, HOME: tempHome },
       encoding: "utf8",
     });

@@ -101,7 +101,8 @@ Agent: **[Law 1: Research]**
          the WILL list and saved a planning step
        - Rule to add: "For SDK migrations, update the service layer first,
          keep external interfaces stable, then update callers"
-       - Iteration — Next best recommendation: None — goal met, stop.
+       - Iteration — Next best recommendations (ranked, top 3):
+         1. None — goal met, stop.
 
        Done. 4 files changed. Tests green after every step.
 ```

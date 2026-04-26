@@ -472,7 +472,11 @@ function handleTool(name, params) {
                 "- **What failed:**",
                 "- **What I'd do differently:**",
                 "- **Rule to add:** (becomes an instinct at 0.6 confidence)",
-                "- **Iteration — Next best recommendation:** (one concrete next action, or `None — goal met, stop.`)",
+                "- **Iteration — Next best recommendations (ranked, top 3):**",
+                "  1. <primary — strongest next core-development move>",
+                "  2. <alternative — different angle>",
+                "  3. <alternative — smaller or larger scope>",
+                "  (or just `1. None — goal met, stop.` if the original goal is fully resolved)",
             ].join("\n");
             return text(reflection);
         }

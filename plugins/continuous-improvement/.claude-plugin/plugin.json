@@ -1,7 +1,7 @@
 {
   "name": "continuous-improvement",
   "version": "3.3.0",
-  "description": "The 7 Laws of AI Agent Discipline with Claude Code and Codex-ready skills, hooks, commands, instinct packs, and MCP tools.",
+  "description": "The 7 Laws of AI Agent Discipline for Claude Code — skills, hooks, commands, instinct packs, and MCP tools.",
   "author": {
     "name": "naimkatiman",
     "url": "https://github.com/naimkatiman"
@@ -20,9 +20,6 @@
     "hooks",
     "mcp",
     "mcp-server",
-    "cursor",
-    "codex",
-    "gemini-cli",
     "github-action",
     "transcript-linter"
   ]
