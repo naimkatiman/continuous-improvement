@@ -459,10 +459,10 @@ MIT License - see LICENSE file for details.
 
 ## Changelog
 
-### Version 4.0.0
-- Unified CLI-Anything, Compound Engineering, and PM-Skills
-- Comprehensive CLI interface with `ci` command
-- Enhanced learning integration across all tools
-- Improved project status and progress tracking
-- Extensive configuration options
-- Full test coverage for unified functionality
+See the repo-level [CHANGELOG.md](../CHANGELOG.md) for the authoritative version history. The unified `ci` CLI described in this guide ships as part of the current `continuous-improvement` npm package (see `package.json` for the active version) and exposes:
+
+- CLI-Anything, Compound Engineering, and PM-Skills behind a single `ci` command
+- Learning integration across all three surfaces
+- Project status and progress tracking
+- Configuration via `.ci-config.json` and `ci config set`
+- Tests under `test/` covering each surface individually and the unified plugin

@@ -5,6 +5,7 @@ Edit the source skill files in the repo root and rebuild instead of editing file
 
 ## Included skills
 - `continuous-improvement`
+- `proceed-with-claude-recommendation`
 - `ralph`
 - `superpowers`
 - `workspace-surface-audit`

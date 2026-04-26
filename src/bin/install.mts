@@ -81,6 +81,7 @@ const REPO_ROOT = join(__dirname, "..");
 const COMMAND_FILES = [
   "continuous-improvement.md",
   "planning-with-files.md",
+  "proceed-with-claude-recommendation.md",
   "discipline.md",
   "dashboard.md",
 ] as const;

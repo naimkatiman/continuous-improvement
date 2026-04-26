@@ -1,6 +1,6 @@
 {
   "name": "continuous-improvement",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "mode": "expert",
   "description": "Expert plugin: 12 tools including instinct management, planning files, import/export, observation viewer, dashboard, and instinct packs.",
   "tools": [
