@@ -7,7 +7,7 @@
   "plugins": [
     {
       "name": "continuous-improvement",
-      "description": "The 7 Laws of AI Agent Discipline with Claude Code and Codex-ready skills, hooks, commands, instinct packs, and MCP tools.",
+      "description": "The 7 Laws of AI Agent Discipline for Claude Code — skills, hooks, commands, instinct packs, and MCP tools.",
       "version": "3.3.0",
       "source": "./plugins/continuous-improvement",
       "author": {
@@ -109,7 +109,7 @@
     },
     {
       "name": "pm-toolkit",
-      "description": "PM utility skills: resume review, NDA drafting, privacy policy generation, and grammar/flow checking.",
+      "description": "PM utility skills: resume review, NDA drafting, privacy policy generation, and grammar/flow checking. Essential tools for product managers beyond core product work.",
       "version": "1.0.1",
       "source": "./plugins/pm-toolkit",
       "author": {

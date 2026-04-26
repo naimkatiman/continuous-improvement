@@ -80,23 +80,27 @@ export interface ClaudePluginManifest {
   version: string;
 }
 
+export interface ClaudeMarketplacePluginEntry {
+  author: {
+    name: string;
+    email?: string;
+    url?: string;
+  };
+  category: string;
+  description: string;
+  homepage: string;
+  name: string;
+  source: string;
+  version: string;
+}
+
 export interface ClaudePluginMarketplaceManifest {
   description: string;
   name: string;
   owner: {
     name: string;
   };
-  plugins: Array<{
-    author: {
-      name: string;
-    };
-    category: string;
-    description: string;
-    homepage: string;
-    name: string;
-    source: string;
-    version: string;
-  }>;
+  plugins: ClaudeMarketplacePluginEntry[];
 }
 
 interface ToolCatalogEntry extends ToolDefinition {
@@ -475,7 +479,9 @@ export function getClaudePluginMarketplaceManifest(): ClaudePluginMarketplaceMan
   };
 }
 
-export function getClaudeRepoMarketplaceManifest(): ClaudePluginMarketplaceManifest {
+export function getClaudeRepoMarketplaceManifest(
+  extraPlugins: ClaudeMarketplacePluginEntry[] = [],
+): ClaudePluginMarketplaceManifest {
   return {
     name: PACKAGE_NAME,
     description:
@@ -495,6 +501,7 @@ export function getClaudeRepoMarketplaceManifest(): ClaudePluginMarketplaceManif
         category: CLAUDE_PLUGIN_CATEGORY,
         homepage: REPOSITORY_URL,
       },
+      ...extraPlugins,
     ],
   };
 }

@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { PACKAGE_NAME, VERSION, getPluginHooksConfig, getClaudePluginManifest, getClaudePluginMarketplaceManifest, getClaudeRepoMarketplaceManifest, getPluginManifest, getToolNames, } from "../lib/plugin-metadata.mjs";
+import { discoverPmMarketplaceEntries } from "../lib/pm-marketplace.mjs";
 class McpTestClient {
     buffer = Buffer.alloc(0);
     proc;
@@ -321,7 +322,8 @@ describe("Plugin configs", () => {
     });
     it("repo-level claude marketplace manifest matches the shared plugin metadata", () => {
         const config = JSON.parse(readFileSync(join(__dirname, "..", ".claude-plugin", "marketplace.json"), "utf8"));
-        assert.deepEqual(config, getClaudeRepoMarketplaceManifest());
+        const pluginsDir = join(__dirname, "..", "plugins");
+        assert.deepEqual(config, getClaudeRepoMarketplaceManifest(discoverPmMarketplaceEntries(pluginsDir)));
     });
     it("plugin hooks config matches the shared plugin metadata", () => {
         const config = JSON.parse(readFileSync(join(__dirname, "..", "plugins", PACKAGE_NAME, "hooks", "hooks.json"), "utf8"));

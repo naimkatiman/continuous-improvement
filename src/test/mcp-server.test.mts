@@ -17,6 +17,7 @@ import {
   getPluginManifest,
   getToolNames,
 } from "../lib/plugin-metadata.mjs";
+import { discoverPmMarketplaceEntries } from "../lib/pm-marketplace.mjs";
 
 interface JsonRpcResponse {
   error?: {
@@ -414,7 +415,11 @@ describe("Plugin configs", () => {
         "utf8",
       ),
     ) as ReturnType<typeof getClaudeRepoMarketplaceManifest>;
-    assert.deepEqual(config, getClaudeRepoMarketplaceManifest());
+    const pluginsDir = join(__dirname, "..", "plugins");
+    assert.deepEqual(
+      config,
+      getClaudeRepoMarketplaceManifest(discoverPmMarketplaceEntries(pluginsDir)),
+    );
   });
 
   it("plugin hooks config matches the shared plugin metadata", () => {
