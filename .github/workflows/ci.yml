@@ -49,6 +49,9 @@ jobs:
       - name: Verify skill-mirror parity (plugin copy == standalone copy)
         run: npm run verify:skill-mirror
 
+      - name: Verify docs-substring assertions match their target files
+        run: npm run verify:docs-substrings
+
       - name: Verify instinct packs are valid JSON
         run: |
           for pack in instinct-packs/*.json; do
