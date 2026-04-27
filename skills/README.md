@@ -12,9 +12,32 @@ This directory holds the **source-of-truth** for the companion skills bundled wi
 |-------|--------------|--------|
 | **`proceed-with-claude-recommendation`** ⭐ | Walks any Claude recommendation list top-to-bottom under the 7 Laws — routes each item to the right specialist (`superpowers:*`, `ralph`, `workspace-surface-audit`, `simplify`, `security-review`, `schedule`, `loop`), falls back to inline behavior when a specialist isn't installed, verifies per item, halts on `needs-approval` | @naimkatiman |
 
-## Other bundled companion skills
+## Tier 1 — recommended pairing for **beginner** mode
 
-These ship in the same plugin bundle and are available the moment you install the `continuous-improvement` plugin from the marketplace.
+These add concrete enforcement to the 7 Laws. Tier-1 skills are the always-on minimum for any user running `npx continuous-improvement install` (default beginner mode).
+
+| Skill | What it does | Pairs with which Law |
+|-------|--------------|----------------------|
+| `para-memory-files` | File-based persistent memory using PARA (Projects/Areas/Resources/Archives) for cross-session context | Law 5 (Reflect), Law 7 (Learn) |
+| `verification-loop` | Six-phase verification (build, types, lint, tests, security, diff) with a structured PASS/FAIL report | Law 4 (Verify Before Reporting) |
+| `gateguard` | PreToolUse fact-forcing gate that blocks Edit/Write/destructive Bash until concrete investigation is presented | Law 1 (Research), Law 3 (One Thing) |
+| `tdd-workflow` | RED→GREEN→REFACTOR enforcement, 80%+ coverage gate across unit/integration/E2E | Law 3 (One Thing), Law 4 (Verify) |
+
+## Tier 2 — additional skills for **expert** mode
+
+Tier-2 skills layer on top of tier-1 for users running `npx continuous-improvement install --mode expert`. They cover autonomous-mode safety, response-depth control, and context-window discipline that matter once an agent runs longer or more aggressively.
+
+| Skill | What it does | When it pays off |
+|-------|--------------|------------------|
+| `safety-guard` | Three-mode runtime guard (careful/freeze/guard) that blocks destructive commands and locks edits to a directory | Autonomous loops, prod systems, `--dangerously-skip-permissions` sessions |
+| `token-budget-advisor` | Heuristic input/output token estimator that offers 25%/50%/75%/100% depth choices before answering | Long sessions where response size matters |
+| `strategic-compact` | PreToolUse hook that suggests `/compact` at logical phase boundaries (research→plan, plan→implement, debug→next) instead of arbitrary auto-compaction | Multi-phase tasks that approach context limits |
+
+The `/learn-eval` slash command also ships as part of the expert install: extract a session pattern, run a checklist quality gate, and decide global-vs-project save location before writing any skill file.
+
+## Other always-bundled companion skills
+
+These ship in the same plugin bundle regardless of mode and are available the moment you install the `continuous-improvement` plugin from the marketplace.
 
 | Skill | What it does | Source |
 |-------|--------------|--------|
@@ -26,7 +49,7 @@ These ship in the same plugin bundle and are available the moment you install th
 
 Two paths, you pick:
 
-**Path A — Install the plugin (recommended).** Bundled with the core skill, no per-skill copying. All four companions land in one shot:
+**Path A — Install the plugin (recommended).** Bundled with the core skill, no per-skill copying. All companions land in one shot:
 
 ```bash
 /plugin marketplace add naimkatiman/continuous-improvement

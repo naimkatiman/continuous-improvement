@@ -110,7 +110,30 @@ curl -L https://raw.githubusercontent.com/naimkatiman/continuous-improvement/mai
 
 …or get it (and the rest below) by installing the `continuous-improvement` plugin from the marketplace.
 
-### Other companion skills ([`skills/`](skills/))
+### Tier 1 — recommended pairing for **beginner** install
+
+These add concrete enforcement to the 7 Laws and ship in every plugin install.
+
+| Skill | What it does | Pairs with |
+|-------|--------------|------------|
+| `para-memory-files` | File-based persistent memory using PARA (Projects/Areas/Resources/Archives) for cross-session context | Law 5 + Law 7 |
+| `verification-loop` | Six-phase verification (build, types, lint, tests, security, diff) with PASS/FAIL report | Law 4 |
+| `gateguard` | PreToolUse fact-forcing gate that blocks Edit/Write/destructive Bash until concrete investigation is presented | Law 1 + Law 3 |
+| `tdd-workflow` | RED→GREEN→REFACTOR enforcement with 80%+ coverage gate across unit/integration/E2E | Law 3 + Law 4 |
+
+### Tier 2 — additional skills for **expert** install
+
+Layer on top of tier-1 for autonomous-mode safety, response-depth control, and context-window discipline.
+
+| Skill | What it does |
+|-------|--------------|
+| `safety-guard` | Three-mode runtime guard (careful/freeze/guard) that blocks destructive commands and locks edits to a directory |
+| `token-budget-advisor` | Heuristic input/output token estimator that offers 25%/50%/75%/100% depth choices before answering |
+| `strategic-compact` | PreToolUse hook that suggests `/compact` at logical phase boundaries instead of arbitrary auto-compaction |
+
+The `/learn-eval` slash command also ships with the expert install: extract a session pattern, run a checklist quality gate, and decide global-vs-project save location before writing any skill file.
+
+### Always-bundled companion skills ([`skills/`](skills/))
 
 Drop-in single-file skills, copy to `~/.claude/skills/<name>/SKILL.md`.
 
