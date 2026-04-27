@@ -1,6 +1,6 @@
 ---
 name: proceed-with-claude-recommendation
-description: "Naim's unified reusable skill. Walks a Claude recommendation list top-to-bottom under the 7 Laws of continuous-improvement discipline, stitching together workspace-surface-audit (pre-flight), superpowers (skill autoactivation), and ralph (long-running loops) where appropriate. Triggers on /proceed-with-claude-recommendation, \"proceed with your recommendation\", \"do all of it\", \"go ahead with the plan\", \"yes do it\", \"all of them\". Standalone — works without other plugins via inline fallbacks."
+description: "Naim's unified reusable skill. Walks a Claude recommendation list top-to-bottom under the 7 Laws of continuous-improvement discipline, stitching together workspace-surface-audit (pre-flight), superpowers (skill autoactivation), and ralph (long-running loops) where appropriate. Closes every run with a mandatory three-section block — What has been done → What is next → Recommendation (tiered tables + one decisive 'My recommendation' paragraph + a binary 'Want me to: A or B?' closer). Triggers on /proceed-with-claude-recommendation, \"proceed with your recommendation\", \"do all of it\", \"go ahead with the plan\", \"yes do it\", \"all of them\". Standalone — works without other plugins via inline fallbacks."
 origin: https://github.com/naimkatiman/continuous-improvement
 ---
 
@@ -152,14 +152,63 @@ Rules:
 
 If an `~/.claude/instincts/<project-hash>/observations.jsonl` exists, append this reflection as one JSONL line. This feeds the instinct system (Law 7) per the core `continuous-improvement` skill.
 
-## Phase 7: End-of-Run Summary
+## Phase 7: End-of-Run Summary (User-Facing Close)
 
-One compact block to the user:
-- Completed: N items with names
-- Deferred: M items with reason (drive-bys and new discoveries go here)
-- Blocked: K items with blocker and next action for the user
-- Files touched and commits created (one concern per commit)
-- Next step for the user (push, deploy, review)
+Emit exactly three sections, in this order, as the final user-facing block. Use these heading names verbatim — the shape is not optional.
+
+### 1. What has been done
+
+One bulleted line per completed item: `<item> — Verified: <actual check + output snippet>`. No "should work" claims, no aggregate phrasing like "all tests green" without naming the suite. Files touched and commits created (one concern per commit) belong in this section, grouped under the item they implemented.
+
+### 2. What is next
+
+Three optional subsections — include only the ones that apply, in this order:
+
+- **Deferred** — drive-bys logged, scope-creep avoided. One line per item with the reason it is not being done now.
+- **Blocked** — `needs-approval` items, verification failures with non-obvious fixes, user input required. One line per item with the exact blocker AND the next action the user must take.
+- **Immediate operator action** — push, deploy, review, cherry-pick, file rotation. Only include if the goal cannot advance without it. Name the exact command or step.
+
+If everything is fully complete and there is no blocker, deferred item, or operator action, write `Nothing — goal met, stop.` and skip section 3.
+
+### 3. Recommendation
+
+This is the user-facing rendering of Phase 6's reflection. Use the **tiered table format** below — never a flat ranked list. Tier 1 must cite **direct evidence** from the current session, repo, global rules, or prior commits. Tier 2 is optional polish. The Skip section names items the user might reasonably assume belong, but which are already covered elsewhere (prevents duplicate-suggestion noise).
+
+```
+**Tier 1 — strong fit, you already operate this way**
+
+| Item | Why it belongs | Evidence from this session/setup |
+|---|---|---|
+| <name> | <one-clause rationale> | <concrete file/line/rule citation> |
+
+**Tier 2 — high-fit complements (optional polish)**
+
+| Item | Why |
+|---|---|
+| <name> | <one-clause rationale> |
+
+**Skip these — already covered**
+- <name> — <where it is already handled>
+```
+
+Then a **My recommendation** paragraph — one short, decisive paragraph picking a side. Name the single highest-value move and why everything else in the list points at it. No hedging, no "you could do either."
+
+End with a **Want me to:** block — exactly two options, A and B, each one line. A is typically the larger / bundled action; B is typically the smaller / focused first step. Format:
+
+```
+**Want me to:**
+- **A** — <larger / bundled action — name the artifact + cadence>; or
+- **B** — <smaller / focused first step — name the single concrete commit/file>?
+```
+
+### Rules for the close
+
+- Tier 1 evidence must be a real citation — filename, line number, rule path, prior commit SHA, or a verbatim quote from the user's global instructions. No "best practices say…", no "industry standard…" — those are fabricated citations and violate Law 4 + the global rule against invented facts.
+- Tier 2 may be empty. If it is, omit the section entirely — do not write a stub.
+- Skip section is mandatory whenever the recommendation overlaps with anything the user already runs (e.g. existing skills, hooks, scheduled agents). Listing nothing in Skip when overlap exists is itself a fabrication.
+- "My recommendation" is **one** decisive paragraph. Recommending both Tier 1 + Tier 2 together is not a recommendation — it is a punt.
+- "Want me to:" is exactly **two** options. Never three, never zero, never an open-ended "what would you like next?".
+- If no real next move exists across all three tiers, write `Nothing — goal met, stop.` in section 2 and omit section 3 entirely.
 
 ## Stop Conditions (Hard Halt)
 
@@ -198,10 +247,14 @@ Stop immediately on any of:
 | Adding new items not in the list | Log as deferred follow-up |
 | Skipping verification on "easy" items | Every item gets the smallest proof |
 | Running 3 specialist skills in parallel for one item | One skill per item unless items are truly parallel |
-| Forgetting the end-of-run summary | Always emit it |
+| Forgetting the end-of-run summary | Always emit the 3-section close: **What has been done → What is next → Recommendation** |
 | Proceeding past a `needs-approval` item | Stop, ask, wait |
 | Silent no-op when a routed skill is missing | Always run the inline fallback — never skip the item |
 | Skipping the Reflection block because "run was easy" | Laws 5+7 require reflection every time |
+| Tier 1 recommendation with no real citation | Tier 1 requires a concrete file/line/rule/commit citation — no "best practices say…" |
+| "My recommendation" that picks everything | Pick one. Recommending both tiers is a punt, not a recommendation |
+| "Want me to:" with 0, 1, or 3+ options | Always exactly two: A (bundled) and B (focused first step) |
+| Listing items in Skip that the user does NOT already cover | Skip section is for genuine overlaps only — fabricating coverage is a Law 4 violation |
 
 ## Installation
 

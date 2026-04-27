@@ -26,7 +26,7 @@ Invoke immediately after Claude has offered a numbered list of recommendations, 
 4. **Verify (Law 4)** — smallest check per item, non-transitive (no later item retroactively verifies an earlier one)
 5. **Iterate (Law 6)** — one change → verify → next; never carry a failure forward
 6. **Reflect (Laws 5 + 7)** — end-of-run Reflection block appended to `observations.jsonl`
-7. **Summary** — Completed / Deferred / Blocked + next step for the user
+7. **Close** — three-section user-facing block: **What has been done → What is next → Recommendation** (tiered tables + one decisive "My recommendation" paragraph + a binary "Want me to: A or B?" closer)
 
 ## Hard halts (never silently proceed)
 
