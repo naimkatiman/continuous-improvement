@@ -23,6 +23,19 @@
 
 ## Install
 
+### Option A — Claude Code plugin (recommended, 2 commands)
+
+Run inside the Claude Code CLI:
+
+```bash
+/plugin marketplace add naimkatiman/continuous-improvement
+/plugin install continuous-improvement@continuous-improvement
+```
+
+Update later with `/plugin marketplace update continuous-improvement`. Browse the other 8 PM plugins with `/plugin` (interactive picker) or see the [full list below](#plugin-marketplace-plugins).
+
+### Option B — npm CLI installer
+
 Requires Node 18/20/22 and `bash` (Git Bash or WSL on Windows).
 
 ```bash
@@ -36,7 +49,7 @@ npx continuous-improvement install --mode expert
 npx continuous-improvement install --pack react|python|go
 ```
 
-Verify with `/discipline` or `/dashboard` in Claude Code.
+Verify either path with `/discipline` or `/dashboard` in Claude Code.
 
 ---
 
