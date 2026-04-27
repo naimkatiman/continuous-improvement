@@ -222,12 +222,12 @@ const EXPERT_TOOL_ENTRIES = [
 ];
 const MODE_METADATA = {
     beginner: {
-        description: "Beginner plugin: 3 core tools for status, instincts, and reflection. Minimal MCP surface, easy to maintain.",
+        description: "Beginner plugin: 3 core tools for status, instincts, and reflection, plus tier-1 companion skills (para-memory-files, verification-loop, gateguard, tdd-workflow). Minimal MCP surface, easy to maintain.",
         hooks: ["PreToolUse", "PostToolUse"],
         hookDescription: "Silently captures every tool call as observations. Lightweight and non-blocking.",
     },
     expert: {
-        description: "Expert plugin: 12 tools including instinct management, planning files, import/export, observation viewer, dashboard, and instinct packs.",
+        description: "Expert plugin: 12 tools including instinct management, planning files, import/export, observation viewer, dashboard, and instinct packs. Adds tier-2 companion skills (safety-guard, token-budget-advisor, strategic-compact) and the /learn-eval command on top of tier-1.",
         hooks: ["PreToolUse", "PostToolUse", "SessionStart", "SessionEnd"],
         hookDescription: "Full hook suite: observation capture + session-level instinct loading and auto-reflection.",
     },

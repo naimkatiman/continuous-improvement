@@ -73,6 +73,7 @@ const COMMAND_FILES = [
   "proceed-with-claude-recommendation.md",
   "discipline.md",
   "dashboard.md",
+  "learn-eval.md",
 ] as const;
 const HOOK_TYPES: readonly HookType[] = ["PreToolUse", "PostToolUse"];
 const SESSION_HOOK_TYPES: readonly HookType[] = ["SessionStart", "SessionEnd"];
