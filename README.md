@@ -89,6 +89,8 @@ Hooks capture every tool call. After ~20 observations, Claude analyzes patterns 
 /dashboard                 Visual instinct health dashboard
 ```
 
+In expert mode, the same planning workflow is also available programmatically through the MCP tools `ci_plan_init` (initialize `task_plan.md`, `findings.md`, `progress.md` in the project root) and `ci_plan_status` (summarize their current contents).
+
 ---
 
 ## Bundled Skills & Plugins
