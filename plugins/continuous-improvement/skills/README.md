@@ -6,7 +6,14 @@
 
 ## Included skills
 - `continuous-improvement`
+- `gateguard`
+- `para-memory-files`
 - `proceed-with-claude-recommendation` ⭐ — featured companion for the 7 Laws (executes recommendation lists end-to-end with per-item verification)
 - `ralph`
+- `safety-guard`
+- `strategic-compact`
 - `superpowers`
+- `tdd-workflow`
+- `token-budget-advisor`
+- `verification-loop`
 - `workspace-surface-audit`

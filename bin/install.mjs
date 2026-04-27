@@ -25,6 +25,7 @@ const COMMAND_FILES = [
     "proceed-with-claude-recommendation.md",
     "discipline.md",
     "dashboard.md",
+    "learn-eval.md",
 ];
 const HOOK_TYPES = ["PreToolUse", "PostToolUse"];
 const SESSION_HOOK_TYPES = ["SessionStart", "SessionEnd"];
