@@ -39,6 +39,7 @@
     "lint": "node bin/lint-transcript.mjs --help",
     "verify:generated": "npm run build && git diff --exit-code -- .claude-plugin bin test lib plugins",
     "verify:skill-mirror": "node bin/check-skill-mirror.mjs",
+    "verify:skill-tiers": "node bin/check-skill-tiers.mjs",
     "verify:docs-substrings": "node bin/check-docs-substrings.mjs"
   },
   "files": [

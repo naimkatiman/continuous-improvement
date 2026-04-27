@@ -1,5 +1,6 @@
 ---
 name: continuous-improvement
+tier: core
 description: "Install structured self-improvement loops with instinct-based learning into Claude Code — research, plan, execute, verify, reflect, learn, iterate. On-demand or weekly analysis to save tokens. Supports multi-agent parallel analysis."
 ---
 
