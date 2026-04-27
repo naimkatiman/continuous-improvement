@@ -1,5 +1,6 @@
 ---
 name: proceed-with-claude-recommendation
+tier: featured
 description: "Walks a Claude-emitted recommendation list top-to-bottom under the 7 Laws — restate, route per item, verify before advancing, reflect at the end, close with the mandatory three-section block. Standalone with inline fallbacks; trigger phrases are matched by the companion hook, not enumerated here."
 origin: https://github.com/naimkatiman/continuous-improvement
 ---

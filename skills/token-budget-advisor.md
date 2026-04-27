@@ -1,5 +1,6 @@
 ---
 name: token-budget-advisor
+tier: "2"
 description: >-
   Offers the user an informed choice about how much response depth to
   consume before answering. Use this skill when the user explicitly

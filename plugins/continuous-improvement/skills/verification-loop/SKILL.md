@@ -1,5 +1,6 @@
 ---
 name: verification-loop
+tier: "1"
 description: "A comprehensive verification system for Claude Code sessions."
 origin: ECC
 ---

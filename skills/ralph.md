@@ -1,5 +1,6 @@
 ---
 name: ralph
+tier: companion
 description: "Ralph is an autonomous AI agent loop that runs repeatedly until all PRD items are complete. Converts PRDs to executable JSON, implements stories iteratively with quality checks, and tracks progress."
 origin: https://github.com/snarktank/ralph
 ---

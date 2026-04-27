@@ -1,5 +1,6 @@
 ---
 name: superpowers
+tier: companion
 description: "Agentic skills framework with mandatory workflows. Activates skills automatically before tasks: brainstorming, git-worktrees, writing-plans, test-driven-development, code-review, and more."
 origin: https://github.com/obra/superpowers
 ---

@@ -1,5 +1,6 @@
 ---
 name: strategic-compact
+tier: "2"
 description: Suggests manual context compaction at logical intervals to preserve context through task phases rather than arbitrary auto-compaction.
 origin: ECC
 ---
