@@ -23,7 +23,37 @@ npm test
 3. Write tests for new functionality
 4. Run `npm test` — all tests must pass
 5. Commit with conventional format (`feat:`, `fix:`, `docs:`, etc.)
-6. Open a PR against `main`
+6. Open a PR against `main` — see [Pull Request Scope](#pull-request-scope) for the one-concern-per-PR rule
+
+### Pull Request Scope
+
+**One concern per PR.** Every PR should answer one well-defined question: "Why is this change needed?" If the answer has multiple unrelated parts ("add feature X *and* refactor Y *and* regenerate build artifacts *and* update unrelated docs"), split it into separate PRs.
+
+This rule extends the project's broader commit-hygiene principle:
+
+> No bundled concerns: CI, tooling, and infra changes ship alone. Never in the same commit as product features.
+
+Squash-merging is fine as long as each PR is one concern; merge-commit-merging is fine as long as each commit on the branch is one concern. Either way, **the unit of one-concern hygiene is the merge boundary, not just local commits** — clean local history can still produce a bundled merge.
+
+#### PR Author Checklist
+
+Before opening a PR, verify:
+
+- [ ] **One concern.** The PR title fits the form `<type>(<scope>): <single observable outcome>` without "and" or commas. If you need a comma, split the PR.
+- [ ] **Size budget.** ≤15 hand-edited source files OR ≤500 LOC of hand-edited source. Generated artifacts (bundle regen, lockfiles, snapshots) don't count toward the budget but must ride with the source change that produced them — never separately, never alongside unrelated source.
+- [ ] **No drive-bys.** Edits unrelated to the stated concern get their own PR, even if they're small. "While I was here" is not a justification.
+- [ ] **Bundle regen rule.** If a source change requires `npm run build`, the regenerated `bin/*.mjs`, `lib/*.mjs`, `test/*.test.mjs`, and `plugins/*.json` ship in the same PR as the source. The CI gate `npm run verify:generated` enforces this, but you should verify locally before pushing.
+- [ ] **Skill mirror rule.** If you edit `plugins/continuous-improvement/skills/<name>/SKILL.md`, mirror the same change to `skills/<name>.md` (or vice versa) in the same PR. The two distribution copies must not drift across PR boundaries — installs from `~/.claude/skills/` (curl path) and from the plugin bundle must produce identical skill content.
+
+#### When you have multiple concerns
+
+Sequence the PRs:
+
+1. Land each source concern in its own PR. Each gets the bundle regeneration that its source change requires (one PR = source + its own regen output).
+2. If unrelated companion skills, hooks, or commands need to ship, open separate PRs per concern. Stack them on top of each other if there are dependencies; otherwise open them in parallel.
+3. Avoid the "feature-branch dumping ground" pattern — a long-lived branch that accumulates several unrelated changes and merges as one. If a branch is going to land more than one concern, split before merging.
+
+A single PR that touches multiple skills (e.g. `proceed-with-claude-recommendation`, `tdd-workflow`, `safety-guard`), README mode descriptions, and bundle artifacts is **five concerns**, not one — even if every commit on the branch was clean locally. Five concerns get five PRs.
 
 ### Share Instinct Packs
 Have a set of instincts that work well for a specific stack? Add them to `instinct-packs/`:
