@@ -46,6 +46,9 @@ jobs:
             fi
           done
 
+      - name: Verify skill-mirror parity (plugin copy == standalone copy)
+        run: npm run verify:skill-mirror
+
       - name: Verify instinct packs are valid JSON
         run: |
           for pack in instinct-packs/*.json; do
