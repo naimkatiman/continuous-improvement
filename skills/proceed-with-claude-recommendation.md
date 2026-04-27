@@ -1,6 +1,6 @@
 ---
 name: proceed-with-claude-recommendation
-description: "Naim's unified reusable skill. Walks a Claude recommendation list top-to-bottom under the 7 Laws of continuous-improvement discipline, stitching together workspace-surface-audit (pre-flight), superpowers (skill autoactivation), and ralph (long-running loops) where appropriate. Closes every run with a mandatory three-section block — What has been done → What is next → Recommendation (tiered tables + one decisive 'My recommendation' paragraph + a binary 'Want me to: A or B?' closer). Triggers on /proceed-with-claude-recommendation, \"proceed with your recommendation\", \"do all of it\", \"go ahead with the plan\", \"yes do it\", \"all of them\". Standalone — works without other plugins via inline fallbacks."
+description: "Walks a Claude-emitted recommendation list top-to-bottom under the 7 Laws — restate, route per item, verify before advancing, reflect at the end, close with the mandatory three-section block. Standalone with inline fallbacks; trigger phrases are matched by the companion hook, not enumerated here."
 origin: https://github.com/naimkatiman/continuous-improvement
 ---
 
@@ -11,6 +11,20 @@ origin: https://github.com/naimkatiman/continuous-improvement
 One reusable skill that ties the continuous-improvement framework to a concrete execution engine. When the user greenlights a list of recommendations, this skill walks them in order under the **7 Laws**, routes each item to the best companion (`workspace-surface-audit`, `superpowers:*`, `ralph`, ECC helpers), and falls back to explicit inline behavior when a companion is not installed. Never silent no-op, never drive-by, never skip verification.
 
 Core principle: **execute in order, one concern at a time, verify before advancing, reflect at the end.**
+
+## The 7 Laws (inline summary)
+
+This skill is the execution engine for the continuous-improvement framework. Mirrored from `continuous-improvement/SKILL.md` so this file stands alone if that companion is not installed:
+
+1. **Research Before Executing** — what exists, what constrains, what breaks, simplest path. If you can't answer, research first.
+2. **Plan Is Sacred** — state WILL build / Will NOT build / Verification / Fallback before any edit.
+3. **One Thing at a Time** — finish and verify one item before the next. No "also quickly add" drive-bys. Parallel only when items share no state.
+4. **Verify Before Reporting** — "Done" requires actual output checked, not assumed. "Should work" is not verification.
+5. **Reflect After Every Session** — what worked / what failed / what you'd do differently / rule to add / next 3 ranked moves.
+6. **Iterate Means One Thing** — one change → verify → next. Never bundle untested edits.
+7. **Learn From Every Session** — capture patterns as instincts; corrections weaken, confirmations strengthen.
+
+The Loop: `Research → Plan → Execute → Verify → Reflect → Learn → Iterate`. Skipped step = the step you needed most.
 
 ## Composition Map
 
@@ -28,13 +42,16 @@ This skill is the orchestrator for the other companions in this repo. It does no
 
 ## When to Use
 
-- User invokes `/proceed-with-claude-recommendation` right after Claude gave recommendations
+**Hard precondition (must be true before this skill runs):** Claude emitted a numbered, bulleted, or otherwise enumerated list of recommendations / next steps / suggested actions in the **immediately prior turn**. If no such list exists in the prior turn, this skill MUST NOT activate — the trigger phrases are ambiguous on their own and "yes do it" / "all of them" can refer to anything.
+
+If the precondition holds, activate when:
+- User invokes `/proceed-with-claude-recommendation`
 - User says "proceed with your recommendation", "do all of it", "go ahead with the plan", "execute the recommendations"
-- User confirms a prior Claude suggestion block with "yes do it" or "all of them"
-- Auto mode is active and the recommendation list is unambiguous
+- User confirms with "yes do it" or "all of them"
+- Auto mode is active AND the recommendation list is unambiguous
 
 Do NOT use when:
-- No recent recommendation list exists — ask what to proceed with
+- No enumerated recommendation list exists in the prior turn — ask what to proceed with instead of guessing
 - Recommendations include destructive actions (deploy, force-push, DB drops, secret changes) without prior explicit authorization
 - User scoped the work ("just the first one", "only the safe ones") — honor the scope
 - Recommendations conflict with project CLAUDE.md rules
@@ -172,7 +189,9 @@ If everything is fully complete and there is no blocker, deferred item, or opera
 
 ### 3. Recommendation
 
-This is the user-facing rendering of Phase 6's reflection. Use the **tiered table format** below — never a flat ranked list. Tier 1 must cite **direct evidence** from the current session, repo, global rules, or prior commits. Tier 2 is optional polish. The Skip section names items the user might reasonably assume belong, but which are already covered elsewhere (prevents duplicate-suggestion noise).
+**Tiny-list exemption:** if the original list had **≤1 item AND the goal is fully resolved with no deferred / blocked / operator items**, omit section 3 entirely and end after section 2's `Nothing — goal met, stop.` line. The tiered table + binary closer is forcing-function discipline for multi-item runs; on a 1-item win it is ceremony. Phase 6's Reflection block still happens internally (Laws 5+7 require it) — it just isn't user-facing-rendered here.
+
+For all other runs (≥2 items, or 1 item with deferred/blocked/operator follow-ups), this is the user-facing rendering of Phase 6's reflection. Use the **tiered table format** below — never a flat ranked list. Tier 1 must cite **direct evidence** from the current session, repo, global rules, or prior commits. Tier 2 is optional polish. The Skip section names items the user might reasonably assume belong, but which are already covered elsewhere (prevents duplicate-suggestion noise).
 
 ```
 **Tier 1 — strong fit, you already operate this way**
@@ -241,20 +260,15 @@ Stop immediately on any of:
 
 ## Common Mistakes
 
+The five failure modes that actually bite. (Stop Conditions and Red Flags above already cover the rest — `needs-approval` halts, drive-by edits, urgency-as-authorization, transitive-verification rationalization.)
+
 | Mistake | Fix |
 |---|---|
-| Reordering the list silently | Walk in original order unless user reorders |
-| Adding new items not in the list | Log as deferred follow-up |
-| Skipping verification on "easy" items | Every item gets the smallest proof |
-| Running 3 specialist skills in parallel for one item | One skill per item unless items are truly parallel |
-| Forgetting the end-of-run summary | Always emit the 3-section close: **What has been done → What is next → Recommendation** |
-| Proceeding past a `needs-approval` item | Stop, ask, wait |
-| Silent no-op when a routed skill is missing | Always run the inline fallback — never skip the item |
-| Skipping the Reflection block because "run was easy" | Laws 5+7 require reflection every time |
-| Tier 1 recommendation with no real citation | Tier 1 requires a concrete file/line/rule/commit citation — no "best practices say…" |
-| "My recommendation" that picks everything | Pick one. Recommending both tiers is a punt, not a recommendation |
-| "Want me to:" with 0, 1, or 3+ options | Always exactly two: A (bundled) and B (focused first step) |
-| Listing items in Skip that the user does NOT already cover | Skip section is for genuine overlaps only — fabricating coverage is a Law 4 violation |
+| Skipping verification on "easy" items | Every item gets the smallest proof. "Should work" is not verification (Law 4). |
+| Adding new items not in the list | Log as deferred follow-up. Even one drive-by line is out of scope. |
+| Forgetting the end-of-run summary | Always emit the 3-section close: **What has been done → What is next → Recommendation**. |
+| Tier 1 recommendation with no real citation | Tier 1 requires a concrete file/line/rule/commit citation — no "best practices say…", no "industry standard…". |
+| "Want me to:" with 0, 1, or 3+ options | Always exactly two: A (bundled) and B (focused first step). Three options is a punt, one is a leading question. |
 
 ## Installation
 
@@ -274,3 +288,94 @@ Restart the Claude Code session so the registry picks it up. **No other plugins 
 - `workspace-surface-audit.md` — environment + plugin scan for the Law 1 pre-flight
 
 Install them together for the full continuous-improvement experience, or use this skill alone — it is self-contained.
+
+## Worked Example
+
+A concrete trace covering the most-failed paths: a `needs-approval` halt, a verification failure-and-retry, and the Phase 7 close. Use this to calibrate output shape — don't copy the wording.
+
+**Prior turn (Claude's recommendation block):**
+```
+1. Add input validation to the /api/users POST handler
+2. Drop the unused `legacy_users` table
+3. Refactor the duplicated paginate() helper in lib/db.ts and lib/api.ts
+```
+
+**This turn (user):** "yes do it"
+
+**Phase 1 — Restated:**
+```
+1. Add input validation to /api/users POST  → safe → Inline fallback (security-review pattern)
+2. Drop legacy_users table                  → needs-approval → STOP at this item
+3. Refactor duplicated paginate()           → safe → Routed to `simplify`
+```
+
+**Phase 2 — Plan (inline, ≤3 items):**
+- Item 1: WILL add zod schema for body, reject 400 with field-level errors. Will NOT change response shape on success. Verification: one curl with bad payload → 400. Fallback: revert if existing tests break.
+- Item 2: needs-approval — stop and ask the user before touching D1.
+- Item 3: WILL extract `paginate()` to `lib/pagination.ts`, update both callsites. Will NOT change behavior. Verification: typecheck + the existing paginate unit test green. Fallback: revert if test count drops.
+
+**Phase 3 — Execute item 1:**
+Edit `routes/users.ts` adding zod schema. Run `curl -X POST .../api/users -d '{}'` → returns `400 {"errors":[{"field":"email","msg":"required"}]}`. ✓
+**Phase 4 verification line:** `Done: input validation. Verified: curl bad-payload → 400 with field error. Routed to: inline.`
+
+**Phase 3 — Execute item 2:**
+HALT. Item 2 is `needs-approval`. Emit:
+> Item 2 (drop `legacy_users` table) is destructive — D1 schema change. Need explicit "drop the legacy_users table" from you before I touch this. Continuing to item 3 in the meantime.
+
+(NOTE: continuing past a `needs-approval` item to LATER `safe` items is allowed, per Phase 3 rule 1 — what's forbidden is silently skipping or silently doing the destructive item. The user is told and the destructive item is parked.)
+
+**Phase 3 — Execute item 3:**
+Extract `paginate()`, update callsites. Run `npx tsc --noEmit` → ❌ fails: `lib/api.ts` had a slightly different signature (`limit?: number` vs `limit: number = 20`). Phase 5 kicks in:
+- Fix the smallest thing: keep the more permissive `limit?: number` signature in the extracted helper.
+- Re-run typecheck → ✓ clean.
+- Run the targeted unit test → ✓ green.
+
+**Phase 4 verification line:** `Done: paginate refactor. Verified: tsc clean + paginate.test.ts → 1 passing. Routed to: simplify.`
+
+**Phase 6 — Reflection (internal):**
+- What worked: stopping at item 2 instead of guessing on the destructive op.
+- What failed: missed the signature mismatch in plan — should have grepped both callsites first.
+- What I'd do differently: pre-check signature compatibility before extracting shared helpers.
+- Rule to add: when extracting a helper used in 2+ places, diff the signatures first.
+- Iteration — Next 3:
+  1. Add a smoke test for the new paginate helper covering both callsite shapes (regression guard).
+  2. Audit other duplicated helpers in `lib/` for the same signature-drift pattern.
+  3. Investigate whether `legacy_users` is referenced in any cron or migration before the user authorizes the drop.
+
+**Phase 7 — Close:**
+
+### 1. What has been done
+- Item 1: input validation on /api/users POST — Verified: curl bad-payload → 400 with field error. Files: `routes/users.ts`, `schemas/users.ts`. Commit: `feat(users): validate POST body, return 400 on missing fields`.
+- Item 3: paginate() refactor — Verified: `tsc --noEmit` clean + `paginate.test.ts` 1/1 passing. Files: `lib/pagination.ts` (new), `lib/db.ts`, `lib/api.ts`. Commit: `refactor(lib): extract shared paginate() helper`.
+
+### 2. What is next
+- **Blocked**: Item 2 (drop `legacy_users` table) — needs explicit "yes drop legacy_users" from you. Next action: confirm the table is unreferenced in cron/migrations, then authorize.
+- **Immediate operator action**: push the two commits — `git push origin <branch>`.
+
+### 3. Recommendation
+
+**Tier 1 — strong fit, you already operate this way**
+
+| Item | Why it belongs | Evidence from this session/setup |
+|---|---|---|
+| Add a paginate() smoke test covering both callsite shapes | Closes the signature-drift gap that just bit us | This session's failed `tsc` on item 3 |
+| Audit other duplicated helpers in `lib/` for signature drift | Same pattern likely lurks elsewhere | The drift was invisible until extraction; suggests a class of bugs |
+
+**Skip these — already covered**
+- Re-run the full test suite — already done in Phase 4 verification
+- Open a PR — Phase 7 operator action handles this once `legacy_users` is resolved
+
+**My recommendation:** Land the smoke test for paginate first. The signature-drift bug nearly shipped because the refactor relied on the type checker rather than a behavioral test, and that gap will recur on the next shared-helper extraction.
+
+**Want me to:**
+- **A** — bundle the smoke test + a quick grep-pass for similar drift across `lib/` into one cleanup PR; or
+- **B** — open a focused commit adding just the paginate smoke test against both callsites?
+
+---
+
+What this example demonstrates:
+- Original-order walk preserved through a `needs-approval` halt
+- Per-item verification (curl, then tsc + targeted test) — non-transitive
+- Phase 5 retry on a real failure, smallest fix, re-verify before moving on
+- Reflection feeds Phase 7 with concrete citations (the actual `tsc` failure)
+- "Want me to" is exactly two options, not three; the tiered close is mandatory because this run had ≥2 items completed
