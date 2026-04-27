@@ -44,6 +44,7 @@ Before opening a PR, verify:
 - [ ] **No drive-bys.** Edits unrelated to the stated concern get their own PR, even if they're small. "While I was here" is not a justification.
 - [ ] **Bundle regen rule.** If a source change requires `npm run build`, the regenerated `bin/*.mjs`, `lib/*.mjs`, `test/*.test.mjs`, and `plugins/*.json` ship in the same PR as the source. The CI gate `npm run verify:generated` enforces this, but you should verify locally before pushing.
 - [ ] **Skill mirror rule.** If you edit `plugins/continuous-improvement/skills/<name>/SKILL.md`, mirror the same change to `skills/<name>.md` (or vice versa) in the same PR. The two distribution copies must not drift across PR boundaries — installs from `~/.claude/skills/` (curl path) and from the plugin bundle must produce identical skill content.
+- [ ] **Test/docs sync rule.** Tests that assert on prose content (`assert.match` against a `*.md` file like `README.md`, `CHANGELOG.md`, or any skill markdown) must ship in the same PR as the docs change adding the asserted substring. Wholesale rewrites of a docs file (README rewrites, CHANGELOG restructures) must verify every existing prose-substring assertion in `src/test/*.mts` still matches before merging — the rewrite PR is responsible for either preserving the asserted strings or updating the tests, not the next contributor's PR.
 
 #### When you have multiple concerns
 
