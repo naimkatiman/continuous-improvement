@@ -57,6 +57,35 @@ Do NOT use when:
 - User scoped the work ("just the first one", "only the safe ones") — honor the scope
 - Recommendations conflict with project CLAUDE.md rules
 
+## Phase 0: Acknowledge (Past Mistake Acknowledgment Gate / P-MAG)
+
+Before research begins, the skill must read its own track record. The instinct system records corrections; this gate forces the read at the moment they actually matter — before a new recommendation list is touched. **Three rules, in order. None is optional.**
+
+### Rule 1 — Acknowledge before context (right context from the beginning)
+
+Scan two surfaces and quote literal evidence:
+
+- `~/.claude/instincts/<project-hash>/observations.jsonl` — last 10 entries with `type: failure` or `correction`
+- The active project's `CLAUDE.md` "Past Mistakes" section (if present)
+
+Emit one line: `Past mistake observed: <quote>. Source: <file:line>. Active in current scope: yes|no.` If both surfaces are empty, emit `No prior mistakes recorded — proceed.` Never skip silently — silent skip defeats the instinct system.
+
+### Rule 2 — Clearance gate (don't proceed until the mistake is gone)
+
+Hard halt before Phase 1 if any of these hold:
+
+- The past mistake's residue is **still present** in the working tree (unrotated key, stale README dates, unreverted bug, broken migration)
+- The verification step from the prior fix was never run
+- A `needs-approval` item from a prior session sits unresolved
+
+Halt output: `BLOCKED on prior mistake: <X>. Residue: <Y at file:line>. Required clearance: <Z>. New recommendation list will not start until cleared.` This is also enumerated under Stop Conditions below.
+
+### Rule 3 — Negative prompt (determine not to do it again)
+
+Carry one named past failure forward into Phase 2 as `Will NOT repeat: <pattern>`. The pattern must cite a specific prior session — generic anti-patterns ("will not skip verification") do not qualify. Concrete shape: `Will NOT repeat: skipped per-item typecheck on lib/ extraction the way item 3 did 2026-04-26`.
+
+Phase 6 reflection scores the run against this declared negative prompt — if honored, instincts strengthen; if violated, the violation itself becomes the next session's Rule 1 quote.
+
 ## Phase 1: Pre-Flight (Law 1 — Research)
 
 **If** the recommendation list references files, plugins, or MCP servers not obviously present in the current repo, **then** call `workspace-surface-audit` for a quick scan. Otherwise skip.
