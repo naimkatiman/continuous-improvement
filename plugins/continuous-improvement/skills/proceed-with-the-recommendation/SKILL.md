@@ -1,11 +1,11 @@
 ---
-name: proceed-with-claude-recommendation
+name: proceed-with-the-recommendation
 tier: featured
 description: "Walks a Claude-emitted recommendation list top-to-bottom under the 7 Laws — restate, route per item, verify before advancing, reflect at the end, close with the mandatory three-section block. Standalone with inline fallbacks; trigger phrases are matched by the companion hook, not enumerated here."
 origin: https://github.com/naimkatiman/continuous-improvement
 ---
 
-# Proceed With Claude Recommendation
+# Proceed With The Recommendation
 
 ## Overview
 
@@ -46,7 +46,7 @@ This skill is the orchestrator for the other companions in this repo. It does no
 **Hard precondition (must be true before this skill runs):** Claude emitted a numbered, bulleted, or otherwise enumerated list of recommendations / next steps / suggested actions in the **immediately prior turn**. If no such list exists in the prior turn, this skill MUST NOT activate — the trigger phrases are ambiguous on their own and "yes do it" / "all of them" can refer to anything.
 
 If the precondition holds, activate when:
-- User invokes `/proceed-with-claude-recommendation`
+- User invokes `/proceed-with-the-recommendation`
 - User says "proceed with your recommendation", "do all of it", "go ahead with the plan", "execute the recommendations"
 - User confirms with "yes do it" or "all of them"
 - Auto mode is active AND the recommendation list is unambiguous
@@ -274,9 +274,9 @@ The five failure modes that actually bite. (Stop Conditions and Red Flags above 
 ## Installation
 
 ```bash
-mkdir -p ~/.claude/skills/proceed-with-claude-recommendation
-curl -L https://raw.githubusercontent.com/naimkatiman/continuous-improvement/main/skills/proceed-with-claude-recommendation.md \
-  -o ~/.claude/skills/proceed-with-claude-recommendation/SKILL.md
+mkdir -p ~/.claude/skills/proceed-with-the-recommendation
+curl -L https://raw.githubusercontent.com/naimkatiman/continuous-improvement/main/skills/proceed-with-the-recommendation.md \
+  -o ~/.claude/skills/proceed-with-the-recommendation/SKILL.md
 ```
 
 Restart the Claude Code session so the registry picks it up. **No other plugins required** — the skill falls back to inline behavior for any specialist that is not present.

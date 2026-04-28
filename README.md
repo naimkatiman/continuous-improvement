@@ -112,12 +112,12 @@ The default install only deploys the core 7 Laws skill. Everything below is opt-
 
 ### Featured companion — the recommended pairing for the 7 Laws
 
-⭐ **`proceed-with-claude-recommendation`** is the execution arm of this repo. When you say "do all of it" / "proceed with your recommendation" / "yes do it", this skill walks the list top-to-bottom under the 7 Laws, routes each item to the right specialist (`superpowers:*`, `ralph`, `workspace-surface-audit`, `simplify`, `security-review`, `schedule`, `loop`), falls back to inline behavior when a specialist isn't installed, verifies per item, and **halts on `needs-approval`** instead of barreling through. If you adopt one companion alongside the core skill, adopt this one — it's purpose-built to operationalize the laws end-to-end.
+⭐ **`proceed-with-the-recommendation`** is the execution arm of this repo. When you say "do all of it" / "proceed with your recommendation" / "yes do it", this skill walks the list top-to-bottom under the 7 Laws, routes each item to the right specialist (`superpowers:*`, `ralph`, `workspace-surface-audit`, `simplify`, `security-review`, `schedule`, `loop`), falls back to inline behavior when a specialist isn't installed, verifies per item, and **halts on `needs-approval`** instead of barreling through. If you adopt one companion alongside the core skill, adopt this one — it's purpose-built to operationalize the laws end-to-end.
 
 Install it on its own:
 
 ```bash
-SKILL=proceed-with-claude-recommendation
+SKILL=proceed-with-the-recommendation
 mkdir -p ~/.claude/skills/$SKILL
 curl -L https://raw.githubusercontent.com/naimkatiman/continuous-improvement/main/skills/$SKILL.md \
   -o ~/.claude/skills/$SKILL/SKILL.md

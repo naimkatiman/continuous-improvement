@@ -22,7 +22,7 @@ const REPO_ROOT = join(__dirname, "..");
 const COMMAND_FILES = [
     "continuous-improvement.md",
     "planning-with-files.md",
-    "proceed-with-claude-recommendation.md",
+    "proceed-with-the-recommendation.md",
     "discipline.md",
     "dashboard.md",
     "learn-eval.md",

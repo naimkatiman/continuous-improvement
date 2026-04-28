@@ -117,7 +117,7 @@ export const DOCS_ASSERTIONS = [
     { file: "commands/continuous-improvement.md", pattern: "Iteration — Next best recommendations (ranked, top 3)", source: "reflection-iteration-field.test.mts:43" },
     { file: "plugins/continuous-improvement/skills/continuous-improvement/SKILL.md", pattern: "Iteration — Next best recommendations (ranked, top 3)", source: "reflection-iteration-field.test.mts:43" },
     { file: "plugins/continuous-improvement/commands/continuous-improvement.md", pattern: "Iteration — Next best recommendations (ranked, top 3)", source: "reflection-iteration-field.test.mts:43" },
-    { file: "skills/proceed-with-claude-recommendation.md", pattern: "Iteration — Next best recommendations (ranked, top 3)", source: "reflection-iteration-field.test.mts:43" },
+    { file: "skills/proceed-with-the-recommendation.md", pattern: "Iteration — Next best recommendations (ranked, top 3)", source: "reflection-iteration-field.test.mts:43" },
 ];
 export function checkAssertions(repoRoot, assertions = DOCS_ASSERTIONS) {
     const fileCache = new Map();

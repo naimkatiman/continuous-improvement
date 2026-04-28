@@ -21,7 +21,7 @@ const MIRRORS = [
         section: "Step 1 reflection template (plugin mirror)",
     },
     {
-        path: "skills/proceed-with-claude-recommendation.md",
+        path: "skills/proceed-with-the-recommendation.md",
         section: "Phase 6 reflection block",
     },
 ];

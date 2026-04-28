@@ -54,7 +54,7 @@ Sequence the PRs:
 2. If unrelated companion skills, hooks, or commands need to ship, open separate PRs per concern. Stack them on top of each other if there are dependencies; otherwise open them in parallel.
 3. Avoid the "feature-branch dumping ground" pattern — a long-lived branch that accumulates several unrelated changes and merges as one. If a branch is going to land more than one concern, split before merging.
 
-A single PR that touches multiple skills (e.g. `proceed-with-claude-recommendation`, `tdd-workflow`, `safety-guard`), README mode descriptions, and bundle artifacts is **five concerns**, not one — even if every commit on the branch was clean locally. Five concerns get five PRs.
+A single PR that touches multiple skills (e.g. `proceed-with-the-recommendation`, `tdd-workflow`, `safety-guard`), README mode descriptions, and bundle artifacts is **five concerns**, not one — even if every commit on the branch was clean locally. Five concerns get five PRs.
 
 ### Share Instinct Packs
 Have a set of instincts that work well for a specific stack? Add them to `instinct-packs/`:

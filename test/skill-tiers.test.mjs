@@ -99,13 +99,13 @@ describe("groupSkillsByTier", () => {
             { name: "verification-loop", tier: "1" },
             { name: "gateguard", tier: "1" },
             { name: "ralph", tier: "companion" },
-            { name: "proceed-with-claude-recommendation", tier: "featured" },
+            { name: "proceed-with-the-recommendation", tier: "featured" },
             { name: "continuous-improvement", tier: "core" },
             { name: "mystery", tier: "unknown" },
         ];
         const groups = groupSkillsByTier(skills);
         assert.deepEqual(groups.core.map((s) => s.name), ["continuous-improvement"]);
-        assert.deepEqual(groups.featured.map((s) => s.name), ["proceed-with-claude-recommendation"]);
+        assert.deepEqual(groups.featured.map((s) => s.name), ["proceed-with-the-recommendation"]);
         assert.deepEqual(groups["1"].map((s) => s.name), ["gateguard", "verification-loop"]);
         assert.deepEqual(groups["2"], []);
         assert.deepEqual(groups.companion.map((s) => s.name), ["ralph"]);
@@ -121,7 +121,7 @@ describe("renderBundledSkillsReadme", () => {
                 description: "The 7 Laws.",
             },
             {
-                name: "proceed-with-claude-recommendation",
+                name: "proceed-with-the-recommendation",
                 tier: "featured",
                 description: "The execution arm.",
             },
@@ -146,7 +146,7 @@ describe("renderBundledSkillsReadme", () => {
     });
     it("marks the featured tier with a star, but not the core tier", () => {
         const out = render();
-        assert.match(out, /- `proceed-with-claude-recommendation` ⭐/, "featured skill must carry the star marker");
+        assert.match(out, /- `proceed-with-the-recommendation` ⭐/, "featured skill must carry the star marker");
         assert.doesNotMatch(out, /- `continuous-improvement` ⭐/, "core skill must not carry the star (it's not a companion)");
     });
     it("renders tier 1 and tier 2 headings with descriptive labels", () => {

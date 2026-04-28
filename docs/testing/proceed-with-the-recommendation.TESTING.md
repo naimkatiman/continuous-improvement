@@ -1,4 +1,4 @@
-# Pressure-Test Log — proceed-with-claude-recommendation
+# Pressure-Test Log — proceed-with-the-recommendation
 
 This document captures the adversarial subagent pressure-test that hardened the skill against specific rationalization patterns. Future editors should treat this as the **baseline** — any change to the skill's discipline rules must either preserve these guarantees or explicitly document why a guarantee was relaxed.
 
