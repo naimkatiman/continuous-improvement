@@ -53,3 +53,23 @@ If the build fails or tests break, revert the new skill file and the README row,
 - WILD/RISA tagging requirement inside `proceed-with-the-recommendation` execution loop (Option B from the prior turn).
 - Mandatory WILD/RISA split in the 3-section close hook (Option C from the prior turn).
 - Both deferred until at least three sessions of evidence that the vocabulary actually changes outcomes.
+
+## 2026-04-28 amendment — 7-item floor
+
+After the initial skill landed (PR #35, commit `1dc4557`), operator feedback was that "1–2 bold items" + "the safe items" was too loose: lists kept degrading to flat 2+2 blocks where the bold and safe items competed equally, defeating the point. Tightened the contract to a hard floor.
+
+- **WILD pilots:** exactly 2 bold items.
+- **RISA baseline:** at least 5 safe items.
+- **Total floor:** 2 WILD + 5 RISA = 7 items minimum.
+
+Files changed by the amendment (follow-up branch `feat/wild-risa-floor`):
+- `skills/wild-risa-balance.md` — How-to-Apply prose rewritten with explicit counts; example expanded from 2+2 to 2+5 with annotated headers.
+- `plugins/continuous-improvement/skills/wild-risa-balance/SKILL.md` — same edit mirrored for `check-skill-mirror`.
+- `bin/check-docs-substrings.mjs` — new assertion locking the literal `2 WILD + 5 RISA = 7 items minimum` into both files so CI catches future drift.
+- `skills/proceed-with-the-recommendation.md` (+ plugin mirror) — one-line cross-reference noting the upstream 7-item floor.
+
+Verification for the amendment:
+1. `node bin/check-skill-mirror.mjs` exits 0.
+2. `node bin/check-docs-substrings.mjs` exits 0 with the new assertion.
+3. `node bin/check-skill-tiers.mjs` exits 0.
+4. Diff confined to the four files above plus this plan doc.
