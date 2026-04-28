@@ -69,6 +69,8 @@ Restate the recommendation list back in one compact block:
 4. Proceed without waiting ONLY if every item is `safe` AND the user already said "all of them" / auto mode is active
 5. For any `needs-approval` item (deploy, force-push, DB drop, secret change), stop and ask — even if other items are safe
 
+**Upstream block-shape contract:** if the recommendation list was composed under `wild-risa-balance`, expect ≥7 items split as exactly 2 WILD + at least 5 RISA. Shorter or wrong-split blocks mean the upstream skill was bypassed or violated — flag the gap to the user (one line: "block arrived as N items instead of ≥7; was wild-risa-balance applied?") before walking, do not silently proceed.
+
 ## Phase 2: Plan (Law 2 — Plan Is Sacred)
 
 If the list has **>3 items OR touches >150 LOC**, call `superpowers:writing-plans` to generate a bite-sized task breakdown. Save the plan to `docs/plans/YYYY-MM-DD-<slug>.md`.
