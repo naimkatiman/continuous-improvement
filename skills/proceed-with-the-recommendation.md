@@ -268,6 +268,7 @@ Stop immediately on any of:
 - New information contradicts the remaining list (root-cause shifted)
 - Context >80% full — write a Context Bridge before clearing
 - Any drive-by temptation that is NOT in the original list
+- Prior-mistake residue still present in working tree or operator queue (P-MAG Rule 2 — clear it before starting the new list)
 
 ### Definitions (close common rationalization routes)
 
