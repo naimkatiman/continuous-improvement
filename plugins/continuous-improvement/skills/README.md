@@ -25,6 +25,7 @@ skill set on disk.
 - `safety-guard` — Use this skill to prevent destructive operations when working on production systems or running agents autonomously.
 - `strategic-compact` — Suggests manual context compaction at logical intervals to preserve context through task phases rather than arbitrary auto-compaction.
 - `token-budget-advisor` — Offers the user an informed choice about how much response depth to consume before answering. Use this skill when the user explicitly wants to control response length, depth, or token budget. TRIGGER when: "token budget", "token count", "token usage", "token limit", "response length", "answer depth", "short version", "brief answer", "detailed answer", "exhaustive answer", "respuesta corta vs larga", "cuántos tokens", "ahorrar tokens", "responde al 50%", "dame la versión corta", "quiero controlar cuánto usas", or clear variants where the user is explicitly asking to control answer size or depth. DO NOT TRIGGER when: user has already specified a level in the current session (maintain it), the request is clearly a one-word answer, or "token" refers to auth/session/payment tokens rather than response size.
+- `wild-risa-balance` — Decision-framing lens that pairs WILD generation with RISA execution when emitting recommendation lists. Not a runtime hook.
 
 ## Always-bundled companions
 - `ralph` — Ralph is an autonomous AI agent loop that runs repeatedly until all PRD items are complete. Converts PRDs to executable JSON, implements stories iteratively with quality checks, and tracks progress.
