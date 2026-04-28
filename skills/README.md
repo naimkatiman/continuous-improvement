@@ -6,11 +6,11 @@ This directory holds the **source-of-truth** for the companion skills bundled wi
 
 ## Featured companion — installed by default with the plugin
 
-`proceed-with-claude-recommendation` is the **recommended pairing** for the 7 Laws. It is the execution arm that turns "do all of it" into a disciplined, verified, one-concern-at-a-time walk through Claude's recommendation list. If you only adopt one companion alongside the core skill, adopt this one.
+`proceed-with-the-recommendation` is the **recommended pairing** for the 7 Laws. It is the execution arm that turns "do all of it" into a disciplined, verified, one-concern-at-a-time walk through Claude's recommendation list. If you only adopt one companion alongside the core skill, adopt this one.
 
 | Skill | What it does | Source |
 |-------|--------------|--------|
-| **`proceed-with-claude-recommendation`** ⭐ | Walks any Claude recommendation list top-to-bottom under the 7 Laws — routes each item to the right specialist (`superpowers:*`, `ralph`, `workspace-surface-audit`, `simplify`, `security-review`, `schedule`, `loop`), falls back to inline behavior when a specialist isn't installed, verifies per item, halts on `needs-approval` | @naimkatiman |
+| **`proceed-with-the-recommendation`** ⭐ | Walks any Claude recommendation list top-to-bottom under the 7 Laws — routes each item to the right specialist (`superpowers:*`, `ralph`, `workspace-surface-audit`, `simplify`, `security-review`, `schedule`, `loop`), falls back to inline behavior when a specialist isn't installed, verifies per item, halts on `needs-approval` | @naimkatiman |
 
 ## Tier 1 — recommended pairing for **beginner** mode
 
@@ -59,7 +59,7 @@ Two paths, you pick:
 **Path B — Drop a single skill in by hand.** Useful if you want only one companion without the rest of the plugin:
 
 ```bash
-SKILL=proceed-with-claude-recommendation
+SKILL=proceed-with-the-recommendation
 mkdir -p ~/.claude/skills/$SKILL
 curl -L https://raw.githubusercontent.com/naimkatiman/continuous-improvement/main/skills/$SKILL.md \
   -o ~/.claude/skills/$SKILL/SKILL.md
@@ -73,4 +73,4 @@ Adversarial pressure-test logs for skills in this directory live under [`docs/te
 
 ## Relationship to the core skill
 
-The core [`SKILL.md`](../SKILL.md) at the repo root defines the **7 Laws of discipline**. The skills in this directory are independent execution tools that build on those laws. They do not depend on `SKILL.md` and `SKILL.md` does not depend on them — but `proceed-with-claude-recommendation` was written specifically to operationalize the 7 Laws end-to-end, which is why it's the featured pairing.
+The core [`SKILL.md`](../SKILL.md) at the repo root defines the **7 Laws of discipline**. The skills in this directory are independent execution tools that build on those laws. They do not depend on `SKILL.md` and `SKILL.md` does not depend on them — but `proceed-with-the-recommendation` was written specifically to operationalize the 7 Laws end-to-end, which is why it's the featured pairing.

@@ -1,9 +1,9 @@
 ---
-name: proceed-with-claude-recommendation
+name: proceed-with-the-recommendation
 description: "Execute Claude's prior recommendation list under the 7 Laws — walk in order, route per item, verify, reflect. Standalone companion skill with inline fallbacks when other skills are not installed."
 ---
 
-# /proceed-with-claude-recommendation
+# /proceed-with-the-recommendation
 
 Walk a Claude-generated recommendation list top-to-bottom under the continuous-improvement 7 Laws. Each item is routed to the best specialist skill when available, falls back to concrete inline behavior when it is not.
 
@@ -11,7 +11,7 @@ Invoke immediately after Claude has offered a numbered list of recommendations, 
 
 ## Trigger phrases
 
-- `/proceed-with-claude-recommendation`
+- `/proceed-with-the-recommendation`
 - "proceed with your recommendation"
 - "do all of it"
 - "go ahead with the plan"
@@ -49,14 +49,14 @@ If none of those are installed, the skill still works — every routing row has 
 
 ## Skill file
 
-Full behavior is defined in [`skills/proceed-with-claude-recommendation.md`](../skills/proceed-with-claude-recommendation.md).
+Full behavior is defined in [`skills/proceed-with-the-recommendation.md`](../skills/proceed-with-the-recommendation.md).
 
 ## Install standalone
 
 ```bash
-mkdir -p ~/.claude/skills/proceed-with-claude-recommendation
-curl -L https://raw.githubusercontent.com/naimkatiman/continuous-improvement/main/skills/proceed-with-claude-recommendation.md \
-  -o ~/.claude/skills/proceed-with-claude-recommendation/SKILL.md
+mkdir -p ~/.claude/skills/proceed-with-the-recommendation
+curl -L https://raw.githubusercontent.com/naimkatiman/continuous-improvement/main/skills/proceed-with-the-recommendation.md \
+  -o ~/.claude/skills/proceed-with-the-recommendation/SKILL.md
 ```
 
 Restart the Claude Code session so the registry picks it up.

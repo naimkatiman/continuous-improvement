@@ -4,6 +4,13 @@ All notable changes to this skill are documented here.
 
 ---
 
+## [Unreleased]
+
+### Changed
+- **Renamed `proceed-with-claude-recommendation` → `proceed-with-the-recommendation`** — drops Claude-specific branding from the skill identifier so the same skill can be installed into non-Claude agents (Codex, Gemini CLI, etc.). Identifier-only rename: file paths, frontmatter `name:`, slash command, install snippets, and cross-references updated. Body language about "Claude-emitted recommendation" is intentionally untouched in this release; that agent-genericization pass is a separate follow-up. Old-name installations need to re-run the install snippet under the new path.
+
+---
+
 ## [3.3.0] — 2026-04-25
 
 ### Added

@@ -122,7 +122,7 @@ describe("groupSkillsByTier", () => {
       { name: "verification-loop", tier: "1" },
       { name: "gateguard", tier: "1" },
       { name: "ralph", tier: "companion" },
-      { name: "proceed-with-claude-recommendation", tier: "featured" },
+      { name: "proceed-with-the-recommendation", tier: "featured" },
       { name: "continuous-improvement", tier: "core" },
       { name: "mystery", tier: "unknown" },
     ];
@@ -133,7 +133,7 @@ describe("groupSkillsByTier", () => {
     );
     assert.deepEqual(
       groups.featured.map((s) => s.name),
-      ["proceed-with-claude-recommendation"],
+      ["proceed-with-the-recommendation"],
     );
     assert.deepEqual(
       groups["1"].map((s) => s.name),
@@ -160,7 +160,7 @@ describe("renderBundledSkillsReadme", () => {
         description: "The 7 Laws.",
       },
       {
-        name: "proceed-with-claude-recommendation",
+        name: "proceed-with-the-recommendation",
         tier: "featured",
         description: "The execution arm.",
       },
@@ -190,7 +190,7 @@ describe("renderBundledSkillsReadme", () => {
     const out = render();
     assert.match(
       out,
-      /- `proceed-with-claude-recommendation` ⭐/,
+      /- `proceed-with-the-recommendation` ⭐/,
       "featured skill must carry the star marker",
     );
     assert.doesNotMatch(
