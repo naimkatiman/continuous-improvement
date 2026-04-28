@@ -13,7 +13,7 @@ skill set on disk.
 - `continuous-improvement` — Install structured self-improvement loops with instinct-based learning into Claude Code — research, plan, execute, verify, reflect, learn, iterate. On-demand or weekly analysis to save tokens. Supports multi-agent parallel analysis.
 
 ## Featured companion
-- `proceed-with-the-recommendation` ⭐ — Walks a Claude-emitted recommendation list top-to-bottom under the 7 Laws — restate, route per item, verify before advancing, reflect at the end, close with the mandatory three-section block. Standalone with inline fallbacks; trigger phrases are matched by the companion hook, not enumerated here.
+- `proceed-with-the-recommendation` ⭐ — Walks an agent-emitted recommendation list top-to-bottom under the 7 Laws — restate, route per item, verify before advancing, reflect at the end, close with the mandatory three-section block. Standalone with inline fallbacks; trigger phrases are matched by the companion hook, not enumerated here.
 
 ## Tier 1 — beginner-mode pairing
 - `gateguard` — Fact-forcing gate that blocks Edit/Write/Bash (including MultiEdit) and demands concrete investigation (importers, data schemas, user instruction) before allowing the action. Measurably improves output quality by +2.25 points vs ungated agents.

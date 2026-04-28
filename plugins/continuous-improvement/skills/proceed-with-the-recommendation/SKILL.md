@@ -1,7 +1,7 @@
 ---
 name: proceed-with-the-recommendation
 tier: featured
-description: "Walks a Claude-emitted recommendation list top-to-bottom under the 7 Laws — restate, route per item, verify before advancing, reflect at the end, close with the mandatory three-section block. Standalone with inline fallbacks; trigger phrases are matched by the companion hook, not enumerated here."
+description: "Walks an agent-emitted recommendation list top-to-bottom under the 7 Laws — restate, route per item, verify before advancing, reflect at the end, close with the mandatory three-section block. Standalone with inline fallbacks; trigger phrases are matched by the companion hook, not enumerated here."
 origin: https://github.com/naimkatiman/continuous-improvement
 ---
 
@@ -43,7 +43,7 @@ This skill is the orchestrator for the other companions in this repo. It does no
 
 ## When to Use
 
-**Hard precondition (must be true before this skill runs):** Claude emitted a numbered, bulleted, or otherwise enumerated list of recommendations / next steps / suggested actions in the **immediately prior turn**. If no such list exists in the prior turn, this skill MUST NOT activate — the trigger phrases are ambiguous on their own and "yes do it" / "all of them" can refer to anything.
+**Hard precondition (must be true before this skill runs):** The agent emitted a numbered, bulleted, or otherwise enumerated list of recommendations / next steps / suggested actions in the **immediately prior turn**. If no such list exists in the prior turn, this skill MUST NOT activate — the trigger phrases are ambiguous on their own and "yes do it" / "all of them" can refer to anything.
 
 If the precondition holds, activate when:
 - User invokes `/proceed-with-the-recommendation`
@@ -55,7 +55,7 @@ Do NOT use when:
 - No enumerated recommendation list exists in the prior turn — ask what to proceed with instead of guessing
 - Recommendations include destructive actions (deploy, force-push, DB drops, secret changes) without prior explicit authorization
 - User scoped the work ("just the first one", "only the safe ones") — honor the scope
-- Recommendations conflict with project CLAUDE.md rules
+- Recommendations conflict with project agent-instruction files (CLAUDE.md / AGENTS.md / GEMINI.md / equivalent)
 
 ## Phase 1: Pre-Flight (Law 1 — Research)
 
@@ -294,7 +294,7 @@ Install them together for the full continuous-improvement experience, or use thi
 
 A concrete trace covering the most-failed paths: a `needs-approval` halt, a verification failure-and-retry, and the Phase 7 close. Use this to calibrate output shape — don't copy the wording.
 
-**Prior turn (Claude's recommendation block):**
+**Prior turn (the agent's recommendation block):**
 ```
 1. Add input validation to the /api/users POST handler
 2. Drop the unused `legacy_users` table
