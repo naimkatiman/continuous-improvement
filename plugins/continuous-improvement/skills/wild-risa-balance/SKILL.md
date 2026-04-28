@@ -53,14 +53,16 @@ WILD owns generation phases. RISA owns execution phases. The switch is intention
 
 ## How to Apply in a Recommendation List
 
-When emitting ≥3 recommendations, split them:
+When this skill is in play, every recommendation block ships **at least 7 items**, split as:
 
-1. **Top block — WILD pilots.** 1–2 bold items. Present every item; the operator picks at most one to actually run.
-2. **Bottom block — RISA baseline.** The safe items that ship now regardless of the WILD bet.
+1. **Top block — WILD pilots: exactly 2 bold items.** Present both; the operator picks at most one to actually run. If you cannot find a second genuinely bold option, stretch — do not pad with a safe item dressed up as wild.
+2. **Bottom block — RISA baseline: at least 5 safe items.** These ship now regardless of the WILD bet. If you cannot reach 5, the surface is under-explored — expand scope before emitting the list.
 3. Within each block, rank descending by impact.
 4. Once the list is composed, wait for the operator's "proceed" signal before invoking `proceed-with-the-recommendation`. Never auto-trigger it. This skill only changes how the list is composed.
 
-The point: the operator gets one bold option to weigh against a baseline they already trust, instead of a flat list where the bold option silently competes with safe ones and loses by default.
+Total floor: **2 WILD + 5 RISA = 7 items minimum.** Going above is fine; going below means the skill was not applied.
+
+The point: the operator gets a real WILD/RISA contrast (2 bold bets weighed against a 5-deep trusted baseline), not a flat list where the bold option silently competes with safe ones and loses by default.
 
 ## Integration with the 7 Laws
 
@@ -76,14 +78,19 @@ Both modes pass through Law 6 before execution. WILD without Law 6 is a wishlist
 ```
 Recommendations (descending impact within each block)
 
-WILD pilots — pick at most one
+WILD pilots — pick at most one (2 of 2)
 1. Replace the current review workflow with a single adversarial pair.
 2. Drop the staging environment in favor of feature-flagged production.
 
-RISA baseline — ship regardless
+RISA baseline — ship regardless (5 of ≥5)
 1. Add the missing test for the failure path noted in verification.
 2. Rename the ambiguous flag to match its actual behavior.
+3. Backfill the type on the public export that currently widens to `any`.
+4. Wire the existing Stop hook into the new skill's checklist gate.
+5. Update the README mirror so the bundled plugin matches the source skill.
 ```
+
+Total: 7 items (2 WILD + 5 RISA). That is the floor — emit more on either side if the surface warrants it.
 
 ## Related
 
