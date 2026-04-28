@@ -118,6 +118,10 @@ export const DOCS_ASSERTIONS = [
     { file: "plugins/continuous-improvement/skills/continuous-improvement/SKILL.md", pattern: "Iteration — Next best recommendations (ranked, top 3)", source: "reflection-iteration-field.test.mts:43" },
     { file: "plugins/continuous-improvement/commands/continuous-improvement.md", pattern: "Iteration — Next best recommendations (ranked, top 3)", source: "reflection-iteration-field.test.mts:43" },
     { file: "skills/proceed-with-the-recommendation.md", pattern: "Iteration — Next best recommendations (ranked, top 3)", source: "reflection-iteration-field.test.mts:43" },
+    // wild-risa-balance recommendation floor (src/test/wild-risa-floor.test.mts)
+    // Source skill + plugin mirror must both contain the literal "2 WILD + 5 RISA = 7 items minimum".
+    { file: "skills/wild-risa-balance.md", pattern: "2 WILD + 5 RISA = 7 items minimum", source: "wild-risa-floor.test.mts:38" },
+    { file: "plugins/continuous-improvement/skills/wild-risa-balance/SKILL.md", pattern: "2 WILD + 5 RISA = 7 items minimum", source: "wild-risa-floor.test.mts:38" },
 ];
 export function checkAssertions(repoRoot, assertions = DOCS_ASSERTIONS) {
     const fileCache = new Map();
