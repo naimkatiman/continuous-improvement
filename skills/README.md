@@ -54,8 +54,10 @@ Two paths, you pick:
 
 ```bash
 /plugin marketplace add naimkatiman/continuous-improvement
-/plugin install continuous-improvement@continuous-improvement-dev
+/plugin install continuous-improvement@continuous-improvement
 ```
+
+(The `-dev` suffix is reserved for the in-repo development marketplace at `plugins/continuous-improvement/.claude-plugin/marketplace.json` — only used when iterating on the bundle locally.)
 
 **Path B — Drop a single skill in by hand.** Useful if you want only one companion without the rest of the plugin:
 

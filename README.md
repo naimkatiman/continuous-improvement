@@ -145,6 +145,7 @@ Layer on top of tier-1 for autonomous-mode safety, response-depth control, and c
 | `safety-guard` | Three-mode runtime guard (careful/freeze/guard) that blocks destructive commands and locks edits to a directory |
 | `token-budget-advisor` | Heuristic input/output token estimator that offers 25%/50%/75%/100% depth choices before answering |
 | `strategic-compact` | PreToolUse hook that suggests `/compact` at logical phase boundaries instead of arbitrary auto-compaction |
+| `wild-risa-balance` | Decision-framing lens that pairs WILD (bold) generation with RISA (safe) execution; splits recommendation lists into pilots above a baseline so bold options stop losing to safe ones in a flat list |
 
 The `/learn-eval` slash command also ships with the expert install: extract a session pattern, run a checklist quality gate, and decide global-vs-project save location before writing any skill file.
 
@@ -160,7 +161,7 @@ Drop-in single-file skills, copy to `~/.claude/skills/<name>/SKILL.md`.
 
 ### Plugin marketplace ([`plugins/`](plugins/))
 
-Install via `/plugin marketplace add naimkatiman/continuous-improvement` then `/plugin install <name>@continuous-improvement-dev`.
+Install via `/plugin marketplace add naimkatiman/continuous-improvement` then `/plugin install <name>@continuous-improvement` (the `-dev` suffix is only used for the local in-repo development marketplace at `plugins/continuous-improvement/.claude-plugin/marketplace.json`).
 
 | Plugin | Skills | Focus |
 |--------|--------|-------|
