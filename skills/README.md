@@ -6,11 +6,11 @@ This directory holds the **source-of-truth** for the companion skills bundled wi
 
 ## Featured companion — installed by default with the plugin
 
-`proceed-with-the-recommendation` is the **recommended pairing** for the 7 Laws. It is the execution arm that turns "do all of it" into a disciplined, verified, one-concern-at-a-time walk through Claude's recommendation list. If you only adopt one companion alongside the core skill, adopt this one.
+`proceed-with-the-recommendation` is the **recommended pairing** for the 7 Laws. It is the execution arm that turns "do all of it" into a disciplined, verified, one-concern-at-a-time walk through the agent's recommendation list. If you only adopt one companion alongside the core skill, adopt this one.
 
 | Skill | What it does | Source |
 |-------|--------------|--------|
-| **`proceed-with-the-recommendation`** ⭐ | Walks any Claude recommendation list top-to-bottom under the 7 Laws — routes each item to the right specialist (`superpowers:*`, `ralph`, `workspace-surface-audit`, `simplify`, `security-review`, `schedule`, `loop`), falls back to inline behavior when a specialist isn't installed, verifies per item, halts on `needs-approval` | @naimkatiman |
+| **`proceed-with-the-recommendation`** ⭐ | Walks any agent's recommendation list top-to-bottom under the 7 Laws — routes each item to the right specialist (`superpowers:*`, `ralph`, `workspace-surface-audit`, `simplify`, `security-review`, `schedule`, `loop`), falls back to inline behavior when a specialist isn't installed, verifies per item, halts on `needs-approval` | @naimkatiman |
 
 ## Tier 1 — recommended pairing for **beginner** mode
 

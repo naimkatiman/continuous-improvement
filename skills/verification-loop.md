@@ -1,13 +1,13 @@
 ---
 name: verification-loop
 tier: "1"
-description: "A comprehensive verification system for Claude Code sessions."
+description: "A comprehensive verification system for agent coding sessions."
 origin: continuous-improvement
 ---
 
 # Verification Loop Skill
 
-A comprehensive verification system for Claude Code sessions.
+A comprehensive verification system for agent coding sessions.
 
 ## When to Use
 

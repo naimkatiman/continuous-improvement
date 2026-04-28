@@ -19,7 +19,7 @@ origin: community
 
 # Token Budget Advisor (TBA)
 
-Intercept the response flow to offer the user a choice about response depth **before** Claude answers.
+Intercept the response flow to offer the user a choice about response depth **before** the agent answers.
 
 ## When to Use
 
