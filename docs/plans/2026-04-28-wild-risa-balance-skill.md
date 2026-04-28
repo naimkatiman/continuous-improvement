@@ -20,7 +20,7 @@ The skill is a thinking lens, not a runtime hook. It is referenced by `proceed-w
 ## WILL build
 
 1. New source skill file: `skills/wild-risa-balance.md`.
-   - YAML frontmatter: `name`, `tier: "2"`, `description`, `origin: ECC`.
+   - YAML frontmatter: `name`, `tier: "2"`, `description`, `origin: continuous-improvement`.
    - Body sections (in order): `When to Use`, `The Two Modes`, `The Trap`, `Switching Deliberately`, `How to Apply in a Recommendation List`, `Integration with the 7 Laws`, `Example`, `Related`.
    - Length budget: 80–150 lines. No code samples beyond a small markdown example block.
 2. Update `skills/README.md` Tier 2 table to add a row for `wild-risa-balance` with a one-line description and a "When it pays off" cell.

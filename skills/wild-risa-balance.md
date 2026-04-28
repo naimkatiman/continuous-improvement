@@ -2,7 +2,7 @@
 name: wild-risa-balance
 tier: "2"
 description: Decision-framing lens that pairs WILD generation with RISA execution when emitting recommendation lists. Not a runtime hook.
-origin: ECC
+origin: continuous-improvement
 ---
 
 # WILD / RISA Balance

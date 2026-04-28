@@ -44,7 +44,7 @@ These ship in the same plugin bundle regardless of mode and are available the mo
 |-------|--------------|--------|
 | `ralph` | Autonomous loop that executes a PRD story-by-story with quality checks between iterations | [snarktank/ralph](https://github.com/snarktank/ralph) |
 | `superpowers` | Activates task-appropriate skills automatically (brainstorming, git-worktrees, TDD, code review, etc.) | [obra/superpowers](https://github.com/obra/superpowers) |
-| `workspace-surface-audit` | Audits the active repo, MCP servers, plugins, and env, then recommends high-value skills/workflows | ECC |
+| `workspace-surface-audit` | Audits the active repo, MCP servers, plugins, and env, then recommends high-value skills/workflows | continuous-improvement |
 
 ## How they get to your machine
 
