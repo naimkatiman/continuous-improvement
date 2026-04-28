@@ -9,7 +9,7 @@ origin: https://github.com/naimkatiman/continuous-improvement
 
 ## Overview
 
-One reusable skill that ties the continuous-improvement framework to a concrete execution engine. When the user greenlights a list of recommendations, this skill walks them in order under the **7 Laws**, routes each item to the best companion (`workspace-surface-audit`, `superpowers:*`, `ralph`, ECC helpers), and falls back to explicit inline behavior when a companion is not installed. Never silent no-op, never drive-by, never skip verification.
+One reusable skill that ties the continuous-improvement framework to a concrete execution engine. When the user greenlights a list of recommendations, this skill walks them in order under the **7 Laws**, routes each item to the best companion (`workspace-surface-audit`, `superpowers:*`, `ralph`, continuous-improvement helpers), and falls back to explicit inline behavior when a companion is not installed. Never silent no-op, never drive-by, never skip verification.
 
 Core principle: **execute in order, one concern at a time, verify before advancing, reflect at the end.**
 

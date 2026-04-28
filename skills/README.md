@@ -32,6 +32,7 @@ Tier-2 skills layer on top of tier-1 for users running `npx continuous-improveme
 | `safety-guard` | Three-mode runtime guard (careful/freeze/guard) that blocks destructive commands and locks edits to a directory | Autonomous loops, prod systems, `--dangerously-skip-permissions` sessions |
 | `token-budget-advisor` | Heuristic input/output token estimator that offers 25%/50%/75%/100% depth choices before answering | Long sessions where response size matters |
 | `strategic-compact` | PreToolUse hook that suggests `/compact` at logical phase boundaries (research→plan, plan→implement, debug→next) instead of arbitrary auto-compaction | Multi-phase tasks that approach context limits |
+| `wild-risa-balance` | Decision-framing lens that pairs WILD (Wild/Imaginative/Limitless/Disruptive) generation with RISA (Realistic/Important/Specific/Agreeable) execution, used to split recommendation lists into bold pilots above a safe baseline | Multi-item recommendation blocks where bold options keep losing to safe ones in a flat list |
 
 The `/learn-eval` slash command also ships as part of the expert install: extract a session pattern, run a checklist quality gate, and decide global-vs-project save location before writing any skill file.
 
@@ -43,7 +44,7 @@ These ship in the same plugin bundle regardless of mode and are available the mo
 |-------|--------------|--------|
 | `ralph` | Autonomous loop that executes a PRD story-by-story with quality checks between iterations | [snarktank/ralph](https://github.com/snarktank/ralph) |
 | `superpowers` | Activates task-appropriate skills automatically (brainstorming, git-worktrees, TDD, code review, etc.) | [obra/superpowers](https://github.com/obra/superpowers) |
-| `workspace-surface-audit` | Audits the active repo, MCP servers, plugins, and env, then recommends high-value skills/workflows | ECC |
+| `workspace-surface-audit` | Audits the active repo, MCP servers, plugins, and env, then recommends high-value skills/workflows | continuous-improvement |
 
 ## How they get to your machine
 

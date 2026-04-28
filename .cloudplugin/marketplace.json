@@ -22,7 +22,7 @@
     },
     {
       "name": "workspace-surface-audit",
-      "description": "Audit repo, MCP servers, plugins, and env surfaces to recommend ECC-native skills and workflows",
+      "description": "Audit repo, MCP servers, plugins, and env surfaces to recommend continuous-improvement-native skills and workflows",
       "file": "skills/workspace-surface-audit.md",
       "triggers": [
         "audit my workspace",
@@ -77,7 +77,7 @@
     },
     {
       "name": "workspace-surface-audit",
-      "description": "Audit workspace capabilities and recommend ECC-native skills"
+      "description": "Audit workspace capabilities and recommend continuous-improvement-native skills"
     },
     {
       "name": "ralph",

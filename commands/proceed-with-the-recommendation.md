@@ -43,7 +43,7 @@ Invoke immediately after Claude has offered a numbered list of recommendations, 
 | `superpowers:writing-plans` | Plan breakdown when the list >3 items or >150 LOC |
 | `superpowers:*` | Per-item specialist routing (TDD, debugging, review, verification, parallel) |
 | `ralph` | Long-running PRD-style autonomous execution |
-| `simplify`, `security-review`, `documentation-lookup`, `schedule`, `loop`, `update-config`, `commit-commands:*` | ECC helpers |
+| `simplify`, `security-review`, `documentation-lookup`, `schedule`, `loop`, `update-config`, `commit-commands:*` | continuous-improvement helpers |
 
 If none of those are installed, the skill still works — every routing row has an inline fallback and every item still gets a verification step.
 

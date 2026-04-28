@@ -1,6 +1,6 @@
 ---
 name: workspace-surface-audit
-description: "Audit workspace capabilities and recommend ECC-native skills, hooks, and workflows"
+description: "Audit workspace capabilities and recommend continuous-improvement-native skills, hooks, and workflows"
 ---
 
 # /workspace-surface-audit
@@ -18,7 +18,7 @@ Audit the active repo, MCP servers, plugins, connectors, env surfaces, and harne
 1. **Repo surface** — `package.json`, lockfiles, framework config, `.mcp.json`, `.claude/settings*.json`, `AGENTS.md`
 2. **Environment surface** — `.env*` files (key names only, no secrets)
 3. **Connected tools** — installed plugins, MCP servers, LSPs, app integrations
-4. **ECC surface** — existing skills, commands, hooks, agents
+4. **continuous-improvement surface** — existing skills, commands, hooks, agents
 
 ## Output Format
 
@@ -29,23 +29,23 @@ Audit the active repo, MCP servers, plugins, connectors, env surfaces, and harne
 - [What is usable right now]
 
 ## Parity
-- [Where ECC matches or exceeds benchmarks]
+- [Where continuous-improvement matches or exceeds benchmarks]
 
 ## Primitive-Only Gaps
-- [Tools exist, but ECC lacks clean operator skills]
+- [Tools exist, but continuous-improvement lacks clean operator skills]
 
 ## Missing Integrations
 - [Capabilities not available yet]
 
 ## Top 3-5 Next Moves
-1. [Concrete ECC-native addition]
+1. [Concrete continuous-improvement-native addition]
 2. [Ordered by impact]
 ```
 
 ## Rules
 
 - **Never print secrets** — only provider names, capability names, file paths
-- **Prefer ECC-native** over generic "install another plugin" advice
+- **Prefer continuous-improvement** over generic "install another plugin" advice
 - **Organize by workflows**, not API brands
 - **Specific recommendations** — concrete enough to implement without another discovery pass
 
