@@ -127,6 +127,10 @@ export const DOCS_ASSERTIONS = [
     { file: "plugins/continuous-improvement/skills/proceed-with-the-recommendation/SKILL.md", pattern: "Will NOT repeat:", source: "past-mistake-gate.test.mts" },
     { file: "skills/proceed-with-the-recommendation.md", pattern: "Prior-mistake residue still present", source: "past-mistake-gate.test.mts" },
     { file: "plugins/continuous-improvement/skills/proceed-with-the-recommendation/SKILL.md", pattern: "Prior-mistake residue still present", source: "past-mistake-gate.test.mts" },
+    // wild-risa-balance recommendation floor (src/test/wild-risa-floor.test.mts)
+    // Source skill + plugin mirror must both contain the literal "2 WILD + 5 RISA = 7 items minimum".
+    { file: "skills/wild-risa-balance.md", pattern: "2 WILD + 5 RISA = 7 items minimum", source: "wild-risa-floor.test.mts:38" },
+    { file: "plugins/continuous-improvement/skills/wild-risa-balance/SKILL.md", pattern: "2 WILD + 5 RISA = 7 items minimum", source: "wild-risa-floor.test.mts:38" },
 ];
 export function checkAssertions(repoRoot, assertions = DOCS_ASSERTIONS) {
     const fileCache = new Map();

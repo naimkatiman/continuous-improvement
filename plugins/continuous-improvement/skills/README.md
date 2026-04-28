@@ -13,13 +13,13 @@ skill set on disk.
 - `continuous-improvement` — Install structured self-improvement loops with instinct-based learning into Claude Code — research, plan, execute, verify, reflect, learn, iterate. On-demand or weekly analysis to save tokens. Supports multi-agent parallel analysis.
 
 ## Featured companion
-- `proceed-with-the-recommendation` ⭐ — Walks a Claude-emitted recommendation list top-to-bottom under the 7 Laws — restate, route per item, verify before advancing, reflect at the end, close with the mandatory three-section block. Standalone with inline fallbacks; trigger phrases are matched by the companion hook, not enumerated here.
+- `proceed-with-the-recommendation` ⭐ — Walks an agent-emitted recommendation list top-to-bottom under the 7 Laws — restate, route per item, verify before advancing, reflect at the end, close with the mandatory three-section block. Standalone with inline fallbacks; trigger phrases are matched by the companion hook, not enumerated here.
 
 ## Tier 1 — beginner-mode pairing
 - `gateguard` — Fact-forcing gate that blocks Edit/Write/Bash (including MultiEdit) and demands concrete investigation (importers, data schemas, user instruction) before allowing the action. Measurably improves output quality by +2.25 points vs ungated agents.
 - `para-memory-files` — File-based memory system using Tiago Forte's PARA method. Use this skill whenever you need to store, retrieve, update, or organize knowledge across sessions. Covers three memory layers: (1) Knowledge graph in PARA folders with atomic YAML facts, (2) Daily notes as raw timeline, (3) Tacit knowledge about user patterns. Also handles planning files, memory decay, weekly synthesis, and recall via qmd. Trigger on any memory operation: saving facts, writing daily notes, creating entities, running weekly synthesis, recalling past context, or managing plans.
 - `tdd-workflow` — Use this skill when writing new features, fixing bugs, or refactoring code. Enforces test-driven development with 80%+ coverage including unit, integration, and E2E tests.
-- `verification-loop` — A comprehensive verification system for Claude Code sessions.
+- `verification-loop` — A comprehensive verification system for agent coding sessions.
 
 ## Tier 2 — expert-mode add-ons
 - `safety-guard` — Use this skill to prevent destructive operations when working on production systems or running agents autonomously.

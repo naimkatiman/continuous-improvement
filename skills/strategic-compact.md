@@ -82,7 +82,7 @@ Understanding what persists helps you compact with confidence:
 
 | Persists | Lost |
 |----------|------|
-| CLAUDE.md instructions | Intermediate reasoning and analysis |
+| Agent instructions (from CLAUDE.md / AGENTS.md) | Intermediate reasoning and analysis |
 | TodoWrite task list | File contents you previously read |
 | Memory files (`~/.claude/memory/`) | Multi-step conversation context |
 | Git state (commits, branches) | Tool call history and counts |

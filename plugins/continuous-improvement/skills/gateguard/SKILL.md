@@ -7,14 +7,14 @@ origin: community
 
 # GateGuard — Fact-Forcing Pre-Action Gate
 
-A PreToolUse hook that forces Claude to investigate before editing. Instead of self-evaluation ("are you sure?"), it demands concrete facts. The act of investigation creates awareness that self-evaluation never did.
+A PreToolUse hook that forces the agent to investigate before editing. Instead of self-evaluation ("are you sure?"), it demands concrete facts. The act of investigation creates awareness that self-evaluation never did.
 
 ## When to Activate
 
 - Working on any codebase where file edits affect multiple modules
 - Projects with data files that have specific schemas or date formats
 - Teams where AI-generated code must match existing patterns
-- Any workflow where Claude tends to guess instead of investigating
+- Any workflow where the agent tends to guess instead of investigating
 
 ## Core Concept
 

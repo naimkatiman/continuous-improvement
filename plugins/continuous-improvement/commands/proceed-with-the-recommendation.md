@@ -1,13 +1,13 @@
 ---
 name: proceed-with-the-recommendation
-description: "Execute Claude's prior recommendation list under the 7 Laws — walk in order, route per item, verify, reflect. Standalone companion skill with inline fallbacks when other skills are not installed."
+description: "Execute the agent's prior recommendation list under the 7 Laws — walk in order, route per item, verify, reflect. Standalone companion skill with inline fallbacks when other skills are not installed."
 ---
 
 # /proceed-with-the-recommendation
 
-Walk a Claude-generated recommendation list top-to-bottom under the continuous-improvement 7 Laws. Each item is routed to the best specialist skill when available, falls back to concrete inline behavior when it is not.
+Walk an agent-generated recommendation list top-to-bottom under the continuous-improvement 7 Laws. Each item is routed to the best specialist skill when available, falls back to concrete inline behavior when it is not.
 
-Invoke immediately after Claude has offered a numbered list of recommendations, next steps, or suggested actions.
+Invoke immediately after the agent has offered a numbered list of recommendations, next steps, or suggested actions.
 
 ## Trigger phrases
 
