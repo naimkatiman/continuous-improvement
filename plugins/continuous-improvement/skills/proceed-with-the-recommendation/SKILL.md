@@ -102,7 +102,7 @@ Restate the recommendation list back in one compact block:
 
 If the list has **>3 items OR touches >150 LOC**, call `superpowers:writing-plans` to generate a bite-sized task breakdown. Save the plan to `docs/plans/YYYY-MM-DD-<slug>.md`.
 
-Otherwise, inline: restate each item as `WILL build: <X>`, `Will NOT build: <Y>`, `Verification: <Z>`, `Fallback: <W>`.
+Otherwise, inline: restate each item as `WILL build: <X>`, `Will NOT build: <Y>`, `Verification: <Z>`, `Fallback: <W>`, `Will NOT repeat: <named past failure pattern carried in from P-MAG Rule 3>`.
 
 Create a `TodoWrite` list mirroring the plan.
 
@@ -341,9 +341,9 @@ A concrete trace covering the most-failed paths: a `needs-approval` halt, a veri
 ```
 
 **Phase 2 — Plan (inline, ≤3 items):**
-- Item 1: WILL add zod schema for body, reject 400 with field-level errors. Will NOT change response shape on success. Verification: one curl with bad payload → 400. Fallback: revert if existing tests break.
+- Item 1: WILL add zod schema for body, reject 400 with field-level errors. Will NOT change response shape on success. Verification: one curl with bad payload → 400. Fallback: revert if existing tests break. Will NOT repeat: shipping a POST handler without input validation the way `/api/orders` did 2026-04-15.
 - Item 2: needs-approval — stop and ask the user before touching D1.
-- Item 3: WILL extract `paginate()` to `lib/pagination.ts`, update both callsites. Will NOT change behavior. Verification: typecheck + the existing paginate unit test green. Fallback: revert if test count drops.
+- Item 3: WILL extract `paginate()` to `lib/pagination.ts`, update both callsites. Will NOT change behavior. Verification: typecheck + the existing paginate unit test green. Fallback: revert if test count drops. Will NOT repeat: extracting a shared helper without diffing both callsite signatures first (the lib/api.ts vs lib/db.ts drift from this same example).
 
 **Phase 3 — Execute item 1:**
 Edit `routes/users.ts` adding zod schema. Run `curl -X POST .../api/users -d '{}'` → returns `400 {"errors":[{"field":"email","msg":"required"}]}`. ✓
