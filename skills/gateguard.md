@@ -90,7 +90,7 @@ Quote the user's current instruction verbatim.
 
 ## Quick Start
 
-### Option A: Use the ECC hook (zero install)
+### Option A: Use the continuous-improvement hook (zero install)
 
 The hook at `scripts/hooks/gateguard-fact-force.js` is included in this plugin. Enable it via hooks.json.
 
