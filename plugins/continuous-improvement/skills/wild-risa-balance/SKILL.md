@@ -12,7 +12,7 @@ origin: continuous-improvement
 - Emitting a multi-item recommendation block (≥3 items)
 - Choosing between a safe option and a bold option
 - Reviewing your own plan for over-cautiousness or over-fantasy
-- Pairing with `proceed-with-claude-recommendation` to decide which items belong above and below the cut
+- Pairing with `proceed-with-the-recommendation` to decide which items belong above and below the cut
 
 ## The Two Modes
 
@@ -58,7 +58,7 @@ When emitting ≥3 recommendations, split them:
 1. **Top block — WILD pilots.** 1–2 bold items. Present every item; the operator picks at most one to actually run.
 2. **Bottom block — RISA baseline.** The safe items that ship now regardless of the WILD bet.
 3. Within each block, rank descending by impact.
-4. Once the list is composed, wait for the operator's "proceed" signal before invoking `proceed-with-claude-recommendation`. Never auto-trigger it. This skill only changes how the list is composed.
+4. Once the list is composed, wait for the operator's "proceed" signal before invoking `proceed-with-the-recommendation`. Never auto-trigger it. This skill only changes how the list is composed.
 
 The point: the operator gets one bold option to weigh against a baseline they already trust, instead of a flat list where the bold option silently competes with safe ones and loses by default.
 
@@ -88,6 +88,6 @@ RISA baseline — ship regardless
 ## Related
 
 - `continuous-improvement` — the 7 Laws card (core skill)
-- `proceed-with-claude-recommendation` — execution arm
+- `proceed-with-the-recommendation` — execution arm
 - `superpowers:brainstorming` — upstream WILD generator
 - `verification-loop` — downstream RISA verifier

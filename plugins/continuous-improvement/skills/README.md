@@ -30,4 +30,4 @@ skill set on disk.
 ## Always-bundled companions
 - `ralph` — Ralph is an autonomous AI agent loop that runs repeatedly until all PRD items are complete. Converts PRDs to executable JSON, implements stories iteratively with quality checks, and tracks progress.
 - `superpowers` — Agentic skills framework with mandatory workflows. Activates skills automatically before tasks: brainstorming, git-worktrees, writing-plans, test-driven-development, code-review, and more.
-- `workspace-surface-audit` — Audit the active repo, MCP servers, plugins, connectors, env surfaces, and harness setup, then recommend the highest-value ECC-native skills, hooks, agents, and operator workflows. Use when the user wants help setting up Claude Code or understanding what capabilities are actually available in their environment.
+- `workspace-surface-audit` — Audit the active repo, MCP servers, plugins, connectors, env surfaces, and harness setup, then recommend the highest-value continuous-improvement-native skills, hooks, agents, and operator workflows. Use when the user wants help setting up Claude Code or understanding what capabilities are actually available in their environment.

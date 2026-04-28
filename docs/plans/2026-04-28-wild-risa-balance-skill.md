@@ -15,7 +15,7 @@ Add a Tier-2 companion skill named `wild-risa-balance` that gives the agent a de
 - **RISA (Execution)** — Realistic, Important, Specific, Agreeable. Safe, average, ships.
 - **WILD (Creation)** — Wild, Imaginative, Limitless, Disruptive. Cool ideas that often never ship.
 
-The skill is a thinking lens, not a runtime hook. It is referenced by `proceed-with-claude-recommendation` and any session that emits a multi-item recommendation block, so the agent can split items WILD-on-top / RISA-on-bottom and route them differently.
+The skill is a thinking lens, not a runtime hook. It is referenced by `proceed-with-the-recommendation` and any session that emits a multi-item recommendation block, so the agent can split items WILD-on-top / RISA-on-bottom and route them differently.
 
 ## WILL build
 
@@ -29,7 +29,7 @@ The skill is a thinking lens, not a runtime hook. It is referenced by `proceed-w
 ## WILL NOT build
 
 - No new hook. The 3-section close hook stays unchanged.
-- No edit to `skills/proceed-with-claude-recommendation.md`. A future PR can add a "consult `wild-risa-balance`" line; this PR is content-only.
+- No edit to `skills/proceed-with-the-recommendation.md`. A future PR can add a "consult `wild-risa-balance`" line; this PR is content-only.
 - No edit to `commands/discipline.md`. The 7 Laws card stays as-is.
 - No new MCP tool, command, or `bin/` script.
 - No change to `bin/check-skill-tiers.mjs` or its test (the new skill must satisfy the existing tier check, not require a new one).
@@ -50,6 +50,6 @@ If the build fails or tests break, revert the new skill file and the README row,
 
 ## Out of scope (deferred)
 
-- WILD/RISA tagging requirement inside `proceed-with-claude-recommendation` execution loop (Option B from the prior turn).
+- WILD/RISA tagging requirement inside `proceed-with-the-recommendation` execution loop (Option B from the prior turn).
 - Mandatory WILD/RISA split in the 3-section close hook (Option C from the prior turn).
 - Both deferred until at least three sessions of evidence that the vocabulary actually changes outcomes.

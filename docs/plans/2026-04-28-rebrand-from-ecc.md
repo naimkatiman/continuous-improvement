@@ -38,8 +38,8 @@ No "Everything Claude Code" full-form references exist in source, so no full-for
 - `skills/tdd-workflow.md` (1 ref) + plugins mirror
 - `skills/verification-loop.md` (1 ref) + plugins mirror
 - `skills/wild-risa-balance.md` (1 ref) + plugins mirror
-- `skills/proceed-with-claude-recommendation.md` (1 ref) + plugins mirror
-- `commands/proceed-with-claude-recommendation.md` (1 ref) + plugins mirror
+- `skills/proceed-with-the-recommendation.md` (1 ref) + plugins mirror
+- `commands/proceed-with-the-recommendation.md` (1 ref) + plugins mirror
 - `skills/README.md` (1 ref) + plugins mirror
 - `docs/plans/2026-04-28-wild-risa-balance-skill.md` (1 ref)
 
@@ -51,7 +51,7 @@ Total: 25 files. The `skill-mirror` lint enforces that `skills/<name>.md` matche
 2. **C2 — workspace-surface-audit**: skill + command + 2 mirrors (4 files, 28 refs).
 3. **C3 — governance skills**: `safety-guard` + `gateguard` + 2 mirrors (4 files).
 4. **C4 — workflow skills**: `tdd-workflow` + `verification-loop` + `strategic-compact` + 3 mirrors (6 files).
-5. **C5 — meta + plans**: `proceed-with-claude-recommendation` skill + command + `wild-risa-balance` + `skills/README` + 4 mirrors + plan doc (9 files).
+5. **C5 — meta + plans**: `proceed-with-the-recommendation` skill + command + `wild-risa-balance` + `skills/README` + 4 mirrors + plan doc (9 files).
 
 ## Verification (per commit)
 
