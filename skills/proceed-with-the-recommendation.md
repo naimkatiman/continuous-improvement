@@ -57,6 +57,35 @@ Do NOT use when:
 - User scoped the work ("just the first one", "only the safe ones") — honor the scope
 - Recommendations conflict with project agent-instruction files (CLAUDE.md / AGENTS.md / GEMINI.md / equivalent)
 
+## Phase 0: Acknowledge (Past Mistake Acknowledgment Gate / P-MAG)
+
+Before research begins, the skill must read its own track record. The instinct system records corrections; this gate forces the read at the moment they actually matter — before a new recommendation list is touched. **Three rules, in order. None is optional.**
+
+### Rule 1 — Acknowledge before context (right context from the beginning)
+
+Scan two surfaces and quote literal evidence:
+
+- `~/.claude/instincts/<project-hash>/observations.jsonl` — last 10 entries with `type: failure` or `correction`
+- The active project's `CLAUDE.md` "Past Mistakes" section (if present)
+
+Emit one line: `Past mistake observed: <quote>. Source: <file:line>. Active in current scope: yes|no.` If both surfaces are empty, emit `No prior mistakes recorded — proceed.` Never skip silently — silent skip defeats the instinct system.
+
+### Rule 2 — Clearance gate (don't proceed until the mistake is gone)
+
+Hard halt before Phase 1 if any of these hold:
+
+- The past mistake's residue is **still present** in the working tree (unrotated key, stale README dates, unreverted bug, broken migration)
+- The verification step from the prior fix was never run
+- A `needs-approval` item from a prior session sits unresolved
+
+Halt output: `BLOCKED on prior mistake: <X>. Residue: <Y at file:line>. Required clearance: <Z>. New recommendation list will not start until cleared.` This is also enumerated under Stop Conditions below.
+
+### Rule 3 — Negative prompt (determine not to do it again)
+
+Carry one named past failure forward into Phase 2 as `Will NOT repeat: <pattern>`. The pattern must cite a specific prior session — generic anti-patterns ("will not skip verification") do not qualify. Concrete shape: `Will NOT repeat: skipped per-item typecheck on lib/ extraction the way item 3 did 2026-04-26`.
+
+Phase 6 reflection scores the run against this declared negative prompt — if honored, instincts strengthen; if violated, the violation itself becomes the next session's Rule 1 quote.
+
 ## Phase 1: Pre-Flight (Law 1 — Research)
 
 **If** the recommendation list references files, plugins, or MCP servers not obviously present in the current repo, **then** call `workspace-surface-audit` for a quick scan. Otherwise skip.
@@ -75,7 +104,7 @@ Restate the recommendation list back in one compact block:
 
 If the list has **>3 items OR touches >150 LOC**, call `superpowers:writing-plans` to generate a bite-sized task breakdown. Save the plan to `docs/plans/YYYY-MM-DD-<slug>.md`.
 
-Otherwise, inline: restate each item as `WILL build: <X>`, `Will NOT build: <Y>`, `Verification: <Z>`, `Fallback: <W>`.
+Otherwise, inline: restate each item as `WILL build: <X>`, `Will NOT build: <Y>`, `Verification: <Z>`, `Fallback: <W>`, `Will NOT repeat: <named past failure pattern carried in from P-MAG Rule 3>`.
 
 Create a `TodoWrite` list mirroring the plan.
 
@@ -241,6 +270,7 @@ Stop immediately on any of:
 - New information contradicts the remaining list (root-cause shifted)
 - Context >80% full — write a Context Bridge before clearing
 - Any drive-by temptation that is NOT in the original list
+- Prior-mistake residue still present in working tree or operator queue (P-MAG Rule 2 — clear it before starting the new list)
 
 ### Definitions (close common rationalization routes)
 
@@ -313,9 +343,9 @@ A concrete trace covering the most-failed paths: a `needs-approval` halt, a veri
 ```
 
 **Phase 2 — Plan (inline, ≤3 items):**
-- Item 1: WILL add zod schema for body, reject 400 with field-level errors. Will NOT change response shape on success. Verification: one curl with bad payload → 400. Fallback: revert if existing tests break.
+- Item 1: WILL add zod schema for body, reject 400 with field-level errors. Will NOT change response shape on success. Verification: one curl with bad payload → 400. Fallback: revert if existing tests break. Will NOT repeat: shipping a POST handler without input validation the way `/api/orders` did 2026-04-15.
 - Item 2: needs-approval — stop and ask the user before touching D1.
-- Item 3: WILL extract `paginate()` to `lib/pagination.ts`, update both callsites. Will NOT change behavior. Verification: typecheck + the existing paginate unit test green. Fallback: revert if test count drops.
+- Item 3: WILL extract `paginate()` to `lib/pagination.ts`, update both callsites. Will NOT change behavior. Verification: typecheck + the existing paginate unit test green. Fallback: revert if test count drops. Will NOT repeat: extracting a shared helper without diffing both callsite signatures first (the lib/api.ts vs lib/db.ts drift from this same example).
 
 **Phase 3 — Execute item 1:**
 Edit `routes/users.ts` adding zod schema. Run `curl -X POST .../api/users -d '{}'` → returns `400 {"errors":[{"field":"email","msg":"required"}]}`. ✓
