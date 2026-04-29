@@ -22,9 +22,11 @@
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { homedir, platform } from "node:os";
+import { platform } from "node:os";
 import { dirname, join } from "node:path";
 import { performance } from "node:perf_hooks";
+
+import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 
 const MIN_LENGTH_TO_GATE = 600;
 
@@ -91,30 +93,6 @@ function emitBlock(missing) {
   const reason =
     `Your reply is missing the required 3-section close. Add these sections at the end of the reply with these exact headings:\n${bullets}`;
   process.stdout.write(JSON.stringify({ decision: "block", reason }) + "\n");
-}
-
-function resolveHomeDir() {
-  // Explicit operator opt-out: only when BOTH HOME and USERPROFILE are set
-  // to the empty string (set, not undefined) do we skip telemetry entirely.
-  // Empty-string-on-both is a deliberate signal (used by tests and by
-  // operators who want telemetry disabled without editing settings.json).
-  // If only one var is empty and the other points at a valid path, fall
-  // back to the valid one — otherwise telemetry would silently disable
-  // whenever a shell happens to clear one variable.
-  const home = process.env.HOME;
-  const userProfile = process.env.USERPROFILE;
-  if (home === "" && userProfile === "") return "";
-  if (home) return home;
-  if (userProfile) return userProfile;
-  // Neither set to a truthy path: legitimately fall back to os.homedir()
-  // so normal non-test usage keeps working when env vars are merely missing.
-  try {
-    const fromOs = homedir();
-    if (fromOs) return fromOs;
-  } catch {
-    // os.homedir() can throw in pathological env conditions
-  }
-  return "";
 }
 
 function projectHashFor(transcriptPath) {

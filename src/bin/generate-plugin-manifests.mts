@@ -165,6 +165,10 @@ async function writePluginBundle(): Promise<void> {
       join(REPO_ROOT, "lib", "plugin-metadata.mjs"),
       join(PLUGIN_BUNDLE_DIR, "lib", "plugin-metadata.mjs"),
     ),
+    copyFileTo(
+      join(REPO_ROOT, "lib", "resolve-home-dir.mjs"),
+      join(PLUGIN_BUNDLE_DIR, "lib", "resolve-home-dir.mjs"),
+    ),
     copyFileTo(join(REPO_ROOT, "LICENSE"), join(PLUGIN_BUNDLE_DIR, "LICENSE")),
     writePluginBundleReadme(),
   ]);

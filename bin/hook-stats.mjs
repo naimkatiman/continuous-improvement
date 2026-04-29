@@ -42,9 +42,10 @@
  */
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { homedir, platform } from "node:os";
+import { platform } from "node:os";
 import { join } from "node:path";
-import { argv, cwd, env, exit, stderr, stdout } from "node:process";
+import { argv, cwd, exit, stderr, stdout } from "node:process";
+import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 const USAGE = `Usage: node bin/hook-stats.mjs [options]
 
 Reads JSONL telemetry from <HOME>/.claude/hook-telemetry/*.jsonl and
@@ -99,28 +100,6 @@ function parseArgs(rawArgs) {
         throw new Error(`unknown argument: ${arg}`);
     }
     return opts;
-}
-function resolveHomeDir() {
-    // Mirrors the hook: explicit opt-out requires BOTH env vars empty.
-    // OR-semantic would silently disable the CLI when a shell happened to
-    // clear one variable while the other still pointed at a valid path.
-    const home = env.HOME;
-    const userProfile = env.USERPROFILE;
-    if (home === "" && userProfile === "")
-        return "";
-    if (home)
-        return home;
-    if (userProfile)
-        return userProfile;
-    try {
-        const fromOs = homedir();
-        if (fromOs)
-            return fromOs;
-    }
-    catch {
-        // ignore
-    }
-    return "";
 }
 export function projectHashForCwd(workingDir) {
     let normalized = workingDir.split("\\").join("/");
