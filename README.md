@@ -96,13 +96,34 @@ Hooks capture every tool call. After ~20 observations, Claude analyzes patterns 
 ## Slash Commands
 
 ```
-/continuous-improvement    Reflect, analyze, show status
+/seven-laws                Reflect, analyze, show status (brand-aligned name)
+/continuous-improvement    Same workflow as /seven-laws (kept for backward compat)
 /planning-with-files       Create task_plan.md, findings.md, progress.md
 /discipline                Quick reference card of the 7 Laws
 /dashboard                 Visual instinct health dashboard
 ```
 
 In expert mode, the same planning workflow is also available programmatically through the MCP tools `ci_plan_init` (initialize `task_plan.md`, `findings.md`, `progress.md` in the project root) and `ci_plan_status` (summarize their current contents).
+
+---
+
+## Law Coverage
+
+Every bundled skill, command, and hook enforces at least one of the 7 Laws. This is the alignment matrix — use it to pick the right tool for the discipline you want enforced.
+
+| Law | Enforced by | Type |
+|-----|-------------|------|
+| **1 — Research Before Executing** | `gateguard`, `workspace-surface-audit` | skill, skill+cmd |
+| **2 — Plan Is Sacred** | `wild-risa-balance`, `token-budget-advisor`, `/planning-with-files` | skill, skill, cmd |
+| **3 — One Thing at a Time** | `tdd-workflow`, `safety-guard` | skill, skill |
+| **4 — Verify Before Reporting** | `verification-loop`, `tdd-workflow`, `three-section-close.mjs` | skill, skill, hook |
+| **5 — Reflect After Every Session** | `para-memory-files`, `strategic-compact`, `session.sh`, `/seven-laws`, `/dashboard` | skill, skill, hook, cmd, cmd |
+| **6 — Iterate Means One Thing** | `ralph` | skill+cmd |
+| **7 — Learn From Every Session** | `para-memory-files`, `/learn-eval`, `observe.sh`, `/seven-laws`, `/dashboard` | skill, cmd, hook, cmd, cmd |
+| **All 7 (orchestrator)** | `proceed-with-the-recommendation` | skill+cmd |
+| **Activator (dispatches Law-aligned skills)** | `superpowers` | skill+cmd |
+
+Each skill's frontmatter `description:` leads with the Law it enforces, so the alignment shows up every time the skill is loaded — not just here.
 
 ---
 
