@@ -163,3 +163,13 @@ Each task = its own commit. No bundling. CI must stay green after each.
 - Telemetry export / dashboard.
 - Behavioral specs for skills outside the three-skill scope.
 - False-positive labeling pipeline for hook telemetry.
+
+## Execution notes (post-ship — what actually shipped vs. spec)
+
+- **C1 Part 1 (fixture-replay against the three-section-close hook) was cut at execution time.** B1 expanded scope to add a dedicated `src/test/three-section-close.test.mts` covering the pass / block / skip-short paths via spawned hook invocations with crafted transcripts. C1 Part 1 would have duplicated that surface using fixture files instead of inline strings — pure refactor, no new coverage. Cut as YAGNI. C1 shipped Part 2 only (cross-skill contract) under commit `335622d`.
+- **B1 telemetry path simplified:** plan called for `~/.claude/instincts/<hash>/hook-telemetry.jsonl`; shipped as `~/.claude/hook-telemetry/<hash>.jsonl`. B1 + B2 are mutually consistent on this path. Plan path was over-nested.
+- **B1 action label refined:** plan called for `skip`; shipped as `skip-short`. More descriptive in JSONL aggregates.
+- **Two follow-up fix commits landed beyond the original 6-task list** in response to code-review findings:
+  - `1241671 fix(hooks): empty-HOME opt-out + eliminate test-time telemetry leak` — closed a false-positive no-HOME test in `src/test/three-section-close.test.mts` AND a parallel leak in the older `src/test/hook.test.mts` runThreeSectionClose helper that was polluting the developer's real `~/.claude/hook-telemetry/` on every `npm test` run.
+  - `c42d06b fix(hooks): require BOTH env vars empty for telemetry opt-out` — corrected an over-aggressive OR semantic in `resolveHomeDir` (hook + CLI). The opt-out now triggers ONLY when BOTH `HOME` and `USERPROFILE` are explicitly empty strings; a single empty-with-other-valid case correctly falls through.
+- **Final branch state (9 commits ahead of `main`):** all 6 tasks complete, 342 tests passing, zero runtime deps, no test-time telemetry pollution, fail-open hook contract preserved. Verdict: READY WITH CAVEATS resolved by this note.
