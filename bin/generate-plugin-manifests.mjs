@@ -102,6 +102,7 @@ async function writePluginBundle() {
         copyDirectory(join(REPO_ROOT, "templates", "planning-with-files"), join(PLUGIN_BUNDLE_DIR, "templates", "planning-with-files")),
         copyFileTo(join(REPO_ROOT, "bin", "mcp-server.mjs"), join(PLUGIN_BUNDLE_DIR, "bin", "mcp-server.mjs")),
         copyFileTo(join(REPO_ROOT, "lib", "plugin-metadata.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "plugin-metadata.mjs")),
+        copyFileTo(join(REPO_ROOT, "lib", "resolve-home-dir.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "resolve-home-dir.mjs")),
         copyFileTo(join(REPO_ROOT, "LICENSE"), join(PLUGIN_BUNDLE_DIR, "LICENSE")),
         writePluginBundleReadme(),
     ]);

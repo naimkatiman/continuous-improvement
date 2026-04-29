@@ -15,8 +15,18 @@
 // Heuristic: skip messages shorter than 600 chars. Pure clarifying replies
 // don't need the close; only substantive technical responses (work
 // summaries, plan responses, post-execution reports) get gated.
+//
+// Telemetry: best-effort JSONL line per gated invocation written to
+// ~/.claude/hook-telemetry/<project-hash>.jsonl. Never throws, never
+// blocks the response. No network. No transcript content recorded.
 
-import { existsSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { platform } from "node:os";
+import { dirname, join } from "node:path";
+import { performance } from "node:perf_hooks";
+
+import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 
 const MIN_LENGTH_TO_GATE = 600;
 
@@ -85,7 +95,36 @@ function emitBlock(missing) {
   process.stdout.write(JSON.stringify({ decision: "block", reason }) + "\n");
 }
 
+function projectHashFor(transcriptPath) {
+  const dir = dirname(transcriptPath);
+  let normalized = dir.split("\\").join("/");
+  if (platform() === "win32") normalized = normalized.toLowerCase();
+  return createHash("sha256").update(normalized).digest("hex").slice(0, 12);
+}
+
+function recordTelemetry(entry, transcriptPath) {
+  try {
+    const home = resolveHomeDir();
+    if (!home) return;
+    const telemetryDir = join(home, ".claude", "hook-telemetry");
+    try {
+      mkdirSync(telemetryDir, { recursive: true });
+    } catch {
+      return;
+    }
+    const file = join(telemetryDir, `${projectHashFor(transcriptPath)}.jsonl`);
+    try {
+      appendFileSync(file, JSON.stringify(entry) + "\n", "utf8");
+    } catch {
+      return;
+    }
+  } catch {
+    // belt-and-suspenders: telemetry must never throw
+  }
+}
+
 function main() {
+  const startedAt = performance.now();
   const stdin = readStdinSync();
   if (!stdin) return;
 
@@ -100,12 +139,32 @@ function main() {
     return; // fail open on read error
   }
   if (!lastText) return;
-  if (lastText.length < MIN_LENGTH_TO_GATE) return;
 
-  const missing = REQUIRED_SECTIONS.filter((s) => !s.pattern.test(lastText));
-  if (missing.length === 0) return;
+  const textLength = lastText.length;
+  let action;
+  let missing = [];
 
-  emitBlock(missing);
+  if (textLength < MIN_LENGTH_TO_GATE) {
+    action = "skip-short";
+  } else {
+    missing = REQUIRED_SECTIONS.filter((s) => !s.pattern.test(lastText));
+    if (missing.length === 0) {
+      action = "pass";
+    } else {
+      action = "block";
+      emitBlock(missing);
+    }
+  }
+
+  const entry = {
+    ts: new Date().toISOString(),
+    hook: "three-section-close",
+    action,
+    textLength,
+    missing: missing.map((s) => s.heading),
+    durationMs: Math.round((performance.now() - startedAt) * 1000) / 1000,
+  };
+  recordTelemetry(entry, payload.transcript_path);
 }
 
 try {
