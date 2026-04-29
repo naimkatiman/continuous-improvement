@@ -178,7 +178,11 @@ async function writePluginBundle(): Promise<void> {
     getPluginHooksConfig(),
   );
   await writeBundledSkills();
-  const pmEntries = discoverPmMarketplaceEntries(PLUGINS_DIR);
+  // PM plugins are no longer surfaced in the repo-level marketplace as the project
+  // refocuses on the 7 Laws of AI Agent Discipline. Source plugin directories under
+  // plugins/pm-* remain on disk pending follow-up removal. The discoverPm... helper
+  // is preserved so downstream consumers (and the function-level test) still work.
+  const pmEntries: ReturnType<typeof discoverPmMarketplaceEntries> = [];
   await writeJson(CLAUDE_REPO_MARKETPLACE_PATH, getClaudeRepoMarketplaceManifest(pmEntries));
 }
 

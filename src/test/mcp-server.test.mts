@@ -17,7 +17,6 @@ import {
   getPluginManifest,
   getToolNames,
 } from "../lib/plugin-metadata.mjs";
-import { discoverPmMarketplaceEntries } from "../lib/pm-marketplace.mjs";
 
 interface JsonRpcResponse {
   error?: {
@@ -415,10 +414,12 @@ describe("Plugin configs", () => {
         "utf8",
       ),
     ) as ReturnType<typeof getClaudeRepoMarketplaceManifest>;
-    const pluginsDir = join(__dirname, "..", "plugins");
+    // PM plugins were removed from the repo-level marketplace as part of the
+    // 7 Laws focus pass. Generator passes [] to getClaudeRepoMarketplaceManifest;
+    // this assertion mirrors that exact call shape.
     assert.deepEqual(
       config,
-      getClaudeRepoMarketplaceManifest(discoverPmMarketplaceEntries(pluginsDir)),
+      getClaudeRepoMarketplaceManifest([]),
     );
   });
 

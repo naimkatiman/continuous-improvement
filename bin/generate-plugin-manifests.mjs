@@ -3,7 +3,6 @@ import { copyFile, mkdir, readdir, readFile, rm, writeFile, } from "node:fs/prom
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PACKAGE_NAME, PLUGIN_MODES, getPluginHooksConfig, getClaudePluginManifest, getClaudePluginMarketplaceManifest, getClaudeRepoMarketplaceManifest, getPluginManifest, } from "../lib/plugin-metadata.mjs";
-import { discoverPmMarketplaceEntries } from "../lib/pm-marketplace.mjs";
 import { normalizeTier, parseSkillFrontmatter, renderBundledSkillsReadme, } from "../lib/skill-tiers.mjs";
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const PLUGINS_DIR = join(REPO_ROOT, "plugins");
@@ -108,7 +107,11 @@ async function writePluginBundle() {
     ]);
     await writeJson(join(PLUGIN_BUNDLE_DIR, "hooks", "hooks.json"), getPluginHooksConfig());
     await writeBundledSkills();
-    const pmEntries = discoverPmMarketplaceEntries(PLUGINS_DIR);
+    // PM plugins are no longer surfaced in the repo-level marketplace as the project
+    // refocuses on the 7 Laws of AI Agent Discipline. Source plugin directories under
+    // plugins/pm-* remain on disk pending follow-up removal. The discoverPm... helper
+    // is preserved so downstream consumers (and the function-level test) still work.
+    const pmEntries = [];
     await writeJson(CLAUDE_REPO_MARKETPLACE_PATH, getClaudeRepoMarketplaceManifest(pmEntries));
 }
 await mkdir(PLUGINS_DIR, { recursive: true });

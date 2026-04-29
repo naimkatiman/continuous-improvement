@@ -32,7 +32,7 @@ Run inside the Claude Code CLI:
 /plugin install continuous-improvement@continuous-improvement
 ```
 
-Update later with `/plugin marketplace update continuous-improvement`. Browse the other 8 PM plugins with `/plugin` (interactive picker) or see the [full list below](#plugin-marketplace-plugins).
+Update later with `/plugin marketplace update continuous-improvement`. Browse companion skills via `/plugin` (interactive picker) or see [Bundled Skills & Plugins](#bundled-skills--plugins) below.
 
 ### Option B — npm CLI installer
 
@@ -161,21 +161,13 @@ Drop-in single-file skills, copy to `~/.claude/skills/<name>/SKILL.md`.
 
 ### Plugin marketplace ([`plugins/`](plugins/))
 
-Install via `/plugin marketplace add naimkatiman/continuous-improvement` then `/plugin install <name>@continuous-improvement` (the `-dev` suffix is only used for the local in-repo development marketplace at `plugins/continuous-improvement/.claude-plugin/marketplace.json`).
+Install via `/plugin marketplace add naimkatiman/continuous-improvement` then `/plugin install continuous-improvement@continuous-improvement`.
 
 | Plugin | Skills | Focus |
 |--------|--------|-------|
 | `continuous-improvement` | 4 | The 7 Laws + Mulahazah (this repo's core plugin bundle) |
-| `pm-product-discovery` | 12 | Ideation, experiments, assumption testing, feature prioritization, interview synthesis |
-| `pm-product-strategy` | 12 | Vision, lean canvas, business model, SWOT, PESTLE, Ansoff, Porter's Five Forces, monetization |
-| `pm-execution` | 15 | PRDs, OKRs, roadmaps, sprints, pre-mortems, user stories, retros, release notes |
-| `pm-market-research` | 7 | Personas, market segments, market sizing, journey maps, sentiment, competitor analysis |
-| `pm-data-analytics` | 3 | SQL query generation, cohort analysis, A/B test analysis |
-| `pm-go-to-market` | 6 | GTM strategy, growth loops, GTM motions, beachhead segments, ICP, battlecards |
-| `pm-marketing-growth` | 5 | Marketing ideas, value props, North Star metrics, product naming, positioning |
-| `pm-toolkit` | 4 | Resume review, NDA drafting, privacy policy, grammar check |
 
-PM plugins by [Paweł Huryn](https://www.productcompass.pm).
+> **Curated PM plugins moved.** Earlier versions of this marketplace bundled 8 product-management plugins by [Paweł Huryn](https://www.productcompass.pm). They have been removed from this listing as the project refocuses on the 7 Laws of AI Agent Discipline. The plugin source files remain in [`plugins/`](plugins/) for now and may be removed in a follow-up; install Paweł's plugins directly from his maintainer-owned source if/when available.
 
 ---
 
