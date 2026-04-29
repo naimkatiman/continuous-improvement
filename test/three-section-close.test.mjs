@@ -215,6 +215,41 @@ describe("three-section-close.mjs telemetry", () => {
         // os.homedir() and write a JSONL line into the developer's real home.
         assertNoRealTelemetryLeak(realBefore, "empty-HOME opt-out test");
     });
+    it("falls back to USERPROFILE when only HOME is empty (AND-semantic opt-out)", () => {
+        // Regression net for the AND-semantic fix: the opt-out only fires when
+        // BOTH env vars are explicitly empty. With HOME="" and USERPROFILE
+        // pointing at a valid path, the hook must still resolve a home and
+        // write telemetry there — not silently disable itself.
+        const transcript = join(transcriptDir, "home-empty.jsonl");
+        writeAssistantTranscript(transcript, "short body");
+        const env = { ...process.env };
+        env.HOME = "";
+        env.USERPROFILE = home;
+        const realBefore = snapshotRealTelemetryDir();
+        const result = runHook(JSON.stringify({ transcript_path: transcript }), env);
+        assert.equal(result.status, 0);
+        assert.equal(result.stdout, "");
+        const entries = readTelemetryLines(home, transcript);
+        assert.equal(entries.length, 1, "telemetry must land under USERPROFILE when HOME is empty");
+        assert.equal(entries[0].action, "skip-short");
+        assertNoRealTelemetryLeak(realBefore, "HOME-empty/USERPROFILE-valid test");
+    });
+    it("falls back to HOME when only USERPROFILE is empty (AND-semantic opt-out)", () => {
+        // Mirror of the above for the other direction.
+        const transcript = join(transcriptDir, "userprofile-empty.jsonl");
+        writeAssistantTranscript(transcript, "short body");
+        const env = { ...process.env };
+        env.HOME = home;
+        env.USERPROFILE = "";
+        const realBefore = snapshotRealTelemetryDir();
+        const result = runHook(JSON.stringify({ transcript_path: transcript }), env);
+        assert.equal(result.status, 0);
+        assert.equal(result.stdout, "");
+        const entries = readTelemetryLines(home, transcript);
+        assert.equal(entries.length, 1, "telemetry must land under HOME when USERPROFILE is empty");
+        assert.equal(entries[0].action, "skip-short");
+        assertNoRealTelemetryLeak(realBefore, "HOME-valid/USERPROFILE-empty test");
+    });
     it("uses a project hash that differs across distinct transcript directories", () => {
         const transcriptA = join(transcriptDir, "a.jsonl");
         const otherDir = mkdtempSync(join(rootTemp, "transcripts-other-"));

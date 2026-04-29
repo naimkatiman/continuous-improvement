@@ -94,18 +94,20 @@ function emitBlock(missing) {
 }
 
 function resolveHomeDir() {
-  // Explicit operator opt-out: if EITHER HOME or USERPROFILE is set to the
-  // empty string (set, not undefined), skip telemetry entirely. Do NOT fall
-  // back to os.homedir() in that case — empty-string is a deliberate signal
-  // (used by tests and by operators who want telemetry disabled without
-  // editing settings.json).
+  // Explicit operator opt-out: only when BOTH HOME and USERPROFILE are set
+  // to the empty string (set, not undefined) do we skip telemetry entirely.
+  // Empty-string-on-both is a deliberate signal (used by tests and by
+  // operators who want telemetry disabled without editing settings.json).
+  // If only one var is empty and the other points at a valid path, fall
+  // back to the valid one — otherwise telemetry would silently disable
+  // whenever a shell happens to clear one variable.
   const home = process.env.HOME;
   const userProfile = process.env.USERPROFILE;
-  if (home === "" || userProfile === "") return "";
+  if (home === "" && userProfile === "") return "";
   if (home) return home;
   if (userProfile) return userProfile;
-  // Both undefined: legitimately fall back to os.homedir() so normal
-  // non-test usage keeps working when env vars are merely missing.
+  // Neither set to a truthy path: legitimately fall back to os.homedir()
+  // so normal non-test usage keeps working when env vars are merely missing.
   try {
     const fromOs = homedir();
     if (fromOs) return fromOs;
