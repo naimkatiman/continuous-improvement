@@ -147,10 +147,15 @@ describe("observe.sh hook", { skip: SKIP_REASON }, () => {
 // reply to close with What has been done / What is next / Recommendation.
 // ===========================================================================
 function runThreeSectionClose(payload, extraEnv = {}) {
+    // Empty-string HOME/USERPROFILE = explicit opt-out signal recognized by
+    // three-section-close.mjs. This blocks the hook from writing telemetry into
+    // the developer's real ~/.claude/hook-telemetry/ during every `npm test` run.
+    // None of the cases in this file assert on telemetry presence; they only
+    // check stdout/status. Callers can still override via extraEnv if needed.
     const result = spawnSync(process.execPath, ["./three-section-close.mjs"], {
         input: payload,
         cwd: HOOKS_DIR,
-        env: { ...process.env, ...extraEnv },
+        env: { ...process.env, HOME: "", USERPROFILE: "", ...extraEnv },
         encoding: "utf8",
         timeout: 5000,
     });

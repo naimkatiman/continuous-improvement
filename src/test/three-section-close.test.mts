@@ -5,11 +5,12 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { platform, tmpdir } from "node:os";
+import { homedir, platform, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, before, beforeEach, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -93,6 +94,29 @@ function readTelemetryLines(home: string, transcriptPath: string): TelemetryEntr
     .split(/\r?\n/)
     .filter((line) => line.trim().length > 0)
     .map((line) => JSON.parse(line) as TelemetryEntry);
+}
+
+// Snapshot the real ~/.claude/hook-telemetry/ directory so tests can prove
+// they did not leak telemetry into the developer's actual home dir while
+// HOME/USERPROFILE were manipulated. Returns a Set of file basenames; an
+// empty Set is returned if the directory does not exist.
+function snapshotRealTelemetryDir(): Set<string> {
+  const dir = join(homedir(), ".claude", "hook-telemetry");
+  if (!existsSync(dir)) return new Set();
+  return new Set(readdirSync(dir));
+}
+
+function assertNoRealTelemetryLeak(before: Set<string>, label: string): void {
+  const after = snapshotRealTelemetryDir();
+  const newFiles: string[] = [];
+  for (const f of after) {
+    if (!before.has(f)) newFiles.push(f);
+  }
+  assert.deepEqual(
+    newFiles,
+    [],
+    `${label}: hook leaked telemetry into real ~/.claude/hook-telemetry/: ${newFiles.join(", ")}`,
+  );
 }
 
 describe("three-section-close.mjs telemetry", () => {
@@ -190,13 +214,16 @@ describe("three-section-close.mjs telemetry", () => {
   it("fails open when the telemetry directory cannot be created", () => {
     // Point HOME at a regular file so mkdirSync(.../.claude/hook-telemetry)
     // must fail (cannot create a child of a file). The hook must still
-    // pass/block correctly via stdout.
+    // pass/block correctly via stdout, and must NOT silently re-route the
+    // write to the real ~/.claude/hook-telemetry/ directory.
     const blockerFile = join(rootTemp, `home-as-file-${Date.now()}.txt`);
     writeFileSync(blockerFile, "not a directory");
 
     const transcript = join(transcriptDir, "fail-open.jsonl");
     const body = "Long body without sections. ".repeat(25);
     writeAssistantTranscript(transcript, body);
+
+    const realBefore = snapshotRealTelemetryDir();
 
     const env = buildIsolatedEnv(blockerFile);
     const result = runHook(JSON.stringify({ transcript_path: transcript }), env);
@@ -205,9 +232,13 @@ describe("three-section-close.mjs telemetry", () => {
     const parsed = JSON.parse(result.stdout) as { decision?: string };
     assert.equal(parsed.decision, "block", "block emit still works");
     assert.equal(result.stderr, "", "no stderr on fail-open telemetry");
+
+    // Drift-catch: the mkdir failure path must not silently bypass to the
+    // operator's real home dir. Snapshot before/after; no new files.
+    assertNoRealTelemetryLeak(realBefore, "unwritable-telemetry-dir test");
   });
 
-  it("works when HOME and USERPROFILE are both unset (no telemetry, no error)", () => {
+  it("explicit opt-out via empty HOME/USERPROFILE skips telemetry without falling back to os.homedir()", () => {
     const transcript = join(transcriptDir, "no-home.jsonl");
     const body = [
       "Filler. ".repeat(30),
@@ -220,21 +251,32 @@ describe("three-section-close.mjs telemetry", () => {
     ].join("\n\n");
     writeAssistantTranscript(transcript, body);
 
-    // Build env with neither HOME nor USERPROFILE.
+    // Empty-string HOME and USERPROFILE = explicit operator opt-out signal.
+    // The hook must short-circuit and write nothing. Critically, it must
+    // NOT fall back to os.homedir() (which would pollute the real
+    // ~/.claude/hook-telemetry/ during every `npm test` run — the bug this
+    // test was previously a false positive for).
     const env: NodeJS.ProcessEnv = { ...process.env };
-    delete env.HOME;
-    delete env.USERPROFILE;
+    env.HOME = "";
+    env.USERPROFILE = "";
+
+    const realBefore = snapshotRealTelemetryDir();
 
     const result = runHook(JSON.stringify({ transcript_path: transcript }), env);
 
-    assert.equal(result.status, 0, "hook exits 0 without HOME/USERPROFILE");
+    assert.equal(result.status, 0, "hook exits 0 with empty HOME/USERPROFILE");
     assert.equal(result.stdout, "", "compliant reply still passes");
     assert.equal(result.stderr, "", "no error escapes to stderr");
 
     // Confirm no telemetry was written under our isolated `home` either —
     // the hook had no place to write it.
     const entries = readTelemetryLines(home, transcript);
-    assert.equal(entries.length, 0, "no telemetry written when HOME/USERPROFILE absent");
+    assert.equal(entries.length, 0, "no telemetry written under isolated HOME");
+
+    // Drift-catch: the real ~/.claude/hook-telemetry/ must be untouched.
+    // Without the empty-string opt-out, resolveHomeDir() would call
+    // os.homedir() and write a JSONL line into the developer's real home.
+    assertNoRealTelemetryLeak(realBefore, "empty-HOME opt-out test");
   });
 
   it("uses a project hash that differs across distinct transcript directories", () => {
