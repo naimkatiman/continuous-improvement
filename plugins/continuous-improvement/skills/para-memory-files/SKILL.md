@@ -2,6 +2,9 @@
 name: para-memory-files
 tier: "1"
 description: >
+  Enforces Law 5 (Reflect After Every Session) and Law 7 (Learn From Every Session)
+  of the 7 Laws of AI Agent Discipline by giving the agent a durable file-based
+  memory it can read on resume and write at session end.
   File-based memory system using Tiago Forte's PARA method. Use this skill whenever
   you need to store, retrieve, update, or organize knowledge across sessions. Covers
   three memory layers: (1) Knowledge graph in PARA folders with atomic YAML facts,
