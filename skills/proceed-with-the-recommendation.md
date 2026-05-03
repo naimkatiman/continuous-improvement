@@ -98,7 +98,14 @@ Restate the recommendation list back in one compact block:
 4. Proceed without waiting ONLY if every item is `safe` AND the user already said "all of them" / auto mode is active
 5. For any `needs-approval` item (deploy, force-push, DB drop, secret change), stop and ask — even if other items are safe
 
-**Upstream block-shape contract:** if the recommendation list was composed under `wild-risa-balance`, expect ≥7 items split as exactly 2 WILD + at least 5 RISA. Shorter or wrong-split blocks mean the upstream skill was bypassed or violated — flag the gap to the user (one line: "block arrived as N items instead of ≥7; was wild-risa-balance applied?") before walking, do not silently proceed.
+**Upstream block-shape contract:** if the recommendation list was composed under `wild-risa-balance`, expect a **tier-shaped** block:
+
+- **Expert tier (default):** ≥7 items split as exactly 2 WILD + at least 5 RISA.
+- **Beginner tier:** 3 ≤ n ≤ 5 goal-driven items, no WILD/RISA labels (see `wild-risa-balance` → "Audience Tiers").
+
+Detect the tier from the prior turn's `## Recommendation (expert|beginner)` header signal first; if the suffix is absent, infer from item count + label presence (≥7 with WILD/RISA labels = expert; 3–5 unlabeled items = beginner; anything else = malformed).
+
+Shorter-than-tier or wrong-split blocks mean the upstream skill was bypassed or violated — flag the gap to the user (one line: `block arrived as N items; expected expert ≥7 (2 WILD + ≥5 RISA) or beginner 3–5 unlabeled; was wild-risa-balance applied?`) before walking. Do not silently proceed. A 3-item beginner block is **not** "below floor" — it is a legitimate tier shape and walks normally.
 
 ## Phase 2: Plan (Law 2 — Plan Is Sacred)
 
@@ -220,6 +227,13 @@ Three optional subsections — include only the ones that apply, in this order:
 If everything is fully complete and there is no blocker, deferred item, or operator action, write `Nothing — goal met, stop.` and skip section 3.
 
 ### 3. Recommendation
+
+**Tier signal in the heading.** When `wild-risa-balance` is in play, the heading carries an explicit tier suffix so the audit trail is self-describing:
+
+- Expert: `## Recommendation (expert)`
+- Beginner: `## Recommendation (beginner)`
+
+The Stop hook regex (`^#+ +Recommendation(?:\s|$)`) accepts both forms — the suffix is documentation, not a gate. If the upstream block was beginner-tier, render the lite shape (3–5 items, no WILD/RISA labels, no tiered tables) inside this section instead of the expert tiered-table format described below.
 
 **Tiny-list exemption:** if the original list had **≤1 item AND the goal is fully resolved with no deferred / blocked / operator items**, omit section 3 entirely and end after section 2's `Nothing — goal met, stop.` line. The tiered table + binary closer is forcing-function discipline for multi-item runs; on a 1-item win it is ceremony. Phase 6's Reflection block still happens internally (Laws 5+7 require it) — it just isn't user-facing-rendered here.
 

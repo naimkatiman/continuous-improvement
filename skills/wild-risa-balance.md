@@ -64,6 +64,47 @@ Total floor: **2 WILD + 5 RISA = 7 items minimum.** Going above is fine; going b
 
 The point: the operator gets a real WILD/RISA contrast (2 bold bets weighed against a 5-deep trusted baseline), not a flat list where the bold option silently competes with safe ones and loses by default.
 
+## Audience Tiers (beginner vs expert)
+
+Recommendation blocks ship in **two tiers** depending on the operator's signaled level. The 2 WILD + ≥5 RISA floor described above is the **expert** tier. Beginners get a different, lighter shape. The point: under-load for experts and overload for beginners are both failure modes — splitting the format prevents both.
+
+### Tier selection
+
+**Default = expert.** Switch to beginner only when one of these triggers fires:
+
+- **Explicit flag** — the operator types `/beginner` or refers to themselves as a beginner ("for beginner", "as a beginner", "I'm new to this").
+- **Explicit lite framing** — "simple list", "just the top 3", "small list", "short version", "no need for surgical".
+- **Auto-detect heuristic** — the **first message of the thread** contains any of: `beginner`, `new to (this|claude|the system)`, `simple`, `explain like`, `first time`, `i'm just starting`, `i'm learning`. Single-message false positives are acceptable — the operator flips with `/expert` if mismatched.
+
+The operator can override mid-thread: `/expert` switches back to WILD+RISA, `/beginner` switches back to the lite tier. Apply the most recently named tier.
+
+### Beginner tier (lite shape)
+
+When in beginner tier:
+
+- **3 minimum, 5 maximum** items. No padding past 5. Below 3 means there is no recommendation — write `Recommendation: no`.
+- **Goal-driven** — each item names the outcome, not the mechanism. Format: `<verb> <thing> → <observable result>`.
+- **Execution-first** — each item is a concrete next action, not a tradeoff to weigh.
+- **One-shot, iterate from there** — no "surgical change" framing, no phased sequencing, no commit-size gates. Get to a working pass, then improve.
+- **Optimized for the latest Opus model (Opus 4.7 at time of writing)** — assume the model holds the full task in one shot. Do not pre-decompose into micro-steps that fight the model's reasoning depth. Lean on broader, outcome-shaped instructions over fine-grained scripts.
+- Order: descending impact.
+- No WILD/RISA labels. No counts annotation. No tiered tables.
+
+### Expert tier (default for Naim, default in this repo)
+
+The full WILD+RISA structure documented above: ≥7 items, exactly 2 WILD + ≥5 RISA, WILD on top descending, RISA below descending, counts annotated inline.
+
+Each item still leads with the outcome inside both WILD and RISA: `<verb> <thing> → <observable result>`.
+
+### Tier signal in the 3-section close
+
+When Phase 7's three-section close lands, the `## Recommendation` header carries an explicit tier suffix:
+
+- Expert: `## Recommendation (expert)`
+- Beginner: `## Recommendation (beginner)`
+
+The Stop hook regex (`^#+ +Recommendation(?:\s|$)`) already accepts both forms — the suffix is documentation, not a gate. The point is a self-describing audit trail: a future reader (or an instinct scan) can tell which tier was applied without re-deriving it from item count or label presence.
+
 ## Integration with the 7 Laws
 
 | Mode | Reinforces                                              | Tempered by              |

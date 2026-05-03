@@ -155,6 +155,35 @@ export const DOCS_ASSERTIONS: DocsAssertion[] = [
   // Source skill + plugin mirror must both contain the literal "2 WILD + 5 RISA = 7 items minimum".
   { file: "skills/wild-risa-balance.md", pattern: "2 WILD + 5 RISA = 7 items minimum", source: "wild-risa-floor.test.mts:38" },
   { file: "plugins/continuous-improvement/skills/wild-risa-balance/SKILL.md", pattern: "2 WILD + 5 RISA = 7 items minimum", source: "wild-risa-floor.test.mts:38" },
+
+  // wild-risa-balance audience tiers (src/test/wild-risa-tiers.test.mts)
+  // Source + plugin mirror must contain the tier headings, item-count rule, and model-version lock.
+  // Dropping any one downgrades the tier contract back to a flat expert-only block.
+  { file: "skills/wild-risa-balance.md", pattern: "## Audience Tiers (beginner vs expert)", source: "wild-risa-tiers.test.mts" },
+  { file: "plugins/continuous-improvement/skills/wild-risa-balance/SKILL.md", pattern: "## Audience Tiers (beginner vs expert)", source: "wild-risa-tiers.test.mts" },
+  { file: "skills/wild-risa-balance.md", pattern: "### Beginner tier (lite shape)", source: "wild-risa-tiers.test.mts" },
+  { file: "plugins/continuous-improvement/skills/wild-risa-balance/SKILL.md", pattern: "### Beginner tier (lite shape)", source: "wild-risa-tiers.test.mts" },
+  { file: "skills/wild-risa-balance.md", pattern: "### Expert tier", source: "wild-risa-tiers.test.mts" },
+  { file: "plugins/continuous-improvement/skills/wild-risa-balance/SKILL.md", pattern: "### Expert tier", source: "wild-risa-tiers.test.mts" },
+  { file: "skills/wild-risa-balance.md", pattern: "### Tier signal in the 3-section close", source: "wild-risa-tiers.test.mts" },
+  { file: "plugins/continuous-improvement/skills/wild-risa-balance/SKILL.md", pattern: "### Tier signal in the 3-section close", source: "wild-risa-tiers.test.mts" },
+  { file: "skills/wild-risa-balance.md", pattern: "3 minimum, 5 maximum", source: "wild-risa-tiers.test.mts" },
+  { file: "plugins/continuous-improvement/skills/wild-risa-balance/SKILL.md", pattern: "3 minimum, 5 maximum", source: "wild-risa-tiers.test.mts" },
+  { file: "skills/wild-risa-balance.md", pattern: "Opus 4.7", source: "wild-risa-tiers.test.mts" },
+  { file: "plugins/continuous-improvement/skills/wild-risa-balance/SKILL.md", pattern: "Opus 4.7", source: "wild-risa-tiers.test.mts" },
+
+  // proceed-with-the-recommendation tier-aware contract (src/test/wild-risa-tiers.test.mts)
+  // Phase 1 must accept beginner blocks (3..5 unlabeled); Phase 7 close must render the tier suffix.
+  { file: "skills/proceed-with-the-recommendation.md", pattern: "Beginner tier:**", source: "wild-risa-tiers.test.mts" },
+  { file: "plugins/continuous-improvement/skills/proceed-with-the-recommendation/SKILL.md", pattern: "Beginner tier:**", source: "wild-risa-tiers.test.mts" },
+  { file: "skills/proceed-with-the-recommendation.md", pattern: "3 ≤ n ≤ 5", source: "wild-risa-tiers.test.mts" },
+  { file: "plugins/continuous-improvement/skills/proceed-with-the-recommendation/SKILL.md", pattern: "3 ≤ n ≤ 5", source: "wild-risa-tiers.test.mts" },
+  { file: "skills/proceed-with-the-recommendation.md", pattern: "Tier signal in the heading", source: "wild-risa-tiers.test.mts" },
+  { file: "plugins/continuous-improvement/skills/proceed-with-the-recommendation/SKILL.md", pattern: "Tier signal in the heading", source: "wild-risa-tiers.test.mts" },
+  { file: "skills/proceed-with-the-recommendation.md", pattern: "## Recommendation (expert)", source: "wild-risa-tiers.test.mts" },
+  { file: "plugins/continuous-improvement/skills/proceed-with-the-recommendation/SKILL.md", pattern: "## Recommendation (expert)", source: "wild-risa-tiers.test.mts" },
+  { file: "skills/proceed-with-the-recommendation.md", pattern: "## Recommendation (beginner)", source: "wild-risa-tiers.test.mts" },
+  { file: "plugins/continuous-improvement/skills/proceed-with-the-recommendation/SKILL.md", pattern: "## Recommendation (beginner)", source: "wild-risa-tiers.test.mts" },
 ];
 
 export interface AssertionFailure {
