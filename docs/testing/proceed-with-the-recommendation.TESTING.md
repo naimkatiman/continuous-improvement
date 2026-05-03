@@ -108,6 +108,8 @@ Re-test procedure: dispatch a fresh general-purpose subagent with the 4 scenario
 - Skill version at RED baseline: https://github.com/naimkatiman/continuous-improvement/blob/545ce70/skills/proceed-with-claude-recommendation.md
 - Skill version at GREEN baseline: https://github.com/naimkatiman/continuous-improvement/blob/76fa215/skills/proceed-with-claude-recommendation.md
 
+> **Filename note:** the URLs above point to `proceed-with-claude-recommendation.md` because that was the skill's name at those SHAs. The skill was renamed to `proceed-with-the-recommendation` in 3.4.0 (commit `f0a7068`) to drop Claude-specific branding so the same skill can be installed into non-Claude agents. The links above remain valid as historical references; the current file lives at [`skills/proceed-with-the-recommendation.md`](../../skills/proceed-with-the-recommendation.md).
+
 ## Known limitations
 
 - **Single-agent testing.** All 4 scenarios were run by one adversarial subagent. A multi-agent test (different model, different temperature, different rationalization style) would likely surface more leaks. Planned for a future re-test cycle.
