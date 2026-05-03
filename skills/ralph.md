@@ -51,6 +51,28 @@ Output saved to `tasks/prd-[feature-name].md`
 
 If you cannot write a testable criterion, the story is too big. Break it down before continuing.
 
+**Example — refining a scaffold criterion**
+
+Auto-generated:
+
+```json
+"acceptanceCriteria": [
+  "Implementation is complete",
+  "Code compiles without errors"
+]
+```
+
+After refinement:
+
+```json
+"acceptanceCriteria": [
+  "POST /api/users returns 201 with {id, email} for valid input, asserted by tests/api-users.test.ts",
+  "POST /api/users returns 400 with {error} for missing email, asserted by tests/api-users.test.ts",
+  "TypeScript compiles with 0 errors (npm run build)",
+  "lsp diagnostics show 0 errors on src/api/users.ts"
+]
+```
+
 ### 2. Convert PRD to Ralph Format
 
 Convert the markdown PRD to executable JSON:
@@ -85,6 +107,30 @@ Default: 10 iterations. Use `--tool amp` or `--tool claude` to select your AI to
    - Read the output, do not assume
    - If ANY criterion is not met, continue working — do NOT mark the story as `passes: true`
    - **Suite-level "all tests pass" is NOT a substitute for criterion-level proof.**
+
+   **Example — story-by-story verification**
+
+   Bad:
+
+   ```
+   Story US-002: "Add /api/users endpoint"
+   - Ran npm test → all green → marked passes: true
+   ```
+
+   Why bad: suite-level pass doesn't prove THIS story's criteria. Other tests could be passing while the new endpoint is broken.
+
+   Good:
+
+   ```
+   Story US-002: "Add /api/users endpoint"
+   - Criterion 1: POST /api/users → 201 → ran `npx vitest tests/api-users.test.ts -t "valid input"` → PASS
+   - Criterion 2: POST /api/users → 400 → ran `npx vitest tests/api-users.test.ts -t "missing email"` → PASS
+   - Criterion 3: typecheck → ran `npm run build` → 0 errors
+   - All criteria met with fresh evidence → marked passes: true
+   ```
+
+   Why good: each criterion proven with a targeted run; the output was read before the mark.
+
 5. **Commit if checks pass** — atomic commits per story
 6. **Update prd.json** — mark story as `passes: true`
 7. **Append learnings** — to `progress.txt`
@@ -120,6 +166,19 @@ Ralph stops when:
 - All stories have `passes: true`
 - Max iterations reached
 - Critical failure encountered (user intervention required)
+
+## Anti-patterns
+
+These thoughts mean STOP — Ralph is about to slip:
+
+| Thought | Why it's wrong |
+|---|---|
+| "All stories pass, time to summarise and wait for the user" mid-loop | Polite-stop. Ralph continues through commit + progress update + next pick in the same turn. |
+| "Tests pass at the suite level, the story must be done" | Suite-level pass is not criterion-level proof. Verify each criterion with fresh evidence. |
+| "Story is bigger than expected, I'll mark it passes: true and add a TODO" | Scope reduction. Either complete the story or break it down — never declare partial completion. |
+| "The criterion is generic but obviously the test covers it" | PRD theater. Refine the criterion to something specific before proceeding. |
+| "I'll skip the failing test by deleting/skipping it" | Tests are evidence. Fix the implementation, not the test. |
+| "Reviewer said it looks good" — without running fresh checks | "Looks good" is not verification. Run the build, run the tests, read the output. |
 
 ## Final Checklist (Hard Gate)
 
