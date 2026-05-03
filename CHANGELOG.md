@@ -8,6 +8,18 @@ All notable changes to this skill are documented here.
 
 ---
 
+## [3.5.0] — 2026-05-04
+
+### Added
+- **Audience-tier system in `wild-risa-balance`** — beginner emits 3–5 goal-driven items with no WILD/RISA labels; expert keeps the ≥7 floor (2 WILD + ≥5 RISA). `proceed-with-the-recommendation` Phase 1 validates against the tier contract instead of a flat floor, and the Phase 7 close renders the tier suffix in the heading (`## Recommendation (expert|beginner)`) so the audit trail records which tier produced the list.
+- **`Recommendation: no` escape valve in both tiers** of `wild-risa-balance` and `proceed-with-the-recommendation`. When no real recommendation can be produced without padding, the close ships a literal `no` body under the tier-suffixed heading — an explicit operator handoff signal (switch session, switch specialist agent, switch framing, sleep on it), never a silent skip. Padding to hit the floor is the failure mode this prevents.
+- **`CLAUDE_THREE_SECTION_CLOSE_DISABLED=1` operator opt-out** for `hooks/three-section-close.mjs`. When set, the hook short-circuits before any enforcement or telemetry. Per-operator escape hatch for cases where end-of-turn reflection should run as internal thinking instead of visible output. Public default unchanged — the rule still fires for everyone else. Test infrastructure (`buildIsolatedEnv()` + 5 manual env constructions) now strips the env var before spawning the hook so existing enforcement tests cannot silently disable themselves when the developer has the flag set.
+
+### Tests
+- **Locked the `no` escape valve literals** in `verify:docs-substrings` (102 → 112 assertions) and in the `wild-risa-tiers` test (22 → 32 assertions, 5 literals × 2 mirrors). Each lock carries a rationale string naming the behavior it defends so a future maintainer reading a failure understands why the literal is locked.
+
+---
+
 ## [3.4.1] — 2026-05-03
 
 ### Added
