@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-28
 **Owner:** Naim Katiman
-**Status:** in progress
+**Status:** complete (verified 2026-05-04)
 
 ## Why
 
@@ -73,3 +73,32 @@ After the final commit, the entire repo (excluding `node_modules` and this plan 
 - Git commit message history. Old commits with `ECC` in subject lines stay untouched. Rewriting public history is high-blast-radius for negligible benefit.
 - Any reference inside `node_modules/`. Vendor code.
 - This plan doc itself (which intentionally documents the old term to explain the rebrand).
+
+---
+
+## Conclusion (2026-05-04)
+
+**Status: complete.** The mechanical rebrand from `ECC` / `Everything Claude Code` to `continuous-improvement` landed across all 25 in-scope files via the C1–C5 commit split. Verification grep across `*.md`, `*.json`, `*.mjs`, `*.ts`, `*.mts`, `*.yml` (excluding `node_modules/` and this plan doc) returns **zero hits** as of 2026-05-04. The brand is now consistent across the public face, all 13 source skills, both plugin mirrors, marketplace manifests, and the Codex AGENTS bridge.
+
+### Canonical brand stack (frozen)
+
+The repo ships under a deliberate three-layer brand. Use the layer that fits the audience; do not collapse them.
+
+| Layer | Name | When to use it |
+|---|---|---|
+| **Brand (public face)** | The 7 Laws of AI Agent Discipline | Tweets, talks, README hero, marketplace listing, GitHub repo description |
+| **Engine (mechanism)** | Mulahazah | The auto-leveling instinct system inside it (`observe.sh`, instinct packs, confidence scoring) |
+| **Package (technical)** | `continuous-improvement` | `npm install`, `/plugin install`, `package.json` `name`, plugin.json `name`, repo slug, settings.json key |
+
+The brand stack is documented in `README.md` ("The Brand Stack" section) and enforced indirectly by `verify:skill-law-tag` (every skill description leads with `Enforces Law N`, which keeps the 7 Laws front-and-center on every load).
+
+### Rules in effect going forward
+
+- New skills, hooks, commands, docs MUST use the package name `continuous-improvement` and the brand name "The 7 Laws of AI Agent Discipline" — never "ECC" or "Everything Claude Code", which remain the property of `affaan-m/everything-claude-code`.
+- The verification grep at the top of this plan doc remains the definition of "clean" — if a future change reintroduces an `ECC` reference, the lint surface (or a hand-run grep) catches it.
+- The GitHub repo description leads with the brand name, not the engine name and not the package name. Updated 2026-05-04 in lockstep with this conclusion.
+
+### Closes
+
+- 2026-04-28 plan started.
+- 2026-05-04 plan closed. No follow-up work scheduled. If a future external integration (e.g. a fork or downstream plugin) reintroduces `ECC` strings into this repo, open a new plan doc rather than reopening this one.
