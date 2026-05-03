@@ -6,6 +6,24 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+### Added
+- **`verify:everything-mirror` lint** (`npm run verify:everything-mirror`) — walks `plugins/continuous-improvement/` and asserts every non-skill file has a byte-identical sibling at the same relative path under the repo root. Closes the drift-protection gap that `check-skill-mirror.mjs` left open for `commands/`, `hooks/`, `instinct-packs/`, `templates/`, `lib/`, `bin/mcp-server.mjs`, and `LICENSE`. Currently passes 23 mirrored files. Allowlists the four plugin-only surfaces (`.claude-plugin/` manifests, the bundle README, `hooks/hooks.json`, the generated `skills/README.md`).
+- **`verify:all` umbrella script** — single contributor gate that runs all 5 verify lints + typecheck cheapest-first. Replaces the six-line per-command checklist in `CONTRIBUTING.md`.
+- **`bin/pre-commit-block-strays.sh`** pre-commit hook — refuses any commit whose staged paths match `^.tmp-stop-e2e/` or `^nanobanana-output/`. Belt-and-suspenders alongside the new `.gitignore` entries; .gitignore is silent if bypassed with `git add -f`, this hook is loud. Install snippet documented in `CONTRIBUTING.md`.
+
+### Changed
+- **`gateguard` Law tag reconciled to "Law 1" only** across `README.md` Tier-1 row and `skills/README.md`. The skill's frontmatter source-of-truth declares only Law 1; the Tier-1 rows previously over-claimed "Law 1 + Law 3". The three views now agree.
+- **`skills/README.md` `superpowers` row** rewritten to match the 3.4.0 "Law activator" reframe already in the source skill frontmatter and root `README.md`. The 3.4.0 reframe (commit `2ddea8a`) missed this row.
+- **`README.md` plugin-marketplace row** — fixed stale "4 skills" claim → "13 skills" (the actual bundle size verified by `check-skill-mirror.mjs`).
+- **`docs/testing/proceed-with-the-recommendation.TESTING.md`** footnote added next to the historical RED/GREEN URLs explaining the 3.4.0 rename (`proceed-with-claude-recommendation` → `proceed-with-the-recommendation`) so the pre-rename URLs in test artifacts no longer surprise readers.
+
+### Removed
+- **6 unreferenced `nanobanana-output/*.jpg` images (3.1 MB)** — committed in `3f0dbcb` as a one-off save and never referenced anywhere in the repo (verified via grep across non-vendor paths). Recoverable from git history if ever needed.
+- **`.tmp-stop-e2e/transcript.jsonl`** — leftover test artifact from a stop-hook E2E run.
+
+### Fixed
+- **`.gitignore`** — was a single line (`node_modules/`). Now also blocks `.tmp-stop-e2e/`, `nanobanana-output/`, `*.tmp`, and `dist/` so the deleted artifacts (and similar future cruft) cannot re-enter via a careless stage.
+
 ---
 
 ## [3.4.0] — 2026-05-03
