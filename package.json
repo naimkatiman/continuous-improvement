@@ -1,6 +1,6 @@
 {
   "name": "continuous-improvement",
-  "version": "3.4.1",
+  "version": "3.5.0",
   "description": "The 7 Laws of AI Agent Discipline for Claude Code (engine: Mulahazah). Stop your agent from skipping steps, guessing, and declaring 'done' without verifying. Beginner: 13-skill plugin bundle. Expert: MCP server (12 tools), session hooks, instinct packs, GitHub Action transcript linter.",
   "keywords": [
     "claude-code",
