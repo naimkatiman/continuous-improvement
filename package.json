@@ -43,7 +43,8 @@
     "verify:skill-tiers": "node bin/check-skill-tiers.mjs",
     "verify:skill-law-tag": "node bin/check-skill-law-tag.mjs",
     "verify:docs-substrings": "node bin/check-docs-substrings.mjs",
-    "verify:everything-mirror": "node bin/check-everything-mirror.mjs"
+    "verify:everything-mirror": "node bin/check-everything-mirror.mjs",
+    "verify:all": "npm run verify:skill-mirror && npm run verify:skill-tiers && npm run verify:skill-law-tag && npm run verify:docs-substrings && npm run verify:everything-mirror && npm run typecheck"
   },
   "files": [
     ".claude-plugin/",
