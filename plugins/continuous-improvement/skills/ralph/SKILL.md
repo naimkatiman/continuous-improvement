@@ -16,6 +16,14 @@ Ralph runs iteratively until all PRD stories are complete. Each iteration: picks
 - Tasks requiring repeated verification and commit cycles
 - Long-running development that benefits from persistence across interruptions
 
+## Do NOT Use When
+
+- Task is a one-shot fix completable in a single edit — just edit the file
+- You haven't written a PRD yet — write the PRD first, then run Ralph against it
+- The work spans fewer than 3 stories — single-iteration verification is enough
+- You need to explore or plan before committing to scope — use a planning skill first; Ralph is for execution, not discovery
+- You want manual control over each iteration — run quality checks yourself, no need for Ralph's loop
+
 ## Prerequisites
 
 - Git repository
@@ -33,6 +41,15 @@ Load the prd skill and create a PRD for [your feature description]
 ```
 
 Output saved to `tasks/prd-[feature-name].md`
+
+**CRITICAL — refine generic criteria before iteration begins.** Auto-generated PRD scaffolds often produce generic acceptance criteria like `["Implementation is complete", "Code compiles without errors"]`. These are theater — Ralph cannot prove a story passes against criteria that don't actually constrain it. Replace every generic criterion with a concrete, testable statement before moving to step 2.
+
+- Bad: `"Function is implemented correctly"`
+- Good: `"Function parseUserInput(s) returns {ok: true, value} for valid s and {ok: false, error} for invalid s, asserted by tests/parse-user-input.test.ts"`
+- Bad: `"Code compiles"`
+- Good: `"TypeScript compiles with no errors (npm run build) AND lsp diagnostics show 0 errors on src/parse-user-input.ts"`
+
+If you cannot write a testable criterion, the story is too big. Break it down before continuing.
 
 ### 2. Convert PRD to Ralph Format
 
@@ -63,7 +80,11 @@ Default: 10 iterations. Use `--tool amp` or `--tool claude` to select your AI to
 1. **Create feature branch** — from PRD `branchName`
 2. **Pick highest priority story** — where `passes: false`
 3. **Implement that single story** — fresh context per iteration
-4. **Run quality checks** — typecheck, tests
+4. **Run quality checks** — verify the current story's specific acceptance criteria with fresh evidence:
+   - For EACH acceptance criterion, run the test/build/lint that proves it
+   - Read the output, do not assume
+   - If ANY criterion is not met, continue working — do NOT mark the story as `passes: true`
+   - **Suite-level "all tests pass" is NOT a substitute for criterion-level proof.**
 5. **Commit if checks pass** — atomic commits per story
 6. **Update prd.json** — mark story as `passes: true`
 7. **Append learnings** — to `progress.txt`
@@ -99,6 +120,21 @@ Ralph stops when:
 - All stories have `passes: true`
 - Max iterations reached
 - Critical failure encountered (user intervention required)
+
+## Final Checklist (Hard Gate)
+
+Ralph cannot exit cleanly until ALL of these are true:
+
+- [ ] Every story in `prd.json` has `passes: true` (no incomplete stories)
+- [ ] Acceptance criteria are task-specific (no `"Implementation is complete"` generics)
+- [ ] All requirements from the original task are met (no scope reduction)
+- [ ] Fresh test run output shows all tests pass (read it, don't assume)
+- [ ] Fresh build output shows success (read it, don't assume)
+- [ ] No tests were deleted, skipped, or weakened to make checks green
+- [ ] `progress.txt` records implementation details and learnings per iteration
+- [ ] Working tree is clean (every story committed atomically)
+
+A failing checkbox is a hard halt — do not declare done.
 
 ## Files
 
