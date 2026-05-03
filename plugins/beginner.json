@@ -1,6 +1,6 @@
 {
   "name": "continuous-improvement",
-  "version": "3.4.0",
+  "version": "3.4.1",
   "mode": "beginner",
   "description": "Beginner plugin: 3 core tools for status, instincts, and reflection, plus tier-1 companion skills (para-memory-files, verification-loop, gateguard, tdd-workflow). Minimal MCP surface, easy to maintain.",
   "tools": [

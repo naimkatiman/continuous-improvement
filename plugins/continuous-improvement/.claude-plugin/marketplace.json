@@ -8,7 +8,7 @@
     {
       "name": "continuous-improvement",
       "description": "The 7 Laws of AI Agent Discipline for Claude Code — skills, hooks, commands, instinct packs, and MCP tools.",
-      "version": "3.4.0",
+      "version": "3.4.1",
       "source": "./",
       "author": {
         "name": "naimkatiman"

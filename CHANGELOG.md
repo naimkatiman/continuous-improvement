@@ -6,6 +6,10 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+---
+
+## [3.4.1] — 2026-05-03
+
 ### Added
 - **`verify:everything-mirror` lint** (`npm run verify:everything-mirror`) — walks `plugins/continuous-improvement/` and asserts every non-skill file has a byte-identical sibling at the same relative path under the repo root. Closes the drift-protection gap that `check-skill-mirror.mjs` left open for `commands/`, `hooks/`, `instinct-packs/`, `templates/`, `lib/`, `bin/mcp-server.mjs`, and `LICENSE`. Currently passes 23 mirrored files. Allowlists the four plugin-only surfaces (`.claude-plugin/` manifests, the bundle README, `hooks/hooks.json`, the generated `skills/README.md`).
 - **`verify:all` umbrella script** — single contributor gate that runs all 5 verify lints + typecheck cheapest-first. Replaces the six-line per-command checklist in `CONTRIBUTING.md`.

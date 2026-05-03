@@ -1,6 +1,6 @@
 {
   "name": "continuous-improvement",
-  "version": "3.4.0",
+  "version": "3.4.1",
   "mode": "expert",
   "description": "Expert plugin: 12 tools including instinct management, planning files, import/export, observation viewer, dashboard, and instinct packs. Adds tier-2 companion skills (safety-guard, token-budget-advisor, strategic-compact) and the /learn-eval command on top of tier-1.",
   "tools": [
