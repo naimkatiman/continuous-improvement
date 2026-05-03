@@ -20,7 +20,7 @@ These add concrete enforcement to the 7 Laws. Tier-1 skills are the always-on mi
 |-------|--------------|----------------------|
 | `para-memory-files` | File-based persistent memory using PARA (Projects/Areas/Resources/Archives) for cross-session context | Law 5 (Reflect), Law 7 (Learn) |
 | `verification-loop` | Six-phase verification (build, types, lint, tests, security, diff) with a structured PASS/FAIL report | Law 4 (Verify Before Reporting) |
-| `gateguard` | PreToolUse fact-forcing gate that blocks Edit/Write/destructive Bash until concrete investigation is presented | Law 1 (Research), Law 3 (One Thing) |
+| `gateguard` | PreToolUse fact-forcing gate that blocks Edit/Write/destructive Bash until concrete investigation is presented | Law 1 (Research) |
 | `tdd-workflow` | RED→GREEN→REFACTOR enforcement, 80%+ coverage gate across unit/integration/E2E | Law 3 (One Thing), Law 4 (Verify) |
 
 ## Tier 2 — additional skills for **expert** mode

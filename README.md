@@ -154,7 +154,7 @@ These add concrete enforcement to the 7 Laws and ship in every plugin install.
 |-------|--------------|------------|
 | `para-memory-files` | File-based persistent memory using PARA (Projects/Areas/Resources/Archives) for cross-session context | Law 5 + Law 7 |
 | `verification-loop` | Six-phase verification (build, types, lint, tests, security, diff) with PASS/FAIL report | Law 4 |
-| `gateguard` | PreToolUse fact-forcing gate that blocks Edit/Write/destructive Bash until concrete investigation is presented | Law 1 + Law 3 |
+| `gateguard` | PreToolUse fact-forcing gate that blocks Edit/Write/destructive Bash until concrete investigation is presented | Law 1 |
 | `tdd-workflow` | RED→GREEN→REFACTOR enforcement with 80%+ coverage gate across unit/integration/E2E | Law 3 + Law 4 |
 
 ### Tier 2 — additional skills for **expert** install
