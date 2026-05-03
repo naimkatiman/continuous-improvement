@@ -1,7 +1,7 @@
 ---
 name: verification-loop
 tier: "1"
-description: "A comprehensive verification system for agent coding sessions."
+description: "Enforces Law 4 (Verify Before Reporting) of the 7 Laws of AI Agent Discipline. A comprehensive verification system for agent coding sessions covering build, types, lint, tests, security, and diff with a PASS/FAIL report."
 origin: continuous-improvement
 ---
 

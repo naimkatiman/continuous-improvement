@@ -1,7 +1,7 @@
 ---
 name: proceed-with-the-recommendation
 tier: featured
-description: "Walks an agent-emitted recommendation list top-to-bottom under the 7 Laws — restate, route per item, verify before advancing, reflect at the end, close with the mandatory three-section block. Standalone with inline fallbacks; trigger phrases are matched by the companion hook, not enumerated here."
+description: "Orchestrator for all 7 Laws of AI Agent Discipline. Walks an agent-emitted recommendation list top-to-bottom under the 7 Laws — restate, route per item, verify before advancing, reflect at the end, close with the mandatory three-section block. Standalone with inline fallbacks; trigger phrases are matched by the companion hook, not enumerated here."
 origin: https://github.com/naimkatiman/continuous-improvement
 ---
 

@@ -32,7 +32,7 @@ Run inside the Claude Code CLI:
 /plugin install continuous-improvement@continuous-improvement
 ```
 
-Update later with `/plugin marketplace update continuous-improvement`. Browse the other 8 PM plugins with `/plugin` (interactive picker) or see the [full list below](#plugin-marketplace-plugins).
+Update later with `/plugin marketplace update continuous-improvement`. Browse companion skills via `/plugin` (interactive picker) or see [Bundled Skills & Plugins](#bundled-skills--plugins) below.
 
 ### Option B — npm CLI installer
 
@@ -96,13 +96,34 @@ Hooks capture every tool call. After ~20 observations, Claude analyzes patterns 
 ## Slash Commands
 
 ```
-/continuous-improvement    Reflect, analyze, show status
+/seven-laws                Reflect, analyze, show status (brand-aligned name)
+/continuous-improvement    Same workflow as /seven-laws (kept for backward compat)
 /planning-with-files       Create task_plan.md, findings.md, progress.md
 /discipline                Quick reference card of the 7 Laws
 /dashboard                 Visual instinct health dashboard
 ```
 
 In expert mode, the same planning workflow is also available programmatically through the MCP tools `ci_plan_init` (initialize `task_plan.md`, `findings.md`, `progress.md` in the project root) and `ci_plan_status` (summarize their current contents).
+
+---
+
+## Law Coverage
+
+Every bundled skill, command, and hook enforces at least one of the 7 Laws. This is the alignment matrix — use it to pick the right tool for the discipline you want enforced.
+
+| Law | Enforced by | Type |
+|-----|-------------|------|
+| **1 — Research Before Executing** | `gateguard`, `workspace-surface-audit` | skill, skill+cmd |
+| **2 — Plan Is Sacred** | `wild-risa-balance`, `token-budget-advisor`, `/planning-with-files` | skill, skill, cmd |
+| **3 — One Thing at a Time** | `tdd-workflow`, `safety-guard` | skill, skill |
+| **4 — Verify Before Reporting** | `verification-loop`, `tdd-workflow`, `three-section-close.mjs` | skill, skill, hook |
+| **5 — Reflect After Every Session** | `para-memory-files`, `strategic-compact`, `session.sh`, `/seven-laws`, `/dashboard` | skill, skill, hook, cmd, cmd |
+| **6 — Iterate Means One Thing** | `ralph` | skill+cmd |
+| **7 — Learn From Every Session** | `para-memory-files`, `/learn-eval`, `observe.sh`, `/seven-laws`, `/dashboard` | skill, cmd, hook, cmd, cmd |
+| **All 7 (orchestrator)** | `proceed-with-the-recommendation` | skill+cmd |
+| **Activator (dispatches Law-aligned skills)** | `superpowers` | skill+cmd |
+
+Each skill's frontmatter `description:` leads with the Law it enforces, so the alignment shows up every time the skill is loaded — not just here.
 
 ---
 
@@ -156,26 +177,18 @@ Drop-in single-file skills, copy to `~/.claude/skills/<name>/SKILL.md`.
 | Skill | What it does | Source |
 |-------|--------------|--------|
 | `ralph` | Autonomous loop that executes a PRD story-by-story with quality checks between iterations | [snarktank/ralph](https://github.com/snarktank/ralph) |
-| `superpowers` | Activates task-appropriate skills automatically (brainstorming, git-worktrees, TDD, code review, etc.) | [obra/superpowers](https://github.com/obra/superpowers) |
+| `superpowers` | **Law activator.** Routes tasks to the correct Law-aligned specialist (brainstorming → Law 2, writing-plans → Law 2, TDD → Law 3+4, verification-before-completion → Law 4, etc.) so the right discipline fires automatically. Not a peer skill — a dispatcher for the others. | [obra/superpowers](https://github.com/obra/superpowers) |
 | `workspace-surface-audit` | Audits the active repo, MCP servers, plugins, and env, then recommends high-value skills/workflows | continuous-improvement |
 
 ### Plugin marketplace ([`plugins/`](plugins/))
 
-Install via `/plugin marketplace add naimkatiman/continuous-improvement` then `/plugin install <name>@continuous-improvement` (the `-dev` suffix is only used for the local in-repo development marketplace at `plugins/continuous-improvement/.claude-plugin/marketplace.json`).
+Install via `/plugin marketplace add naimkatiman/continuous-improvement` then `/plugin install continuous-improvement@continuous-improvement`.
 
 | Plugin | Skills | Focus |
 |--------|--------|-------|
 | `continuous-improvement` | 4 | The 7 Laws + Mulahazah (this repo's core plugin bundle) |
-| `pm-product-discovery` | 12 | Ideation, experiments, assumption testing, feature prioritization, interview synthesis |
-| `pm-product-strategy` | 12 | Vision, lean canvas, business model, SWOT, PESTLE, Ansoff, Porter's Five Forces, monetization |
-| `pm-execution` | 15 | PRDs, OKRs, roadmaps, sprints, pre-mortems, user stories, retros, release notes |
-| `pm-market-research` | 7 | Personas, market segments, market sizing, journey maps, sentiment, competitor analysis |
-| `pm-data-analytics` | 3 | SQL query generation, cohort analysis, A/B test analysis |
-| `pm-go-to-market` | 6 | GTM strategy, growth loops, GTM motions, beachhead segments, ICP, battlecards |
-| `pm-marketing-growth` | 5 | Marketing ideas, value props, North Star metrics, product naming, positioning |
-| `pm-toolkit` | 4 | Resume review, NDA drafting, privacy policy, grammar check |
 
-PM plugins by [Paweł Huryn](https://www.productcompass.pm).
+> **Curated PM plugins moved.** Earlier versions of this marketplace bundled 8 product-management plugins by [Paweł Huryn](https://www.productcompass.pm). They have been removed from this listing as the project refocuses on the 7 Laws of AI Agent Discipline. The plugin source files remain in [`plugins/`](plugins/) for now and may be removed in a follow-up; install Paweł's plugins directly from his maintainer-owned source if/when available.
 
 ---
 

@@ -1,7 +1,7 @@
 ---
 name: strategic-compact
 tier: "2"
-description: Suggests manual context compaction at logical intervals to preserve context through task phases rather than arbitrary auto-compaction.
+description: Enforces Law 5 (Reflect After Every Session) of the 7 Laws of AI Agent Discipline at phase boundaries. Suggests manual context compaction at logical intervals to preserve context through task phases rather than arbitrary auto-compaction.
 origin: continuous-improvement
 ---
 

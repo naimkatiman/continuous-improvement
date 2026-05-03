@@ -1,7 +1,7 @@
 ---
 name: superpowers
 tier: companion
-description: "Agentic skills framework with mandatory workflows. Activates skills automatically before tasks: brainstorming, git-worktrees, writing-plans, test-driven-development, code-review, and more."
+description: "Law activator for the 7 Laws of AI Agent Discipline. Routes tasks to the correct Law-aligned specialist (brainstorming → Law 2, writing-plans → Law 2, test-driven-development → Law 3+4, verification-before-completion → Law 4, etc.) so the right discipline fires automatically instead of the agent skipping a step. Not a peer skill — a dispatcher for the others."
 origin: https://github.com/obra/superpowers
 ---
 

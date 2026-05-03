@@ -2,6 +2,8 @@
 name: token-budget-advisor
 tier: "2"
 description: >-
+  Enforces Law 2 (Plan Is Sacred) of the 7 Laws of AI Agent Discipline by
+  making token-budget tradeoffs explicit before the response is composed.
   Offers the user an informed choice about how much response depth to
   consume before answering. Use this skill when the user explicitly
   wants to control response length, depth, or token budget.
