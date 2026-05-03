@@ -43,7 +43,7 @@ These ship in the same plugin bundle regardless of mode and are available the mo
 | Skill | What it does | Source |
 |-------|--------------|--------|
 | `ralph` | Autonomous loop that executes a PRD story-by-story with quality checks between iterations | [snarktank/ralph](https://github.com/snarktank/ralph) |
-| `superpowers` | Activates task-appropriate skills automatically (brainstorming, git-worktrees, TDD, code review, etc.) | [obra/superpowers](https://github.com/obra/superpowers) |
+| `superpowers` | **Law activator.** Routes tasks to the correct Law-aligned specialist (brainstorming → Law 2, writing-plans → Law 2, TDD → Law 3+4, verification-before-completion → Law 4, etc.) so the right discipline fires automatically. Not a peer skill — a dispatcher for the others. | [obra/superpowers](https://github.com/obra/superpowers) |
 | `workspace-surface-audit` | Audits the active repo, MCP servers, plugins, and env, then recommends high-value skills/workflows | continuous-improvement |
 
 ## How they get to your machine
