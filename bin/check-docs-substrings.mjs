@@ -146,6 +146,15 @@ export const DOCS_ASSERTIONS = [
     { file: "plugins/continuous-improvement/skills/wild-risa-balance/SKILL.md", pattern: "3 minimum, 5 maximum", source: "wild-risa-tiers.test.mts" },
     { file: "skills/wild-risa-balance.md", pattern: "Opus 4.7", source: "wild-risa-tiers.test.mts" },
     { file: "plugins/continuous-improvement/skills/wild-risa-balance/SKILL.md", pattern: "Opus 4.7", source: "wild-risa-tiers.test.mts" },
+    // wild-risa-balance "no" escape valve (src/test/wild-risa-tiers.test.mts)
+    // Both tiers must allow `Recommendation: no` when no real recommendation exists; padding to hit
+    // the floor is the failure mode. Heading + literal phrase + handoff-action clause are locked.
+    { file: "skills/wild-risa-balance.md", pattern: `### The "no" escape valve (both tiers)`, source: "wild-risa-tiers.test.mts" },
+    { file: "plugins/continuous-improvement/skills/wild-risa-balance/SKILL.md", pattern: `### The "no" escape valve (both tiers)`, source: "wild-risa-tiers.test.mts" },
+    { file: "skills/wild-risa-balance.md", pattern: "Recommendation: no", source: "wild-risa-tiers.test.mts" },
+    { file: "plugins/continuous-improvement/skills/wild-risa-balance/SKILL.md", pattern: "Recommendation: no", source: "wild-risa-tiers.test.mts" },
+    { file: "skills/wild-risa-balance.md", pattern: "switch context", source: "wild-risa-tiers.test.mts" },
+    { file: "plugins/continuous-improvement/skills/wild-risa-balance/SKILL.md", pattern: "switch context", source: "wild-risa-tiers.test.mts" },
     // proceed-with-the-recommendation tier-aware contract (src/test/wild-risa-tiers.test.mts)
     // Phase 1 must accept beginner blocks (3..5 unlabeled); Phase 7 close must render the tier suffix.
     { file: "skills/proceed-with-the-recommendation.md", pattern: "Beginner tier:**", source: "wild-risa-tiers.test.mts" },
@@ -158,6 +167,12 @@ export const DOCS_ASSERTIONS = [
     { file: "plugins/continuous-improvement/skills/proceed-with-the-recommendation/SKILL.md", pattern: "## Recommendation (expert)", source: "wild-risa-tiers.test.mts" },
     { file: "skills/proceed-with-the-recommendation.md", pattern: "## Recommendation (beginner)", source: "wild-risa-tiers.test.mts" },
     { file: "plugins/continuous-improvement/skills/proceed-with-the-recommendation/SKILL.md", pattern: "## Recommendation (beginner)", source: "wild-risa-tiers.test.mts" },
+    // proceed-with-the-recommendation "no" escape valve in Phase 7 close (src/test/wild-risa-tiers.test.mts)
+    // Phase 7 must instruct renderer to ship `no` + the tier-suffixed heading when the surface is exhausted.
+    { file: "skills/proceed-with-the-recommendation.md", pattern: `The "no" escape valve (both tiers)`, source: "wild-risa-tiers.test.mts" },
+    { file: "plugins/continuous-improvement/skills/proceed-with-the-recommendation/SKILL.md", pattern: `The "no" escape valve (both tiers)`, source: "wild-risa-tiers.test.mts" },
+    { file: "skills/proceed-with-the-recommendation.md", pattern: "explicit handoff signal", source: "wild-risa-tiers.test.mts" },
+    { file: "plugins/continuous-improvement/skills/proceed-with-the-recommendation/SKILL.md", pattern: "explicit handoff signal", source: "wild-risa-tiers.test.mts" },
 ];
 export function checkAssertions(repoRoot, assertions = DOCS_ASSERTIONS) {
     const fileCache = new Map();

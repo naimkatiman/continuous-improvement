@@ -57,6 +57,18 @@ const WILD_RISA_LITERALS: ReadonlyArray<LiteralCheck> = [
     literal: "Opus 4.7",
     rationale: "model-version lock — forces a deliberate update when moving beyond Opus 4.7",
   },
+  {
+    literal: `### The "no" escape valve (both tiers)`,
+    rationale: "no-escape subsection — without it the operator handoff signal is lost and tiers degrade to padding",
+  },
+  {
+    literal: "Recommendation: no",
+    rationale: "literal escape phrase — defends against silent rephrasing that would orphan the handoff convention",
+  },
+  {
+    literal: "switch context",
+    rationale: "operator action clause — defends the handoff semantic (fresh session / different agent / different framing)",
+  },
 ];
 
 const PROCEED_LITERALS: ReadonlyArray<LiteralCheck> = [
@@ -79,6 +91,14 @@ const PROCEED_LITERALS: ReadonlyArray<LiteralCheck> = [
   {
     literal: "## Recommendation (beginner)",
     rationale: "Phase 7 close — beginner tier-suffixed heading example",
+  },
+  {
+    literal: `The "no" escape valve (both tiers)`,
+    rationale: "Phase 7 close paragraph header — locks the operator handoff signal in the renderer contract",
+  },
+  {
+    literal: "explicit handoff signal",
+    rationale: "Phase 7 close clause naming the no-escape semantic — defends against silent rewording into 'optional skip'",
   },
 ];
 
