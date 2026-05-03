@@ -1,0 +1,75 @@
+# third-party/MANIFEST.md
+
+Pinned snapshots. Read-only. Refresh by bumping the SHA and re-running the documented selective copy.
+
+## Snapshots
+
+### oh-my-claudecode
+
+| Field | Value |
+|---|---|
+| Upstream | https://github.com/Yeachan-Heo/oh-my-claudecode |
+| License | MIT |
+| Pinned SHA | `1e9f197bcc85602da87ad35b18d908a0575b8583` |
+| Snapshot date | 2026-05-03 |
+| Snapshot size | ~2 MB, 175 files |
+| Upstream version at SHA | 4.13.5 |
+| Local path | `third-party/oh-my-claudecode/` |
+
+**Selective scope (verbatim from upstream):**
+
+- `agents/` — 19 agent definitions
+- `skills/` — 39 skills
+- `missions/` — task templates
+- `templates/` — scaffold files
+- `examples/` — usage examples
+- `hooks/hooks.json` — hooks manifest
+- `docs/` — architecture + reference
+- `.claude-plugin/` — plugin manifest (read-only; we do not register this in our marketplace)
+- `LICENSE`, `README.md` (English only), `AGENTS.md`, `CLAUDE.md`, `CHANGELOG.md`, `SECURITY.md`
+
+**Excluded from snapshot (not vendored):**
+
+- `dist/` (~25 MB, 4013 files — compiled output)
+- `src/` (~11 MB, 1030 files — TypeScript source; we are not forking)
+- `bridge/` (~6 MB — runtime adapters)
+- `tests/`, `scripts/`, `benchmark/`, `benchmarks/`, `seminar/`, `shellmark/`, `research/`
+- `package.json`, `package-lock.json`, `tsconfig.json`, `eslint.config.js`, `vitest.config.ts`, `typos.toml`
+- All non-English `README.*.md` files
+- `.github/`, `.git/`, `.gitignore`, `.gitattributes`, `.npmignore`, `.codex`, `.clawhip/`, `.mcp.json`
+
+**Refresh recipe:**
+
+```bash
+# 1. Pin the new SHA in this file under "Pinned SHA" above
+# 2. Shallow clone outside the repo
+git clone --depth 1 https://github.com/Yeachan-Heo/oh-my-claudecode.git \
+  /tmp/omc-refresh
+git -C /tmp/omc-refresh rev-parse HEAD  # confirm matches Pinned SHA
+
+# 3. Wipe + re-copy the selective surface
+rm -rf third-party/oh-my-claudecode
+mkdir -p third-party/oh-my-claudecode
+cp -r /tmp/omc-refresh/{agents,skills,missions,templates,examples,hooks,docs,.claude-plugin} \
+  third-party/oh-my-claudecode/
+cp /tmp/omc-refresh/{LICENSE,README.md,AGENTS.md,CLAUDE.md,CHANGELOG.md,SECURITY.md} \
+  third-party/oh-my-claudecode/
+
+# 4. Single-concern commit:
+#    chore(third-party): refresh oh-my-claudecode @ <new-sha>
+```
+
+---
+
+## Pending snapshots (not yet vendored — listed for transparency)
+
+### HKUDS/CLI-Anything
+
+- License audited: Apache-2.0
+- Decision: defer until oh-my-claudecode is in place and reviewed; revisit whether `lib/cli-anything.mjs` covers the use case before vendoring.
+
+### phuryn/pm-skills
+
+- License audited: MIT
+- Already substantially vendored at `plugins/pm-*/`.
+- Upstream snapshot in `third-party/` is hygiene-only; deferred per current priorities.
