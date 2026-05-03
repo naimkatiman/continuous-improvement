@@ -124,6 +124,13 @@ function recordTelemetry(entry, transcriptPath) {
 }
 
 function main() {
+  // Per-operator opt-out. When CLAUDE_THREE_SECTION_CLOSE_DISABLED=1, the hook
+  // short-circuits entirely: no enforcement, no telemetry. Public default is
+  // unchanged (rule still fires for everyone else). See feedback memory
+  // 2026-05-04 for rationale: an audit found 22,876 observations produced
+  // only 2 graduated instincts, so visible end-of-turn reflection earns its
+  // keep poorly enough that operators may want to run it as internal thinking.
+  if (process.env.CLAUDE_THREE_SECTION_CLOSE_DISABLED === "1") return;
   const startedAt = performance.now();
   const stdin = readStdinSync();
   if (!stdin) return;

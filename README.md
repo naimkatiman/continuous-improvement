@@ -135,6 +135,12 @@ Every bundled skill, command, and hook enforces at least one of the 7 Laws. This
 
 Each skill's frontmatter `description:` leads with the Law it enforces, so the alignment shows up every time the skill is loaded — not just here.
 
+### Operator opt-outs
+
+| Env var | Effect |
+|---|---|
+| `CLAUDE_THREE_SECTION_CLOSE_DISABLED=1` | `three-section-close.mjs` short-circuits before any enforcement or telemetry. Use when reflection should run as internal thinking rather than visible output. Public default unchanged; per-operator only. |
+
 ---
 
 ## All 13 Skills

@@ -39,6 +39,11 @@ function buildIsolatedEnv(home) {
     // Windows resolves homedir from USERPROFILE; set it too so platform code
     // paths agree regardless of which is consulted first.
     env.USERPROFILE = home;
+    // Strip the operator opt-out flag from the test environment so existing
+    // enforcement tests aren't silently disabled when the developer happens to
+    // have CLAUDE_THREE_SECTION_CLOSE_DISABLED=1 in their shell. Tests that
+    // exercise the opt-out set this var explicitly after calling this helper.
+    delete env.CLAUDE_THREE_SECTION_CLOSE_DISABLED;
     return env;
 }
 function runHook(payload, env) {
@@ -146,6 +151,22 @@ describe("three-section-close.mjs telemetry", () => {
         assert.deepEqual(entry.missing, REQUIRED_HEADINGS, "missing lists every absent heading");
         assert.ok(entry.textLength >= 600);
     });
+    it("short-circuits when CLAUDE_THREE_SECTION_CLOSE_DISABLED=1 (no block, no telemetry)", () => {
+        // Per-operator opt-out path. Hook must return immediately before stdin
+        // read, telemetry write, or compliance check. Long body without sections
+        // would normally block; with the flag set, hook is invisible.
+        const transcript = join(transcriptDir, "opt-out.jsonl");
+        const body = "Long body without any required sections. ".repeat(20);
+        writeAssistantTranscript(transcript, body);
+        const env = buildIsolatedEnv(home);
+        env.CLAUDE_THREE_SECTION_CLOSE_DISABLED = "1";
+        const result = runHook(JSON.stringify({ transcript_path: transcript }), env);
+        assert.equal(result.status, 0, "hook still exits 0 on opt-out");
+        assert.equal(result.stdout, "", "no block decision emitted");
+        assert.equal(result.stderr, "", "no error escapes");
+        const entries = readTelemetryLines(home, transcript);
+        assert.equal(entries.length, 0, "opt-out short-circuits before telemetry write");
+    });
     it("records a skip-short entry for a short reply", () => {
         const transcript = join(transcriptDir, "short.jsonl");
         writeAssistantTranscript(transcript, "ok done");
@@ -201,6 +222,7 @@ describe("three-section-close.mjs telemetry", () => {
         const env = { ...process.env };
         env.HOME = "";
         env.USERPROFILE = "";
+        delete env.CLAUDE_THREE_SECTION_CLOSE_DISABLED;
         const realBefore = snapshotRealTelemetryDir();
         const result = runHook(JSON.stringify({ transcript_path: transcript }), env);
         assert.equal(result.status, 0, "hook exits 0 with empty HOME/USERPROFILE");
@@ -225,6 +247,7 @@ describe("three-section-close.mjs telemetry", () => {
         const env = { ...process.env };
         env.HOME = "";
         env.USERPROFILE = home;
+        delete env.CLAUDE_THREE_SECTION_CLOSE_DISABLED;
         const realBefore = snapshotRealTelemetryDir();
         const result = runHook(JSON.stringify({ transcript_path: transcript }), env);
         assert.equal(result.status, 0);
@@ -241,6 +264,7 @@ describe("three-section-close.mjs telemetry", () => {
         const env = { ...process.env };
         env.HOME = home;
         env.USERPROFILE = "";
+        delete env.CLAUDE_THREE_SECTION_CLOSE_DISABLED;
         const realBefore = snapshotRealTelemetryDir();
         const result = runHook(JSON.stringify({ transcript_path: transcript }), env);
         assert.equal(result.status, 0);
