@@ -105,6 +105,14 @@ When Phase 7's three-section close lands, the `## Recommendation` header carries
 
 The Stop hook regex (`^#+ +Recommendation(?:\s|$)`) already accepts both forms — the suffix is documentation, not a gate. The point is a self-describing audit trail: a future reader (or an instinct scan) can tell which tier was applied without re-deriving it from item count or label presence.
 
+### The "no" escape valve (both tiers)
+
+If neither tier can produce a real recommendation — every candidate item would be padding, or you cannot reach the tier's floor (3 for beginner, 7 for expert) without inventing busywork — write `Recommendation: no` and stop. This applies to **both tiers equally**.
+
+`no` is not absence. It is an explicit signal that the current session or perspective is exhausted on this surface and the operator should switch context: a fresh session (cold prompt cache, no carryover bias), a different specialist agent (different perspective on the same problem), a different framing (re-scoping the goal), or sleep on it. Padding to hit the floor is the failure mode this escape exists to prevent — a flat 3-item beginner list of "review the README, run the tests, commit your changes" is worse than `Recommendation: no` because it disguises an empty thought as work.
+
+When `no` ships, the Phase 7 close header still carries the tier suffix (`## Recommendation (expert)` or `## Recommendation (beginner)`) so the audit trail records which tier exhausted itself, and the body is just the literal `no` on its own line. No tiered tables, no WILD/RISA blocks, no "Want me to: A or B?" closer.
+
 ## Integration with the 7 Laws
 
 | Mode | Reinforces                                              | Tempered by              |
