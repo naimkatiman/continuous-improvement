@@ -12,7 +12,7 @@ Pinned snapshots. Read-only. Refresh by bumping the SHA and re-running the docum
 | License | MIT |
 | Pinned SHA | `1e9f197bcc85602da87ad35b18d908a0575b8583` |
 | Snapshot date | 2026-05-03 |
-| Snapshot size | ~2 MB, 175 files |
+| Snapshot size | ~2 MB, 174 files |
 | Upstream version at SHA | 4.13.5 |
 | Local path | `third-party/oh-my-claudecode/` |
 
@@ -26,7 +26,7 @@ Pinned snapshots. Read-only. Refresh by bumping the SHA and re-running the docum
 - `hooks/hooks.json` — hooks manifest
 - `docs/` — architecture + reference
 - `.claude-plugin/` — plugin manifest (read-only; we do not register this in our marketplace)
-- `LICENSE`, `README.md` (English only), `AGENTS.md`, `CLAUDE.md`, `CHANGELOG.md`, `SECURITY.md`
+- `LICENSE`, `README.md` (English only), `AGENTS.md`, `CHANGELOG.md`, `SECURITY.md`
 
 **Excluded from snapshot (not vendored):**
 
@@ -37,6 +37,7 @@ Pinned snapshots. Read-only. Refresh by bumping the SHA and re-running the docum
 - `package.json`, `package-lock.json`, `tsconfig.json`, `eslint.config.js`, `vitest.config.ts`, `typos.toml`
 - All non-English `README.*.md` files
 - `.github/`, `.git/`, `.gitignore`, `.gitattributes`, `.npmignore`, `.codex`, `.clawhip/`, `.mcp.json`
+- `CLAUDE.md` — auto-loads as Claude Code session context if read from this subtree, leaking OMC's operating principles into the active 7 Laws session. Excluded for cross-contamination safety. Upstream still ships it; refer to upstream URL when needed.
 
 **Refresh recipe:**
 
@@ -52,8 +53,9 @@ rm -rf third-party/oh-my-claudecode
 mkdir -p third-party/oh-my-claudecode
 cp -r /tmp/omc-refresh/{agents,skills,missions,templates,examples,hooks,docs,.claude-plugin} \
   third-party/oh-my-claudecode/
-cp /tmp/omc-refresh/{LICENSE,README.md,AGENTS.md,CLAUDE.md,CHANGELOG.md,SECURITY.md} \
+cp /tmp/omc-refresh/{LICENSE,README.md,AGENTS.md,CHANGELOG.md,SECURITY.md} \
   third-party/oh-my-claudecode/
+# Note: CLAUDE.md intentionally excluded — auto-loads as session context.
 
 # 4. Single-concern commit:
 #    chore(third-party): refresh oh-my-claudecode @ <new-sha>
