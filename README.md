@@ -186,7 +186,7 @@ Install via `/plugin marketplace add naimkatiman/continuous-improvement` then `/
 
 | Plugin | Skills | Focus |
 |--------|--------|-------|
-| `continuous-improvement` | 4 | The 7 Laws + Mulahazah (this repo's core plugin bundle) |
+| `continuous-improvement` | 13 | The 7 Laws + Mulahazah (this repo's core plugin bundle) |
 
 > **Curated PM plugins moved.** Earlier versions of this marketplace bundled 8 product-management plugins by [Paweł Huryn](https://www.productcompass.pm). They have been removed from this listing as the project refocuses on the 7 Laws of AI Agent Discipline. The plugin source files remain in [`plugins/`](plugins/) for now and may be removed in a follow-up; install Paweł's plugins directly from his maintainer-owned source if/when available.
 
