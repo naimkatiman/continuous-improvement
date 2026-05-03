@@ -81,13 +81,15 @@ Result: 127 → 221 lines per file (+94). All edits agent-agnostic (no OMC verbs
 
 If a future port lands, append rows to "Ideas adopted" with the new commit SHA, and append rows to "Ideas rejected" if the port surfaced new rejections. Do not rewrite history — older rows stay. The matrix is a decision record, not a state snapshot.
 
-## Open questions (for a future integration decision)
+## Deferred — do not port without concrete user pain
 
-- Is OMC's `team` (multi-agent stage pipeline) worth porting as a Tier-2 7 Laws skill? Currently we drive parallelism via `superpowers:dispatching-parallel-agents`.
-- Does OMC's HUD statusline solve a real visibility gap, or is it solved by our existing dashboard command?
-- Would OMC's intelligent model routing (Haiku for simple, Opus for hard) belong as a hook in our plugin, or as documentation?
+The three OMC surfaces below are explicitly **deferred**. The gating criterion is identical for all three: **a concrete reported user pain that the existing 7 Laws asset cannot solve**. Without that, porting is speculative and adds surface area we have to maintain.
 
-These are deferred. Do not answer them by accident.
+- **`team` (multi-agent stage pipeline)** — current parallelism is driven by `superpowers:dispatching-parallel-agents`. Do not port until a real workflow demonstrates that the stage-pipeline shape (`plan → prd → exec → verify → fix`) is needed and not addressable by the existing dispatcher.
+- **`hud` (real-time statusline)** — visibility today comes from the dashboard command and `verification-loop`. Do not port until users explicitly report blind-spots that a HUD would close.
+- **Intelligent model routing (Haiku/Sonnet/Opus per task)** — our 7 Laws stays model-agnostic; the user picks the model. Do not port as a hook or as workflow text until a real cost or latency report justifies the added complexity.
+
+If one of these gets revisited, append a row to the "Ideas adopted" matrix above with the new commit SHA. Do not silently delete this section.
 
 ## Refresh
 
