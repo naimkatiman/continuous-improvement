@@ -6,8 +6,26 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+---
+
+## [3.4.0] — 2026-05-03
+
+### ⚠️ Breaking
+- **Marketplace dropped 8 third-party PM plugin entries** (`pm-data-analytics`, `pm-execution`, `pm-go-to-market`, `pm-market-research`, `pm-marketing-growth`, `pm-product-discovery`, `pm-product-strategy`, `pm-toolkit`) to refocus the marketplace on the 7 Laws of AI Agent Discipline. After updating, anyone with those plugins installed from this marketplace **loses the update source** — the plugins keep working until uninstalled, but `/plugin marketplace update continuous-improvement` will no longer resolve them. To keep them, install from a separate marketplace or re-add the entries downstream.
+
+### Added
+- **`/seven-laws` slash command** — brand-aligned alias to `/continuous-improvement`, so the 7 Laws name surfaces directly in the command palette without breaking the existing entrypoint
+- **Skill Law-tag lint** (`npm run verify:skill-law-tag`) — CI lint that requires every non-core skill description to lead with the Law it enforces, preventing description drift from the 7-Laws frame
+- **README Law Coverage matrix** — explicit map from each bundled skill / command / hook / instinct pack to the Law it serves, so contributors can see at a glance which Laws are well-covered and which need work
+
 ### Changed
+- **Skill descriptions lead with their Law** — Laws 1–7 source skills and the orchestrator now open with the Law they enforce, replacing generic blurbs with intent-first framing that matches the lint
+- **`superpowers` reframed as a Law activator**, not a peer skill — clarified in skill description and README so users stop treating it as one option among many
 - **Renamed `proceed-with-claude-recommendation` → `proceed-with-the-recommendation`** — drops Claude-specific branding from the skill identifier so the same skill can be installed into non-Claude agents (Codex, Gemini CLI, etc.). Identifier-only rename: file paths, frontmatter `name:`, slash command, install snippets, and cross-references updated. Body language about "Claude-emitted recommendation" is intentionally untouched in this release; that agent-genericization pass is a separate follow-up. Old-name installations need to re-run the install snippet under the new path.
+- **Version bump** to 3.4.0
+
+### Migration
+- If you depend on any of the 8 dropped PM plugins, pin them via a separate marketplace before running `/plugin marketplace update continuous-improvement`. Existing installs continue to work; only the update path is removed.
 
 ---
 

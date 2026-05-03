@@ -1,6 +1,6 @@
 {
   "name": "continuous-improvement",
-  "version": "3.3.0",
+  "version": "3.4.0",
   "description": "The 7 Laws of AI Agent Discipline for Claude Code — stop your agent from skipping steps, guessing, and declaring 'done' without verifying. Auto-leveling instinct learning with MCP server, GitHub Action transcript linter, and starter instinct packs.",
   "keywords": [
     "claude-code",
@@ -41,6 +41,7 @@
     "verify:generated": "npm run build && git diff --exit-code -- .claude-plugin bin test lib plugins",
     "verify:skill-mirror": "node bin/check-skill-mirror.mjs",
     "verify:skill-tiers": "node bin/check-skill-tiers.mjs",
+    "verify:skill-law-tag": "node bin/check-skill-law-tag.mjs",
     "verify:docs-substrings": "node bin/check-docs-substrings.mjs"
   },
   "files": [
