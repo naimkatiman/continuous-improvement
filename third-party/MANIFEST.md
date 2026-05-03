@@ -72,7 +72,7 @@ find third-party/oh-my-claudecode -name CLAUDE.md -type f -delete
 ### HKUDS/CLI-Anything
 
 - License audited: Apache-2.0
-- Decision: defer until oh-my-claudecode is in place and reviewed; revisit whether `lib/cli-anything.mjs` covers the use case before vendoring.
+- **Decision (2026-05-03): decline to vendor.** Our in-repo `lib/cli-anything.mjs` (+ `src/lib/cli-anything.mts`) already covers the use case. Reopen only if a concrete capability gap shows up that our implementation cannot close.
 
 ### phuryn/pm-skills
 
