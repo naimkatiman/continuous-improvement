@@ -42,7 +42,8 @@
     "verify:skill-mirror": "node bin/check-skill-mirror.mjs",
     "verify:skill-tiers": "node bin/check-skill-tiers.mjs",
     "verify:skill-law-tag": "node bin/check-skill-law-tag.mjs",
-    "verify:docs-substrings": "node bin/check-docs-substrings.mjs"
+    "verify:docs-substrings": "node bin/check-docs-substrings.mjs",
+    "verify:everything-mirror": "node bin/check-everything-mirror.mjs"
   },
   "files": [
     ".claude-plugin/",
