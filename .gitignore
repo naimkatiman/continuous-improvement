@@ -1,1 +1,7 @@
 node_modules/
+
+# Transient test/output artifacts that historically leaked into the repo
+.tmp-stop-e2e/
+nanobanana-output/
+*.tmp
+dist/
