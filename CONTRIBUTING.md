@@ -129,6 +129,26 @@ They are listed explicitly in `package.json` `files` so they ship with the npm t
   install Git Bash or WSL and make sure `bash` is on `PATH`. The hook test suite
   auto-skips with a clear message when bash is not available.
 
+### Setup pre-commit hook (recommended)
+
+Block accidental staging of paths that were already cleaned up from the repo
+(see `.gitignore` for the canonical list — currently `.tmp-stop-e2e/` and
+`nanobanana-output/`):
+
+```bash
+# From the repo root, on a Unix-like shell:
+ln -sf "$(pwd)/bin/pre-commit-block-strays.sh" .git/hooks/pre-commit
+
+# On Windows without symlink permissions, copy instead:
+cp bin/pre-commit-block-strays.sh .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+```
+
+The hook is belt-and-suspenders: `.gitignore` is silent if you bypass it with
+`git add -f`, this hook is loud and refuses the commit. Update the
+`BLOCKED_PATTERNS` list in [`bin/pre-commit-block-strays.sh`](bin/pre-commit-block-strays.sh)
+when you remove a new transient/output directory.
+
 ### Commands
 
 ```bash
