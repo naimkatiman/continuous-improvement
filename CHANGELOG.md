@@ -6,15 +6,21 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+---
+
+## [3.6.0] — 2026-05-05
+
 ### Added
-- **Node observer + `npx continuous-improvement backfill`** — replaces the bash thin-schema fallback that depended on `jq`. The new `bin/observe.mjs` reads stdin, parses the hook payload natively, and writes the rich event schema (`tool_input.command` for Bash, `Edit.file_path` for Edit/Write/Read, `tool_output` for tool_complete) without external dependencies. `hooks/observe.sh` becomes a two-phase shim: prefer the Node observer when present, fall back to the prior bash thin-schema path when not, so operators who do not re-run `npx continuous-improvement install` see no behavior change. The companion `backfill` subcommand walks existing `observations.jsonl` files and tags every row with `schema: "thin" | "rich"` so the analysis pass can cleanly skip thin rows and surface a "X% thin" stat to operators. Idempotent; preserves operator data via `.bak` and `observations.corrupt.jsonl` quarantine. Closes the audit-derived gap where 22,065 observations across 11 projects on a `jq`-less host yielded 0 auto-detected instincts.
+- **Node observer + `npx continuous-improvement backfill`** (#52) — replaces the bash thin-schema fallback that depended on `jq`. The new `bin/observe.mjs` reads stdin, parses the hook payload natively, and writes the rich event schema (`tool_input.command` for Bash, `Edit.file_path` for Edit/Write/Read, `tool_output` for tool_complete) without external dependencies. `hooks/observe.sh` becomes a two-phase shim: prefer the Node observer when present, fall back to the prior bash thin-schema path when not, so operators who do not re-run `npx continuous-improvement install` see no behavior change. The companion `backfill` subcommand walks existing `observations.jsonl` files and tags every row with `schema: "thin" | "rich"` so the analysis pass can cleanly skip thin rows and surface a "X% thin" stat to operators. Idempotent; preserves operator data via `.bak` and `observations.corrupt.jsonl` quarantine. Closes the audit-derived gap where 22,065 observations across 11 projects on a `jq`-less host yielded 0 auto-detected instincts. Live backfill against the maintainer's host: 25,077 rows tagged → 24,547 thin (97.9%), 530 rich (2.1%), across 14 projects.
+- **`Proactive Roadmap Surfacing` section in `wild-risa-balance`** (#53) — names the surface-don't-execute boundary explicitly. Trigger conditions (persistent roadmap, finished tasks implying next steps, drift, instinct/memory predictions); hard boundary citing global CLAUDE.md and Auto Mode rules; format with `(surfaced — <source>)` marker; anti-patterns (nagging, citation-free speculation, bundling surface with execution, inventing roadmaps).
+- **`meta` instinct pack** (#50) — promotes the two cross-project reflection-instincts (`skip-thin-observation-schema`, `parallelize-independent-tool-calls`) from per-project YAML into a shared starter pack. Test loop drives off `PACK_FLOORS` so language packs keep ≥5 floor while `meta` ships at ≥2.
 
 ### Changed
-- **README install ergonomics** — added explicit decision rule ("If you don't know which to pick, use Beginner"), called out the doubled `name@marketplace` install syntax as intentional, surfaced the Windows Git Bash / WSL precondition, replaced the "re-run install" failure note with "restart session first", added a 3-row Troubleshooting install table, demoted the Law Coverage matrix to CONTRIBUTING.md (operator opt-outs retained in README), wrapped the 13-skill table in `<details>`, and moved the Brand Stack below install.
-- **Plugin descriptions are now benefit-led** at the source (`SHARED_PLUGIN_DESCRIPTION` + `MODE_METADATA` in `src/lib/plugin-metadata.mts`). `package.json`, `action.yml`, plugin manifests, and marketplace entries now describe what the agent stops doing (skipping research / planning / verification) and what users get per mode, instead of listing artifacts.
+- **README install ergonomics** (#50) — `jq` listed alongside Node and bash in Preconditions with per-OS install commands; new "Operator modes" section adjacent to install with both bash/zsh and PowerShell export syntax for `CLAUDE_THREE_SECTION_CLOSE_DISABLED`.
+- **CONTRIBUTING.md `Source of truth: src/` callout** (#50) — hoisted as a one-line warning at the top of `## Architecture`; the existing edit-src-then-build workflow at lines 101-118 was correct but buried.
 
-### Removed
-- **"Curated PM plugins moved" notice** removed from README. Earlier versions of this marketplace bundled 8 product-management plugins by [Paweł Huryn](https://www.productcompass.pm); those have not appeared in the listing since the 7 Laws refocus and the README notice was stale housekeeping. Source plugin directories under `plugins/pm-*` remain on disk pending follow-up removal.
+### Fixed
+- **`hooks/observe.sh` jq-missing one-shot warning** (#50) — emits a single stderr line per host on the first invocation when `jq` is absent on PATH, so operators learn the auto-instinct gap at install time instead of discovering weeks of thin-schema collection. Marker lives at `~/.claude/.continuous-improvement-jq-warned`, deliberately outside `~/.claude/instincts/` so directory iterators are unaffected.
 
 ---
 
