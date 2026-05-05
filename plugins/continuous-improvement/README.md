@@ -10,6 +10,9 @@ Included surfaces:
 - `commands/`
 - `hooks/`
 - `bin/mcp-server.mjs`
+- `bin/observe.mjs`
+- `bin/backfill.mjs`
 - `lib/plugin-metadata.mjs`
+- `lib/observe-event.mjs`
 - `instinct-packs/`
 - `templates/planning-with-files/`

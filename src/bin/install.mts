@@ -134,6 +134,25 @@ function setupMulahazah(): void {
     console.log(`  ✓ observe.sh → ${observeDest}`);
   }
 
+  // Node observer (Phase 1 of the two-phase hook). The bash shim above
+  // exec's this when `node` and the file are both present; otherwise it
+  // falls back to the in-bash thin-schema path. Layout under instinctsDir
+  // mirrors the repo's bin/ + lib/ structure so the relative import in
+  // observe.mjs (`../lib/observe-event.mjs`) resolves correctly.
+  const observerJsSrc = join(REPO_ROOT, "bin", "observe.mjs");
+  const observeEventSrc = join(REPO_ROOT, "lib", "observe-event.mjs");
+  if (existsSync(observerJsSrc) && existsSync(observeEventSrc)) {
+    const binDir = join(instinctsDir, "bin");
+    const libDir = join(instinctsDir, "lib");
+    mkdirSync(binDir, { recursive: true });
+    mkdirSync(libDir, { recursive: true });
+    const observerJsDest = join(binDir, "observe.mjs");
+    const observeEventDest = join(libDir, "observe-event.mjs");
+    copyFileSync(observerJsSrc, observerJsDest);
+    copyFileSync(observeEventSrc, observeEventDest);
+    console.log(`  ✓ Node observer → ${observerJsDest}`);
+  }
+
   if (INSTALL_MODE === "expert") {
     const sessionSrc = join(REPO_ROOT, "hooks", "session.sh");
     const sessionDest = join(instinctsDir, "session.sh");
@@ -328,6 +347,21 @@ function uninstallAll(): void {
     }
   }
 
+  // Remove the Node observer artifacts deployed alongside observe.sh.
+  for (const observerFile of [
+    join("bin", "observe.mjs"),
+    join("lib", "observe-event.mjs"),
+  ]) {
+    const filePath = join(home, ".claude", "instincts", observerFile);
+    if (!existsSync(filePath)) continue;
+    try {
+      rmSync(filePath);
+      console.log(`  ✓ Removed ${observerFile}`);
+    } catch (error) {
+      console.error(`  ✗ ${observerFile}: ${getErrorMessage(error)}`);
+    }
+  }
+
   const settingsPath = join(home, ".claude", "settings.json");
   if (existsSync(settingsPath)) {
     const settings = readJsonFile<ClaudeSettings>(settingsPath);
@@ -389,20 +423,30 @@ function uninstallAll(): void {
 
 function printUsage(): void {
   console.log(`
-Usage: npx continuous-improvement install [options]
+Usage: npx continuous-improvement <subcommand> [options]
 
-Options:
+Subcommands:
+  install      Install the plugin (default subcommand)
+  backfill     Tag legacy thin-schema rows in observations.jsonl files
+  --uninstall  Remove all installed files
+
+Options for 'install':
   --mode <mode>     Installation mode:
                       beginner  — hooks + skill + commands (default)
                       expert    — beginner + MCP server + session hooks
   --pack <name>     Load a starter instinct pack (react, python, go, meta)
-  --uninstall       Remove all installed files
   --help            Show this help
+
+Options for 'backfill':
+  --dry-run         Report counts only, no file writes
+  --help            Show backfill-specific help
 
 Examples:
   npx continuous-improvement install                # beginner (default)
   npx continuous-improvement install --mode expert  # full power
   npx continuous-improvement install --pack react   # load React instincts
+  npx continuous-improvement backfill --dry-run     # report thin/rich row counts
+  npx continuous-improvement backfill               # tag rows in place
   npx continuous-improvement install --uninstall    # remove everything
 `);
 }
@@ -419,7 +463,7 @@ function getProjectHashSync(): ProjectHash {
 
 const args = process.argv.slice(2);
 const command = args[0];
-const validCommands = new Set(["install", "--help", "-h", "--uninstall"]);
+const validCommands = new Set(["install", "backfill", "--help", "-h", "--uninstall"]);
 
 if (args.includes("--help") || args.includes("-h")) {
   printUsage();
@@ -429,6 +473,20 @@ if (args.includes("--help") || args.includes("-h")) {
 if (!command || !validCommands.has(command)) {
   printUsage();
   process.exit(command ? 1 : 0);
+}
+
+if (command === "backfill") {
+  // Delegate to bin/backfill.mjs without spawning a separate process so the
+  // user gets one binary surface. Forward the remaining args (e.g. --dry-run).
+  const { execFileSync } = await import("node:child_process");
+  const backfillBin = join(REPO_ROOT, "bin", "backfill.mjs");
+  try {
+    execFileSync("node", [backfillBin, ...args.slice(1)], { stdio: "inherit" });
+  } catch {
+    // backfill.mjs always exits 0; if execFileSync threw, propagate the exit
+    // status without a stack trace so operator output stays clean.
+  }
+  process.exit(0);
 }
 
 if (args.includes("--uninstall")) {
