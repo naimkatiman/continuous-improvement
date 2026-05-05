@@ -6,9 +6,16 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+---
+
+## [3.5.1] — 2026-05-05
+
 ### Changed
 - **README install ergonomics** — added explicit decision rule ("If you don't know which to pick, use Beginner"), called out the doubled `name@marketplace` install syntax as intentional, surfaced the Windows Git Bash / WSL precondition, replaced the "re-run install" failure note with "restart session first", added a 3-row Troubleshooting install table, demoted the Law Coverage matrix to CONTRIBUTING.md (operator opt-outs retained in README), wrapped the 13-skill table in `<details>`, and moved the Brand Stack below install.
-- **Plugin descriptions are now benefit-led** at the source (`SHARED_PLUGIN_DESCRIPTION` + `MODE_METADATA` in `src/lib/plugin-metadata.mts`). `package.json`, `action.yml`, plugin manifests, and marketplace entries now describe what the agent stops doing (skipping research / planning / verification) and what users get per mode, instead of listing artifacts.
+- **Plugin descriptions are now benefit-led** at the source (`SHARED_PLUGIN_DESCRIPTION` + `MODE_METADATA` in `src/lib/plugin-metadata.mts`). `package.json`, `action.yml`, plugin manifests, marketplace entries, and `llms.txt` now describe what the agent stops doing (skipping research / planning / verification) and what users get per mode, instead of listing artifacts.
+
+### Added
+- **Two new docs-substring locks** in `bin/check-docs-substrings.mjs` (114 total, was 112): the README install decision rule (`"If you don't know which to pick, use Beginner."`) and the CONTRIBUTING.md `## Law Coverage Matrix` heading anchor referenced from README. Renaming either silently is now a lint failure.
 
 ### Removed
 - **"Curated PM plugins moved" notice** removed from README. Earlier versions of this marketplace bundled 8 product-management plugins by [Paweł Huryn](https://www.productcompass.pm); those have not appeared in the listing since the 7 Laws refocus and the README notice was stale housekeeping. Source plugin directories under `plugins/pm-*` remain on disk pending follow-up removal.
