@@ -1,7 +1,7 @@
 {
   "name": "continuous-improvement",
   "version": "3.6.0",
-  "description": "The 7 Laws of AI Agent Discipline for Claude Code. Stops your agent from skipping research, planning, and verification, and turns repeated patterns into instincts. Beginner: one /plugin install command. Expert: adds MCP tools, session hooks, and a GitHub Action transcript linter.",
+  "description": "Stops Claude Code from skipping research, claiming 'done' without verifying, and repeating yesterday's mistakes. The 7 Laws of AI Agent Discipline — 13 enforcement skills, gating hooks, the Mulahazah auto-leveling instinct engine, and a GitHub Action transcript linter. Beginner: one /plugin install command. Expert: adds MCP tools and session hooks.",
   "keywords": [
     "claude-code",
     "claude-code-skill",
