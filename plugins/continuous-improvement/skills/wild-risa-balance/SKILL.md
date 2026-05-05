@@ -186,6 +186,6 @@ Total: 7 items (2 WILD + 5 RISA). That is the floor — emit more on either side
 ## Related
 
 - `continuous-improvement` — the 7 Laws card (core skill)
-- `proceed-with-the-recommendation` — execution arm
+- `proceed-with-the-recommendation` — execution arm; carries surfaced items across the surface → execute boundary defined in the Proactive Roadmap Surfacing section above
 - `superpowers:brainstorming` — upstream WILD generator
 - `verification-loop` — downstream RISA verifier
