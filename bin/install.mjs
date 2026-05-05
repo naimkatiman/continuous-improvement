@@ -298,7 +298,7 @@ Options:
   --mode <mode>     Installation mode:
                       beginner  — hooks + skill + commands (default)
                       expert    — beginner + MCP server + session hooks
-  --pack <name>     Load a starter instinct pack (react, python, go)
+  --pack <name>     Load a starter instinct pack (react, python, go, meta)
   --uninstall       Remove all installed files
   --help            Show this help
 
@@ -397,5 +397,5 @@ Next steps:
   4. After your first task, run: /continuous-improvement
   5. Try: /discipline for quick reference, /dashboard for instinct health
 ${INSTALL_MODE === "expert" ? "\nMCP tools available: ci_status, ci_instincts, ci_reflect, ci_reinforce,\n  ci_create_instinct, ci_observations, ci_export, ci_import, ci_plan_init,\n  ci_plan_status, ci_dashboard, ci_load_pack" : ""}
-Available instinct packs: npx continuous-improvement install --pack react|python|go
+Available instinct packs: npx continuous-improvement install --pack react|python|go|meta
 `);

@@ -84,6 +84,8 @@ Add translations to `docs/` following the pattern `README.<lang-code>.md`.
 
 ## Architecture
 
+> **Source of truth: `src/`.** Edit `src/bin/*.mts`, `src/lib/*.mts`, `src/test/*.test.mts` only. The committed `bin/*.mjs`, `lib/*.mjs`, `test/*.test.mjs`, and `plugins/*.json` are `tsc` and generator output — they are wiped and rewritten on every `npm run build` and any direct edit silently disappears. Full edit-then-build workflow in [Editing the CLI / MCP server / linter](#editing-the-cli--mcp-server--linter) below.
+
 ```
 SKILL.md                    → The rules (any LLM can follow these)
 hooks/observe.sh            → Captures tool calls to JSONL (<50ms)

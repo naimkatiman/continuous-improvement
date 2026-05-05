@@ -16,6 +16,11 @@ INPUT="$(cat)"
 
 # ---------------------------------------------------------------------------
 # Parse hook payload — use jq if available, otherwise basic extraction
+#
+# When jq is missing, observation rows lack tool_input/tool_output, which
+# defeats the auto-instinct pipeline. Emit a one-shot stderr warning per
+# project so the operator notices at the next session start instead of
+# discovering the gap weeks later. The marker file makes it idempotent.
 # ---------------------------------------------------------------------------
 if command -v jq &>/dev/null; then
   read -r TOOL_NAME SESSION_ID HAS_OUTPUT INPUT_JSON OUTPUT_JSON <<< "$(
@@ -28,6 +33,15 @@ if command -v jq &>/dev/null; then
     ' | paste - - - - -
   )"
 else
+  # One-shot stderr warning per HOME so the operator learns the constraint.
+  # Marker lives next to instincts/ (not inside it) so it never collides with
+  # tests or analysis loops that iterate INSTINCTS_DIR for project-hash dirs.
+  JQ_WARN_MARKER="${HOME}/.claude/.continuous-improvement-jq-warned"
+  if [[ ! -f "$JQ_WARN_MARKER" ]]; then
+    mkdir -p "${HOME}/.claude" 2>/dev/null
+    printf '[continuous-improvement] jq not found on PATH — observe.sh is using thin-schema fallback. Install jq to enable auto-instinct detection (winget install jqlang.jq | brew install jq | apt install jq). This warning is one-shot per host.\n' >&2
+    : > "$JQ_WARN_MARKER"
+  fi
   # Fallback: extract tool_name with basic pattern matching
   TOOL_NAME="$(printf '%s' "$INPUT" | sed -n 's/.*"tool_name" *: *"\([^"]*\)".*/\1/p' | head -1)"
   SESSION_ID="$(printf '%s' "$INPUT" | sed -n 's/.*"session_id" *: *"\([^"]*\)".*/\1/p' | head -1)"
