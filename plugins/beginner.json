@@ -2,7 +2,7 @@
   "name": "continuous-improvement",
   "version": "3.5.0",
   "mode": "beginner",
-  "description": "Beginner plugin: 3 core tools for status, instincts, and reflection, plus tier-1 companion skills (para-memory-files, verification-loop, gateguard, tdd-workflow). Minimal MCP surface, easy to maintain.",
+  "description": "Beginner mode: see what your agent learned, list its instincts, and request a session reflection. Bundles four discipline skills (gateguard, para-memory-files, tdd-workflow, verification-loop) so research, memory, tests, and verification happen by default.",
   "tools": [
     {
       "name": "ci_status",

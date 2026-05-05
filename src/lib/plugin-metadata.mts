@@ -135,7 +135,7 @@ const KEYWORDS = [
 ];
 const CLAUDE_PLUGIN_CATEGORY = "productivity";
 const SHARED_PLUGIN_DESCRIPTION =
-  "The 7 Laws of AI Agent Discipline for Claude Code — skills, hooks, commands, instinct packs, and MCP tools.";
+  "The 7 Laws of AI Agent Discipline for Claude Code. Stops your agent from skipping research, planning, and verification, and turns repeated patterns into instincts.";
 
 export function isPluginMode(value: string | undefined): value is PluginMode {
   return value === "beginner" || value === "expert";
@@ -351,14 +351,14 @@ const EXPERT_TOOL_ENTRIES: ToolCatalogEntry[] = [
 const MODE_METADATA: Record<PluginMode, ModeMetadata> = {
   beginner: {
     description:
-      "Beginner plugin: 3 core tools for status, instincts, and reflection, plus tier-1 companion skills (para-memory-files, verification-loop, gateguard, tdd-workflow). Minimal MCP surface, easy to maintain.",
+      "Beginner mode: see what your agent learned, list its instincts, and request a session reflection. Bundles four discipline skills (gateguard, para-memory-files, tdd-workflow, verification-loop) so research, memory, tests, and verification happen by default.",
     hooks: ["PreToolUse", "PostToolUse"],
     hookDescription:
       "Silently captures every tool call as observations. Lightweight and non-blocking.",
   },
   expert: {
     description:
-      "Expert plugin: 12 tools including instinct management, planning files, import/export, observation viewer, dashboard, and instinct packs. Adds tier-2 companion skills (safety-guard, token-budget-advisor, strategic-compact) and the /learn-eval command on top of tier-1.",
+      "Expert mode: tune confidence, manage instincts, and persist plans on disk. Adds safety, token-budget, and strategic-compact skills plus the /learn-eval command so long sessions stay disciplined and learnings survive context resets.",
     hooks: ["PreToolUse", "PostToolUse", "SessionStart", "SessionEnd"],
     hookDescription:
       "Full hook suite: observation capture + session-level instinct loading and auto-reflection.",

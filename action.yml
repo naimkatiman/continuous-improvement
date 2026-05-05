@@ -1,5 +1,5 @@
 name: 'AI Agent Discipline Linter'
-description: 'Lint AI agent transcripts for compliance with the 7 Laws of AI Agent Discipline'
+description: 'Catch agents that skipped research, planning, or verification — by linting their transcript in CI against the 7 Laws of AI Agent Discipline.'
 author: 'naimkatiman'
 
 branding:
