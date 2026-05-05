@@ -1,0 +1,16 @@
+[
+  {
+    "id": "skip-thin-observation-schema",
+    "trigger": "when running /continuous-improvement and observations.jsonl entries contain only tool_start events with no inputs/outputs/errors",
+    "body": "Skip instinct fabrication and report the schema gap instead. With only ts/event/session/tool/project_id/project_name fields, the stream cannot distinguish a `git status` Bash call from a `rm -rf` Bash call. Tool-name bigrams (Bash→Bash, Edit→Edit, Read→Edit) reflect parallel-call artifacts and harness-enforced read-before-edit, not learned preferences. Recommend enhancing PostToolUse/PreToolUse hooks to log tool inputs (Bash command head, Skill name) and tool_end with success flag before retrying analysis.",
+    "confidence": 0.6,
+    "domain": "meta"
+  },
+  {
+    "id": "parallelize-independent-tool-calls",
+    "trigger": "when issuing 2+ tool calls with no data dependency between them in the same turn",
+    "body": "Batch independent tool calls into a single message instead of issuing them sequentially. Independent reads, independent greps, independent git inspections, independent file edits in unrelated files belong in one message with multiple tool blocks. Dependent calls (output of A determines input of B) stay sequential. Exception: when a single check would short-circuit the whole task (e.g., `git status` returning empty), one call first is fine. Sequential issuing of independent calls wastes wall-clock time and burns context per round-trip.",
+    "confidence": 0.6,
+    "domain": "workflow"
+  }
+]

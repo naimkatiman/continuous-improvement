@@ -26,7 +26,11 @@ describe("instinct-packs directory", () => {
   });
 });
 
-for (const packName of ["react", "python", "go"] as const) {
+// Language packs (react/python/go) are seeded language conventions: ≥5 instincts.
+// The meta pack carries promoted reflection-instincts about the system itself
+// (auto-instinct gap, parallel-call discipline) — kept small on purpose, ≥2.
+const PACK_FLOORS: Record<string, number> = { react: 5, python: 5, go: 5, meta: 2 };
+for (const [packName, floor] of Object.entries(PACK_FLOORS)) {
   describe(`instinct-packs/${packName}.json`, () => {
     let instincts: PackInstinct[] = [];
 
@@ -37,7 +41,7 @@ for (const packName of ["react", "python", "go"] as const) {
 
     it("is a non-empty array", () => {
       assert.ok(Array.isArray(instincts), "Should be an array");
-      assert.ok(instincts.length >= 5, `Expected at least 5 instincts, got ${instincts.length}`);
+      assert.ok(instincts.length >= floor, `Expected at least ${floor} instincts, got ${instincts.length}`);
     });
 
     it("each instinct has required fields", () => {
@@ -68,7 +72,7 @@ for (const packName of ["react", "python", "go"] as const) {
     });
 
     it("domain is a valid value", () => {
-      const validDomains = ["workflow", "patterns", "testing", "tooling", "code-style"];
+      const validDomains = ["workflow", "patterns", "testing", "tooling", "code-style", "meta"];
       for (const instinct of instincts) {
         assert.ok(
           validDomains.includes(instinct.domain),
