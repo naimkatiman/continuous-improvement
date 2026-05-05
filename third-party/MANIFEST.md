@@ -10,10 +10,10 @@ Pinned snapshots. Read-only. Refresh by bumping the SHA and re-running the docum
 |---|---|
 | Upstream | https://github.com/Yeachan-Heo/oh-my-claudecode |
 | License | MIT |
-| Pinned SHA | `1e9f197bcc85602da87ad35b18d908a0575b8583` |
-| Snapshot date | 2026-05-03 |
-| Snapshot size | ~2 MB, 173 files |
-| Upstream version at SHA | 4.13.5 |
+| Pinned SHA | `aacde3e19c40e891479e22fb30e6169a8782d7e4` |
+| Snapshot date | 2026-05-06 |
+| Snapshot size | ~1.8 MB, 175 files |
+| Upstream version at SHA | 4.13.6 |
 | Local path | `third-party/oh-my-claudecode/` |
 
 **Selective scope (verbatim from upstream):**

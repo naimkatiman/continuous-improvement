@@ -12,7 +12,7 @@ Complete reference for oh-my-claudecode. For quick start, see the main [README.m
 - [CLI Commands: ask/team/session](#cli-commands-askteamsession)
 - [Legacy MCP Team Runtime Tools (Deprecated)](#legacy-mcp-team-runtime-tools-deprecated)
 - [Agents (29 Total)](#agents-29-total)
-- [Skills (35 Total)](#skills-35-total)
+- [Skills (36 Total)](#skills-36-total)
 - [Slash Commands](#slash-commands)
 - [Hooks System](#hooks-system)
 - [Magic Keywords](#magic-keywords)
@@ -522,9 +522,9 @@ Always use `oh-my-claudecode:` prefix when calling via Task tool.
 
 ---
 
-## Skills (35 Total)
+## Skills (36 Total)
 
-Includes **34 canonical skills + 1 deprecated alias** (`psm`). Runtime truth comes from the builtin skill loader scanning `skills/*/SKILL.md` and expanding aliases declared in frontmatter.
+Includes **34 canonical skills + 2 deprecated aliases** (`learner`, `psm`). Runtime truth comes from the builtin skill loader scanning `skills/*/SKILL.md` and expanding aliases declared in frontmatter.
 
 | Skill                     | Description                                                      | Manual Command                              |
 | ------------------------- | ---------------------------------------------------------------- | ------------------------------------------- |
@@ -540,7 +540,8 @@ Includes **34 canonical skills + 1 deprecated alias** (`psm`). Runtime truth com
 | `deepinit`                | Generate hierarchical AGENTS.md docs                             | `/oh-my-claudecode:deepinit`                |
 | `external-context`        | Parallel document-specialist research                            | `/oh-my-claudecode:external-context`        |
 | `hud`                     | Configure HUD/statusline                                         | `/oh-my-claudecode:hud`                     |
-| `learner`                 | Extract reusable skill from session                              | `/oh-my-claudecode:learner`                 |
+| `skillify`                | Extract reusable skill from session                              | `/oh-my-claudecode:skillify`                |
+| `learner`                 | **Deprecated** compatibility alias for `skillify`                | `/oh-my-claudecode:learner`                 |
 | `mcp-setup`               | Configure MCP servers                                            | `/oh-my-claudecode:mcp-setup`               |
 | `omc-doctor`              | Diagnose and fix installation issues                             | `/oh-my-claudecode:omc-doctor`              |
 | `omc-plan`                | Planning workflow (`/plan` safe alias)                           | `/oh-my-claudecode:omc-plan`                |
@@ -905,12 +906,29 @@ Configure HUD elements in `~/.claude/settings.json`:
 | `autopilot`  | Show autopilot status                                                                             | `true`  |
 | `showTokens` | Show transcript-derived token usage (`tok:i1.2k/o340`, plus `r...` reasoning and `s...` session total when reliable) | `false` |
 
-Additional `omcHud` layout options (top-level):
+Additional `omcHud` layout and label options (top-level):
 
 | Option     | Description                                                                       | Default    |
 | ---------- | --------------------------------------------------------------------------------- | ---------- |
 | `maxWidth` | Maximum HUD line width (terminal columns)                                         | unset      |
 | `wrapMode` | `truncate` (ellipsis) or `wrap` (break at `\|` boundaries) when `maxWidth` is set | `truncate` |
+| `locale`   | HUD label preset. Supported values: `en`, `zh-CN`                                 | `en`       |
+| `labels`   | Per-label HUD text overrides; supported keys only                                 | unset      |
+
+`locale` and `labels` affect only HUD labels. English remains the default, unsupported locale values and unknown label keys are ignored, and explicit `labels` override the locale preset. Supported label keys are `context`, `tokens`, `tool`, `agent`, `skill`, `ralph`, `background`, `thinking`, `staged`, `modified`, `untracked`, `ahead`, and `behind`.
+
+Example:
+
+```json
+{
+  "omcHud": {
+    "locale": "zh-CN",
+    "labels": {
+      "context": "CTX"
+    }
+  }
+}
+```
 
 Available presets: `minimal`, `focused`, `full`, `dense`, `analytics`, `opencode`
 
