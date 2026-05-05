@@ -113,6 +113,48 @@ If neither tier can produce a real recommendation — every candidate item would
 
 When `no` ships, the Phase 7 close header still carries the tier suffix (`## Recommendation (expert)` or `## Recommendation (beginner)`) so the audit trail records which tier exhausted itself, and the body is just the literal `no` on its own line. No tiered tables, no WILD/RISA blocks, no "Want me to: A or B?" closer.
 
+## Proactive Roadmap Surfacing (surface, do not execute)
+
+A "wait for instructions" agent fails by silence — sitting on a known next step (visible roadmap, deferred item from a prior session) until told. A "proactive" agent fails by running that step without being asked. Both lose. Surface bridges them: raise the next step as a recommendation item, never as a fait accompli.
+
+### Trigger conditions
+
+Surface a next step when any of these are true:
+
+- A persistent roadmap names an undone step — MemoryCore `current-session.md`, `docs/plans/*`, `⚠️ Deferred` entries in a project `CLAUDE.md`, or pending operator actions logged in MemoryCore.
+- The current task is finished and a stated session goal implies the next one.
+- The session has drifted from a stated roadmap (asked to do A, but B is now blocked by A's choice).
+- An instinct or memory record predicts a near-term action the operator typically forgets (e.g., "rotate keys before next deploy", "push branch after N commits").
+
+### Hard boundary — surface, do not execute
+
+Surfacing emits the next step as a recommendation item. It does **not** mean running the command, editing the file, or shipping the change. Execution still requires explicit "proceed", "go", "run it", or equivalent. The boundary is non-negotiable:
+
+- Global CLAUDE.md: "If instructions conflict or information is missing, stop and ask."
+- Auto Mode: even in autonomous execution, "anything that deletes data or modifies shared or production systems still needs explicit user confirmation."
+- Trust is asymmetric — one unauthorized "helpful" action costs more than a hundred missed surfacings. Recovery is one-way.
+
+### Format
+
+A surfaced item lives inside the normal RISA block. Mark it inline as `(surfaced — <source>)` so the operator can tell which items came from the roadmap vs. the current request:
+
+```
+RISA baseline — ship regardless (5 of ≥5)
+1. Run remote D1 migration before next deploy → unblocks Close/Cancel admin button. (surfaced — pending operator action since 2026-05-04)
+2. ...
+```
+
+A WILD-tier reframe of the roadmap itself (not a single deferred step, but a re-shape of the whole next phase) goes in the WILD block instead, with the same `(surfaced — <source>)` marker.
+
+### Anti-patterns
+
+- Re-surfacing an item the operator explicitly deferred — once is a reminder, three times is nagging. After one repeat, log the defer reason to memory and stop.
+- Surfacing speculative steps with no source in any roadmap or memory ("you should also consider…" without a citation).
+- Bundling a surface with execution ("I went ahead and started X"). Surface, wait, execute on go.
+- Treating absence of a roadmap as license to invent one — if no roadmap exists and none was requested, ask before drafting.
+
+The point: the operator never has to remember a deferred item, and never has to forgive an unauthorized one. Both at once.
+
 ## Integration with the 7 Laws
 
 | Mode | Reinforces                                              | Tempered by              |
