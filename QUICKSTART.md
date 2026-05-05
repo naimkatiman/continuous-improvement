@@ -22,7 +22,7 @@ Open Claude Code and run:
 /discipline
 ```
 
-You should see the 7 Laws quick-reference card. If the command is not recognized, the skill did not land — re-run the install step.
+You should see the 7 Laws quick-reference card. If the command is not recognized, **quit and reopen Claude Code first** — slash commands only load on session start. Re-run the install step only if a fresh session still doesn't recognize `/discipline`.
 
 ---
 

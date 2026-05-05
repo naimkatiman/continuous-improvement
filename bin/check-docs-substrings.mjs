@@ -38,9 +38,19 @@ export const DOCS_ASSERTIONS = [
     { file: "README.md", pattern: /planning-with-files/i, source: "community.test.mts:88" },
     { file: "README.md", pattern: /task_plan\.md/, source: "community.test.mts:89" },
     { file: "README.md", pattern: /ci_plan_init/, source: "community.test.mts:90" },
+    // README.md install hero — locked 2026-05-05 to prevent silent rewording of
+    // the install decision rule. The whole install section was restructured to
+    // lead with this one line because the previous "pick one path" framing left
+    // first-time installers comparison-shopping. Drop or rewrite this and
+    // beginner-vs-expert ambiguity returns immediately.
+    { file: "README.md", pattern: "If you don't know which to pick, use Beginner.", source: "docs-substrings-manifest:readme-install-decision-rule" },
     // CONTRIBUTING.md (src/test/community.test.mts)
     { file: "CONTRIBUTING.md", pattern: /Contributing/, source: "community.test.mts:16" },
     { file: "CONTRIBUTING.md", pattern: /npm test/, source: "community.test.mts:17" },
+    // CONTRIBUTING.md Law Coverage Matrix anchor — locked 2026-05-05. The README
+    // points to this section via #law-coverage-matrix; renaming the heading
+    // creates a silent 404 in the README link. Lint catches it.
+    { file: "CONTRIBUTING.md", pattern: "## Law Coverage Matrix", source: "docs-substrings-manifest:contributing-law-coverage-anchor" },
     // CODE_OF_CONDUCT.md (src/test/community.test.mts)
     { file: "CODE_OF_CONDUCT.md", pattern: /Code of Conduct/, source: "community.test.mts:24" },
     { file: "CODE_OF_CONDUCT.md", pattern: /Contributor Covenant/, source: "community.test.mts:25" },

@@ -163,6 +163,24 @@ Tests must:
 - Use temp directories (never touch real `~/.claude/`)
 - Clean up after themselves
 
+## Law Coverage Matrix
+
+Every bundled skill, command, and hook enforces at least one of the 7 Laws. Use this matrix to pick the right tool for the discipline you want enforced. (Previously rendered in README; demoted here as contributor-grade reference, not first-time-installer orientation.)
+
+| Law | Enforced by | Type |
+|-----|-------------|------|
+| **1 — Research Before Executing** | `gateguard`, `workspace-surface-audit` | skill, skill+cmd |
+| **2 — Plan Is Sacred** | `wild-risa-balance`, `token-budget-advisor`, `/planning-with-files` | skill, skill, cmd |
+| **3 — One Thing at a Time** | `tdd-workflow`, `safety-guard` | skill, skill |
+| **4 — Verify Before Reporting** | `verification-loop`, `tdd-workflow`, `three-section-close.mjs` | skill, skill, hook |
+| **5 — Reflect After Every Session** | `para-memory-files`, `strategic-compact`, `session.sh`, `/seven-laws`, `/dashboard` | skill, skill, hook, cmd, cmd |
+| **6 — Iterate Means One Thing** | `ralph` | skill+cmd |
+| **7 — Learn From Every Session** | `para-memory-files`, `/learn-eval`, `observe.sh`, `/seven-laws`, `/dashboard` | skill, cmd, hook, cmd, cmd |
+| **All 7 (orchestrator)** | `proceed-with-the-recommendation` | skill+cmd |
+| **Activator (dispatches Law-aligned skills)** | `superpowers` | skill+cmd |
+
+The lint `verify:skill-law-tag` (run by `verify:all`) blocks any new skill whose `description:` does not start with `Enforces Law N`, so this table has a mechanical companion that prevents drift.
+
 ## License
 
 By contributing, you agree that your contributions will be licensed under the MIT License.

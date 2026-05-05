@@ -21,45 +21,51 @@
 
 ---
 
-## The Brand Stack
+## Install
 
-One product, three names. Use the one that fits the audience:
+**If you don't know which to pick, use Beginner.** It is enough for ~90% of users and adds no Node or bash dependency.
 
-| Layer | Name | When you say it |
-|-------|------|-----------------|
-| **Brand** | The 7 Laws of AI Agent Discipline | Tweets, talks, docs, "what is this" |
-| **Engine** | Mulahazah | The auto-leveling instinct system inside it |
-| **Package** | `continuous-improvement` | npm install, `/plugin install`, settings.json |
+### Beginner — inside Claude Code, two commands
 
-Every skill description leads with `Enforces Law N (...)` so the discipline shows up the moment the skill is loaded. The lint `verify:skill-law-tag` blocks any skill that drops the tag.
-
----
-
-## Install — pick one path
-
-### Beginner — one command, one verify
-
-You want the 7 Laws skill, the hooks, and the slash commands. That's it.
+You get the 7 Laws skill, the hooks that enforce it, and the slash commands. Nothing else to install.
 
 ```bash
-# Inside Claude Code
+# Inside Claude Code (no shell needed)
 /plugin marketplace add naimkatiman/continuous-improvement
 /plugin install continuous-improvement@continuous-improvement
 ```
 
-Verify in Claude Code: `/discipline` (shows the 7 Laws card). Done.
+The doubled name is correct: it reads as `<plugin>@<marketplace>`.
 
-### Expert — full stack with MCP, packs, and observation hooks
+Verify: run `/discipline` in Claude Code — you should see the 7 Laws card.
+If the command is not recognized, restart your Claude Code session first; the marketplace did pick the plugin up but commands load on session start.
 
-You want the MCP server (12 tools), the session-observation hooks for Mulahazah, and starter instinct packs.
+### Expert — adds MCP server, observation hooks, and instinct packs
+
+Pick this if you want the MCP tools (12 of them, including `ci_plan_init` / `ci_plan_status` for `task_plan.md`-style planning), the session hooks that feed Mulahazah, and starter packs.
+
+Preconditions: Node 18 / 20 / 22 and bash. **On Windows, install Git Bash or WSL first** — the observation hooks are bash scripts and will silently no-op without them.
 
 ```bash
-# Requires Node 18/20/22 and bash (Git Bash or WSL on Windows)
 npx continuous-improvement install --mode expert
-npx continuous-improvement install --pack react   # or python | go
+npx continuous-improvement install --pack react   # optional: react | python | go
+# --pack seeds 5–10 starter instincts so suggestions appear in week 1 instead of week 4.
 ```
 
-Verify in Claude Code: `/dashboard` (shows instinct health + observation count). Update later with `/plugin marketplace update continuous-improvement` or by re-running the npx command.
+Verify: run `/dashboard` in Claude Code — you should see instinct health and observation count.
+Update later with `/plugin marketplace update continuous-improvement` or by re-running the npx command.
+
+### Troubleshooting install
+
+Three failures account for nearly every install support thread. Try them in order:
+
+| Symptom | Real cause | Fix |
+|---|---|---|
+| `/discipline` says "command not recognized" right after `/plugin install` | Slash commands load on session start; the marketplace did pick the plugin up | Quit and reopen Claude Code, then run `/discipline` again |
+| Expert mode hooks never fire on Windows | `observe.sh` is bash; PowerShell silently no-ops on it | Install Git Bash (or WSL) and re-run `npx continuous-improvement install --mode expert` |
+| `/plugin marketplace add ...` returned nothing visible | Marketplace add was silent; the plugin is not yet selected | Run `/plugin install continuous-improvement@continuous-improvement` to select and activate it |
+
+If none of those apply, paste the output of `npx continuous-improvement install` into a GitHub issue — that surface logs every step.
 
 ---
 
@@ -119,21 +125,7 @@ In expert mode, the same planning workflow is also available programmatically th
 
 ## Law Coverage
 
-Every bundled skill, command, and hook enforces at least one of the 7 Laws. This is the alignment matrix — use it to pick the right tool for the discipline you want enforced.
-
-| Law | Enforced by | Type |
-|-----|-------------|------|
-| **1 — Research Before Executing** | `gateguard`, `workspace-surface-audit` | skill, skill+cmd |
-| **2 — Plan Is Sacred** | `wild-risa-balance`, `token-budget-advisor`, `/planning-with-files` | skill, skill, cmd |
-| **3 — One Thing at a Time** | `tdd-workflow`, `safety-guard` | skill, skill |
-| **4 — Verify Before Reporting** | `verification-loop`, `tdd-workflow`, `three-section-close.mjs` | skill, skill, hook |
-| **5 — Reflect After Every Session** | `para-memory-files`, `strategic-compact`, `session.sh`, `/seven-laws`, `/dashboard` | skill, skill, hook, cmd, cmd |
-| **6 — Iterate Means One Thing** | `ralph` | skill+cmd |
-| **7 — Learn From Every Session** | `para-memory-files`, `/learn-eval`, `observe.sh`, `/seven-laws`, `/dashboard` | skill, cmd, hook, cmd, cmd |
-| **All 7 (orchestrator)** | `proceed-with-the-recommendation` | skill+cmd |
-| **Activator (dispatches Law-aligned skills)** | `superpowers` | skill+cmd |
-
-Each skill's frontmatter `description:` leads with the Law it enforces, so the alignment shows up every time the skill is loaded — not just here.
+Every bundled skill, command, and hook enforces at least one of the 7 Laws. The full Law-to-tool alignment matrix lives in [CONTRIBUTING.md → Law Coverage Matrix](CONTRIBUTING.md#law-coverage-matrix); each skill's `description:` also leads with `Enforces Law N (...)` so the tag shows up every time the skill is loaded.
 
 ### Operator opt-outs
 
@@ -146,6 +138,9 @@ Each skill's frontmatter `description:` leads with the Law it enforces, so the a
 ## All 13 Skills
 
 The plugin ships **1 core + 1 featured + 4 tier-1 + 4 tier-2 + 3 always-bundled = 13 skills**. Source-of-truth lives in [`skills/`](skills/) (one `.md` per skill); the plugin bundle at [`plugins/continuous-improvement/skills/`](plugins/continuous-improvement/skills/) is regenerated by `npm run build`.
+
+<details>
+<summary>Show the full skill table (13 rows)</summary>
 
 | # | Skill | Tier | Law | What it does |
 |---|-------|------|-----|--------------|
@@ -162,6 +157,8 @@ The plugin ships **1 core + 1 featured + 4 tier-1 + 4 tier-2 + 3 always-bundled 
 | 11 | [`ralph`](skills/ralph.md) | companion | 6 | Autonomous loop that executes a PRD story-by-story with quality checks between iterations |
 | 12 | [`superpowers`](skills/superpowers.md) | companion | activator | Law activator — routes tasks to the correct Law-aligned specialist so the right discipline fires automatically |
 | 13 | [`workspace-surface-audit`](skills/workspace-surface-audit.md) | companion | 1 | Audits the active repo, MCP servers, plugins, env, then recommends high-value skills/workflows |
+
+</details>
 
 ### Beginner gets — by default
 
@@ -182,13 +179,11 @@ curl -L https://raw.githubusercontent.com/naimkatiman/continuous-improvement/mai
   -o ~/.claude/skills/$SKILL/SKILL.md
 ```
 
-> **Curated PM plugins moved.** Earlier versions of this marketplace bundled 8 product-management plugins by [Paweł Huryn](https://www.productcompass.pm). They are out of this listing as the project refocuses on the 7 Laws. Source files remain in [`plugins/`](plugins/) and may be removed in a follow-up.
-
 ---
 
-## Evolution — adding a new skill seamlessly
+## Evolution — adding a new skill
 
-**Yes. The repo is built to absorb new skills without rewiring anything.** Drop one `.md` file into [`skills/`](skills/), run `npm run build`, and the plugin bundle, manifests, and bundled-skills README all regenerate. Six lints (`verify:all`) block the merge if anything drifts.
+Drop one `.md` file into [`skills/`](skills/), run `npm run build`, and the plugin bundle, manifests, and bundled-skills README regenerate from that source. Six lints (`verify:all`) block the merge if anything drifts.
 
 ### The 5-step recipe
 
@@ -271,6 +266,20 @@ npx continuous-improvement install --uninstall
 ```
 
 Removes skill, hooks, commands, MCP server. Learned instincts in `~/.claude/instincts/` are preserved — delete manually for a clean slate.
+
+---
+
+## The Brand Stack
+
+One product, three names. Use the one that fits the audience:
+
+| Layer | Name | When you say it |
+|-------|------|-----------------|
+| **Brand** | The 7 Laws of AI Agent Discipline | Tweets, talks, docs, "what is this" |
+| **Engine** | Mulahazah | The auto-leveling instinct system inside it |
+| **Package** | `continuous-improvement` | `npm install`, `/plugin install`, `settings.json` |
+
+Every skill description leads with `Enforces Law N (...)` so the discipline tag shows up the moment the skill is loaded; the lint `verify:skill-law-tag` blocks any skill that drops the tag.
 
 ---
 
