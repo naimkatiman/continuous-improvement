@@ -6,6 +6,9 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+### Known Issues
+- **Auto-instinct pipeline depends on `jq`** — `hooks/observe.sh` falls back to a thin schema (`ts/event/session/tool/project_id/project_name`) when `jq` is not on PATH. The thin schema cannot capture `tool_input.command` or `Edit.file_path`, so the pattern detection described in `SKILL.md` ("after 20+ observations, Claude analyzes patterns and creates instincts") cannot identify user corrections, error→fix sequences, or tool-argument bigrams. Confirmed live: 22,065 observations across 11 projects on a `jq`-less host yielded 0 auto-detected instincts (the 2 instincts present were authored manually via reflection). Workaround until the planned Node-based observer lands: install `jq` (`winget install jqlang.jq` on Windows, `brew install jq` on macOS, `apt install jq` on Debian/Ubuntu) before the expert-mode install. Tracking issue: replace `observe.sh` with a Node observer that captures the rich schema natively and reprocesses prior thin-schema rows.
+
 ### Changed
 - **README install ergonomics** — added explicit decision rule ("If you don't know which to pick, use Beginner"), called out the doubled `name@marketplace` install syntax as intentional, surfaced the Windows Git Bash / WSL precondition, replaced the "re-run install" failure note with "restart session first", added a 3-row Troubleshooting install table, demoted the Law Coverage matrix to CONTRIBUTING.md (operator opt-outs retained in README), wrapped the 13-skill table in `<details>`, and moved the Brand Stack below install.
 - **Plugin descriptions are now benefit-led** at the source (`SHARED_PLUGIN_DESCRIPTION` + `MODE_METADATA` in `src/lib/plugin-metadata.mts`). `package.json`, `action.yml`, plugin manifests, and marketplace entries now describe what the agent stops doing (skipping research / planning / verification) and what users get per mode, instead of listing artifacts.

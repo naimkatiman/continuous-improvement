@@ -44,11 +44,11 @@ If the command is not recognized, restart your Claude Code session first; the ma
 
 Pick this if you want the MCP tools (12 of them, including `ci_plan_init` / `ci_plan_status` for `task_plan.md`-style planning), the session hooks that feed Mulahazah, and starter packs.
 
-Preconditions: Node 18 / 20 / 22 and bash. **On Windows, install Git Bash or WSL first** — the observation hooks are bash scripts and will silently no-op without them.
+Preconditions: Node 18 / 20 / 22, bash, and `jq`. **On Windows, install Git Bash or WSL first** — the observation hooks are bash scripts and will silently no-op without them. **Install `jq` too** (`winget install jqlang.jq` on Windows, `brew install jq` on macOS, `apt install jq` on Debian/Ubuntu) — without it, `observe.sh` falls back to a thin schema that the Mulahazah analysis pass cannot turn into instincts. The hook itself still runs and exits 0, but the captured rows lack `tool_input` so pattern detection produces nothing. See the **Known Issues** section in [CHANGELOG.md](CHANGELOG.md) for the full gap description.
 
 ```bash
 npx continuous-improvement install --mode expert
-npx continuous-improvement install --pack react   # optional: react | python | go
+npx continuous-improvement install --pack react   # optional: react | python | go | meta
 # --pack seeds 5–10 starter instincts so suggestions appear in week 1 instead of week 4.
 ```
 
@@ -66,6 +66,14 @@ Three failures account for nearly every install support thread. Try them in orde
 | `/plugin marketplace add ...` returned nothing visible | Marketplace add was silent; the plugin is not yet selected | Run `/plugin install continuous-improvement@continuous-improvement` to select and activate it |
 
 If none of those apply, paste the output of `npx continuous-improvement install` into a GitHub issue — that surface logs every step.
+
+### Operator modes
+
+The framework has documented operator-level modes that change hook behavior without rebuilding the plugin. These are first-class — set them once in your shell rc and they persist across sessions.
+
+| Env var | Effect | How to set |
+|---|---|---|
+| `CLAUDE_THREE_SECTION_CLOSE_DISABLED=1` | `three-section-close.mjs` short-circuits before any enforcement or telemetry. Use when end-of-turn reflection should run as internal thinking rather than visible "What has been done / What is next / Recommendation" sections. Public default unchanged — the rule still fires for everyone else. | bash/zsh: `export CLAUDE_THREE_SECTION_CLOSE_DISABLED=1` in `~/.bashrc` / `~/.zshrc`. PowerShell: `$env:CLAUDE_THREE_SECTION_CLOSE_DISABLED=1` (session) or `[Environment]::SetEnvironmentVariable('CLAUDE_THREE_SECTION_CLOSE_DISABLED','1','User')` (persistent). |
 
 ---
 
@@ -125,13 +133,7 @@ In expert mode, the same planning workflow is also available programmatically th
 
 ## Law Coverage
 
-Every bundled skill, command, and hook enforces at least one of the 7 Laws. The full Law-to-tool alignment matrix lives in [CONTRIBUTING.md → Law Coverage Matrix](CONTRIBUTING.md#law-coverage-matrix); each skill's `description:` also leads with `Enforces Law N (...)` so the tag shows up every time the skill is loaded.
-
-### Operator opt-outs
-
-| Env var | Effect |
-|---|---|
-| `CLAUDE_THREE_SECTION_CLOSE_DISABLED=1` | `three-section-close.mjs` short-circuits before any enforcement or telemetry. Use when reflection should run as internal thinking rather than visible output. Public default unchanged; per-operator only. |
+Every bundled skill, command, and hook enforces at least one of the 7 Laws. The full Law-to-tool alignment matrix lives in [CONTRIBUTING.md → Law Coverage Matrix](CONTRIBUTING.md#law-coverage-matrix); each skill's `description:` also leads with `Enforces Law N (...)` so the tag shows up every time the skill is loaded. Operator-level mode toggles live in the **Operator modes** section above the 7 Laws, alongside install.
 
 ---
 
