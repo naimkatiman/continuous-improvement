@@ -37,6 +37,25 @@ Snapshots are pinned by commit SHA in `MANIFEST.md`. To refresh:
 3. Update `OUR_NOTES.md` if the upstream's surface changed materially.
 4. Single-concern commit, no other changes in the same commit.
 
+### Driver
+
+`bin/refresh-third-party.mjs` automates step 2 in code (Node ESM, no
+dependencies, cross-platform). `MANIFEST.md` remains the source of truth
+for the selective scope and pinned SHAs. Common invocations:
+
+```
+node bin/refresh-third-party.mjs --help
+node bin/refresh-third-party.mjs --list
+node bin/refresh-third-party.mjs <name> --check
+node bin/refresh-third-party.mjs <name>
+node bin/refresh-third-party.mjs --all --check
+```
+
+The driver refuses to overwrite a snapshot path that has uncommitted
+changes unless `--force` is passed, and aborts the refresh if upstream
+HEAD does not match the pinned SHA in `MANIFEST.md` (bump the SHA
+first).
+
 ## What is NOT here
 
 - Build artifacts, `dist/`, `node_modules/`, `.git/`.
