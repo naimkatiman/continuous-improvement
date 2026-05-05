@@ -129,6 +129,7 @@ async function writePluginBundleReadme(): Promise<void> {
     "- `hooks/`",
     "- `bin/mcp-server.mjs`",
     "- `bin/observe.mjs`",
+    "- `bin/backfill.mjs`",
     "- `lib/plugin-metadata.mjs`",
     "- `lib/observe-event.mjs`",
     "- `instinct-packs/`",
@@ -164,6 +165,7 @@ async function writePluginBundle(): Promise<void> {
     ),
     copyFileTo(join(REPO_ROOT, "bin", "mcp-server.mjs"), join(PLUGIN_BUNDLE_DIR, "bin", "mcp-server.mjs")),
     copyFileTo(join(REPO_ROOT, "bin", "observe.mjs"), join(PLUGIN_BUNDLE_DIR, "bin", "observe.mjs")),
+    copyFileTo(join(REPO_ROOT, "bin", "backfill.mjs"), join(PLUGIN_BUNDLE_DIR, "bin", "backfill.mjs")),
     copyFileTo(
       join(REPO_ROOT, "lib", "plugin-metadata.mjs"),
       join(PLUGIN_BUNDLE_DIR, "lib", "plugin-metadata.mjs"),
