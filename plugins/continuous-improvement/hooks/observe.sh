@@ -1,11 +1,32 @@
 #!/usr/bin/env bash
-# observe.sh — Mulahazah PreToolUse/PostToolUse observation hook
-# Captures every tool call as a JSONL line. Must complete in <50ms. Always exits 0.
+# observe.sh — Mulahazah PreToolUse/PostToolUse observation hook.
+#
+# Two-phase design:
+#   1. PREFERRED: exec the Node observer (bin/observe.mjs) which captures the
+#      rich event schema (tool_input.command for Bash, file_path for Edit/
+#      Write/Read, tool_output) without depending on jq.
+#   2. FALLBACK: if either node is missing OR the Node observer file is not
+#      installed alongside this script, fall through to the in-bash thin-
+#      schema path below. The fallback preserves prior behavior so an
+#      operator who never re-runs `npx continuous-improvement install` is
+#      no worse off than today.
+#
+# Always exits 0 — never blocks the Claude session.
 # Usage: echo '<hook_json>' | observe.sh
 
-# Always exit 0 — never block the Claude session
 trap 'exit 0' EXIT ERR INT TERM
 
+# Phase 1 — try the Node observer. The shim copies bin/observe.mjs and
+# lib/observe-event.mjs alongside this script under ${HOME}/.claude/instincts/
+# preserving the bin/ + lib/ subdirectory layout so the relative import
+# resolves: observe.mjs lives at .../instincts/bin/observe.mjs, the imported
+# observe-event.mjs at .../instincts/lib/observe-event.mjs.
+NODE_OBSERVER="$(dirname "${BASH_SOURCE[0]}")/bin/observe.mjs"
+if [[ -f "$NODE_OBSERVER" ]] && command -v node &>/dev/null; then
+  exec node "$NODE_OBSERVER"
+fi
+
+# Phase 2 — bash fallback (thin schema; preserved for back-compat).
 INSTINCTS_DIR="${HOME}/.claude/instincts"
 
 # ---------------------------------------------------------------------------

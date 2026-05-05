@@ -128,7 +128,9 @@ async function writePluginBundleReadme(): Promise<void> {
     "- `commands/`",
     "- `hooks/`",
     "- `bin/mcp-server.mjs`",
+    "- `bin/observe.mjs`",
     "- `lib/plugin-metadata.mjs`",
+    "- `lib/observe-event.mjs`",
     "- `instinct-packs/`",
     "- `templates/planning-with-files/`",
     "",
@@ -161,6 +163,7 @@ async function writePluginBundle(): Promise<void> {
       join(PLUGIN_BUNDLE_DIR, "templates", "planning-with-files"),
     ),
     copyFileTo(join(REPO_ROOT, "bin", "mcp-server.mjs"), join(PLUGIN_BUNDLE_DIR, "bin", "mcp-server.mjs")),
+    copyFileTo(join(REPO_ROOT, "bin", "observe.mjs"), join(PLUGIN_BUNDLE_DIR, "bin", "observe.mjs")),
     copyFileTo(
       join(REPO_ROOT, "lib", "plugin-metadata.mjs"),
       join(PLUGIN_BUNDLE_DIR, "lib", "plugin-metadata.mjs"),
@@ -168,6 +171,10 @@ async function writePluginBundle(): Promise<void> {
     copyFileTo(
       join(REPO_ROOT, "lib", "resolve-home-dir.mjs"),
       join(PLUGIN_BUNDLE_DIR, "lib", "resolve-home-dir.mjs"),
+    ),
+    copyFileTo(
+      join(REPO_ROOT, "lib", "observe-event.mjs"),
+      join(PLUGIN_BUNDLE_DIR, "lib", "observe-event.mjs"),
     ),
     copyFileTo(join(REPO_ROOT, "LICENSE"), join(PLUGIN_BUNDLE_DIR, "LICENSE")),
     writePluginBundleReadme(),

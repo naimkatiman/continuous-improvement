@@ -134,6 +134,25 @@ function setupMulahazah(): void {
     console.log(`  ✓ observe.sh → ${observeDest}`);
   }
 
+  // Node observer (Phase 1 of the two-phase hook). The bash shim above
+  // exec's this when `node` and the file are both present; otherwise it
+  // falls back to the in-bash thin-schema path. Layout under instinctsDir
+  // mirrors the repo's bin/ + lib/ structure so the relative import in
+  // observe.mjs (`../lib/observe-event.mjs`) resolves correctly.
+  const observerJsSrc = join(REPO_ROOT, "bin", "observe.mjs");
+  const observeEventSrc = join(REPO_ROOT, "lib", "observe-event.mjs");
+  if (existsSync(observerJsSrc) && existsSync(observeEventSrc)) {
+    const binDir = join(instinctsDir, "bin");
+    const libDir = join(instinctsDir, "lib");
+    mkdirSync(binDir, { recursive: true });
+    mkdirSync(libDir, { recursive: true });
+    const observerJsDest = join(binDir, "observe.mjs");
+    const observeEventDest = join(libDir, "observe-event.mjs");
+    copyFileSync(observerJsSrc, observerJsDest);
+    copyFileSync(observeEventSrc, observeEventDest);
+    console.log(`  ✓ Node observer → ${observerJsDest}`);
+  }
+
   if (INSTALL_MODE === "expert") {
     const sessionSrc = join(REPO_ROOT, "hooks", "session.sh");
     const sessionDest = join(instinctsDir, "session.sh");
@@ -325,6 +344,21 @@ function uninstallAll(): void {
       console.log(`  ✓ Removed ${hookFile}`);
     } catch (error) {
       console.error(`  ✗ ${hookFile}: ${getErrorMessage(error)}`);
+    }
+  }
+
+  // Remove the Node observer artifacts deployed alongside observe.sh.
+  for (const observerFile of [
+    join("bin", "observe.mjs"),
+    join("lib", "observe-event.mjs"),
+  ]) {
+    const filePath = join(home, ".claude", "instincts", observerFile);
+    if (!existsSync(filePath)) continue;
+    try {
+      rmSync(filePath);
+      console.log(`  ✓ Removed ${observerFile}`);
+    } catch (error) {
+      console.error(`  ✗ ${observerFile}: ${getErrorMessage(error)}`);
     }
   }
 
