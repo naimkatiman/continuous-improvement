@@ -135,7 +135,7 @@ const KEYWORDS = [
 ];
 const CLAUDE_PLUGIN_CATEGORY = "productivity";
 const SHARED_PLUGIN_DESCRIPTION =
-  "The 7 Laws of AI Agent Discipline for Claude Code. Stops your agent from skipping research, planning, and verification, and turns repeated patterns into instincts.";
+  "Stops Claude Code from skipping research, claiming 'done' without verifying, and repeating yesterday's mistakes. The 7 Laws of AI Agent Discipline — 13 enforcement skills, gating hooks, and the Mulahazah auto-leveling instinct engine.";
 
 export function isPluginMode(value: string | undefined): value is PluginMode {
   return value === "beginner" || value === "expert";
