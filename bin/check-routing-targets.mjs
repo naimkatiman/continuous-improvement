@@ -25,12 +25,10 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { argv, cwd, exit } from "node:process";
-
 const ORCHESTRATOR_SKILL_PATH = "skills/proceed-with-the-recommendation.md";
 const OPTIONAL_COMPANIONS_PATH = "optional-companions.json";
 const PLUGIN_SKILLS_DIR = "plugins/continuous-improvement/skills";
 const SECTION_HEADER = "### Routing Table (with Inline Fallbacks)";
-
 export function discoverBundledSkills(repoRoot) {
     const dir = join(repoRoot, PLUGIN_SKILLS_DIR);
     let entries;
@@ -45,13 +43,15 @@ export function discoverBundledSkills(repoRoot) {
         const skillFile = join(dir, name, "SKILL.md");
         try {
             const stat = statSync(skillFile);
-            if (stat.isFile()) names.add(name);
+            if (stat.isFile())
+                names.add(name);
         }
-        catch { /* not a skill dir */ }
+        catch {
+            /* not a skill dir */
+        }
     }
     return names;
 }
-
 export function loadOptionalCompanions(repoRoot) {
     const path = join(repoRoot, OPTIONAL_COMPANIONS_PATH);
     const raw = readFileSync(path, "utf8");
@@ -61,7 +61,6 @@ export function loadOptionalCompanions(repoRoot) {
     }
     return new Set(data.optional_companions);
 }
-
 export function extractRoutingTargets(orchestratorMarkdown) {
     const lines = orchestratorMarkdown.split(/\r?\n/);
     const headerIdx = lines.findIndex((line) => line.trim() === SECTION_HEADER);
@@ -75,25 +74,37 @@ export function extractRoutingTargets(orchestratorMarkdown) {
     for (let i = headerIdx + 1; i < lines.length; i += 1) {
         const line = lines[i];
         const trimmed = line.trim();
-        if (trimmed.startsWith("## ") || trimmed.startsWith("### ")) break;
+        if (trimmed.startsWith("## ") || trimmed.startsWith("### "))
+            break;
         if (!trimmed.startsWith("|")) {
-            if (inTable) break;
+            if (inTable)
+                break;
             continue;
         }
-        if (!sawHeaderRow) { sawHeaderRow = true; inTable = true; continue; }
-        if (!sawDividerRow) { sawDividerRow = true; continue; }
+        if (!sawHeaderRow) {
+            sawHeaderRow = true;
+            inTable = true;
+            continue;
+        }
+        if (!sawDividerRow) {
+            sawDividerRow = true;
+            continue;
+        }
         const cells = trimmed.split("|").map((c) => c.trim());
         // cells[0] and cells[last] are empty strings from leading/trailing pipes.
         // cells[1] = "Recommendation type", cells[2] = "Preferred skill", cells[3] = "Inline fallback".
         const preferredCell = cells[2] ?? "";
         const tokens = [...preferredCell.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
         for (const token of tokens) {
-            targets.push({ rowIndex: targets.length, recommendationType: cells[1] ?? "", target: token });
+            targets.push({
+                rowIndex: targets.length,
+                recommendationType: cells[1] ?? "",
+                target: token,
+            });
         }
     }
     return targets;
 }
-
 export function checkRoutingTargets(repoRoot) {
     const orchestratorPath = join(repoRoot, ORCHESTRATOR_SKILL_PATH);
     const orchestratorContent = readFileSync(orchestratorPath, "utf8");
@@ -102,13 +113,19 @@ export function checkRoutingTargets(repoRoot) {
     const optional = loadOptionalCompanions(repoRoot);
     const drifts = [];
     for (const t of targets) {
-        if (bundled.has(t.target)) continue;
-        if (optional.has(t.target)) continue;
+        if (bundled.has(t.target))
+            continue;
+        if (optional.has(t.target))
+            continue;
         drifts.push(t);
     }
-    return { targets, drifts, bundledCount: bundled.size, optionalCount: optional.size };
+    return {
+        targets,
+        drifts,
+        bundledCount: bundled.size,
+        optionalCount: optional.size,
+    };
 }
-
 function main() {
     const repoRoot = argv[2] ?? cwd();
     const { targets, drifts, bundledCount, optionalCount } = checkRoutingTargets(repoRoot);
@@ -128,7 +145,6 @@ function main() {
         `with a pointer note in docs/audits/.`);
     exit(1);
 }
-
 const invokedDirectly = argv[1] !== undefined && import.meta.url.endsWith(argv[1].replace(/\\/g, "/"));
 if (invokedDirectly || argv[1]?.endsWith("check-routing-targets.mjs")) {
     main();
