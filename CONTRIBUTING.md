@@ -183,6 +183,33 @@ Every bundled skill, command, and hook enforces at least one of the 7 Laws. Use 
 
 The lint `verify:skill-law-tag` (run by `verify:all`) blocks any new skill whose `description:` does not start with `Enforces Law N`, so this table has a mechanical companion that prevents drift.
 
+## Release
+
+### Float-tag policy (`v3`, `v4`, ...)
+
+The `v3` lightweight tag is a floating major-version pointer used by GitHub Action consumers (`naimkatiman/continuous-improvement@v3`). It must be retargeted to the latest published `v3.x.y` tag on every minor or patch release.
+
+```bash
+# After tagging and publishing the GitHub Release for v3.X.Y:
+git tag -f v3 v3.X.Y
+git push origin v3 --force
+```
+
+The force-push is intentional and only applies to the floating tag — never to `vX.Y.Z` pinned tags or to branches. Consumers using `@v3.6.0` are unaffected; only `@v3` consumers see the new code on their next `actions/checkout`. This matches the actions/checkout, actions/setup-node, etc. ecosystem convention.
+
+If you cut a new major version (e.g. `v4.0.0`), create a fresh `v4` floating tag rather than retargeting `v3` — the float tag tracks the *current* major, never the *latest* across majors. This preserves the SemVer guarantee that `@v3` stays breaking-change-safe for as long as the v3 line is supported.
+
+### Release checklist
+
+1. Bump version in `package.json`, `plugins/continuous-improvement/.claude-plugin/plugin.json`, and `.claude-plugin/marketplace.json` + `plugins/continuous-improvement/.claude-plugin/marketplace.json`.
+2. Add the new section to `CHANGELOG.md`.
+3. Run `npm run verify:all` and `npm test`.
+4. Commit on a release branch, open PR, merge to `main`.
+5. Tag the merge commit: `git tag vX.Y.Z` and `git push origin vX.Y.Z`.
+6. Publish the GitHub Release with `gh release create vX.Y.Z --notes-file <changelog-section>` (or via the web UI).
+7. **Retarget the float tag** per the policy above.
+8. `npm publish` once the GitHub Release is live.
+
 ## License
 
 By contributing, you agree that your contributions will be licensed under the MIT License.
