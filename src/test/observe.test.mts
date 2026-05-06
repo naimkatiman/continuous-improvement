@@ -116,10 +116,30 @@ describe("observe.mjs (Node observer entrypoint)", () => {
     assert.match(last.project_id, /^[0-9a-f]{12}$/, "project_id is sha256 first 12 hex");
   });
 
-  it("writes a tool_complete row for a payload with tool_output", () => {
+  it("writes a tool_complete row for a payload with canonical tool_response", () => {
+    const payload = JSON.stringify({
+      tool_name: "Bash",
+      session_id: "session-B",
+      tool_input: { command: "echo hi" },
+      tool_response: { stdout: "hi\n", stderr: "", interrupted: false },
+    });
+    const result = runObserve(payload, {
+      HOME: tempHome,
+      CLAUDE_PROJECT_DIR: "/tmp/test-project-A",
+    });
+    assert.equal(result.status, 0);
+
+    const rows = readObservations(tempHome);
+    const last = rows[rows.length - 1];
+    assert.equal(last.event, "tool_complete");
+    assert.equal(last.input_summary, "echo hi", "rich schema captures Bash command on Post events too");
+    assert.match(last.output_summary, /"stdout":"hi/);
+  });
+
+  it("treats legacy tool_output as tool_response for back-compat", () => {
     const payload = JSON.stringify({
       tool_name: "Read",
-      session_id: "session-B",
+      session_id: "session-B-legacy",
       tool_input: { file_path: "/tmp/foo.txt" },
       tool_output: "file contents here",
     });
@@ -132,7 +152,7 @@ describe("observe.mjs (Node observer entrypoint)", () => {
     const rows = readObservations(tempHome);
     const last = rows[rows.length - 1];
     assert.equal(last.event, "tool_complete");
-    assert.equal(last.input_summary, "/tmp/foo.txt", "rich schema captures Edit/Read file_path");
+    assert.equal(last.input_summary, "/tmp/foo.txt");
     assert.equal(last.output_summary, "file contents here");
   });
 
