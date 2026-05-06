@@ -125,24 +125,26 @@ For each item in the ORIGINAL order:
 
 ### Routing Table (with Inline Fallbacks)
 
+Rows whose **Preferred skill** is not bundled with the `continuous-improvement` plugin carry a `(Reference behavior — does not require <skill>.)` marker on the fallback cell. The marker makes the soft-dependency contract visible at point of use: the inline fallback is fully self-contained and runs without that skill installed. Rows whose preferred skill ships with the plugin (`ralph`, `tdd-workflow`, `continuous-improvement`) carry no marker — the dedicated skill is always available.
+
 | Recommendation type | Preferred skill | Inline fallback |
 |---|---|---|
 | Long-running / PRD-style autonomous execution | `ralph` (companion in this repo) | Break into sub-recommendations, run this skill recursively per sub-item |
-| Implement feature / add capability | `superpowers:brainstorming` → `superpowers:writing-plans` | Restate goal → list 3 design options → pick one → outline files to touch → build |
-| Fix bug / investigate failure | `superpowers:systematic-debugging` | Hypothesis → add logs/tests → reproduce → smallest fix → verify with the failing repro |
+| Implement feature / add capability | `superpowers:brainstorming` → `superpowers:writing-plans` | Restate goal → list 3 design options → pick one → outline files to touch → build. (Reference behavior — does not require `superpowers`.) |
+| Fix bug / investigate failure | `superpowers:systematic-debugging` | Hypothesis → add logs/tests → reproduce → smallest fix → verify with the failing repro. (Reference behavior — does not require `superpowers:systematic-debugging`.) |
 | Write tests / add coverage | `superpowers:test-driven-development` or `tdd-workflow` | RED (failing test) → GREEN (minimal code) → REFACTOR; one test, one behavior |
-| Refactor / dead code cleanup | `simplify` | Find dupes/unused exports, delete in place, re-run type check and smallest test |
-| Security review / auth audit | `security-review` | Scan for hardcoded secrets, unsanitized input, missing authz, SQL string concat, open CORS |
-| Code review before merge | `superpowers:requesting-code-review` or `code-review` | Read diff top-to-bottom, flag CRITICAL / HIGH / MEDIUM |
-| Verify before shipping | `superpowers:verification-before-completion` | Smallest check that proves correctness: typecheck + one test + one curl |
-| Multiple independent tasks | `superpowers:dispatching-parallel-agents` | Launch N parallel `Agent` tool calls in one message; reconcile results after |
-| Merge / close branch | `superpowers:finishing-a-development-branch` | Verify clean tree, rebase on main, green CI, open PR with summary + test plan |
-| Schedule a follow-up | `schedule` | Tell user the exact action + cadence; if no scheduler, write a dated TODO/memory entry |
-| Recurring poll / interval task | `loop` | Tell user the cadence + how to re-run manually |
-| Library / API docs lookup | `documentation-lookup` | Use `WebFetch` against the official docs URL, cite what changed |
-| Frontend / UI design work | `frontend-design:frontend-design` | Build smallest vertical slice first, verify in browser before styling |
-| Settings / hooks / permission change | `update-config` | Edit `~/.claude/settings.json` with a minimal patch; restart session |
-| Commit and push | `commit-commands:commit` or `commit-commands:commit-push-pr` | `git add <specific files>` → commit with `type(scope): outcome` → push when asked |
+| Refactor / dead code cleanup | `simplify` | Find dupes/unused exports, delete in place, re-run type check and smallest test. (Reference behavior — does not require `simplify`.) |
+| Security review / auth audit | `security-review` | Scan for hardcoded secrets, unsanitized input, missing authz, SQL string concat, open CORS. (Reference behavior — does not require `security-review`.) |
+| Code review before merge | `superpowers:requesting-code-review` or `code-review` | Read diff top-to-bottom, flag CRITICAL / HIGH / MEDIUM. (Reference behavior — does not require `code-review`.) |
+| Verify before shipping | `superpowers:verification-before-completion` | Smallest check that proves correctness: typecheck + one test + one curl. (Reference behavior — does not require `superpowers:verification-before-completion`.) |
+| Multiple independent tasks | `superpowers:dispatching-parallel-agents` | Launch N parallel `Agent` tool calls in one message; reconcile results after. (Reference behavior — does not require `superpowers:dispatching-parallel-agents`.) |
+| Merge / close branch | `superpowers:finishing-a-development-branch` | Verify clean tree, rebase on main, green CI, open PR with summary + test plan. (Reference behavior — does not require `superpowers:finishing-a-development-branch`.) |
+| Schedule a follow-up | `schedule` | Tell user the exact action + cadence; if no scheduler, write a dated TODO/memory entry. (Reference behavior — does not require `schedule`.) |
+| Recurring poll / interval task | `loop` | Tell user the cadence + how to re-run manually. (Reference behavior — does not require `loop`.) |
+| Library / API docs lookup | `documentation-lookup` | Use `WebFetch` against the official docs URL, cite what changed. (Reference behavior — does not require `documentation-lookup`.) |
+| Frontend / UI design work | `frontend-design:frontend-design` | Build smallest vertical slice first, verify in browser before styling. (Reference behavior — does not require `frontend-design`.) |
+| Settings / hooks / permission change | `update-config` | Edit `~/.claude/settings.json` with a minimal patch; restart session. (Reference behavior — does not require `update-config`.) |
+| Commit and push | `commit-commands:commit` or `commit-commands:commit-push-pr` | `git add <specific files>` → commit with `type(scope): outcome` → push when asked. (Reference behavior — does not require `commit-commands`.) |
 | Continuous-improvement analysis / instinct update | `continuous-improvement` (core 7-Laws skill) | Run the 7-Laws Reflection block manually; append to `observations.jsonl` |
 
 ## Phase 4: Verify (Law 4 — Verify Before Reporting)

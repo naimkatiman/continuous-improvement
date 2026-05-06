@@ -1,0 +1,23 @@
+{
+  "_doc": "Routing targets in skills/proceed-with-the-recommendation.md that are NOT bundled with the continuous-improvement plugin. See docs/audits/2026-05-06-routing-target-gap.md for source plugins, licenses, and inline-fallback summaries. The bin/check-routing-targets.mjs invariant fails when proceed-with-the-recommendation.md names a target that is neither bundled in plugins/continuous-improvement/skills/ nor listed here. When a target gets vendored into the plugin bundle, remove it from this list so the invariant enforces that future references resolve to the bundled copy.",
+  "optional_companions": [
+    "code-review",
+    "commit-commands:commit",
+    "commit-commands:commit-push-pr",
+    "documentation-lookup",
+    "frontend-design:frontend-design",
+    "loop",
+    "schedule",
+    "security-review",
+    "simplify",
+    "superpowers:brainstorming",
+    "superpowers:dispatching-parallel-agents",
+    "superpowers:finishing-a-development-branch",
+    "superpowers:requesting-code-review",
+    "superpowers:systematic-debugging",
+    "superpowers:test-driven-development",
+    "superpowers:verification-before-completion",
+    "superpowers:writing-plans",
+    "update-config"
+  ]
+}

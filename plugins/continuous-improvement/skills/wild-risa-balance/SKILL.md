@@ -178,14 +178,14 @@ RISA baseline — ship regardless (5 of ≥5)
 2. Rename the ambiguous flag to match its actual behavior.
 3. Backfill the type on the public export that currently widens to `any`.
 4. Wire the existing Stop hook into the new skill's checklist gate.
-5. Update the README mirror so the bundled plugin matches the source skill.
+5. Update the README mirror so the bundled plugin matches the source skill. (surfaced — verify:skill-mirror gate flagged drift in last CI run)
 ```
 
-Total: 7 items (2 WILD + 5 RISA). That is the floor — emit more on either side if the surface warrants it.
+Total: 7 items (2 WILD + 5 RISA). That is the floor — emit more on either side if the surface warrants it. The fifth RISA item is marked `(surfaced — <source>)` to demonstrate the convention from the Proactive Roadmap Surfacing section: items lifted from a roadmap or memory carry an inline source attribution so the operator can tell roadmap-driven items apart from current-request items.
 
 ## Related
 
 - `continuous-improvement` — the 7 Laws card (core skill)
-- `proceed-with-the-recommendation` — execution arm
+- `proceed-with-the-recommendation` — execution arm; carries surfaced items across the surface → execute boundary defined in the Proactive Roadmap Surfacing section above
 - `superpowers:brainstorming` — upstream WILD generator
 - `verification-loop` — downstream RISA verifier
