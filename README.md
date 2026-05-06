@@ -123,6 +123,65 @@ Research -> Plan -> Execute (one thing) -> Verify -> Reflect -> Learn -> Iterate
   <img src="assets/diagram-7-laws-loop.jpg" alt="The 7 Laws of AI Agent Discipline — circular workflow loop" width="820" />
 </p>
 
+### Laws in action
+
+Real agent output — task: *"Add a helper function that formats a date as 'Month DD, YYYY'. Research whether one already exists before writing anything."*
+
+```
+● Law 1 — Research first. Searching for any existing date formatting utilities
+  before writing a line.
+
+  Searched 7 patterns across the codebase.
+
+● No date formatter exists anywhere — all date usage is raw .toISOString().
+  Now I need to see the lib structure to pick the right home for the helper.
+
+  Searched lib/, read tsconfig.json and two source files.
+
+● Source is in src/ as .mts files, compiled to .mjs. Now I have everything I need.
+
+  Law 2 — Plan:
+
+  WILL build:
+  - src/lib/format-date.mts — exports formatDate(date: Date): string,
+    static month array, zero-padded day
+  - src/test/format-date.test.mts — tests via node:test covering typical,
+    single-digit day, all 12 month names
+  WILL NOT build: string/timestamp input parsing, locale-based formatting,
+    changes to any existing file
+  Verification: node --test test/format-date.test.mjs exits 0
+  Fallback: If tsc strict errors, check the exact message and fix types
+
+  Wrote src/lib/format-date.mts (11 lines)
+  Wrote src/test/format-date.test.mts (28 lines)
+
+● Law 4 — Verify. Building and running the test.
+
+  $ npm run build
+  (no errors)
+
+  $ node --test test/format-date.test.mjs
+  TAP version 13
+  # Subtest: formatDate
+      ok 1 - formats a typical date with a two-digit day
+      ok 2 - zero-pads single-digit days
+      ok 3 - formats all 12 month names correctly
+      ok 4 - handles December 31
+  # tests 4
+  # pass  4
+  # fail  0
+
+● 4/4 pass. Compiled output verified in bin/. Done.
+
+  Reflection
+  - What worked: Research found zero existing date utilities — no wasted rework.
+    Reading tsconfig before writing revealed the src/ → bin/ compile mapping,
+    which would have broken the build if missed.
+  - What failed: Nothing — the plan held end-to-end.
+  - Rule to add: Always read tsconfig.json before creating a new lib/ file in a
+    TypeScript project — outDir/rootDir determines where source vs compiled files live.
+```
+
 Full spec, reflection-block format, and anti-examples: [SKILL.md](SKILL.md).
 
 ---
