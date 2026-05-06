@@ -5,31 +5,22 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
-import {
-    checkRoutingTargets,
-    discoverBundledSkills,
-    extractRoutingTargets,
-    loadOptionalCompanions,
-} from "../bin/check-routing-targets.mjs";
-
+import { checkRoutingTargets, discoverBundledSkills, extractRoutingTargets, loadOptionalCompanions, } from "../bin/check-routing-targets.mjs";
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const REPO_ROOT = join(__dirname, "..");
 const CHECKER = join(REPO_ROOT, "bin", "check-routing-targets.mjs");
 const PLUGIN_SKILLS = "plugins/continuous-improvement/skills";
-
 function setupRepo() {
     const root = mkdtempSync(join(tmpdir(), "routing-targets-test-"));
     mkdirSync(join(root, PLUGIN_SKILLS), { recursive: true });
     mkdirSync(join(root, "skills"), { recursive: true });
     return root;
 }
-
 function writeBundled(root, name) {
     const dir = join(root, PLUGIN_SKILLS, name);
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "SKILL.md"), `# ${name}\n`);
 }
-
 function writeOrchestrator(root, tableRows) {
     const body = [
         "# Proceed With The Recommendation",
@@ -49,14 +40,12 @@ function writeOrchestrator(root, tableRows) {
     ].join("\n");
     writeFileSync(join(root, "skills", "proceed-with-the-recommendation.md"), body);
 }
-
 function writeOptionalCompanions(root, companions) {
     writeFileSync(join(root, "optional-companions.json"), JSON.stringify({
         _doc: "test fixture",
         optional_companions: companions,
     }, null, 2));
 }
-
 describe("check-routing-targets — parser", () => {
     it("extracts every backtick-quoted token from the Preferred skill column", () => {
         const md = [
@@ -72,12 +61,8 @@ describe("check-routing-targets — parser", () => {
             "",
         ].join("\n");
         const targets = extractRoutingTargets(md);
-        assert.deepEqual(
-            targets.map((t) => t.target),
-            ["alpha", "beta", "gamma", "superpowers:writing-plans"],
-        );
+        assert.deepEqual(targets.map((t) => t.target), ["alpha", "beta", "gamma", "superpowers:writing-plans"]);
     });
-
     it("stops parsing at the next ## or ### header", () => {
         const md = [
             "### Routing Table (with Inline Fallbacks)",
@@ -95,14 +80,9 @@ describe("check-routing-targets — parser", () => {
         const targets = extractRoutingTargets(md);
         assert.deepEqual(targets.map((t) => t.target), ["alpha"]);
     });
-
     it("throws when the routing-table section header is missing", () => {
-        assert.throws(
-            () => extractRoutingTargets("# A skill\n\nNo routing table here.\n"),
-            /Routing-table section header not found/,
-        );
+        assert.throws(() => extractRoutingTargets("# A skill\n\nNo routing table here.\n"), /Routing-table section header not found/);
     });
-
     it("ignores backtick tokens in the Inline fallback column", () => {
         const md = [
             "### Routing Table (with Inline Fallbacks)",
@@ -116,7 +96,6 @@ describe("check-routing-targets — parser", () => {
         assert.deepEqual(targets.map((t) => t.target), ["alpha"]);
     });
 });
-
 describe("check-routing-targets — invariant", () => {
     it("returns zero drifts when every target is either bundled or declared optional", () => {
         const root = setupRepo();
@@ -137,7 +116,6 @@ describe("check-routing-targets — invariant", () => {
             rmSync(root, { recursive: true, force: true });
         }
     });
-
     it("flags a target that is neither bundled nor declared optional", () => {
         const root = setupRepo();
         try {
@@ -156,7 +134,6 @@ describe("check-routing-targets — invariant", () => {
             rmSync(root, { recursive: true, force: true });
         }
     });
-
     it("treats bundled and bare-namespace as exact-match (does not auto-resolve sub-skills)", () => {
         const root = setupRepo();
         try {
@@ -173,7 +150,6 @@ describe("check-routing-targets — invariant", () => {
             rmSync(root, { recursive: true, force: true });
         }
     });
-
     it("loadOptionalCompanions throws on a malformed companions file", () => {
         const root = setupRepo();
         try {
@@ -184,7 +160,6 @@ describe("check-routing-targets — invariant", () => {
             rmSync(root, { recursive: true, force: true });
         }
     });
-
     it("discoverBundledSkills returns an empty set when the plugin skills dir is missing", () => {
         const root = mkdtempSync(join(tmpdir(), "routing-targets-empty-"));
         try {
@@ -195,7 +170,6 @@ describe("check-routing-targets — invariant", () => {
         }
     });
 });
-
 describe("check-routing-targets — CLI", () => {
     it("exits 0 with OK message on a clean synthetic repo", () => {
         const root = setupRepo();
@@ -213,7 +187,6 @@ describe("check-routing-targets — CLI", () => {
             rmSync(root, { recursive: true, force: true });
         }
     });
-
     it("exits 1 with FAIL message on a drifted synthetic repo", () => {
         const root = setupRepo();
         try {
@@ -240,14 +213,9 @@ describe("check-routing-targets — CLI", () => {
         }
     });
 });
-
 describe("check-routing-targets — live repo", () => {
     it("verifies the live repo has zero unaccounted routing targets", () => {
         const result = checkRoutingTargets(REPO_ROOT);
-        assert.equal(
-            result.drifts.length,
-            0,
-            `live repo has unaccounted routing targets: ${JSON.stringify(result.drifts, null, 2)}`,
-        );
+        assert.equal(result.drifts.length, 0, `live repo has unaccounted routing targets: ${JSON.stringify(result.drifts, null, 2)}`);
     });
 });
