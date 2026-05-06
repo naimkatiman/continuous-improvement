@@ -1,0 +1,51 @@
+# Force LF line endings for all text files in the repo, regardless of the
+# contributor's autocrlf setting. Without this, every Windows checkout converts
+# LF to CRLF on disk and `git status` shows tens of unmodified files as "M",
+# making explicit-stage workflows noisy and easy to mis-stage.
+#
+# `text=auto` lets git detect text vs binary; `eol=lf` forces LF in the working
+# tree on every platform. Explicit per-extension rules below pin the most
+# common file types so detection cannot drift.
+
+* text=auto eol=lf
+
+# Source code — always LF in working tree.
+*.mts        text eol=lf
+*.mjs        text eol=lf
+*.ts         text eol=lf
+*.js         text eol=lf
+*.cjs        text eol=lf
+*.json       text eol=lf
+*.jsonl      text eol=lf
+*.md         text eol=lf
+*.yml        text eol=lf
+*.yaml       text eol=lf
+*.toml       text eol=lf
+*.css        text eol=lf
+*.html       text eol=lf
+*.svg        text eol=lf
+
+# Shell + scripts — must stay LF or they break on Linux runners and CI.
+*.sh         text eol=lf
+*.bash       text eol=lf
+*.zsh        text eol=lf
+
+# Binaries — never normalize.
+*.png        binary
+*.jpg        binary
+*.jpeg       binary
+*.gif        binary
+*.webp       binary
+*.ico        binary
+*.pdf        binary
+*.zip        binary
+*.gz         binary
+*.tar        binary
+*.tgz        binary
+*.woff       binary
+*.woff2      binary
+*.ttf        binary
+*.eot        binary
+*.mp4        binary
+*.mp3        binary
+*.wav        binary
