@@ -49,14 +49,14 @@ function runObserver() {
     ensureDir(projectDir);
     rotateIfNeeded(obsFile, projectDir);
     const ts = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
-    const event = payload.tool_output !== undefined ? "tool_complete" : "tool_start";
+    const event = payload.tool_response !== undefined ? "tool_complete" : "tool_start";
     const row = {
         ts,
         event,
         session: payload.session_id,
         tool: payload.tool_name,
         input_summary: summariseInput(payload.tool_name, payload.tool_input),
-        output_summary: summariseOutput(payload.tool_output),
+        output_summary: summariseOutput(payload.tool_response),
         project_id: projectHash,
         project_name: projectName,
     };
