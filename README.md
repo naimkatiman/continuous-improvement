@@ -21,6 +21,32 @@
 
 ---
 
+## The problem this solves
+
+You have used Claude Code (or any agentic coding tool) long enough to recognize the failure pattern.
+
+| You ask the agent to... | What actually happens |
+|---|---|
+| Add a feature | It edits five files, never runs the build, says "done" |
+| Fix a bug | It reinvents a helper that already exists in the repo |
+| Refactor a module | It bundles three unrelated changes into one commit |
+| Pick up where last session ended | It re-explores from zero — the prior session's lessons are gone |
+| Verify the change works | It claims "this should work" without running a single test |
+
+Every one of those failures is the agent skipping a step a disciplined engineer would not skip. The 7 Laws of AI Agent Discipline names each step, gives it a hook or a skill that enforces it, and feeds the captured patterns back into the agent so the same mistake gets harder to repeat next session.
+
+## What you get
+
+- **A 7-step discipline** the agent must follow every task — research → plan → execute one thing → verify → reflect → learn → iterate. Each Law has at least one skill or hook that enforces it.
+- **13 bundled skills** that turn the Laws from a doc into runtime behavior — `gateguard` blocks unverified Edit/Write/destructive Bash, `tdd-workflow` enforces RED → GREEN → REFACTOR, `verification-loop` runs build/types/tests/security before "done", `proceed-with-the-recommendation` walks any agent's recommendation list top-to-bottom with per-item verification.
+- **Mulahazah, the auto-leveling instinct engine** — hooks capture every tool call; after ~20 observations the agent analyzes patterns and creates instincts with confidence scores. Suggestions appear at 0.5+, auto-apply at 0.7+, decay when ignored. Project-scoped, promote to global after 2+ projects. You configure nothing.
+- **A GitHub Action transcript linter** that catches skipped Laws in CI — writes without prior research, edits without verification, too many files at once.
+- **Two install paths** — Beginner is two slash commands inside Claude Code (no Node, no bash, ~90% of users). Expert adds the MCP server, observation hooks, instinct packs, and the linter.
+
+The whole thing is MIT, free, and lives in this one repo. No service, no account, no telemetry leaves your machine.
+
+---
+
 ## Install
 
 **If you don't know which to pick, use Beginner.** It is enough for ~90% of users and adds no Node or bash dependency.

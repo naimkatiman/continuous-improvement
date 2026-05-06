@@ -19,9 +19,24 @@ describe("parseHookPayload", () => {
         assert.equal(result.tool_name, "Bash");
         assert.equal(result.session_id, "abc-123");
         assert.deepEqual(result.tool_input, { command: "git status" });
-        assert.equal(result.tool_output, undefined, "PreToolUse has no tool_output");
+        assert.equal(result.tool_response, undefined, "PreToolUse has no tool_response");
     });
-    it("parses a well-formed PostToolUse payload (with tool_output)", () => {
+    it("parses a well-formed PostToolUse payload (canonical tool_response)", () => {
+        const raw = JSON.stringify({
+            tool_name: "Bash",
+            session_id: "abc-123",
+            tool_input: { command: "echo hi" },
+            tool_response: { stdout: "hi", stderr: "", interrupted: false },
+        });
+        const result = parseHookPayload(raw);
+        assert.ok(result);
+        assert.deepEqual(result.tool_response, {
+            stdout: "hi",
+            stderr: "",
+            interrupted: false,
+        });
+    });
+    it("accepts legacy tool_output as an alias for tool_response", () => {
         const raw = JSON.stringify({
             tool_name: "Read",
             session_id: "abc-123",
@@ -30,7 +45,30 @@ describe("parseHookPayload", () => {
         });
         const result = parseHookPayload(raw);
         assert.ok(result);
-        assert.equal(result.tool_output, "file contents here");
+        assert.equal(result.tool_response, "file contents here");
+    });
+    it("accepts toolOutput camelCase as an alias for tool_response", () => {
+        const raw = JSON.stringify({
+            tool_name: "Read",
+            session_id: "abc-123",
+            tool_input: { file_path: "/x" },
+            toolOutput: "from a third-party harness",
+        });
+        const result = parseHookPayload(raw);
+        assert.ok(result);
+        assert.equal(result.tool_response, "from a third-party harness");
+    });
+    it("prefers tool_response over tool_output when both are present", () => {
+        const raw = JSON.stringify({
+            tool_name: "Read",
+            session_id: "abc-123",
+            tool_input: { file_path: "/x" },
+            tool_response: "canonical",
+            tool_output: "legacy",
+        });
+        const result = parseHookPayload(raw);
+        assert.ok(result);
+        assert.equal(result.tool_response, "canonical");
     });
     it("returns null for malformed JSON without throwing", () => {
         const malformed = "{not valid json";
@@ -164,7 +202,7 @@ describe("HookPayload type contract", () => {
             tool_name: "Bash",
             session_id: "x",
             tool_input: { command: "ls" },
-            tool_output: undefined,
+            tool_response: undefined,
         };
         assert.equal(sample.tool_name, "Bash");
     });
