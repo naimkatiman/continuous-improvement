@@ -146,11 +146,16 @@ Hooks capture every tool call. After ~20 observations, Claude analyzes patterns 
 ## Slash Commands
 
 ```
-/seven-laws                Reflect, analyze, show status (brand-aligned name)
-/continuous-improvement    Same workflow as /seven-laws (kept for backward compat)
-/planning-with-files       Create task_plan.md, findings.md, progress.md
-/discipline                Quick reference card of the 7 Laws
-/dashboard                 Visual instinct health dashboard
+/seven-laws                       Reflect, analyze, show status (brand-aligned name)
+/continuous-improvement           Same workflow as /seven-laws (kept for backward compat)
+/proceed-with-the-recommendation  Walk any agent's recommendation list top-to-bottom
+/superpowers                      Law activator — route the task to the right specialist
+/workspace-surface-audit          Audit repo + MCP + env, recommend high-value skills
+/planning-with-files              Create task_plan.md, findings.md, progress.md
+/discipline                       Quick reference card of the 7 Laws
+/dashboard                        Visual instinct health dashboard
+/ralph                            Autonomous PRD story-by-story loop (expert)
+/learn-eval                       Capture session patterns into new skills (expert)
 ```
 
 In expert mode, the same planning workflow is also available programmatically through the MCP tools `ci_plan_init` (initialize `task_plan.md`, `findings.md`, `progress.md` in the project root) and `ci_plan_status` (summarize their current contents).
@@ -188,6 +193,8 @@ The plugin ships **1 core + 1 featured + 4 tier-1 + 4 tier-2 + 3 always-bundled 
 
 </details>
 
+The orchestrator skill `proceed-with-the-recommendation` also routes to optional companion skills from external plugins (e.g. `obra/superpowers`, `code-review`, `frontend-design`, `commit-commands`). Each routing target has an inline fallback in the orchestrator, so the plugin works on a clean install with nothing else present — install the dedicated companion only when you want a specialist over the fallback. Full target list with source-plugin and risk-if-absent: [`plugins/continuous-improvement/README.md` § Required vs Optional companions](plugins/continuous-improvement/README.md#required-vs-optional-companions).
+
 ### Beginner gets — by default
 
 Tier 1 + featured + companion. Auto-installed when you run the plugin install commands above. No flags, no choices.
@@ -211,7 +218,7 @@ curl -L https://raw.githubusercontent.com/naimkatiman/continuous-improvement/mai
 
 ## Evolution — adding a new skill
 
-Drop one `.md` file into [`skills/`](skills/), run `npm run build`, and the plugin bundle, manifests, and bundled-skills README regenerate from that source. Six lints (`verify:all`) block the merge if anything drifts.
+Drop one `.md` file into [`skills/`](skills/), run `npm run build`, and the plugin bundle, manifests, and bundled-skills README regenerate from that source. Seven lints (`verify:all` + `verify:generated`) block the merge if anything drifts.
 
 ### The 5-step recipe
 
@@ -257,7 +264,8 @@ git commit -m "feat(skills): add <your-skill> for Law N enforcement"
 | `verify:skill-tiers` | skill has missing or unrecognized `tier:` value |
 | `verify:skill-law-tag` | skill description does not start with `Enforces Law N` (or `Law activator`, or `all 7 Laws`) |
 | `verify:docs-substrings` | README/QUICKSTART references a removed/renamed skill |
-| `verify:everything-mirror` | `everything/` reference docs drift from source |
+| `verify:everything-mirror` | non-skill files in `plugins/continuous-improvement/` drift from their root-level source |
+| `verify:routing-targets` | `proceed-with-the-recommendation` names a routing target that is neither bundled nor declared in `optional-companions.json` |
 | `verify:generated` | `npm run build` was not re-run after a source change |
 
 ### When to fold a new external skill into the 7 Laws
@@ -277,7 +285,7 @@ A new skill is a fit if it provably enforces (or is a routed activator for) at l
 Lint agent behavior in CI. Detects skipped laws.
 
 ```yaml
-- uses: naimkatiman/continuous-improvement@v3
+- uses: naimkatiman/continuous-improvement@v3.6.0
   with:
     transcript-path: agent-log.jsonl
     strict: true
