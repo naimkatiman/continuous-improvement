@@ -15,6 +15,12 @@ const OUTPUT_TRUNCATE = 200;
  * hook event. Returns null for any unparseable or schema-invalid input —
  * never throws. Empty/null/array payloads are rejected (the harness only
  * sends objects).
+ *
+ * Field-name normalisation: Claude Code's PostToolUse payload uses
+ * `tool_response`. Older mocks and some third-party harnesses emit
+ * `tool_output` or `toolOutput`. We accept all three at the boundary and
+ * expose a single `tool_response` field downstream so the discriminator and
+ * `summariseOutput` only have to know one name.
  */
 export function parseHookPayload(raw) {
     if (!raw)
@@ -33,11 +39,16 @@ export function parseHookPayload(raw) {
     if (typeof obj.tool_name !== "string" || obj.tool_name.length === 0) {
         return null;
     }
+    const toolResponse = obj.tool_response !== undefined
+        ? obj.tool_response
+        : obj.tool_output !== undefined
+            ? obj.tool_output
+            : obj.toolOutput;
     return {
         tool_name: obj.tool_name,
         session_id: typeof obj.session_id === "string" ? obj.session_id : "",
         tool_input: obj.tool_input,
-        tool_output: obj.tool_output,
+        tool_response: toolResponse,
     };
 }
 /**
@@ -85,9 +96,9 @@ export function summariseInput(toolName, input) {
     }
 }
 /**
- * Extract a short summary from `tool_output`. Strings pass through (capped at
- * OUTPUT_TRUNCATE); numbers/booleans coerce to string; objects JSON-stringify.
- * Null/undefined collapse to "".
+ * Extract a short summary from `tool_response`. Strings pass through (capped
+ * at OUTPUT_TRUNCATE); numbers/booleans coerce to string; objects
+ * JSON-stringify. Null/undefined collapse to "".
  */
 export function summariseOutput(output) {
     if (output === null || output === undefined)
