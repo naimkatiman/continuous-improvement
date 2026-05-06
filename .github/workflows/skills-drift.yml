@@ -1,0 +1,78 @@
+name: Skills Drift Check
+
+on:
+  pull_request:
+    paths:
+      - 'third-party/superpowers/**'
+      - 'plugins/continuous-improvement/skills/superpowers/SKILL.md'
+
+jobs:
+  skills-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: List upstream snapshot skill directories
+        run: |
+          set -euo pipefail
+          UPSTREAM_DIR="third-party/superpowers/skills"
+          if [ ! -d "$UPSTREAM_DIR" ]; then
+            echo "ERROR: $UPSTREAM_DIR does not exist"
+            exit 1
+          fi
+          find "$UPSTREAM_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' \
+            | sort -u > /tmp/upstream.txt
+          echo "Upstream skills:"
+          cat /tmp/upstream.txt
+          echo "Total: $(wc -l < /tmp/upstream.txt)"
+
+      - name: Extract dispatcher skill references
+        run: |
+          set -euo pipefail
+          DISPATCHER="plugins/continuous-improvement/skills/superpowers/SKILL.md"
+          if [ ! -f "$DISPATCHER" ]; then
+            echo "ERROR: $DISPATCHER does not exist"
+            exit 1
+          fi
+          # Canonical declaration: every workflow skill is referenced as **name**
+          # in either the workflow table (section "The Basic Workflow") or the
+          # bullet list (section "Skill Library"). Restrict to lowercase + hyphen
+          # tokens of length >= 2 so unrelated bold words (e.g. "**Critical**")
+          # never leak in.
+          grep -oE '\*\*[a-z][a-z-]+\*\*' "$DISPATCHER" \
+            | sed 's/\*\*//g' \
+            | sort -u > /tmp/dispatcher.txt
+          echo "Dispatcher skills:"
+          cat /tmp/dispatcher.txt
+          echo "Total: $(wc -l < /tmp/dispatcher.txt)"
+
+      - name: Diff dispatcher vs upstream
+        run: |
+          set -euo pipefail
+          MISSING_UPSTREAM=$(comm -23 /tmp/dispatcher.txt /tmp/upstream.txt)
+          ORPHAN_UPSTREAM=$(comm -13 /tmp/dispatcher.txt /tmp/upstream.txt)
+
+          if [ -n "$MISSING_UPSTREAM" ] || [ -n "$ORPHAN_UPSTREAM" ]; then
+            echo "✗ Skill drift detected between dispatcher and upstream snapshot"
+            echo ""
+            echo "Dispatcher: plugins/continuous-improvement/skills/superpowers/SKILL.md"
+            echo "Upstream:   third-party/superpowers/skills/"
+            echo ""
+            if [ -n "$MISSING_UPSTREAM" ]; then
+              echo "Referenced in dispatcher, missing from upstream snapshot:"
+              echo "$MISSING_UPSTREAM" | sed 's/^/  - /'
+              echo ""
+            fi
+            if [ -n "$ORPHAN_UPSTREAM" ]; then
+              echo "Present in upstream snapshot, not referenced by dispatcher:"
+              echo "$ORPHAN_UPSTREAM" | sed 's/^/  - /'
+              echo ""
+            fi
+            echo "Resolve by syncing the dispatcher SKILL.md table/list with the snapshot,"
+            echo "or by refreshing the snapshot under third-party/superpowers/skills/."
+            exit 1
+          fi
+
+          DISPATCHER_COUNT=$(wc -l < /tmp/dispatcher.txt)
+          UPSTREAM_COUNT=$(wc -l < /tmp/upstream.txt)
+          echo "✓ ${DISPATCHER_COUNT} dispatcher skills, ${UPSTREAM_COUNT} upstream skills, exact match"
