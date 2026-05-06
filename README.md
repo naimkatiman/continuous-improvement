@@ -70,7 +70,7 @@ If the command is not recognized, restart your Claude Code session first; the ma
 
 Pick this if you want the MCP tools (12 of them, including `ci_plan_init` / `ci_plan_status` for `task_plan.md`-style planning), the session hooks that feed Mulahazah, and starter packs.
 
-Preconditions: Node 18 / 20 / 22, bash, and `jq`. **On Windows, install Git Bash or WSL first** — the observation hooks are bash scripts and will silently no-op without them. **Install `jq` too** (`winget install jqlang.jq` on Windows, `brew install jq` on macOS, `apt install jq` on Debian/Ubuntu) — without it, `observe.sh` falls back to a thin schema that the Mulahazah analysis pass cannot turn into instincts. The hook itself still runs and exits 0, but the captured rows lack `tool_input` so pattern detection produces nothing. See the **Known Issues** section in [CHANGELOG.md](CHANGELOG.md) for the full gap description.
+Preconditions: Node 18 / 20 / 22, plus bash on Windows (Git Bash or WSL — `hooks/observe.sh` is a bash script and silently no-ops without it). **`jq` is no longer required**: as of v3.6.0, `observe.sh` prefers the Node observer (`bin/observe.mjs`) which writes the rich event schema natively without external dependencies. The bash thin-schema path is kept as a two-phase shim, so legacy installs that have not re-run `npx continuous-improvement install` since v3.5.x will still degrade silently without `jq` (`winget install jqlang.jq` on Windows, `brew install jq` on macOS, `apt install jq` on Debian/Ubuntu) — re-running the installer is the cleaner fix and removes the dependency entirely. See [CHANGELOG.md](CHANGELOG.md) `[3.6.0]` for the migration details.
 
 ```bash
 npx continuous-improvement install --mode expert
