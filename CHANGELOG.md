@@ -8,6 +8,56 @@ All notable changes to this skill are documented here.
 
 ---
 
+## [3.7.0] — 2026-05-07
+
+Two-train release covering items 3–9 from the 28-day usage report's recommendation list. WILD items (autonomous release-train, parallel provider-eval harness) remain on hold.
+
+### Added
+
+- **First release train (PRs #83 + #84)** — gating + lockdown surface:
+  - `proceed-with-the-recommendation` Phase 0 Rule 1 now scans a third surface — `~/.claude/projects/<project-hash>/memory/feedback_*.md` — alongside `observations.jsonl` and `CLAUDE.md "Past Mistakes"`. Closes the silent-skip path for the operator's named past-mistake corrections (the canonical home of `feedback_past_mistake_gate.md`, `feedback_no_git_add_all_on_windows.md`, etc.).
+  - `gateguard` gains a fifth gate: **Parallel-Actor Gate**. On the first Edit / Write / mutating Bash per session, baseline `git rev-parse HEAD` + `git status --porcelain` + upstream; on every subsequent mutation, re-check and halt on drift. Closes the squash-merge / ahead-of-origin trap class of failures recorded under `feedback_pre_branch_check.md` and `feedback_parallel_actor.md`. Designed for hosts where multi-clauding (a second Claude / Codex / Maulana session on the same working tree) is common — observed at 67% of the operator's recent sessions.
+  - **`deploy-receipt` skill** — new Law 4 deploy-seam companion to the vendored `finishing-a-development-branch`. Defines a deploy receipt as three components (deployed SHA matches merge SHA, healthcheck returns 200, build-artifact integrity) verified via three routes (provider CLI, GitHub Deployments API, version-endpoint curl). Wired into `superpowers` workflow as step 8 and into the `proceed-with-the-recommendation` routing table for auto-deploy projects (Railway, Cloudflare Workers, Vercel, Netlify, Fly.io). Vendored Obra `finishing-a-development-branch` is untouched. INCOMPLETE receipts block the merge from being reported as done in the Phase 7 close.
+  - **`third-party/superpowers/.fork-only-skills.txt` allowlist** — declares CI-fork-only skills that the `Skills Drift Check` workflow subtracts from the dispatcher set before diffing against the upstream snapshot. Lets the fork add skills (e.g. `deploy-receipt`) without breaking the genuine-drift detection.
+  - **P-MAG third-surface lockdown** — `Scan three surfaces`, `memory/feedback_*.md`, and `feedback_past_mistake_gate.md` literals locked under both `docs-substrings` lint and `past-mistake-gate.test.mts` test file. 6 new test assertions + 6 new lint assertions. `docs-substrings` 114 → 120.
+
+- **Second release train (PRs #85 + #86 + #87 + #88 + #89)** — verification + learning surface:
+  - **`workspace-surface-audit` Environment Grain** — Phase 1 inventory now records six per-host facts (shell flavor, OS family + `git core.autocrlf`, jq availability, case-sensitive filesystem flag, CWD baseline, parallel-actor expectation) as a single fenced block with stable field names so downstream skills (`gateguard`, `verification-loop`, future autonomous-release-train) parse it without per-host special-casing. Closes the report's recurring "command failed / wrong approach" friction class root.
+  - **`superpowers` Stacked-PR Plan Precondition** — non-negotiable rule for any change touching ≥3 files: produce a stacked-PR plan (per-PR table, dependency graph, worktree-per-PR, out-of-scope) before the first edit. Excludes markdown-only / lockfile-only / generated-only / vendor-snapshot-refresh / skill-mirror commits explicitly so it doesn't fire on routine high-volume mechanical work.
+  - **`verification-loop` per-project ladder** — new Phase 0 (Resolve the Ladder) reads `.claude/verify-ladder.json` (or sniffs `package.json` scripts, then per-language toolchain files, then asks). Phases 1–6 read the resolved commands instead of hardcoding `npm run X`. New Phase 8 (Deploy Receipt) wires PR #83's `deploy-receipt` for auto-deploy projects. Library-only repos skip Phase 8.
+  - **`templates/verify-ladder.example.json`** — starter manifest with four shapes (TypeScript+Node, Rust+Cargo, Python+uv, Cloudflare Worker). Operator copies to `.claude/verify-ladder.json` and trims per project.
+  - **`bin/harvest-friction.mjs` classifier** — TDD-backed pipeline reading `~/.claude/instincts/<hash>/observations.jsonl` and classifying failure rows into four typed instincts: `env_issue`, `permission_block`, `wrong_approach`, `buggy_code`. Idempotent on re-run via `dedup_key = sha1(type + tool + summary[:120])`. Confidence = `log10(occurrence_count + 1) * recency_factor` where `recency_factor = 0.5 + 0.5 * exp(-days_since_last_seen / 14)`. Surfaces a host-gap warning when observations are `tool_start`-only (bash fallback without jq + without Node observer) instead of misclassifying.
+  - **`/harvest` slash command** — discoverability wrapper for the classifier with full documentation of the four friction types, idempotency contract, confidence model, and the thin-schema fallback diagnostic.
+  - **Law-7 `Friction Harvest Pipeline` subsection** in `SKILL.md` — names the four friction types, quotes the `dedup_key` formula, documents the opt-in posture (no cron / no auto-run; operator stays in control of when the classifier reads observation history).
+
+### Changed
+
+- **`proceed-with-the-recommendation` routing table** picks up a new row for "Post-merge deploy receipt (auto-deploy projects)" routing to the `deploy-receipt` companion. Inline fallback documents the three verification routes when the skill is not installed.
+- **`superpowers` basic-workflow table** is now 8 rows (was 7), with `deploy-receipt` as step 8.
+
+### Fixed
+
+- **`fix(superpowers)`** — drop bold emphasis on `before` to avoid the `skills-drift` regex matching it as a fake skill name. Same class of CI-rigor fix the `deploy-receipt` allowlist resolved for fork-side additions.
+
+### Tests
+
+- **`docs-substrings` lockdown grew from 114 to 144 assertions** across the two release trains. Each new lock cites the specific class of regression it catches in an inline comment.
+- **`harvest-friction.test.mts`** — 13 new tests across 3 describe blocks covering each friction type, dedup-key stability under summary truncation, recency-decay correctness, and the pre-PR #67 `tool_response`-vs-`tool_output` schema compatibility. Total `npm test` count: 511 (was 498).
+
+### PRs in this release
+
+- #83 — `feat(discipline): P-MAG third surface, Parallel-Actor Gate, deploy-receipt skill` → `027188c`
+- #84 — `feat(p-mag): lock the third surface (memory/feedback_*.md) under docs-substrings + test` → `1a482b0`
+- #85 — `feat(workspace-surface-audit): record environment grain at session start` → `e7fe080`
+- #86 — `feat(superpowers): require a stacked-PR plan for ≥3-file changes` → `47b2b39`
+- #87 — `feat(verification-loop): per-project ladder via .claude/verify-ladder.json` → `9c974eb`
+- #88 — `feat(continuous-learning): friction-harvest classifier (TDD, 4 friction types)` → `5c130e8`
+- #89 — `feat(continuous-learning): /harvest slash command + Law-7 prose` → `de2a741`
+
+Plan doc: [`docs/plans/2026-05-07-second-release-train.md`](docs/plans/2026-05-07-second-release-train.md).
+
+---
+
 ## [3.6.0] — 2026-05-05
 
 ### Added

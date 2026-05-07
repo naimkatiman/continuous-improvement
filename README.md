@@ -291,7 +291,7 @@ Lint agent behavior in CI. Detects skipped laws.
     strict: true
 ```
 
-`@v3` is a floating major-version tag that retargets on every `v3.x.y` release. Pin to a specific tag (`@v3.6.0`) if you need byte-reproducible CI; use `@v3` to ride patch and minor bumps automatically. See [CONTRIBUTING.md § Release](CONTRIBUTING.md#release) for the retarget policy.
+`@v3` is a floating major-version tag that retargets on every `v3.x.y` release. Pin to a specific tag (`@v3.7.0`) if you need byte-reproducible CI; use `@v3` to ride patch and minor bumps automatically. See [CONTRIBUTING.md § Release](CONTRIBUTING.md#release) for the retarget policy.
 
 Catches: writes without prior research (Law 1), too many edits without verification (Law 3), code changes without tests/builds (Law 4), too many files at once (Law 6). Run locally with `node bin/lint-transcript.mjs <file>`.
 
