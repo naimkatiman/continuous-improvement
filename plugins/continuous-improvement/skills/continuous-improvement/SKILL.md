@@ -100,6 +100,19 @@ If the user corrects you, the instinct weakens. If they don't, it strengthens.
 
 Nothing learned is permanent. Everything decays without reinforcement.
 
+### Friction Harvest Pipeline (`/harvest`)
+
+Beyond the reflection-driven path above, the **friction harvest classifier** turns observation logs (`~/.claude/instincts/<project-hash>/observations.jsonl`) into typed instincts automatically. Run via `/harvest` or `node bin/harvest-friction.mjs`. Four typed friction patterns with confidence scoring:
+
+- **`env_issue`** — jq missing, command not found, not recognized as cmdlet
+- **`permission_block`** — sandbox / harness blocked, Permission denied
+- **`wrong_approach`** — file changed since last read (parallel-actor stale)
+- **`buggy_code`** — file not read first, old_string ambiguous, file too large
+
+Idempotent: each instinct's `dedup_key = sha1(type + tool + summary[:120])`; re-running on the same observations does not duplicate previously-written instincts. Confidence weights frequency × recency-decay so old failures fade and recurring ones strengthen, in line with the Law 7 contract above.
+
+The harvest is opt-in: it runs only when explicitly invoked. Cron / hook triggers are deliberately not wired so the operator stays in control of when the classifier reads observation history.
+
 ## The Loop
 
 ```
