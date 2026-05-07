@@ -30,7 +30,7 @@ The agent checks for relevant skills before any task. These are mandatory workfl
 
 ## Stacked-PR Plan Precondition (≥3 files)
 
-Any change touching three or more files — across `skills/`, `src/`, `bin/`, `commands/`, or any combination — must produce a stacked-PR plan **before** the first edit lands. The 28-day usage report shows a clean correlation: sessions that opened with a stacked-PR plan landed at `fully_achieved`; sessions that began as a single big-bang multi-file edit landed at `partially_achieved` (landing-page dark theme, market-data-hub wiring, RAG misrouting). Single-concern PRs are the lever that closes that gap.
+Any change touching three or more files — across `skills/`, `src/`, `bin/`, `commands/`, or any combination — must produce a stacked-PR plan as a precondition to the first edit landing. The 28-day usage report shows a clean correlation: sessions that opened with a stacked-PR plan landed at `fully_achieved`; sessions that began as a single big-bang multi-file edit landed at `partially_achieved` (landing-page dark theme, market-data-hub wiring, RAG misrouting). Single-concern PRs are the lever that closes that gap.
 
 The required plan output has four components, in this order:
 
