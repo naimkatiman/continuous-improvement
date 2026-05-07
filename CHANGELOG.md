@@ -8,6 +8,35 @@ All notable changes to this skill are documented here.
 
 ---
 
+## [3.8.0] — 2026-05-07
+
+Unified five-plugin dispatcher train. Six PRs (PR 0, A, B, C, D, E) shipped in dependency order off `feat/unified-dispatch`. Driven by the user's session report (`~/.claude/usage-data/report.html`, 1,218 messages across 178 sessions, 2026-04-10 to 2026-05-07). Ends the two-plugin split between `continuous-improvement:superpowers` (CI dispatcher) and `superpowers:*` (Obra skill bodies) by registering both — plus three more upstream plugins — under one marketplace.
+
+### Added
+
+- **`third-party/pm-skills/` snapshot** (PR 0) — vendored selective copy of `product-on-purpose/pm-skills` v2.13.1 pinned at SHA `8d23508`. 41 product-management skills + 47 commands across the full product lifecycle (discover, define, develop, deliver, measure, iterate). Includes Meeting Skills Family v2.11.0 and OKR Skills v2.12.0. CLAUDE.md stripped on copy per refresh recipe. New `MANIFEST.md` snapshot entry + `OUR_NOTES.md` overlap matrix + integration-candidate triggers.
+
+- **Five upstream plugins registered in marketplace** (PR A) — `.claude-plugin/marketplace.json` now lists six plugins (the CI plugin + five companions: `superpowers`, `agent-skills`, `ruflo-swarm`, `oh-my-claudecode`, `pm-skills`). Source-of-truth lives in `src/lib/plugin-metadata.mts` `THIRD_PARTY_COMPANIONS` constant; `npm run build` regenerates marketplace.json from there. Each `OUR_NOTES.md` "Status: NOT integrated" line was flipped to "Registered as optional install (PR A of 2026-05-07 train)".
+
+- **Unified `/superpowers` dispatcher** (PR B) — `skills/superpowers.md` rewritten with a five-source routing table: each task trigger has a preferred → fallback chain that resolves to the best installed skill across CI-bundled, Obra, Addy, ruflo-swarm, OMC, and pm-skills sources. When no installed plugin in the chain resolves, the dispatcher falls back to inline protocols so the workflow still works on a clean install with only the CI plugin.
+
+- **`proceed-with-the-recommendation` orchestrator extension** (PR C) — Routing Table gains 18 new rows covering cross-plugin routes (5 agent-skills, 2 ruflo-swarm, 3 oh-my-claudecode, 8 pm-skills). Each new row carries the standard "Reference behavior — does not require `<plugin>`" marker. `optional-companions.json` gains 31 new entries (was 18, now 47); two pre-existing references (`context-budget`, `learn-eval`) are now declared. `verify:routing-targets` accounts for 54 routing targets (14 bundled, 47 optional companions).
+
+- **`/release-train` slash command** (PR D) — Long-running autonomous orchestrator for stacked-PR rollouts. Reads a plan doc, opens a worktree per PR in dependency order, ships each through TDD + two-stage subagent review + verify + branch finish + deploy-receipt, halts at policy gates. Maps to the report's "Autonomous Multi-PR Release Trains" horizon item.
+
+- **`/swarm` slash command** (PR D) — Parallel-agent fan-out for evidence-based decision-making. Spawns N sub-agents on isolated worktrees with a shared contract test, produces a comparison report. Default flat topology; hierarchical / mesh / ring / star / adaptive available when ruflo-swarm is installed. Maps to the report's "Parallel Provider-Migration Agents" horizon item.
+
+### Changed
+
+- `getClaudeRepoMarketplaceManifest()` in `src/lib/plugin-metadata.mts` now folds in the new `THIRD_PARTY_COMPANIONS` constant by default, so the regenerated marketplace.json always reflects the five-plugin registration without per-build hand-editing.
+
+### Notes
+
+- Marketplace registration alone makes upstream skill bodies installable on demand. Per-skill verbatim ports into the `plugins/continuous-improvement/skills/` bundle remain single-concern PRs gated on user-pain triggers per each `OUR_NOTES.md` integration-candidates matrix. This release does NOT vendor any upstream skill body into the CI bundle.
+- `ruflo-swarm` operational assets reference unpinned `npx @claude-flow/cli@latest`. Supply-chain risk is inert at marketplace-registration time but becomes live the moment a user runs `/plugin install ruflo-swarm@continuous-improvement`. Pinning the CLI version is tracked as a precondition for any future PR that vendors those skills into the CI bundle.
+
+---
+
 ## [3.7.0] — 2026-05-07
 
 Two-train release covering items 3–9 from the 28-day usage report's recommendation list. WILD items (autonomous release-train, parallel provider-eval harness) remain on hold.

@@ -1,6 +1,6 @@
 {
   "name": "continuous-improvement",
-  "version": "3.7.0",
+  "version": "3.8.0",
   "mode": "expert",
   "description": "Expert mode: tune confidence, manage instincts, and persist plans on disk. Adds safety, token-budget, and strategic-compact skills plus the /learn-eval command so long sessions stay disciplined and learnings survive context resets.",
   "tools": [
