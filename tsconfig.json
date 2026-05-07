@@ -3,6 +3,7 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "newLine": "lf",
     "rootDir": "src",
     "outDir": ".",
     "strict": true,
