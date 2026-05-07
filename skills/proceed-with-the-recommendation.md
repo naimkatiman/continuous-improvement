@@ -63,12 +63,15 @@ Before research begins, the skill must read its own track record. The instinct s
 
 ### Rule 1 — Acknowledge before context (right context from the beginning)
 
-Scan two surfaces and quote literal evidence:
+Scan three surfaces and quote literal evidence:
 
 - `~/.claude/instincts/<project-hash>/observations.jsonl` — last 10 entries with `type: failure` or `correction`
+- `~/.claude/projects/<project-hash>/memory/feedback_*.md` — auto-memory `feedback`-typed entries (named-pattern corrections the operator declared in prior sessions); `~/.claude/projects/<project-hash>/memory/MEMORY.md` is the index of these files
 - The active project's `CLAUDE.md` "Past Mistakes" section (if present)
 
-Emit one line: `Past mistake observed: <quote>. Source: <file:line>. Active in current scope: yes|no.` If both surfaces are empty, emit `No prior mistakes recorded — proceed.` Never skip silently — silent skip defeats the instinct system.
+The auto-memory `feedback_*.md` surface is the canonical home of the operator's named corrections (e.g. `feedback_past_mistake_gate.md`, `feedback_no_git_add_all_on_windows.md`). Skipping it because the file path is project-host-specific is the most common silent failure of this gate — the rule explicitly enumerates it so this skill cannot rationalize the omission.
+
+Emit one line per matching entry: `Past mistake observed: <quote>. Source: <file:line>. Active in current scope: yes|no.` If all three surfaces are empty, emit `No prior mistakes recorded — proceed.` Never skip silently — silent skip defeats the instinct system.
 
 ### Rule 2 — Clearance gate (don't proceed until the mistake is gone)
 
