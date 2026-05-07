@@ -28,6 +28,31 @@ AI agents skip steps, guess, and declare "done" without verifying. Superpowers b
 
 The agent checks for relevant skills before any task. These are mandatory workflows, not suggestions.
 
+## Stacked-PR Plan Precondition (≥3 files)
+
+Any change touching three or more files — across `skills/`, `src/`, `bin/`, `commands/`, or any combination — must produce a stacked-PR plan **before** the first edit lands. The 28-day usage report shows a clean correlation: sessions that opened with a stacked-PR plan landed at `fully_achieved`; sessions that began as a single big-bang multi-file edit landed at `partially_achieved` (landing-page dark theme, market-data-hub wiring, RAG misrouting). Single-concern PRs are the lever that closes that gap.
+
+The required plan output has four components, in this order:
+
+1. **Per-PR table** — title, scope (files), test strategy, merge order. One row per PR.
+2. **Dependency graph** — which PRs depend on which (or "independent" if none).
+3. **Worktree per PR** — branch name + base commit. Sequential by default; parallel only when items share no state.
+4. **Out-of-scope list** — anything explicitly NOT in the train. Drive-by temptations get logged here, not implemented.
+
+The plan ships as the FIRST commit of the train's first PR (under `docs/plans/YYYY-MM-DD-<slug>.md`) and is cited by every subsequent commit it produces.
+
+### When this rule does NOT fire
+
+The threshold targets multi-concern feature work, not high-volume mechanical changes. The rule does NOT fire on:
+
+- **Markdown-only commits** — README, CHANGELOG, docs/ updates that touch many files but ship one concern.
+- **Lockfile-only commits** — `package-lock.json`, `pnpm-lock.yaml`, `Cargo.lock`, etc. updated in isolation by a dependency bump.
+- **Generated-only commits** — output of `npm run build`, `tsc`, codemod sweeps, or any tool whose input is one source file and whose output is many derived files. The source change is what counts toward the threshold; the regenerated artifacts ride free.
+- **Vendor-snapshot refreshes** — `third-party/<name>/` updated by a documented `bin/refresh-third-party.mjs` driver. The single source of change is the upstream SHA bump.
+- **Skill-mirror sync commits** — `skills/<name>.md` + `plugins/continuous-improvement/skills/<name>/SKILL.md` count as one file pair, not two, since the CONTRIBUTING.md skill mirror rule treats them as the same concern.
+
+If you are unsure whether the rule applies, the fall-through default is to write the plan. A 30-line plan doc is cheap; a stranded big-bang edit is expensive.
+
 ## Skill Library
 
 ### Testing

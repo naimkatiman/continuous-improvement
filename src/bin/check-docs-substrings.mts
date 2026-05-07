@@ -194,6 +194,18 @@ export const DOCS_ASSERTIONS: DocsAssertion[] = [
   { file: "skills/workspace-surface-audit.md", pattern: "Parallel-actor expectation", source: "docs-substrings-manifest:workspace-surface-audit-environment-grain" },
   { file: "plugins/continuous-improvement/skills/workspace-surface-audit/SKILL.md", pattern: "Parallel-actor expectation", source: "docs-substrings-manifest:workspace-surface-audit-environment-grain" },
 
+  // superpowers Stacked-PR Plan Precondition — locked 2026-05-07 (PR B of second-release train).
+  // The dispatcher gained a non-negotiable rule for ≥3-file changes: produce a stacked-PR plan
+  // (per-PR table, dependency graph, worktree-per-PR, out-of-scope) before the first edit. The
+  // rule excludes markdown-only / lockfile-only / generated-only / vendor-refresh / skill-mirror
+  // changes. Each assertion below catches a specific class of regression:
+  //   - "## Stacked-PR Plan Precondition (≥3 files)" → removing the whole rule heading
+  //   - "Per-PR table"                                → losing the required-output enumeration
+  { file: "skills/superpowers.md", pattern: "## Stacked-PR Plan Precondition (≥3 files)", source: "docs-substrings-manifest:superpowers-stacked-pr-precondition" },
+  { file: "plugins/continuous-improvement/skills/superpowers/SKILL.md", pattern: "## Stacked-PR Plan Precondition (≥3 files)", source: "docs-substrings-manifest:superpowers-stacked-pr-precondition" },
+  { file: "skills/superpowers.md", pattern: "Per-PR table", source: "docs-substrings-manifest:superpowers-stacked-pr-precondition" },
+  { file: "plugins/continuous-improvement/skills/superpowers/SKILL.md", pattern: "Per-PR table", source: "docs-substrings-manifest:superpowers-stacked-pr-precondition" },
+
   // wild-risa-balance recommendation floor (src/test/wild-risa-floor.test.mts)
   // Source skill + plugin mirror must both contain the literal "2 WILD + 5 RISA = 7 items minimum".
   { file: "skills/wild-risa-balance.md", pattern: "2 WILD + 5 RISA = 7 items minimum", source: "wild-risa-floor.test.mts:38" },
