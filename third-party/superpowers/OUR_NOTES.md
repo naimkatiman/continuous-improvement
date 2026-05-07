@@ -17,15 +17,17 @@ The CI fork's dispatcher is allowed to add skills beyond what Obra ships upstrea
 
 When you add a new fork-only skill, append its name to `.fork-only-skills.txt` in the same PR that wires the skill into `plugins/continuous-improvement/skills/superpowers/SKILL.md`.
 
-## Status: NOT integrated
+## Status: Registered as optional install (PR A of 2026-05-07 train)
 
-This snapshot is **not loaded by `plugins/continuous-improvement/`**. It is **not registered in `.claude-plugin/marketplace.json`**. Users who want Obra's skills should install the upstream plugin the normal way (`/plugin marketplace add obra/superpowers`).
+This snapshot is **registered in `.claude-plugin/marketplace.json`** as of PR A of the unified-dispatcher train. Users can install Obra's full 14-skill library with `/plugin install superpowers@continuous-improvement`. Users who already have it from upstream via `/plugin marketplace add obra/superpowers` should keep that — our copy is a frozen pinned-SHA snapshot, theirs auto-updates.
 
-The session-start contract is explicit and must not be violated:
+The snapshot is **not loaded** into `plugins/continuous-improvement/` itself. The CI fork's `plugins/continuous-improvement/skills/superpowers/SKILL.md` remains a thin Law-aligned dispatcher that routes to Obra's skill bodies — by name, not by import path. Marketplace registration makes those bodies installable on demand from a single source; the dispatcher logic in PR B handles the routing.
+
+The session-start contract still holds:
 
 > superpowers (Obra) and continuous-improvement:superpowers (CI fork) are distinct — both installed, do not collapse them.
 
-If you want to experiment locally, install Obra from upstream and let the two plugins coexist — do not have the CI plugin import from this snapshot path.
+What changed: both plugins are now installable from one marketplace entry instead of two. The CI fork still ships only the dispatcher SKILL.md + `deploy-receipt`; Obra still ships the 14 workflow skills. Coexistence preserved, install friction reduced.
 
 ## Dispatcher → upstream-file map
 

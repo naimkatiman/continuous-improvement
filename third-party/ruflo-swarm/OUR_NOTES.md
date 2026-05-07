@@ -16,11 +16,13 @@ The user identified a specific gap: **agent orchestration and agent swarm**. `ru
 - Track upstream changes against pinned SHA.
 - Decide later, on a per-surface basis, whether to port any specific idea into our parallel-agent dispatch flow — explicitly, with attribution.
 
-## Status: NOT integrated
+## Status: Registered as optional install (PR A of 2026-05-07 train)
 
-This snapshot is **not loaded by `plugins/continuous-improvement/`**. It is **not registered in `.claude-plugin/marketplace.json`**. Users who want ruflo should install it from upstream the normal way (`/plugin marketplace add ruvnet/ruflo`) — and accept that doing so installs all 32 plugins and their MCP servers, which can collide with our learning system, our `/loop`, and our PARA memory.
+This snapshot is **registered in `.claude-plugin/marketplace.json`** as of PR A of the unified-dispatcher train. Users can install just the swarm slice with `/plugin install ruflo-swarm@continuous-improvement` — without pulling in the other 31 ruflo plugins. Users who want the full ruflo monorepo should still install upstream the normal way (`/plugin marketplace add ruvnet/ruflo`) and accept that doing so installs all 32 plugins and their MCP servers, which can collide with our learning system, our `/loop`, and our PARA memory.
 
-If you want to experiment locally with just `ruflo-swarm`, point Claude Code at this snapshot path directly — but understand that doing so installs upstream's hooks, agents, and skills, which will collide with our routing.
+The snapshot is **not loaded** into `plugins/continuous-improvement/` itself. Marketplace registration alone makes it installable on demand; per-skill verbatim ports into the CI bundle remain single-concern PRs gated on user-pain triggers per the integration-candidates matrix below.
+
+**Pre-install hardening reminder:** the Activation hazards section below applies the moment a user runs `/plugin install ruflo-swarm@continuous-improvement`. The unpinned `npx @claude-flow/cli@latest` reference in upstream's operational assets becomes a live supply-chain surface at install time. The unified `/superpowers` dispatcher (PR B) does NOT route to ruflo-swarm by default — it surfaces it as an opt-in target on `/swarm` invocations only.
 
 ## Activation hazards (INFO from security review)
 

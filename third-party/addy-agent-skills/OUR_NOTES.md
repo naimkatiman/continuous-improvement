@@ -10,11 +10,13 @@ Our annotations on the vendored snapshot. Authored by us, not copied from upstre
 - Track upstream changes against pinned SHA.
 - Decide later, on a per-skill basis, whether to port ideas into our 7 Laws — explicitly, with attribution.
 
-## Status: NOT integrated
+## Status: Registered as optional install (PR A of 2026-05-07 train)
 
-This snapshot is **not loaded by `plugins/continuous-improvement/`**. It is **not registered in `.claude-plugin/marketplace.json`**. Users who want addyosmani's plugin should install it from upstream the normal way (`/plugin marketplace add addyosmani/agent-skills`).
+This snapshot is **registered in `.claude-plugin/marketplace.json`** as of PR A of the unified-dispatcher train. Users can install it with `/plugin install agent-skills@continuous-improvement`. Users who already have it installed from upstream via `/plugin marketplace add addyosmani/agent-skills` should keep that — our copy is a frozen pinned-SHA snapshot, theirs auto-updates on upstream changes.
 
-If you want to experiment locally, point Claude Code at the path directly — but understand that doing so installs upstream's hooks, agents, and skills, which can collide with the 7 Laws routing (notably the duplicate skill names called out in the matrix below).
+The snapshot is **not loaded** into `plugins/continuous-improvement/` itself. Marketplace registration alone makes it installable on demand; per-skill verbatim ports into the CI bundle remain single-concern PRs gated on user-pain triggers per the integration-candidates matrix below.
+
+Activating the plugin installs upstream's hooks, agents, and skills. Be aware of the duplicate skill names called out in the overlap matrix — `test-driven-development` in particular collides with our Tier-1 `tdd-workflow`. The unified `/superpowers` dispatcher (PR B) routes around this collision by preferring the CI-bundled skill when both are present.
 
 ## Overlap with the 7 Laws (read this before integrating anything)
 

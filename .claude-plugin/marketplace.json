@@ -1,6 +1,6 @@
 {
   "name": "continuous-improvement",
-  "description": "Marketplace for the Continuous Improvement Claude Code plugin.",
+  "description": "Marketplace for the Continuous Improvement Claude Code plugin and five vendored upstream companions (Obra superpowers, addyosmani/agent-skills, ruflo-swarm, oh-my-claudecode, product-on-purpose/pm-skills). All five companions are pinned-SHA snapshots in third-party/ — see third-party/MANIFEST.md for refresh recipes and per-snapshot OUR_NOTES.md for integration scope.",
   "owner": {
     "name": "naimkatiman"
   },
@@ -15,6 +15,64 @@
       },
       "category": "productivity",
       "homepage": "https://github.com/naimkatiman/continuous-improvement"
+    },
+    {
+      "name": "superpowers",
+      "description": "Obra's core skills library: TDD, debugging, brainstorming, writing-plans, executing-plans, dispatching-parallel-agents, using-git-worktrees, finishing-a-development-branch, subagent-driven-development, requesting-code-review, receiving-code-review, systematic-debugging, verification-before-completion, writing-skills, using-superpowers. Vendored snapshot at third-party/superpowers/ pinned to upstream SHA f2cbfbe (v5.1.0). Companion to the /superpowers dispatcher in continuous-improvement plugin.",
+      "version": "5.1.0",
+      "source": "./third-party/superpowers",
+      "author": {
+        "name": "Jesse Vincent",
+        "email": "jesse@fsck.com"
+      },
+      "category": "workflow",
+      "homepage": "https://github.com/obra/superpowers"
+    },
+    {
+      "name": "agent-skills",
+      "description": "Addy Osmani's production-grade engineering skills for AI coding agents — 21 skills covering the full software development lifecycle: spec-driven-development, source-driven-development, context-engineering, idea-refine, incremental-implementation, test-driven-development, code-review-and-quality, code-simplification, security-and-hardening, debugging-and-error-recovery, performance-optimization, api-and-interface-design, frontend-ui-engineering, browser-testing-with-devtools, ci-cd-and-automation, deprecation-and-migration, documentation-and-adrs, git-workflow-and-versioning, planning-and-task-breakdown, shipping-and-launch, using-agent-skills. Vendored snapshot at third-party/addy-agent-skills/ pinned to upstream SHA 742dca5 (v1.0.0).",
+      "version": "1.0.0",
+      "source": "./third-party/addy-agent-skills",
+      "author": {
+        "name": "Addy Osmani"
+      },
+      "category": "workflow",
+      "homepage": "https://github.com/addyosmani/agent-skills"
+    },
+    {
+      "name": "ruflo-swarm",
+      "description": "Agent teams, swarm coordination, Monitor streams, and worktree isolation. Wraps 4 swarm_* + 8 agent_* MCP tools (12 total) plus 6 topologies (hierarchical, mesh, hierarchical-mesh, ring, star, adaptive). Slash commands /swarm and /watch. Skills swarm-init and monitor-stream. Cherry-picked from ruvnet/ruflo monorepo (the other 31 plugins are explicitly out of scope). Vendored snapshot at third-party/ruflo-swarm/ pinned to upstream SHA addb5cd (v0.2.0). Activation note: assets reference unpinned npx @claude-flow/cli@latest — supply-chain risk inert until installed.",
+      "version": "0.2.0",
+      "source": "./third-party/ruflo-swarm",
+      "author": {
+        "name": "ruvnet",
+        "url": "https://github.com/ruvnet"
+      },
+      "category": "orchestration",
+      "homepage": "https://github.com/ruvnet/ruflo"
+    },
+    {
+      "name": "oh-my-claudecode",
+      "description": "Multi-agent orchestration system for Claude Code — 39 skills + 19 agents covering audit, plan, build, verify, ship, release, retrospective, and ops. Includes ralph (autonomous PRD loop), release, ultrawork, ultraqa, team, trace, visual-verdict, debug, deep-dive, deep-interview, autopilot, autoresearch. Vendored snapshot at third-party/oh-my-claudecode/ pinned to upstream SHA aacde3e (v4.13.6). Heavy overlap with continuous-improvement /ralph and /superpowers — pick per task.",
+      "version": "4.13.6",
+      "source": "./third-party/oh-my-claudecode",
+      "author": {
+        "name": "Yeachan-Heo"
+      },
+      "category": "orchestration",
+      "homepage": "https://github.com/Yeachan-Heo/oh-my-claudecode"
+    },
+    {
+      "name": "pm-skills",
+      "description": "Product management skills for AI agents — 41 skills + 47 commands across the full product lifecycle (discover, define, develop, deliver, measure, iterate). Includes Meeting Skills Family v2.11.0 (5 cross-cutting skills under a shared contract with enforcing CI), OKR Skills v2.12.0 (foundation-okr-writer + measure-okr-grader for the quarterly OKR write-and-score cycle), lean canvas, persona, JTBD, PRD, user stories, acceptance criteria, hypothesis, experiment design, retrospective, launch checklist, release notes, and pm-skill-builder for authoring new skills. Follows the agentskills.io specification. Vendored snapshot at third-party/pm-skills/ pinned to upstream SHA 8d23508 (v2.13.1).",
+      "version": "2.13.1",
+      "source": "./third-party/pm-skills",
+      "author": {
+        "name": "product-on-purpose",
+        "url": "https://github.com/product-on-purpose"
+      },
+      "category": "product",
+      "homepage": "https://github.com/product-on-purpose/pm-skills"
     }
   ]
 }
