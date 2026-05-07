@@ -224,6 +224,20 @@ export const DOCS_ASSERTIONS: DocsAssertion[] = [
   { file: "skills/verification-loop.md", pattern: "### Phase 8: Deploy Receipt", source: "docs-substrings-manifest:verification-loop-per-project-ladder" },
   { file: "plugins/continuous-improvement/skills/verification-loop/SKILL.md", pattern: "### Phase 8: Deploy Receipt", source: "docs-substrings-manifest:verification-loop-per-project-ladder" },
 
+  // /harvest slash command + Law-7 prose — locked 2026-05-07 (PR E, follow-up to PR D #88).
+  // The deferred follow-up landed: commands/harvest.md (+ plugin mirror) and a Friction Harvest
+  // Pipeline subsection inside SKILL.md Law 7 (+ plugin mirror). Each assertion below catches
+  // a specific class of regression:
+  //   - "name: harvest" frontmatter         → renaming the slash command
+  //   - "Friction Harvest Pipeline"         → losing the SKILL.md Law-7 subsection title
+  //   - "dedup_key = sha1(type + tool"      → losing the idempotency contract documentation
+  { file: "commands/harvest.md", pattern: "name: harvest", source: "docs-substrings-manifest:harvest-slash-command-and-law7-prose" },
+  { file: "plugins/continuous-improvement/commands/harvest.md", pattern: "name: harvest", source: "docs-substrings-manifest:harvest-slash-command-and-law7-prose" },
+  { file: "SKILL.md", pattern: "Friction Harvest Pipeline", source: "docs-substrings-manifest:harvest-slash-command-and-law7-prose" },
+  { file: "plugins/continuous-improvement/skills/continuous-improvement/SKILL.md", pattern: "Friction Harvest Pipeline", source: "docs-substrings-manifest:harvest-slash-command-and-law7-prose" },
+  { file: "SKILL.md", pattern: "dedup_key = sha1(type + tool", source: "docs-substrings-manifest:harvest-slash-command-and-law7-prose" },
+  { file: "plugins/continuous-improvement/skills/continuous-improvement/SKILL.md", pattern: "dedup_key = sha1(type + tool", source: "docs-substrings-manifest:harvest-slash-command-and-law7-prose" },
+
   // wild-risa-balance recommendation floor (src/test/wild-risa-floor.test.mts)
   // Source skill + plugin mirror must both contain the literal "2 WILD + 5 RISA = 7 items minimum".
   { file: "skills/wild-risa-balance.md", pattern: "2 WILD + 5 RISA = 7 items minimum", source: "wild-risa-floor.test.mts:38" },
