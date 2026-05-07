@@ -121,6 +121,62 @@ find third-party/superpowers -name CLAUDE.md -type f -delete
 #    chore(third-party): refresh obra/superpowers @ <new-sha>
 ```
 
+### addyosmani/agent-skills
+
+| Field | Value |
+|---|---|
+| Upstream | https://github.com/addyosmani/agent-skills |
+| License | MIT |
+| Pinned SHA | `742dca58ae557bc67afec9ea8e6de59c085f0534` |
+| Snapshot date | 2026-05-07 |
+| Snapshot size | ~536 KB, 55 files |
+| Upstream version at SHA | 1.0.0 |
+| Local path | `third-party/addy-agent-skills/` |
+
+A pure skills marketplace covering the full SDLC (spec, plan, build, verify, review, ship). Cold-storage only — **not** loaded by `plugins/continuous-improvement/` and **not** registered in `.claude-plugin/marketplace.json`. The five non-overlapping skills flagged as integration candidates (`spec-driven-development`, `source-driven-development`, `context-engineering`, `idea-refine`, `incremental-implementation`) are tracked in `third-party/addy-agent-skills/OUR_NOTES.md`; each port lands as its own single-concern PR after a concrete user-pain trigger.
+
+**Selective scope (verbatim from upstream):**
+
+- `skills/` — 21 skills covering the full software development lifecycle
+- `agents/` — 3 agent definitions (code-reviewer, security-auditor, test-engineer)
+- `hooks/` — `hooks.json` + 5 shell scripts (`session-start.sh`, `sdd-cache-pre.sh`, `sdd-cache-post.sh`, `simplify-ignore.sh`, `simplify-ignore-test.sh`) + 2 reference docs
+- `references/` — reference material the skills cite
+- `docs/` — upstream documentation
+- `.claude-plugin/` — plugin + marketplace manifests (read-only; we do not register this in our marketplace)
+- `LICENSE`, `README.md`, `AGENTS.md`, `CONTRIBUTING.md`
+
+**Excluded from snapshot (not vendored):**
+
+- `.git/`, `.github/`, `.gitignore` — repo metadata, not vendor scope
+- `.gemini/`, `.opencode/` — non-Claude vendor adapters, out of scope (consistent with how `.codex-plugin/` is excluded from the obra snapshot)
+- `CLAUDE.md` — auto-loads as Claude Code session context if read from this subtree, leaks upstream operating principles into the active 7 Laws session. Excluded for cross-contamination safety. Upstream still ships it; refer to upstream URL when needed.
+
+**Refresh recipe:**
+
+```bash
+# 1. Pin the new SHA in this file under "Pinned SHA" above
+# 2. Shallow clone outside the repo
+git clone --depth 1 https://github.com/addyosmani/agent-skills.git \
+  /tmp/addy-agent-skills-refresh
+git -C /tmp/addy-agent-skills-refresh rev-parse HEAD  # confirm matches Pinned SHA
+
+# 3. Wipe + re-copy the selective surface
+rm -rf third-party/addy-agent-skills
+mkdir -p third-party/addy-agent-skills
+cp -r /tmp/addy-agent-skills-refresh/{skills,agents,hooks,references,docs,.claude-plugin} \
+  third-party/addy-agent-skills/
+cp /tmp/addy-agent-skills-refresh/{LICENSE,README.md,AGENTS.md,CONTRIBUTING.md} \
+  third-party/addy-agent-skills/
+
+# Remove every CLAUDE.md inside the snapshot — they auto-load as session context.
+find third-party/addy-agent-skills -name CLAUDE.md -type f -delete
+
+# 4. Single-concern commit:
+#    chore(third-party): refresh addyosmani/agent-skills @ <new-sha>
+```
+
+> **Driver integration deferred.** Adding an `addy-agent-skills` SNAPSHOTS entry to `bin/refresh-third-party.mjs` is tracked as a follow-up PR — see `docs/plans/2026-05-07-addy-agent-skills-vendor.md` § "Deferred follow-ups". The recipe above is the source of truth in the meantime.
+
 ---
 
 ## Pending snapshots (not yet vendored — listed for transparency)
