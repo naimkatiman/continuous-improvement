@@ -41,8 +41,25 @@ jobs:
           # never leak in.
           grep -oE '\*\*[a-z][a-z-]+\*\*' "$DISPATCHER" \
             | sed 's/\*\*//g' \
-            | sort -u > /tmp/dispatcher.txt
-          echo "Dispatcher skills:"
+            | sort -u > /tmp/dispatcher_raw.txt
+
+          # Subtract fork-only skill names declared in
+          # third-party/superpowers/.fork-only-skills.txt — these are CI-fork
+          # additions to the dispatcher (e.g. deploy-receipt) that are
+          # intentionally NOT present in the Obra upstream snapshot. The file
+          # is sorted, one skill name per line, blank lines and # comments
+          # ignored.
+          ALLOWLIST="third-party/superpowers/.fork-only-skills.txt"
+          if [ -f "$ALLOWLIST" ]; then
+            grep -vE '^(#|$)' "$ALLOWLIST" | sort -u > /tmp/fork_only.txt
+            echo "Fork-only skills (subtracted from dispatcher set before diffing):"
+            cat /tmp/fork_only.txt
+            comm -23 /tmp/dispatcher_raw.txt /tmp/fork_only.txt > /tmp/dispatcher.txt
+          else
+            cp /tmp/dispatcher_raw.txt /tmp/dispatcher.txt
+          fi
+
+          echo "Dispatcher skills (after fork-only subtraction):"
           cat /tmp/dispatcher.txt
           echo "Total: $(wc -l < /tmp/dispatcher.txt)"
 
