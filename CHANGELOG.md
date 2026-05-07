@@ -8,6 +8,31 @@ All notable changes to this skill are documented here.
 
 ---
 
+## [3.9.0] — 2026-05-07
+
+Issue-burndown release. Three PRs landed on top of v3.8.0 — one Windows correctness fix, one test-coverage expansion, one CI hardening — closing two long-standing issues (#59, #2) and tightening the regression net for the class of failure #59 surfaced. No skill or behavior changes; this release is reliability and contributor-experience only.
+
+### Fixed
+
+- **Windows checkouts stay clean after `npm run build`** (PR #97, closes #59) — `tsc` was emitting CRLF on Windows when overwriting `.mjs` outputs, clashing with `.gitattributes` `eol=lf`. Eleven `.mjs` files plus eight downstream manifest copies surfaced as zero-content "modified" on every clean Windows build, gaslighting `git status` and making explicit-stage workflows noisy. Fix is one line: `compilerOptions.newLine: "lf"` in `tsconfig.json` so `tsc` emits LF on every platform. No-op on Linux/macOS where `tsc` already emitted LF.
+
+### Added
+
+- **12 new install.mjs test cases across 4 new describe blocks** (PR #98, closes #2) — coverage on `bin/install.mjs` goes from 9 tests (beginner happy path + idempotency + uninstall) to 21 tests covering: expert-mode `session.sh` and MCP server registration, foreign-hook preservation through both install and uninstall, non-hook settings keys (`theme` etc.) preserved, all six command files installed in beginner mode, Node observer artifacts (`bin/observe.mjs` + `lib/observe-event.mjs`) installed alongside `observe.sh`, unknown-command non-zero exit, invalid `--mode` falls back to beginner, `--pack react` loads instincts, `--pack <bogus>` reports the available pack list. Total test count 511 → 523.
+
+### Changed
+
+- **CI `verify-generated` step path widened** (PR #99) — was `git diff --exit-code -- bin test`, now `.claude-plugin bin test lib plugins` to match the `verify:generated` npm script in `package.json`. Future generator drift in `.claude-plugin/`, `lib/`, or `plugins/` (the class of failure #59 named) now fails at PR time instead of slipping through the narrower check.
+
+- **`package-lock.json` synced 3.3.0 → 3.8.0** (PR #99) — lockfile had drifted behind the unified-dispatch release train; running `npm install` on a clean clone produced an unsolicited 4-line lockfile diff. Re-running `npm install` synced it.
+
+### Notes
+
+- Five issues also closed this session by audit comment (no code change): #54 (rename / split decision settled as no-go in favor of unified dispatch), #24 (stale v3.1.0 announcement), #3 (`CONTRIBUTING.md` already exists), #7 (README badge is dynamic shields.io), #57 (duplicate of #59).
+- Open issue count 24 → 17. Remaining 17 are roadmap (phase 1–4) plus one unscoped item (#4). No active bugs.
+
+---
+
 ## [3.8.0] — 2026-05-07
 
 Unified five-plugin dispatcher train. Six PRs (PR 0, A, B, C, D, E) shipped in dependency order off `feat/unified-dispatch`. Driven by the user's session report (`~/.claude/usage-data/report.html`, 1,218 messages across 178 sessions, 2026-04-10 to 2026-05-07). Ends the two-plugin split between `continuous-improvement:superpowers` (CI dispatcher) and `superpowers:*` (Obra skill bodies) by registering both — plus three more upstream plugins — under one marketplace.
