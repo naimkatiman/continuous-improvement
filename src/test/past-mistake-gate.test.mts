@@ -10,6 +10,9 @@ const REPO_ROOT = join(__dirname, "..");
 const PHASE_0_HEADING = "Phase 0: Acknowledge (Past Mistake Acknowledgment Gate / P-MAG)";
 const NEGATIVE_PROMPT_FIELD = "Will NOT repeat:";
 const STOP_CONDITION_BULLET = "Prior-mistake residue still present";
+const THREE_SURFACES_DECLARATION = "Scan three surfaces";
+const FEEDBACK_GLOB_PATTERN = "memory/feedback_*.md";
+const FEEDBACK_EXAMPLE_ANCHOR = "feedback_past_mistake_gate.md";
 
 const MIRRORS: ReadonlyArray<{ path: string; label: string }> = [
   {
@@ -34,6 +37,18 @@ const REQUIRED_LITERALS: ReadonlyArray<{ literal: string; reason: string }> = [
   {
     literal: STOP_CONDITION_BULLET,
     reason: "Stop Conditions bullet — Rule 2 clearance gate is enumerated as a hard halt via this line.",
+  },
+  {
+    literal: THREE_SURFACES_DECLARATION,
+    reason: "Rule 1 surface count — must read 'three surfaces', not 'two'. Reverting to two silently drops the auto-memory feedback_*.md surface (PR #83).",
+  },
+  {
+    literal: FEEDBACK_GLOB_PATTERN,
+    reason: "Auto-memory feedback file pattern — Rule 1 must reference memory/feedback_*.md as a scanned surface. The operator's named corrections live there; without this glob the gate cannot quote them.",
+  },
+  {
+    literal: FEEDBACK_EXAMPLE_ANCHOR,
+    reason: "Concrete example anchor — Rule 1 names feedback_past_mistake_gate.md as a real instance so the rule cannot be rationalized into ignoring the surface. Generic rewording loses this anchor.",
   },
 ];
 
