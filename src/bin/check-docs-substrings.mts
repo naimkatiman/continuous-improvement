@@ -163,6 +163,21 @@ export const DOCS_ASSERTIONS: DocsAssertion[] = [
   { file: "skills/proceed-with-the-recommendation.md", pattern: "Prior-mistake residue still present", source: "past-mistake-gate.test.mts" },
   { file: "plugins/continuous-improvement/skills/proceed-with-the-recommendation/SKILL.md", pattern: "Prior-mistake residue still present", source: "past-mistake-gate.test.mts" },
 
+  // P-MAG third surface (auto-memory feedback_*.md) — locked 2026-05-07 after PR #83.
+  // Rule 1 of Phase 0 was upgraded from scanning two surfaces to scanning three so
+  // the operator's named past-mistake corrections (which live in
+  // ~/.claude/projects/<hash>/memory/feedback_*.md) cannot be silently skipped.
+  // Each assertion below catches a specific class of regression:
+  //   - "Scan three surfaces"           → reverting the surface count back to two
+  //   - "memory/feedback_*.md"          → dropping the glob pattern entirely
+  //   - "feedback_past_mistake_gate.md" → generic rewording that loses the concrete anchor
+  { file: "skills/proceed-with-the-recommendation.md", pattern: "Scan three surfaces", source: "past-mistake-gate.test.mts" },
+  { file: "plugins/continuous-improvement/skills/proceed-with-the-recommendation/SKILL.md", pattern: "Scan three surfaces", source: "past-mistake-gate.test.mts" },
+  { file: "skills/proceed-with-the-recommendation.md", pattern: "memory/feedback_*.md", source: "past-mistake-gate.test.mts" },
+  { file: "plugins/continuous-improvement/skills/proceed-with-the-recommendation/SKILL.md", pattern: "memory/feedback_*.md", source: "past-mistake-gate.test.mts" },
+  { file: "skills/proceed-with-the-recommendation.md", pattern: "feedback_past_mistake_gate.md", source: "past-mistake-gate.test.mts" },
+  { file: "plugins/continuous-improvement/skills/proceed-with-the-recommendation/SKILL.md", pattern: "feedback_past_mistake_gate.md", source: "past-mistake-gate.test.mts" },
+
   // wild-risa-balance recommendation floor (src/test/wild-risa-floor.test.mts)
   // Source skill + plugin mirror must both contain the literal "2 WILD + 5 RISA = 7 items minimum".
   { file: "skills/wild-risa-balance.md", pattern: "2 WILD + 5 RISA = 7 items minimum", source: "wild-risa-floor.test.mts:38" },
