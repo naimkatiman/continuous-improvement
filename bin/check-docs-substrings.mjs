@@ -177,6 +177,23 @@ export const DOCS_ASSERTIONS = [
     { file: "plugins/continuous-improvement/skills/superpowers/SKILL.md", pattern: "## Stacked-PR Plan Precondition (≥3 files)", source: "docs-substrings-manifest:superpowers-stacked-pr-precondition" },
     { file: "skills/superpowers.md", pattern: "Per-PR table", source: "docs-substrings-manifest:superpowers-stacked-pr-precondition" },
     { file: "plugins/continuous-improvement/skills/superpowers/SKILL.md", pattern: "Per-PR table", source: "docs-substrings-manifest:superpowers-stacked-pr-precondition" },
+    // verification-loop per-project ladder — locked 2026-05-07 (PR C of second-release train).
+    // Phase 0 (Ladder Resolution) was added so Phases 1–6 read the project's actual build/typecheck/
+    // lint/test/security/deploy_receipt invocations from .claude/verify-ladder.json (or sniff /
+    // ask fallback) instead of hardcoded npm run X. Phase 8 wires deploy-receipt (PR #83) for
+    // auto-deploy projects. Each assertion below catches a specific class of regression:
+    //   - "### Phase 0: Resolve the Ladder" → removing the whole resolution phase
+    //   - ".claude/verify-ladder.json"      → renaming or moving the manifest path
+    //   - "verify-ladder (resolved):"       → losing the resolved-ladder output contract
+    //   - "### Phase 8: Deploy Receipt"     → losing the cross-skill integration with PR #83
+    { file: "skills/verification-loop.md", pattern: "### Phase 0: Resolve the Ladder", source: "docs-substrings-manifest:verification-loop-per-project-ladder" },
+    { file: "plugins/continuous-improvement/skills/verification-loop/SKILL.md", pattern: "### Phase 0: Resolve the Ladder", source: "docs-substrings-manifest:verification-loop-per-project-ladder" },
+    { file: "skills/verification-loop.md", pattern: ".claude/verify-ladder.json", source: "docs-substrings-manifest:verification-loop-per-project-ladder" },
+    { file: "plugins/continuous-improvement/skills/verification-loop/SKILL.md", pattern: ".claude/verify-ladder.json", source: "docs-substrings-manifest:verification-loop-per-project-ladder" },
+    { file: "skills/verification-loop.md", pattern: "verify-ladder (resolved):", source: "docs-substrings-manifest:verification-loop-per-project-ladder" },
+    { file: "plugins/continuous-improvement/skills/verification-loop/SKILL.md", pattern: "verify-ladder (resolved):", source: "docs-substrings-manifest:verification-loop-per-project-ladder" },
+    { file: "skills/verification-loop.md", pattern: "### Phase 8: Deploy Receipt", source: "docs-substrings-manifest:verification-loop-per-project-ladder" },
+    { file: "plugins/continuous-improvement/skills/verification-loop/SKILL.md", pattern: "### Phase 8: Deploy Receipt", source: "docs-substrings-manifest:verification-loop-per-project-ladder" },
     // wild-risa-balance recommendation floor (src/test/wild-risa-floor.test.mts)
     // Source skill + plugin mirror must both contain the literal "2 WILD + 5 RISA = 7 items minimum".
     { file: "skills/wild-risa-balance.md", pattern: "2 WILD + 5 RISA = 7 items minimum", source: "wild-risa-floor.test.mts:38" },
