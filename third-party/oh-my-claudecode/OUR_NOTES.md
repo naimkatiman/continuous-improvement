@@ -10,11 +10,13 @@ Our annotations on the vendored snapshot. Authored by us, not copied from upstre
 - Track upstream changes against pinned SHA.
 - Eventually decide which OMC ideas (if any) to port into our 7 Laws — explicitly, with attribution.
 
-## Status: NOT integrated
+## Status: Registered as optional install (PR A of 2026-05-07 train)
 
-This snapshot is **not loaded by `plugins/continuous-improvement/`**. It is **not registered in `.claude-plugin/marketplace.json`**. Users who want OMC should install it from upstream the normal way (`/plugin marketplace add Yeachan-Heo/oh-my-claudecode`).
+This snapshot is **registered in `.claude-plugin/marketplace.json`** as of PR A of the unified-dispatcher train. Users can install OMC with `/plugin install oh-my-claudecode@continuous-improvement`. Users who already have it from upstream via `/plugin marketplace add Yeachan-Heo/oh-my-claudecode` should keep that — our copy is a frozen pinned-SHA snapshot, theirs auto-updates.
 
-If you want to experiment locally, point Claude Code at the path directly — but understand that doing so installs OMC's hooks, agents, and skills, which can collide with the 7 Laws routing.
+The snapshot is **not loaded** into `plugins/continuous-improvement/` itself. Marketplace registration alone makes the 39 skills + 19 agents installable on demand; per-skill verbatim ports into the CI bundle remain single-concern PRs gated on user-pain triggers per the integration-candidates matrix below.
+
+Activating the plugin installs OMC's hooks, agents, and skills. Be aware of the heavy overlap with `/ralph` and `/superpowers` called out in the matrix below — when both are installed, the unified `/superpowers` dispatcher (PR B) prefers the CI-bundled implementation for the autonomous-loop entry point and surfaces OMC's variants as alternatives in the routing table only.
 
 ## Overlap with the 7 Laws (read this before integrating anything)
 
