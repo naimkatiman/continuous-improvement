@@ -151,6 +151,21 @@ export const DOCS_ASSERTIONS = [
     { file: "plugins/continuous-improvement/skills/proceed-with-the-recommendation/SKILL.md", pattern: "memory/feedback_*.md", source: "past-mistake-gate.test.mts" },
     { file: "skills/proceed-with-the-recommendation.md", pattern: "feedback_past_mistake_gate.md", source: "past-mistake-gate.test.mts" },
     { file: "plugins/continuous-improvement/skills/proceed-with-the-recommendation/SKILL.md", pattern: "feedback_past_mistake_gate.md", source: "past-mistake-gate.test.mts" },
+    // workspace-surface-audit Environment Grain — locked 2026-05-07 (PR A of second-release train).
+    // Phase 1 of the audit gained an Environment Grain subsection that records shell flavor,
+    // autocrlf state, jq availability, case-sensitive filesystem flag, CWD baseline, and a
+    // parallel-actor expectation flag — the per-host facts that root the report's
+    // "command failed / wrong approach" friction class. Each assertion catches a specific
+    // class of regression:
+    //   - "#### Environment Grain"      → removing the whole subsection
+    //   - "core.autocrlf"               → dropping the Windows-line-endings probe
+    //   - "Parallel-actor expectation"  → losing the cross-skill integration with gateguard PR #83
+    { file: "skills/workspace-surface-audit.md", pattern: "#### Environment Grain", source: "docs-substrings-manifest:workspace-surface-audit-environment-grain" },
+    { file: "plugins/continuous-improvement/skills/workspace-surface-audit/SKILL.md", pattern: "#### Environment Grain", source: "docs-substrings-manifest:workspace-surface-audit-environment-grain" },
+    { file: "skills/workspace-surface-audit.md", pattern: "core.autocrlf", source: "docs-substrings-manifest:workspace-surface-audit-environment-grain" },
+    { file: "plugins/continuous-improvement/skills/workspace-surface-audit/SKILL.md", pattern: "core.autocrlf", source: "docs-substrings-manifest:workspace-surface-audit-environment-grain" },
+    { file: "skills/workspace-surface-audit.md", pattern: "Parallel-actor expectation", source: "docs-substrings-manifest:workspace-surface-audit-environment-grain" },
+    { file: "plugins/continuous-improvement/skills/workspace-surface-audit/SKILL.md", pattern: "Parallel-actor expectation", source: "docs-substrings-manifest:workspace-surface-audit-environment-grain" },
     // wild-risa-balance recommendation floor (src/test/wild-risa-floor.test.mts)
     // Source skill + plugin mirror must both contain the literal "2 WILD + 5 RISA = 7 items minimum".
     { file: "skills/wild-risa-balance.md", pattern: "2 WILD + 5 RISA = 7 items minimum", source: "wild-risa-floor.test.mts:38" },

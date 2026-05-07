@@ -63,6 +63,32 @@ If a surface exists only as a primitive, call that out. Example:
 - "Stripe is available via connected app, but continuous-improvement lacks a billing-operator skill"
 - "Google Drive is connected, but there is no continuous-improvement-native Google Workspace operator workflow"
 
+#### Environment Grain
+
+Before any tool-class advice, capture the per-host facts that make commands either run or fail. The 28-day usage report's recurring "command failed / wrong approach" friction class roots almost entirely in this grain being unrecorded at session start — the agent reaches for `jq`, finds it missing, retries; reaches for bash chaining, hits PowerShell parser errors, retries; trusts a stale `pwd` after `tsc`, runs verification from the wrong directory, retries.
+
+Probe and record (no destructive commands; quote results inline):
+
+- **Shell flavor.** `echo $SHELL` on POSIX or `$PSVersionTable.PSEdition` on Windows; detect `bash`, `zsh`, `pwsh`, or `cmd`. PowerShell on Windows treats `&&`, `2>&1`, and quoting differently from bash; Git Bash on Windows is bash-shaped but lacks several POSIX utilities by default.
+- **OS family + line endings.** `uname -s` (or PowerShell `$IsWindows`) plus `git config --get core.autocrlf`. On Windows with `core.autocrlf=true`, `git status` reports phantom modifications on every checked-out file — `git diff --stat` is the reliable change-set view.
+- **jq availability.** `command -v jq` (or `Get-Command jq`). When jq is missing, observation-pipeline hooks fall back to a thin schema and curl/JSON one-liners need a node/python rewrite.
+- **Case-sensitive filesystem.** Test by creating two paths differing only in case in a tempdir. NTFS (Windows) and APFS (macOS default) are case-insensitive; Linux ext4 and case-sensitive APFS are case-sensitive. Affects `CLAUDE.md` vs `claude.md` resolution and import paths.
+- **CWD baseline.** `pwd` (or `Get-Location`) recorded at session start. `tsc`, build scripts, and some test runners change CWD as a side effect; subsequent commands run from the wrong directory return "deps not installed" or "config not found" misreads.
+- **Parallel-actor expectation.** Document whether a second Claude / Codex / Maulana session may operate on the same working tree. If yes, the `gateguard` Parallel-Actor Gate must baseline `git rev-parse HEAD` + `git status --porcelain` + upstream before the first mutation, and re-check on every subsequent mutation.
+
+Output the recorded grain as a single fenced block so it survives context compaction and any later phase can reference it without re-probing:
+
+```
+shell-flavor:    pwsh
+os:              windows-11 / autocrlf=true
+jq:              missing
+case-sensitive:  false
+cwd-baseline:    D:/Ai/continuous-improvement
+parallel-actor:  yes
+```
+
+The fenced block is the contract surface — keep the field names stable so downstream skills (`gateguard`, `verification-loop`, future autonomous-release-train) can parse it without per-host special-casing.
+
 ### Phase 2: Benchmark Against Official and Installed Surfaces
 
 Compare the workspace against:
