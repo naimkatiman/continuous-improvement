@@ -150,6 +150,24 @@ Rows whose **Preferred skill** is not bundled with the `continuous-improvement` 
 | Settings / hooks / permission change | `update-config` | Edit `~/.claude/settings.json` with a minimal patch; restart session. (Reference behavior — does not require `update-config`.) |
 | Commit and push | `commit-commands:commit` or `commit-commands:commit-push-pr` | `git add <specific files>` → commit with `type(scope): outcome` → push when asked. (Reference behavior — does not require `commit-commands`.) |
 | Continuous-improvement analysis / instinct update | `continuous-improvement` (core 7-Laws skill) | Run the 7-Laws Reflection block manually; append to `observations.jsonl` |
+| Spec-first contract before code | `agent-skills:spec-driven-development` | Restate the contract as a testable spec; downstream tests/code regenerate from it. (Reference behavior — does not require `agent-skills`.) |
+| Source-first reading before writing | `agent-skills:source-driven-development` | Read the existing implementation top-to-bottom first; never write blind. (Reference behavior — does not require `agent-skills`.) |
+| Curate context window before answering | `agent-skills:context-engineering` → `context-budget` | Trim irrelevant context; keep only the load-bearing files in scope. (Reference behavior — does not require `agent-skills`.) |
+| Slice atomic increment with safe deploy | `agent-skills:incremental-implementation` | Smallest reviewable change; ship behind a flag if the full scope is too big. (Reference behavior — does not require `agent-skills`.) |
+| Refine vague request into ranked options | `agent-skills:idea-refine` → `superpowers:brainstorming` | Compress N ideas to 1 with explicit scoring criteria. (Reference behavior — does not require `agent-skills`.) |
+| Fan out N agents on isolated worktrees with shared contract | `superpowers:dispatching-parallel-agents` → `ruflo-swarm:swarm-init` | Use the swarm contract: fixed roles + base ref + shared contract test; reconcile results after. (Reference behavior — does not require `ruflo-swarm`.) |
+| Stream live observation of long agent runs | `ruflo-swarm:monitor-stream` | Push-based event log; poll fallback if the MCP server is offline. (Reference behavior — does not require `ruflo-swarm`.) |
+| Visual regression / browser-level diff | `oh-my-claudecode:visual-verdict` | Playwright screenshot diff against staging baseline. (Reference behavior — does not require `oh-my-claudecode`.) |
+| Multi-session retrospective across a sprint | `oh-my-claudecode:retrospective` → `learn-eval` | What worked / what failed / what to do differently / 3 ranked next moves. (Reference behavior — does not require `oh-my-claudecode`.) |
+| Long autonomous run with quality gates | `oh-my-claudecode:ultrawork` → `ralph` | PRD-shaped autonomous loop with verify-between-iterations. (Reference behavior — does not require `oh-my-claudecode`.) |
+| Draft a PRD before implementation | `pm-skills:prd` | Problem → user → goal → metric → scope. Engineering plan is a separate doc. (Reference behavior — does not require `pm-skills`.) |
+| Decompose feature into user stories + acceptance criteria | `pm-skills:user-stories` + `pm-skills:acceptance-criteria` | "As <role> I want <action> so that <benefit>" + Given/When/Then per story. (Reference behavior — does not require `pm-skills`.) |
+| Write or grade quarterly OKRs | `pm-skills:okr-writer` + `pm-skills:okr-grader` | Objective + 3-5 measurable key results; grade 0.0-1.0 at end of cycle. (Reference behavior — does not require `pm-skills`.) |
+| Design hypothesis-driven experiment | `pm-skills:experiment-design` + `pm-skills:hypothesis` | "We believe <X> will produce <Y>; we'll know if <Z> moves by <delta>." (Reference behavior — does not require `pm-skills`.) |
+| Discovery framework: persona / JTBD / lean canvas | `pm-skills:persona` / `pm-skills:jtbd-canvas` / `pm-skills:lean-canvas` | Pick the framework that matches the gap; do not run all three. (Reference behavior — does not require `pm-skills`.) |
+| Market sizing or competitive analysis | `pm-skills:market-sizing` / `pm-skills:competitive-analysis` | TAM/SAM/SOM bottom-up; competitive matrix on 5 axes. (Reference behavior — does not require `pm-skills`.) |
+| Meeting agenda / brief / recap / synthesize | `pm-skills:meeting-agenda` / `pm-skills:meeting-brief` / `pm-skills:meeting-recap` / `pm-skills:meeting-synthesize` | Cross-cutting Meeting Skills Family v2.11.0 with shared contract. (Reference behavior — does not require `pm-skills`.) |
+| Product launch checklist | `pm-skills:launch-checklist` | Marketing + ops + analytics + comms gates. Engineering uses `finishing-a-development-branch` + `deploy-receipt`. (Reference behavior — does not require `pm-skills`.) |
 
 ## Phase 4: Verify (Law 4 — Verify Before Reporting)
 
