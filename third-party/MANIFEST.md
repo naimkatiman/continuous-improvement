@@ -177,6 +177,65 @@ find third-party/addy-agent-skills -name CLAUDE.md -type f -delete
 
 > **Driver integration deferred.** Adding an `addy-agent-skills` SNAPSHOTS entry to `bin/refresh-third-party.mjs` is tracked as a follow-up PR — see `docs/plans/2026-05-07-addy-agent-skills-vendor.md` § "Deferred follow-ups". The recipe above is the source of truth in the meantime.
 
+### ruvnet/ruflo (plugins/ruflo-swarm slice)
+
+| Field | Value |
+|---|---|
+| Upstream | https://github.com/ruvnet/ruflo |
+| License | MIT |
+| Pinned SHA | `addb5cd3f30c4e9eef9b25084419bd1c5015e169` |
+| Snapshot date | 2026-05-07 |
+| Snapshot size | ~36 KB, 11 files |
+| Upstream version at SHA | 3.7.0-alpha.11 (monorepo); plugin slice `ruflo-swarm` |
+| Local path | `third-party/ruflo-swarm/` |
+
+Cherry-picked **single plugin** from a 32-plugin monorepo, addressing the agent-orchestration / agent-swarm gap. Cold-storage only — **not** loaded by `plugins/continuous-improvement/` and **not** registered in `.claude-plugin/marketplace.json`. Surface overlaps `superpowers:dispatching-parallel-agents` (Obra) and our `/loop`; the OUR_NOTES.md matrix records the per-asset comparison. The snapshot path is named `ruflo-swarm`, not `ruflo`, to make the cherry-pick scope explicit — readers should not assume the full monorepo lives here.
+
+**Selective scope (verbatim from upstream `plugins/ruflo-swarm/` subtree, plus repo-root LICENSE for attribution):**
+
+- `agents/architect.md`, `agents/coordinator.md` — 2 agent definitions
+- `commands/swarm.md`, `commands/watch.md` — 2 commands
+- `skills/swarm-init/SKILL.md`, `skills/monitor-stream/SKILL.md` — 2 skills
+- `docs/adrs/0001-swarm-contract.md` — 1 architecture decision record
+- `scripts/smoke.sh` — smoke test script
+- `.claude-plugin/plugin.json` — plugin manifest (read-only; not registered in our marketplace)
+- `README.md` — plugin overview
+- `LICENSE` — copied from upstream **repo root** (the plugin slice has no own LICENSE; required for MIT attribution)
+
+**Excluded from snapshot (not vendored):**
+
+- The other **31 ruflo plugins** (`ruflo-core`, `ruflo-loop-workers`, `ruflo-autopilot`, `ruflo-intelligence`, `ruflo-rag-memory`, `ruflo-agentdb`, `ruflo-cost-tracker`, `ruflo-adr`, `ruflo-aidefence`, `ruflo-browser`, `ruflo-jujutsu`, `ruflo-wasm`, `ruflo-workflows`, `ruflo-daa`, `ruflo-ruvllm`, `ruflo-rvf`, `ruflo-plugin-creator`, `ruflo-goals`, `ruflo-ddd`, `ruflo-federation`, `ruflo-iot-cognitum`, `ruflo-knowledge-graph`, `ruflo-market-data`, `ruflo-migrations`, `ruflo-neural-trader`, `ruflo-observability`, `ruflo-ruvector`, `ruflo-sparc`, `ruflo-security-audit`, `ruflo-testgen`, `ruflo-docs`) — out of cherry-pick scope.
+- The ruflo runtime, `ruflo/`, `bin/`, `package.json`, `package-lock.json`, `tsconfig.json`, `archive/`, `tests/`, `verification.md`, `verification-results.md`, `verification-inventory.json`, `ruflo-plugins.gif` (~5.5 MB).
+- `.claude/`, `.agents/`, `.githooks/`, `.github/`, `.gitignore`, `.npmignore` — repo metadata.
+- Root `CLAUDE.md`, `CLAUDE.local.md`, top-level `AGENTS.md` (~21 KB) — auto-load contamination risk; none live inside `plugins/ruflo-swarm/` so the subtree copy doesn't pull them. Post-copy `find -name CLAUDE.md -delete` runs anyway as a safety belt.
+- Top-level `README.md`, `CHANGELOG.md`, `SECURITY.md` — these are the monorepo's, not the plugin's (the plugin has its own `README.md` which IS vendored).
+
+**Refresh recipe:**
+
+```bash
+# 1. Pin the new SHA in this file under "Pinned SHA" above
+# 2. Shallow clone outside the repo
+git clone --depth 1 https://github.com/ruvnet/ruflo.git \
+  /tmp/ruflo-refresh
+git -C /tmp/ruflo-refresh rev-parse HEAD  # confirm matches Pinned SHA
+
+# 3. Wipe + re-copy the selective surface (plugin slice + repo-root LICENSE)
+rm -rf third-party/ruflo-swarm
+mkdir -p third-party/ruflo-swarm
+cp -r /tmp/ruflo-refresh/plugins/ruflo-swarm/. \
+  third-party/ruflo-swarm/
+cp /tmp/ruflo-refresh/LICENSE \
+  third-party/ruflo-swarm/
+
+# Remove every CLAUDE.md inside the snapshot — they auto-load as session context.
+find third-party/ruflo-swarm -name CLAUDE.md -type f -delete
+
+# 4. Single-concern commit:
+#    chore(third-party): refresh ruvnet/ruflo (ruflo-swarm slice) @ <new-sha>
+```
+
+> **Driver integration deferred.** Adding a `ruflo-swarm` SNAPSHOTS entry to `bin/refresh-third-party.mjs` is tracked as the same follow-up PR as `addy-agent-skills` — see `docs/plans/2026-05-07-ruflo-swarm-vendor.md` § "Deferred follow-ups". The recipe above is the source of truth in the meantime.
+
 ---
 
 ## Pending snapshots (not yet vendored — listed for transparency)
