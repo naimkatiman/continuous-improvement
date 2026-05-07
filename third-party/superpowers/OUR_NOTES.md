@@ -11,6 +11,12 @@ Our annotations on the vendored snapshot. Authored by us, not copied from upstre
 - Detect drift when Obra adds, removes, or renames a workflow skill that the CI dispatcher table references.
 - Decide skill-by-skill whether a future change in Obra warrants a parallel update on the 7 Laws side.
 
+## Fork-only additions to the dispatcher
+
+The CI fork's dispatcher is allowed to add skills beyond what Obra ships upstream — e.g. `deploy-receipt`, the Law 4 deploy-seam skill that lives only in this repo. Those names go in `third-party/superpowers/.fork-only-skills.txt` (sorted, one per line, blank lines and `#` comments ignored). The `Skills Drift Check` GitHub workflow subtracts that allowlist from the dispatcher set before diffing against the upstream snapshot, so the check still catches genuine drift (a renamed or removed Obra skill the dispatcher still references) without rejecting deliberate fork-side additions.
+
+When you add a new fork-only skill, append its name to `.fork-only-skills.txt` in the same PR that wires the skill into `plugins/continuous-improvement/skills/superpowers/SKILL.md`.
+
 ## Status: NOT integrated
 
 This snapshot is **not loaded by `plugins/continuous-improvement/`**. It is **not registered in `.claude-plugin/marketplace.json`**. Users who want Obra's skills should install the upstream plugin the normal way (`/plugin marketplace add obra/superpowers`).

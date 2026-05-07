@@ -88,6 +88,40 @@ Triggers on: `rm -rf`, `git reset --hard`, `git push --force`, `drop table`, etc
 Quote the user's current instruction verbatim.
 ```
 
+### Parallel-Actor Gate (first mutation per session, then divergence-checked)
+
+A second Claude/Codex/Maulana session can be running on the same host and the same working tree. On this operator's setup that is the common case, not the edge case (multi-clauding observed at 67% of recent messages). A mutation that looks safe in isolation can land on top of an upstream commit, an unstaged change, or a branch advance that this session never saw.
+
+**On the first Edit / Write / mutating Bash of a session:**
+
+```
+Baseline these three values and quote them in your response:
+
+1. `git rev-parse HEAD` — record the commit you started on
+2. `git rev-parse @{u}` (if branch tracks an upstream) — record where origin was
+3. `git status --porcelain` — record the working tree state
+
+If any value is "unknown" (detached HEAD, no upstream, untracked-only tree),
+say so explicitly. Do not proceed past the baseline silently.
+```
+
+**On every subsequent Edit / Write / mutating Bash, before allowing the action:**
+
+```
+Re-check the three baselines against current state:
+
+1. `git rev-parse HEAD` — has it advanced past your baseline without your commits?
+2. `git rev-parse @{u}` — did upstream move while you worked?
+3. `git status --porcelain` — are there modifications you did not introduce?
+
+If ANY of those drifted from baseline, HALT. Emit:
+"Parallel-actor divergence: <field> moved from <baseline> to <current>.
+Working tree may belong to another session. Stop, surface to operator,
+get clearance before next mutation."
+```
+
+This gate is what catches the squash-merge / ahead-of-origin trap recorded in the operator's memory (`feedback_pre_branch_check.md`, `feedback_parallel_actor.md`) — both classes of failure occurred because a baseline was never captured at session start.
+
 ## Quick Start
 
 ### Option A: Use the continuous-improvement hook (zero install)

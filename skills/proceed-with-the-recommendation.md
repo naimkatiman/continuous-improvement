@@ -63,12 +63,15 @@ Before research begins, the skill must read its own track record. The instinct s
 
 ### Rule 1 — Acknowledge before context (right context from the beginning)
 
-Scan two surfaces and quote literal evidence:
+Scan three surfaces and quote literal evidence:
 
 - `~/.claude/instincts/<project-hash>/observations.jsonl` — last 10 entries with `type: failure` or `correction`
+- `~/.claude/projects/<project-hash>/memory/feedback_*.md` — auto-memory `feedback`-typed entries (named-pattern corrections the operator declared in prior sessions); `~/.claude/projects/<project-hash>/memory/MEMORY.md` is the index of these files
 - The active project's `CLAUDE.md` "Past Mistakes" section (if present)
 
-Emit one line: `Past mistake observed: <quote>. Source: <file:line>. Active in current scope: yes|no.` If both surfaces are empty, emit `No prior mistakes recorded — proceed.` Never skip silently — silent skip defeats the instinct system.
+The auto-memory `feedback_*.md` surface is the canonical home of the operator's named corrections (e.g. `feedback_past_mistake_gate.md`, `feedback_no_git_add_all_on_windows.md`). Skipping it because the file path is project-host-specific is the most common silent failure of this gate — the rule explicitly enumerates it so this skill cannot rationalize the omission.
+
+Emit one line per matching entry: `Past mistake observed: <quote>. Source: <file:line>. Active in current scope: yes|no.` If all three surfaces are empty, emit `No prior mistakes recorded — proceed.` Never skip silently — silent skip defeats the instinct system.
 
 ### Rule 2 — Clearance gate (don't proceed until the mistake is gone)
 
@@ -139,6 +142,7 @@ Rows whose **Preferred skill** is not bundled with the `continuous-improvement` 
 | Verify before shipping | `superpowers:verification-before-completion` | Smallest check that proves correctness: typecheck + one test + one curl. (Reference behavior — does not require `superpowers:verification-before-completion`.) |
 | Multiple independent tasks | `superpowers:dispatching-parallel-agents` | Launch N parallel `Agent` tool calls in one message; reconcile results after. (Reference behavior — does not require `superpowers:dispatching-parallel-agents`.) |
 | Merge / close branch | `superpowers:finishing-a-development-branch` | Verify clean tree, rebase on main, green CI, open PR with summary + test plan. (Reference behavior — does not require `superpowers:finishing-a-development-branch`.) |
+| Post-merge deploy receipt (auto-deploy projects) | `deploy-receipt` (companion in this repo) | Confirm deployed SHA == merge SHA via provider CLI, GitHub Deployments API, or version-endpoint curl, plus a 200 from a documented healthcheck. INCOMPLETE receipt blocks the merge from being reported as done. |
 | Schedule a follow-up | `schedule` | Tell user the exact action + cadence; if no scheduler, write a dated TODO/memory entry. (Reference behavior — does not require `schedule`.) |
 | Recurring poll / interval task | `loop` | Tell user the cadence + how to re-run manually. (Reference behavior — does not require `loop`.) |
 | Library / API docs lookup | `documentation-lookup` | Use `WebFetch` against the official docs URL, cite what changed. (Reference behavior — does not require `documentation-lookup`.) |
