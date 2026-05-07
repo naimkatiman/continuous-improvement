@@ -321,6 +321,18 @@ Every skill description leads with `Enforces Law N (...)` so the discipline tag 
 
 ---
 
+## In the wild
+
+Workflows from this repo, applied to real open-source contributions:
+
+### pm-skills (product-on-purpose, 189 stars, Apache 2.0)
+
+[F-07 discover-market-sizing](https://github.com/product-on-purpose/pm-skills/pull/141) - new domain skill in the Discover phase covering TAM/SAM/SOM market sizing for the [pm-skills](https://github.com/product-on-purpose/pm-skills) library.
+
+Authored end-to-end with `/superpowers` and `/proceed-with-the-recommendation`: surface audit before any code, brainstorm gate with WILD/RISA framing, branch isolation off the upstream fork, single-skill PR scope per the upstream maintainer's curated-contributions model, count cascade across 23 docs files, and 9 local validators green before push (`lint-skills-frontmatter`, `validate-agents-md`, `validate-commands`, `check-count-consistency`, `check-nav-completeness`, `check-generated-content-untouched`, `check-generated-freshness`, `validate-meeting-skills-family`, `validate-plugin-install`).
+
+---
+
 ## More
 
 - [QUICKSTART.md](QUICKSTART.md) — 2-minute setup
