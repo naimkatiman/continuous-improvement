@@ -1,0 +1,331 @@
+# PM-Skills
+
+> Open source Product Management skills for AI agents
+
+This repository contains professional PM skills organized by the Triple Diamond framework plus foundation capabilities. Each skill helps AI agents produce high-quality PM artifacts.
+
+## Skills
+
+### Foundation Classification
+
+#### lean-canvas
+**Path:** `skills/foundation-lean-canvas/SKILL.md`
+
+Generate a one-page lean canvas across nine interlocking blocks (problem, customer, UVP, solution, channels, revenue, cost, metrics, unfair advantage). Optional visual mode writes a self-contained HTML file rendering the canonical Maurya layout for sharing, printing, or presentation.
+
+#### persona
+**Path:** `skills/foundation-persona/SKILL.md`
+
+Generates a context-appropriate persona for product or marketing workflows with explicit assumptions, confidence, and evidence trail. Use when shaping artifact perspective, stress-testing decisions, or framing PM/GTM decisions.
+
+#### okr-writer
+**Path:** `skills/foundation-okr-writer/SKILL.md`
+
+Drafts, reviews, rewrites, and coaches outcome-based OKR sets. Supports five entry modes (Guided default, One-Shot via --oneshot, Sustained Coach, Audit Only, Rewrite). Diagnoses empowered-team context, refuses to fabricate baselines, refuses compensation coupling, and reframes feature-delivery KRs into outcome KRs. Member of the OKR Skills set (companion: `measure-okr-grader`).
+
+#### meeting-agenda
+**Path:** `skills/foundation-meeting-agenda/SKILL.md`
+
+Produces an attendee-facing agenda with time-boxed topics, type tags (Discussion / Decision / Information / Working), owners, and attendee prep. Supports ten meeting-type variants (standup, planning, review, decision-making, brainstorm, 1-on-1, stakeholder-review, project-kickoff, working-session, exec-briefing). Member of the Meeting Skills Family.
+
+#### meeting-brief
+**Path:** `skills/foundation-meeting-brief/SKILL.md`
+
+Produces a private strategic prep document with stakes, stakeholder reads, ranked desired outcomes, key messages, anticipated Q&A, risks, and specific asks. Member of the Meeting Skills Family. Distinct from meeting-agenda because the brief is private by default, not shared with attendees.
+
+#### meeting-recap
+**Path:** `skills/foundation-meeting-recap/SKILL.md`
+
+Produces a topic-segmented post-meeting summary with decisions bold-flagged inline and actions captured per topic (plus consolidated action view). Auto-populates topic skeleton from a sibling meeting-agenda when available. Accepts transcripts from any tool. Member of the Meeting Skills Family.
+
+#### meeting-synthesize
+**Path:** `skills/foundation-meeting-synthesize/SKILL.md`
+
+Cross-meeting archaeology skill. Consumes multiple meeting recaps over a period and surfaces patterns invisible in any single meeting: decision evolution, stakeholder position shifts, stalled threads, contradictions. Produces plain-text timeline, themes, prioritized follow-ups. Member of the Meeting Skills Family.
+
+#### stakeholder-update
+**Path:** `skills/foundation-stakeholder-update/SKILL.md`
+
+Produces async communication to stakeholders from a meeting recap. Supports five channel variants (slack, teams, email, notion, exec-memo) and five audience variants (engineering, design, leadership, customer-facing, mixed). Surfaces primary CTA up front, logs technical-to-business translations, detects thread continuation. Member of the Meeting Skills Family.
+
+> Meeting skills share a contract at `docs/reference/skill-families/meeting-skills-contract.md` governing frontmatter, file naming, go-mode behavior, and universal output requirements. Enforced by `scripts/validate-meeting-skills-family.sh`.
+
+---
+
+### Discover Phase
+
+#### competitive-analysis
+**Path:** `skills/discover-competitive-analysis/SKILL.md`
+
+Creates a structured competitive analysis comparing features, positioning, and strategy across competitors. Use when entering a market, planning differentiation, or understanding the competitive landscape.
+
+#### interview-synthesis
+**Path:** `skills/discover-interview-synthesis/SKILL.md`
+
+Synthesizes user research interviews into actionable insights, patterns, and recommendations. Use after conducting user interviews, customer calls, or usability sessions to extract and communicate findings.
+
+#### market-sizing
+**Path:** `skills/discover-market-sizing/SKILL.md`
+
+Creates a framework-driven market sizing artifact covering TAM, SAM, and SOM with explicit bottoms-up and top-down estimates, an assumption ledger, and confidence ratings. Use when scoping a new product initiative, framing an investment case, evaluating market entry, or pressure-testing a strategic bet.
+
+#### stakeholder-summary
+**Path:** `skills/discover-stakeholder-summary/SKILL.md`
+
+Documents stakeholder needs, concerns, and influence for a project or initiative. Use when starting projects, managing complex stakeholder relationships, or ensuring alignment across organizational boundaries.
+
+---
+
+### Define Phase
+
+#### hypothesis
+**Path:** `skills/define-hypothesis/SKILL.md`
+
+Defines a testable hypothesis with clear success metrics and validation approach. Use when forming assumptions to test, designing experiments, or aligning team on what success looks like.
+
+#### jtbd-canvas
+**Path:** `skills/define-jtbd-canvas/SKILL.md`
+
+Creates a Jobs to be Done canvas capturing the functional, emotional, and social dimensions of a customer job. Use when deeply understanding customer motivations, designing for jobs, or reframing product positioning.
+
+#### opportunity-tree
+**Path:** `skills/define-opportunity-tree/SKILL.md`
+
+Creates an opportunity solution tree mapping desired outcomes to opportunities and potential solutions. Use for outcome-driven product discovery, prioritization, or communicating product strategy.
+
+#### problem-statement
+**Path:** `skills/define-problem-statement/SKILL.md`
+
+Creates a clear problem framing document with user impact, business context, and success criteria. Use when starting a new initiative, realigning a drifted project, or communicating up to leadership.
+
+---
+
+### Develop Phase
+
+#### adr
+**Path:** `skills/develop-adr/SKILL.md`
+
+Creates an Architecture Decision Record following the Nygard format to document significant technical decisions, their context, and consequences. Use when making technical choices that affect system architecture, technology selection, or development patterns.
+
+#### design-rationale
+**Path:** `skills/develop-design-rationale/SKILL.md`
+
+Documents the reasoning behind design decisions including alternatives considered, trade-offs evaluated, and principles applied. Use when making significant UX decisions, aligning with stakeholders on design direction, or preserving design context for future reference.
+
+#### solution-brief
+**Path:** `skills/develop-solution-brief/SKILL.md`
+
+Creates a concise one-page solution overview that communicates the proposed approach, key decisions, and trade-offs. Use when pitching solutions to stakeholders, aligning teams on approach, or documenting solution intent before detailed specification.
+
+#### spike-summary
+**Path:** `skills/develop-spike-summary/SKILL.md`
+
+Documents the results of a time-boxed technical or design exploration (spike). Use after completing a spike to capture learnings, findings, and recommendations for the team.
+
+---
+
+### Deliver Phase
+
+#### acceptance-criteria
+**Path:** `skills/deliver-acceptance-criteria/SKILL.md`
+
+Generates structured Given/When/Then acceptance criteria for a user story or feature slice. Use when translating product requirements into testable scenarios that cover the happy path, edge cases, error states, and non-functional expectations for engineering handoff and QA.
+
+#### edge-cases
+**Path:** `skills/deliver-edge-cases/SKILL.md`
+
+Documents edge cases, error states, boundary conditions, and recovery paths for a feature. Use during specification to ensure comprehensive coverage, or during QA planning to identify test scenarios.
+
+#### launch-checklist
+**Path:** `skills/deliver-launch-checklist/SKILL.md`
+
+Creates a comprehensive pre-launch checklist covering engineering, design, marketing, support, legal, and operations readiness. Use before releasing features, products, or major updates to ensure nothing is missed.
+
+#### prd
+**Path:** `skills/deliver-prd/SKILL.md`
+
+Creates a comprehensive Product Requirements Document that aligns stakeholders on what to build, why, and how success will be measured. Use when specifying features, epics, or product initiatives for engineering handoff.
+
+#### release-notes
+**Path:** `skills/deliver-release-notes/SKILL.md`
+
+Creates user-facing release notes that communicate new features, improvements, and fixes in clear, benefit-focused language. Use when shipping updates to communicate changes to users, customers, or stakeholders.
+
+#### user-stories
+**Path:** `skills/deliver-user-stories/SKILL.md`
+
+Generates user stories with clear acceptance criteria from product requirements or feature descriptions. Use when breaking down features for sprint planning, writing tickets, or communicating requirements to engineering.
+
+---
+
+### Measure Phase
+
+#### dashboard-requirements
+**Path:** `skills/measure-dashboard-requirements/SKILL.md`
+
+Specifies requirements for an analytics dashboard including metrics, visualizations, filters, and data sources. Use when requesting dashboards from data teams, defining KPI tracking, or documenting reporting needs.
+
+#### experiment-design
+**Path:** `skills/measure-experiment-design/SKILL.md`
+
+Designs an A/B test or experiment with clear hypothesis, variants, success metrics, sample size, and duration. Use when planning experiments to validate product changes or test hypotheses.
+
+#### experiment-results
+**Path:** `skills/measure-experiment-results/SKILL.md`
+
+Documents the results of a completed experiment or A/B test with statistical analysis, learnings, and recommendations. Use after experiments conclude to communicate findings, inform decisions, and build organizational knowledge.
+
+#### instrumentation-spec
+**Path:** `skills/measure-instrumentation-spec/SKILL.md`
+
+Specifies event tracking and analytics instrumentation requirements for a feature. Use when defining what data to collect, ensuring consistent tracking implementation, or documenting analytics requirements for engineering.
+
+#### okr-grader
+**Path:** `skills/measure-okr-grader/SKILL.md`
+
+Scores completed OKR sets at cycle close with KR-level scoring, committed-vs-aspirational interpretation, evidence quality assessment, learning synthesis, and next-cycle recommendations. Refuses to retroactively change targets, average away failed guardrails, treat 0.7 as success for committed or compliance KRs, equate effort with impact, or use scores as individual performance ratings. Hands off learnings to /lessons-log, team-process work to /retrospective, assumption tests to /hypothesis, measurement gaps to /dashboard-requirements or /instrumentation-spec, and next-cycle drafting to /okr-writer. Member of the OKR Skills set (companion: `foundation-okr-writer`).
+
+---
+
+### Iterate Phase
+
+#### lessons-log
+**Path:** `skills/iterate-lessons-log/SKILL.md`
+
+Creates a structured lessons learned entry for organizational memory. Use after projects, incidents, or significant learnings to capture knowledge for future teams and initiatives.
+
+#### pivot-decision
+**Path:** `skills/iterate-pivot-decision/SKILL.md`
+
+Documents a strategic pivot or persevere decision with the evidence, analysis, and rationale. Use when evaluating whether to change direction on a product, feature, or strategy based on market feedback.
+
+#### refinement-notes
+**Path:** `skills/iterate-refinement-notes/SKILL.md`
+
+Documents backlog refinement session outcomes including stories refined, estimates, questions raised, and decisions made. Use during or after refinement to capture the results and share with absent team members.
+
+#### retrospective
+**Path:** `skills/iterate-retrospective/SKILL.md`
+
+Facilitates and documents a team retrospective capturing what went well, what to improve, and action items. Use at the end of sprints, projects, or milestones to reflect and improve team practices.
+
+---
+
+### Utility Skills
+
+#### pm-skill-builder
+**Path:** `skills/utility-pm-skill-builder/SKILL.md`
+
+Guides contributors from a PM skill idea to a complete Skill Implementation Packet with gap analysis, classification, and draft files. Use when creating new domain, foundation, or utility skills for the pm-skills library.
+
+---
+
+#### pm-skill-validate
+**Path:** `skills/utility-pm-skill-validate/SKILL.md`
+
+Audits an existing pm-skills skill against structural conventions and quality criteria. Produces a structured validation report with severity-graded findings and actionable recommendations. Use when checking whether a skill meets repo standards before shipping or after making changes.
+
+---
+
+#### pm-skill-iterate
+**Path:** `skills/utility-pm-skill-iterate/SKILL.md`
+
+Applies targeted improvements to an existing pm-skills skill based on feedback, validation reports, or convention changes. Previews proposed changes, writes on confirmation, and suggests a version bump. Use when improving a skill after validation or feedback.
+
+---
+
+#### mermaid-diagrams
+**Path:** `skills/utility-mermaid-diagrams/SKILL.md`
+
+Teaches PMs to create syntactically valid mermaid diagrams by selecting the right diagram type for their communication need. Covers 15 diagram types with PM-relevant examples, a dual-lens navigation system (type catalog and use-case guide), and a dedicated syntax validity reference. Use when creating, debugging, or reviewing mermaid diagrams in product documents.
+
+---
+
+#### slideshow-creator
+**Path:** `skills/utility-slideshow-creator/SKILL.md`
+
+Generates professional presentations from a JSON deck specification using 18 slide types with dark/light variants. Zero design decisions at generation time . Claude selects slide types and fills content slots; all visual properties are pre-decided by the theme. Use when creating slide decks, stakeholder updates, or product review presentations.
+
+---
+
+#### update-pm-skills
+**Path:** `skills/utility-update-pm-skills/SKILL.md`
+
+Checks for newer pm-skills releases, compares local vs. latest version, previews what would change, and updates local files after user confirmation. Generates a structured update report documenting changed files, new capabilities, and the value delta between versions. Use when you want to bring a local pm-skills installation up to date.
+
+---
+
+## Workflows
+
+| Workflow | Description |
+|----------|-------------|
+| [Triple Diamond](_workflows/triple-diamond.md) | Complete product development cycle |
+| [Lean Startup](_workflows/lean-startup.md) | Build-Measure-Learn rapid iteration |
+| [Feature Kickoff](_workflows/feature-kickoff.md) | Quick-start workflow for features |
+| [Customer Discovery](_workflows/customer-discovery.md) | Transform raw research into a validated problem |
+| [Sprint Planning](_workflows/sprint-planning.md) | Prepare sprint-ready stories from a backlog |
+| [Product Strategy](_workflows/product-strategy.md) | Frame a major strategic initiative |
+| [Post-Launch Learning](_workflows/post-launch-learning.md) | Measure results and capture learnings after launch |
+| [Stakeholder Alignment](_workflows/stakeholder-alignment.md) | Build a case for leadership buy-in |
+| [Technical Discovery](_workflows/technical-discovery.md) | Evaluate technical feasibility and architecture |
+
+Workflow links are repo-relative within this repository.
+
+---
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `/acceptance-criteria` | Generate acceptance criteria with Given/When/Then |
+| `/adr` | Create an Architecture Decision Record |
+| `/competitive-analysis` | Create a structured competitive analysis |
+| `/dashboard-requirements` | Specify requirements for an analytics dashboard |
+| `/design-rationale` | Document the reasoning behind design decisions |
+| `/edge-cases` | Document edge cases and error states for a feature |
+| `/experiment-design` | Design an A/B test or experiment |
+| `/experiment-results` | Document experiment results and learnings |
+| `/hypothesis` | Define a testable hypothesis with success metrics |
+| `/instrumentation-spec` | Specify event tracking and analytics instrumentation |
+| `/interview-synthesis` | Synthesize user research interviews into insights |
+| `/jtbd-canvas` | Create a Jobs to be Done canvas |
+| `/workflow-feature-kickoff` | Run the Feature Kickoff workflow (problem → hypothesis → PRD → stories) |
+| `/workflow-customer-discovery` | Run the Customer Discovery workflow |
+| `/workflow-sprint-planning` | Run the Sprint Planning workflow |
+| `/workflow-product-strategy` | Run the Product Strategy workflow |
+| `/workflow-post-launch-learning` | Run the Post-Launch Learning workflow |
+| `/workflow-stakeholder-alignment` | Run the Stakeholder Alignment workflow |
+| `/workflow-technical-discovery` | Run the Technical Discovery workflow |
+| `/launch-checklist` | Create a comprehensive pre-launch checklist |
+| `/lean-canvas` | Generate a one-page lean canvas with optional HTML output |
+| `/mermaid-diagrams` | utility-mermaid-diagrams |
+| `/lessons-log` | Create a structured lessons learned entry |
+| `/okr-grader` | Score completed OKRs at cycle close with evidence-based interpretation and learning synthesis |
+| `/okr-writer` | Draft, review, rewrite, or coach OKRs with outcome-based KRs and quality audit |
+| `/opportunity-tree` | Create an opportunity solution tree |
+| `/persona` | Generate a product or marketing persona |
+| `/pivot-decision` | Document a pivot or persevere decision |
+| `/pm-skill-builder` | Create a new PM skill with gap analysis and a Skill Implementation Packet |
+| `/pm-skill-iterate` | Apply targeted improvements to a skill from feedback or validation reports |
+| `/pm-skill-validate` | Audit a skill against structural conventions and quality criteria |
+| `/prd` | Create a Product Requirements Document |
+| `/problem-statement` | Create a clear problem statement with success criteria |
+| `/refinement-notes` | Document backlog refinement session outcomes |
+| `/release-notes` | Create user-facing release notes |
+| `/retrospective` | Facilitate and document a team retrospective |
+| `/slideshow-creator` | Generate professional presentations from JSON deck specs |
+| `/update-pm-skills` | Check for updates and update local pm-skills installation |
+| `/solution-brief` | Create a one-page solution overview |
+| `/spike-summary` | Document the results of a technical or design spike |
+| `/stakeholder-summary` | Document stakeholder needs and influence |
+| `/user-stories` | Generate user stories with acceptance criteria |
+
+---
+
+## License
+
+Apache-2.0
+
+---
+
+*Built by [Product on Purpose](https://github.com/product-on-purpose) for PMs who ship.*
