@@ -1,5 +1,5 @@
 export const PACKAGE_NAME = "continuous-improvement";
-export const VERSION = "3.7.0";
+export const VERSION = "3.8.0";
 
 export const PLUGIN_MODES = ["beginner", "expert"] as const;
 
