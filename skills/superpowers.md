@@ -1,11 +1,11 @@
 ---
 name: superpowers
 tier: companion
-description: "Law activator for the 7 Laws of AI Agent Discipline. Routes tasks to the correct Law-aligned specialist (brainstorming → Law 2, writing-plans → Law 2, test-driven-development → Law 3+4, verification-before-completion → Law 4, etc.) so the right discipline fires automatically instead of the agent skipping a step. Not a peer skill — a dispatcher for the others."
+description: "Law activator for the 7 Laws of AI Agent Discipline. Unified five-source dispatcher — routes tasks to the correct Law-aligned specialist across the CI plugin (tdd-workflow, verification-loop, gateguard, ralph, deploy-receipt) and four registered upstream companions (Obra superpowers, addy agent-skills, ruflo-swarm, oh-my-claudecode, pm-skills) so the right discipline fires automatically instead of the agent skipping a step. Not a peer skill — a dispatcher for the others."
 origin: https://github.com/obra/superpowers
 ---
 
-# Superpowers — Mandatory Agent Workflows
+# Superpowers — Mandatory Agent Workflows (Five-Source Dispatcher)
 
 Superpowers enforces a structured development workflow. Skills activate automatically when their trigger conditions are met. This is not optional guidance — it is mandatory workflow.
 
@@ -13,11 +13,25 @@ Superpowers enforces a structured development workflow. Skills activate automati
 
 AI agents skip steps, guess, and declare "done" without verifying. Superpowers blocks this by making workflow stages explicit and enforced.
 
+## What changed in v3.8.0
+
+The dispatcher now routes across **five registered marketplaces** instead of relying on Obra installed separately. All five are installable from one marketplace entry:
+
+```
+/plugin install superpowers@continuous-improvement       # Obra's 14 workflow skills
+/plugin install agent-skills@continuous-improvement      # Addy's 21 SDLC skills
+/plugin install ruflo-swarm@continuous-improvement       # Agent swarm + Monitor stream
+/plugin install oh-my-claudecode@continuous-improvement  # 39 skills + 19 agents
+/plugin install pm-skills@continuous-improvement         # 41 PM skills + 47 commands
+```
+
+The CI plugin (this dispatcher + `tdd-workflow`, `verification-loop`, `gateguard`, `ralph`, `deploy-receipt`, etc.) installs by default. The five companions are opt-in — install only what you need.
+
 ## The Basic Workflow
 
 | Order | Skill | When It Activates |
 |-------|-------|-------------------|
-| 1 | **brainstorming** | Before writing code. Refines rough ideas through questions, explores alternatives, presents design in sections for validation. Saves design document. |
+| 1 | **brainstorming** | Before writing code. Refines rough ideas through questions, explores alternatives, presents design in sections for validation. |
 | 2 | **using-git-worktrees** | After design approval. Creates isolated workspace on new branch, runs project setup, verifies clean test baseline. |
 | 3 | **writing-plans** | With approved design. Breaks work into bite-sized tasks (2-5 minutes each). Every task has exact file paths, complete code, verification steps. |
 | 4 | **subagent-driven-development** or **executing-plans** | With plan. Dispatches fresh subagent per task with two-stage review (spec compliance, then code quality), or executes in batches with human checkpoints. |
@@ -27,6 +41,50 @@ AI agents skip steps, guess, and declare "done" without verifying. Superpowers b
 | 8 | **deploy-receipt** | When the deploy branch auto-deploys (Railway / Cloudflare Workers / Vercel / Netlify / Fly.io / etc.). Verifies deployed SHA matches merge SHA and healthcheck returns 200. Until the receipt is COMPLETE the merge is not reported as done. |
 
 The agent checks for relevant skills before any task. These are mandatory workflows, not suggestions.
+
+## Five-Source Routing Table
+
+When a task trigger fires, the dispatcher resolves to the first available skill in the preference chain. Order = preference order. Items prefixed with `ci:` are bundled in this plugin; others are namespaced by their installed plugin name.
+
+| Trigger | Law | Preferred → Fallback chain |
+|---|---|---|
+| Write a failing test before code | 3+4 | `ci:tdd-workflow` → `superpowers:test-driven-development` → `agent-skills:test-driven-development` |
+| Verify before declaring done | 4 | `ci:verification-loop` → `superpowers:verification-before-completion` |
+| Block edit until investigation present | 1 | `ci:gateguard` (no equivalents) |
+| Diagnose root cause across layers | 6 | `superpowers:systematic-debugging` → `agent-skills:debugging-and-error-recovery` |
+| Refine vague request into design | 2 | `superpowers:brainstorming` → `agent-skills:idea-refine` |
+| Decompose plan into atomic tasks | 2 | `superpowers:writing-plans` → `agent-skills:planning-and-task-breakdown` → `ci:planning-with-files` |
+| Execute plan with checkpoints | 3+6 | `superpowers:executing-plans` → `agent-skills:incremental-implementation` |
+| Spawn fresh subagent per task | 3 | `superpowers:subagent-driven-development` → `superpowers:dispatching-parallel-agents` |
+| Fan out N parallel agents on isolated worktrees | 3 | `superpowers:dispatching-parallel-agents` → `ruflo-swarm:swarm-init` |
+| Stream live observation of long agent runs | 4 | `ruflo-swarm:monitor-stream` (only source) |
+| Isolate work on a new branch | 3 | `superpowers:using-git-worktrees` (only source) |
+| Decide merge / PR / discard at branch end | 3+4 | `superpowers:finishing-a-development-branch` → `agent-skills:shipping-and-launch` |
+| Pre-review checklist before requesting review | 4 | `superpowers:requesting-code-review` → `agent-skills:code-review-and-quality` |
+| Respond to reviewer feedback | 4 | `superpowers:receiving-code-review` |
+| Verify deployed SHA matches merge SHA | 4 | `ci:deploy-receipt` (only source) |
+| Audit repo / MCP / env at session start | 1 | `ci:workspace-surface-audit` (only source) |
+| Run autonomous PRD loop | 6 | `ci:ralph` → `oh-my-claudecode:ralph` (heavy overlap; prefer CI) |
+| Audit-then-execute production fix sweep | all | `ci:proceed-with-the-recommendation` (only source) |
+| Spec-first contract before implementation | 2 | `agent-skills:spec-driven-development` (only source) |
+| Source-first reading before writing | 1 | `agent-skills:source-driven-development` (only source) |
+| Curate the right context window | 1 | `agent-skills:context-engineering` → `ci:context-budget` |
+| Simplify code, remove duplication | 6 | `agent-skills:code-simplification` → `simplify` |
+| Security review for auth/input/secrets | 4 | `agent-skills:security-and-hardening` → `security-review` |
+| Browser-level visual regression | 4 | `oh-my-claudecode:visual-verdict` (only source) |
+| Reflect after session, extract patterns | 5+7 | `ci:learn-eval` → `oh-my-claudecode:retrospective` |
+| Long autonomous run with quality gates | 6 | `oh-my-claudecode:ultrawork` → `ci:ralph` |
+| Coordinator role for staged hand-off | 3 | `ruflo-swarm:agents/coordinator` (when ruflo installed) |
+| Draft a PRD before implementation | 2 | `pm-skills:prd` (only source) |
+| Decompose into user stories + acceptance criteria | 2 | `pm-skills:user-stories` + `pm-skills:acceptance-criteria` |
+| Write or grade quarterly OKRs | 2 | `pm-skills:okr-writer` + `pm-skills:okr-grader` |
+| Design hypothesis-driven experiment | 2 | `pm-skills:experiment-design` + `pm-skills:hypothesis` |
+| Discovery framework: persona, JTBD, lean canvas | 1 | `pm-skills:persona` + `pm-skills:jtbd-canvas` + `pm-skills:lean-canvas` |
+| Market sizing / competitive analysis | 1 | `pm-skills:market-sizing` + `pm-skills:competitive-analysis` |
+| Meeting agenda / brief / recap / synthesize | 5 | `pm-skills:meeting-*` family |
+| Launch checklist before product release | 4 | `pm-skills:launch-checklist` (no engineering equivalent) |
+
+When no installed plugin in the chain resolves, the dispatcher falls back to the inline protocols below (Test-Driven Development, Brainstorming, Plan Format, etc.) so the workflow still works on a clean install.
 
 ## Stacked-PR Plan Precondition (≥3 files)
 
@@ -140,10 +198,15 @@ Clean separation, parallel development, easy cleanup.
 
 ## Using Superpowers
 
-Superpowers skills activate when their trigger conditions are detected:
+Superpowers skills activate when their trigger conditions are detected. The dispatcher resolves each trigger through the five-source routing table above:
 
-- "Create a feature" → brainstorming → writing-plans → executing-plans
-- "Fix this bug" → systematic-debugging → verification-before-completion
-- "Review this PR" → requesting-code-review
+- "Create a feature" → `superpowers:brainstorming` → `superpowers:writing-plans` → `superpowers:executing-plans`
+- "Fix this bug" → `superpowers:systematic-debugging` → `superpowers:verification-before-completion`
+- "Review this PR" → `superpowers:requesting-code-review`
+- "Draft a PRD" → `pm-skills:prd` → `pm-skills:user-stories` → `pm-skills:acceptance-criteria`
+- "Write OKRs for next quarter" → `pm-skills:okr-writer` then `pm-skills:okr-grader`
+- "Run this PRD autonomously" → `ci:ralph`
+- "Fan out parallel provider migration" → `superpowers:dispatching-parallel-agents` or `/swarm` (PR D)
+- "Visual regression check the landing page" → `oh-my-claudecode:visual-verdict`
 
-No manual skill selection. The framework detects and enforces.
+No manual skill selection. The framework detects the trigger, resolves the chain, and enforces.
