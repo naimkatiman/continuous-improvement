@@ -236,62 +236,19 @@ find third-party/ruflo-swarm -name CLAUDE.md -type f -delete
 
 > **Driver integration deferred.** Adding a `ruflo-swarm` SNAPSHOTS entry to `bin/refresh-third-party.mjs` is tracked as the same follow-up PR as `addy-agent-skills` — see `docs/plans/2026-05-07-ruflo-swarm-vendor.md` § "Deferred follow-ups". The recipe above is the source of truth in the meantime.
 
-### product-on-purpose/pm-skills
+<!--
+  product-on-purpose/pm-skills was vendored here from 2026-05-07 to 2026-05-08
+  (PR #91, SHA 8d23508cb7193435904e6d5f1e550051e0372b25, v2.13.1, Apache-2.0).
+  Removed 2026-05-08 in favor of phuryn/pm-skills via the Claude Code plugin
+  marketplace. See "Pending snapshots" below for the rationale and
+  docs/THIRD_PARTY.md for the install recipe.
+-->
 
-| Field | Value |
-|---|---|
-| Upstream | https://github.com/product-on-purpose/pm-skills |
-| License | Apache-2.0 |
-| Pinned SHA | `8d23508cb7193435904e6d5f1e550051e0372b25` |
-| Snapshot date | 2026-05-07 |
-| Snapshot size | ~8.7 MB, 41 skills + 47 commands |
-| Upstream version at SHA | 2.13.1 |
-| Local path | `third-party/pm-skills/` |
+### product-on-purpose/pm-skills (removed 2026-05-08)
 
-41 product-management skills + 47 commands following the agentskills.io specification. Covers the full product lifecycle: discover, define, develop, deliver, measure, iterate. Includes Meeting Skills Family v2.11.0 and OKR Skills v2.12.0. **Registered in `.claude-plugin/marketplace.json` as of PR A** of the 2026-05-07 unified-dispatcher train. Not loaded into `plugins/continuous-improvement/` itself; per-skill ports remain single-concern PRs gated on user-pain triggers per `OUR_NOTES.md`.
+Vendored snapshot at `third-party/pm-skills/` (v2.13.1, SHA `8d23508cb7193435904e6d5f1e550051e0372b25`, Apache-2.0) was removed on 2026-05-08. Product-management coverage now ships via `phuryn/pm-skills` through Claude Code's plugin marketplace — see "Pending snapshots" below and `docs/THIRD_PARTY.md` for the install recipe.
 
-**Selective scope (verbatim from upstream):**
-
-- `skills/` — 41 product-management skills
-- `agents/` — agent personas
-- `commands/` — 47 slash commands
-- `docs/` — concepts, getting-started, guides, reference, skills, workflows
-- `library/` — upstream content-management surfaces
-- `.claude-plugin/` — plugin + marketplace manifests (read-only reference)
-- `LICENSE`, `README.md`, `AGENTS.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `CODE_OF_CONDUCT.md`
-
-**Excluded from snapshot (not vendored):**
-
-- `_workflows/` — upstream's CI workflow definitions, out of vendor scope
-- `scripts/`, `tests/`, `.github/`, `.git/`, `mkdocs.yml` — repo metadata + build tooling
-- `package.json`, `package-lock.json`, `tsconfig.json` — release tooling
-- `CLAUDE.md` (root) — auto-loads as Claude Code session context if read from this subtree, leaks upstream's em-dash hard rule and contribution-flow rules into the active 7 Laws session. Excluded for cross-contamination safety. Upstream still ships it; refer to upstream URL when needed.
-
-**Refresh recipe:**
-
-```bash
-# 1. Pin the new SHA in this file under "Pinned SHA" above
-# 2. Shallow clone outside the repo (or use the user's existing fork at D:/Ai/pm-skills)
-git clone --depth 1 https://github.com/product-on-purpose/pm-skills.git \
-  /tmp/pm-skills-refresh
-git -C /tmp/pm-skills-refresh rev-parse HEAD  # confirm matches Pinned SHA
-
-# 3. Wipe + re-copy the selective surface
-rm -rf third-party/pm-skills
-mkdir -p third-party/pm-skills
-cp -r /tmp/pm-skills-refresh/{skills,agents,commands,docs,library,.claude-plugin} \
-  third-party/pm-skills/
-cp /tmp/pm-skills-refresh/{LICENSE,README.md,AGENTS.md,CONTRIBUTING.md,CHANGELOG.md,CODE_OF_CONDUCT.md} \
-  third-party/pm-skills/
-
-# Remove every CLAUDE.md inside the snapshot — they auto-load as session context.
-find third-party/pm-skills -name CLAUDE.md -type f -delete
-
-# 4. Single-concern commit:
-#    chore(third-party): refresh product-on-purpose/pm-skills @ <new-sha>
-```
-
-> **Driver integration deferred.** Adding a `pm-skills` SNAPSHOTS entry to `bin/refresh-third-party.mjs` is tracked alongside the `addy-agent-skills` and `ruflo-swarm` driver gaps. The recipe above is the source of truth in the meantime.
+The previous vendored copy is recoverable from git history (`git show <pre-removal-sha>:third-party/pm-skills/...`) if a per-skill port is ever needed.
 
 ---
 
@@ -305,5 +262,5 @@ find third-party/pm-skills -name CLAUDE.md -type f -delete
 ### phuryn/pm-skills
 
 - License audited: MIT
-- **Different repo from `product-on-purpose/pm-skills`** (now vendored above). `phuryn/pm-skills` is a separate MIT-licensed PM skills library; not yet vendored here.
-- Upstream snapshot in `third-party/` deferred per current priorities.
+- **Decision (2026-05-08): use marketplace install, do not vendor.** PM coverage ships as eight separately-installable Claude Code plugins (`pm-toolkit`, `pm-product-strategy`, `pm-product-discovery`, `pm-market-research`, `pm-data-analytics`, `pm-marketing-growth`, `pm-go-to-market`, `pm-execution`). Each is independently versioned by Pawel Huryn and maps cleanly to the marketplace. Vendoring would freeze a snapshot we have no reason to fork.
+- Install recipe lives in `docs/THIRD_PARTY.md`.

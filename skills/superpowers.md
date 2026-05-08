@@ -1,7 +1,7 @@
 ---
 name: superpowers
 tier: companion
-description: "Law activator for the 7 Laws of AI Agent Discipline. Unified five-source dispatcher — routes tasks to the correct Law-aligned specialist across the CI plugin (tdd-workflow, verification-loop, gateguard, ralph, deploy-receipt) and four registered upstream companions (Obra superpowers, addy agent-skills, ruflo-swarm, oh-my-claudecode, pm-skills) so the right discipline fires automatically instead of the agent skipping a step. Not a peer skill — a dispatcher for the others."
+description: "Law activator for the 7 Laws of AI Agent Discipline. Unified four-source dispatcher — routes tasks to the correct Law-aligned specialist across the CI plugin (tdd-workflow, verification-loop, gateguard, ralph, deploy-receipt) and four registered upstream companions (Obra superpowers, addy agent-skills, ruflo-swarm, oh-my-claudecode) so the right discipline fires automatically instead of the agent skipping a step. Product-management coverage comes from phuryn/pm-skills via an out-of-band marketplace install (see docs/THIRD_PARTY.md). Not a peer skill — a dispatcher for the others."
 origin: https://github.com/obra/superpowers
 ---
 
@@ -15,17 +15,32 @@ AI agents skip steps, guess, and declare "done" without verifying. Superpowers b
 
 ## What changed in v3.8.0
 
-The dispatcher now routes across **five registered marketplaces** instead of relying on Obra installed separately. All five are installable from one marketplace entry:
+The dispatcher now routes across **four registered marketplaces** instead of relying on Obra installed separately. All four are installable from one marketplace entry:
 
 ```
 /plugin install superpowers@continuous-improvement       # Obra's 14 workflow skills
 /plugin install agent-skills@continuous-improvement      # Addy's 21 SDLC skills
 /plugin install ruflo-swarm@continuous-improvement       # Agent swarm + Monitor stream
 /plugin install oh-my-claudecode@continuous-improvement  # 39 skills + 19 agents
-/plugin install pm-skills@continuous-improvement         # 41 PM skills + 47 commands
 ```
 
-The CI plugin (this dispatcher + `tdd-workflow`, `verification-loop`, `gateguard`, `ralph`, `deploy-receipt`, etc.) installs by default. The five companions are opt-in — install only what you need.
+The CI plugin (this dispatcher + `tdd-workflow`, `verification-loop`, `gateguard`, `ralph`, `deploy-receipt`, etc.) installs by default. The four companions are opt-in — install only what you need.
+
+Product-management coverage (PRD, OKRs, personas, GTM, etc.) is provided by `phuryn/pm-skills` via an out-of-band Claude Code marketplace install:
+
+```
+claude plugin marketplace add phuryn/pm-skills
+claude plugin install pm-toolkit@pm-skills
+claude plugin install pm-product-strategy@pm-skills
+claude plugin install pm-product-discovery@pm-skills
+claude plugin install pm-market-research@pm-skills
+claude plugin install pm-data-analytics@pm-skills
+claude plugin install pm-marketing-growth@pm-skills
+claude plugin install pm-go-to-market@pm-skills
+claude plugin install pm-execution@pm-skills
+```
+
+See `docs/THIRD_PARTY.md` for plugin-by-plugin scope.
 
 ## The Basic Workflow
 
@@ -42,7 +57,7 @@ The CI plugin (this dispatcher + `tdd-workflow`, `verification-loop`, `gateguard
 
 The agent checks for relevant skills before any task. These are mandatory workflows, not suggestions.
 
-## Five-Source Routing Table
+## Four-Source Routing Table
 
 When a task trigger fires, the dispatcher resolves to the first available skill in the preference chain. Order = preference order. Items prefixed with `ci:` are bundled in this plugin; others are namespaced by their installed plugin name.
 
@@ -75,14 +90,7 @@ When a task trigger fires, the dispatcher resolves to the first available skill 
 | Reflect after session, extract patterns | 5+7 | `ci:learn-eval` → `oh-my-claudecode:retrospective` |
 | Long autonomous run with quality gates | 6 | `oh-my-claudecode:ultrawork` → `ci:ralph` |
 | Coordinator role for staged hand-off | 3 | `ruflo-swarm:agents/coordinator` (when ruflo installed) |
-| Draft a PRD before implementation | 2 | `pm-skills:prd` (only source) |
-| Decompose into user stories + acceptance criteria | 2 | `pm-skills:user-stories` + `pm-skills:acceptance-criteria` |
-| Write or grade quarterly OKRs | 2 | `pm-skills:okr-writer` + `pm-skills:okr-grader` |
-| Design hypothesis-driven experiment | 2 | `pm-skills:experiment-design` + `pm-skills:hypothesis` |
-| Discovery framework: persona, JTBD, lean canvas | 1 | `pm-skills:persona` + `pm-skills:jtbd-canvas` + `pm-skills:lean-canvas` |
-| Market sizing / competitive analysis | 1 | `pm-skills:market-sizing` + `pm-skills:competitive-analysis` |
-| Meeting agenda / brief / recap / synthesize | 5 | `pm-skills:meeting-*` family |
-| Launch checklist before product release | 4 | `pm-skills:launch-checklist` (no engineering equivalent) |
+| Product-management work (PRD, OKRs, personas, GTM, growth, market research, analytics) | 1+2+5 | Install `phuryn/pm-skills` via Claude Code marketplace — see docs/THIRD_PARTY.md. Eight installable plugins (`pm-toolkit`, `pm-product-strategy`, `pm-product-discovery`, `pm-market-research`, `pm-data-analytics`, `pm-marketing-growth`, `pm-go-to-market`, `pm-execution`) cover the full lifecycle. Out of band — not a `/plugin install <name>@continuous-improvement` target. |
 
 When no installed plugin in the chain resolves, the dispatcher falls back to the inline protocols below (Test-Driven Development, Brainstorming, Plan Format, etc.) so the workflow still works on a clean install.
 
@@ -203,8 +211,7 @@ Superpowers skills activate when their trigger conditions are detected. The disp
 - "Create a feature" → `superpowers:brainstorming` → `superpowers:writing-plans` → `superpowers:executing-plans`
 - "Fix this bug" → `superpowers:systematic-debugging` → `superpowers:verification-before-completion`
 - "Review this PR" → `superpowers:requesting-code-review`
-- "Draft a PRD" → `pm-skills:prd` → `pm-skills:user-stories` → `pm-skills:acceptance-criteria`
-- "Write OKRs for next quarter" → `pm-skills:okr-writer` then `pm-skills:okr-grader`
+- "Draft a PRD" / "Write OKRs" / "Build a persona" → install `phuryn/pm-skills` (out of band — see docs/THIRD_PARTY.md)
 - "Run this PRD autonomously" → `ci:ralph`
 - "Fan out parallel provider migration" → `superpowers:dispatching-parallel-agents` or `/swarm` (PR D)
 - "Visual regression check the landing page" → `oh-my-claudecode:visual-verdict`
