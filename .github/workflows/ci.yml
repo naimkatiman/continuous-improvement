@@ -35,7 +35,7 @@ jobs:
           node -e "const pkg = require('./package.json'); const runtime = ['dependencies','optionalDependencies','bundleDependencies'].flatMap((key) => Object.keys(pkg[key] || {})); if (runtime.length) { console.error('ERROR: runtime dependencies must stay empty:', runtime.join(', ')); process.exit(1); }"
 
       - name: Verify generated artifacts are committed
-        run: git diff --exit-code -- bin test
+        run: git diff --exit-code -- .claude-plugin bin test lib plugins
 
       - name: Verify SKILL.md contains all 7 laws
         run: |
