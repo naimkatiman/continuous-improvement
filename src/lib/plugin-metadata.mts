@@ -137,11 +137,17 @@ const CLAUDE_PLUGIN_CATEGORY = "productivity";
 const SHARED_PLUGIN_DESCRIPTION =
   "Stops Claude Code from skipping research, claiming 'done' without verifying, and repeating yesterday's mistakes. The 7 Laws of AI Agent Discipline — 13 enforcement skills, gating hooks, and the Mulahazah auto-leveling instinct engine.";
 
-// Five vendored upstream companions registered alongside the CI plugin.
+// Four vendored upstream companions registered alongside the CI plugin.
 // Each entry points at a pinned-SHA snapshot under third-party/<name>/.
 // See third-party/MANIFEST.md for refresh recipes and per-snapshot
 // OUR_NOTES.md for integration scope and overlap matrices. The unified
-// /superpowers dispatcher (skills/superpowers.md) routes across all five.
+// /superpowers dispatcher (skills/superpowers.md) routes across all four.
+// Product-management coverage is supplied by phuryn/pm-skills as an
+// out-of-band marketplace install — see docs/THIRD_PARTY.md for the
+// `claude plugin marketplace add phuryn/pm-skills` recipe and the eight
+// installable plugins (pm-toolkit, pm-product-strategy, pm-product-discovery,
+// pm-market-research, pm-data-analytics, pm-marketing-growth,
+// pm-go-to-market, pm-execution).
 const THIRD_PARTY_COMPANIONS: ClaudeMarketplacePluginEntry[] = [
   {
     name: "superpowers",
@@ -192,19 +198,6 @@ const THIRD_PARTY_COMPANIONS: ClaudeMarketplacePluginEntry[] = [
     },
     category: "orchestration",
     homepage: "https://github.com/Yeachan-Heo/oh-my-claudecode",
-  },
-  {
-    name: "pm-skills",
-    description:
-      "Product management skills for AI agents — 41 skills + 47 commands across the full product lifecycle (discover, define, develop, deliver, measure, iterate). Includes Meeting Skills Family v2.11.0 (5 cross-cutting skills under a shared contract with enforcing CI), OKR Skills v2.12.0 (foundation-okr-writer + measure-okr-grader for the quarterly OKR write-and-score cycle), lean canvas, persona, JTBD, PRD, user stories, acceptance criteria, hypothesis, experiment design, retrospective, launch checklist, release notes, and pm-skill-builder for authoring new skills. Follows the agentskills.io specification. Vendored snapshot at third-party/pm-skills/ pinned to upstream SHA 8d23508 (v2.13.1).",
-    version: "2.13.1",
-    source: "./third-party/pm-skills",
-    author: {
-      name: "product-on-purpose",
-      url: "https://github.com/product-on-purpose",
-    },
-    category: "product",
-    homepage: "https://github.com/product-on-purpose/pm-skills",
   },
 ];
 
@@ -562,7 +555,7 @@ export function getClaudeRepoMarketplaceManifest(
   return {
     name: PACKAGE_NAME,
     description:
-      "Marketplace for the Continuous Improvement Claude Code plugin and five vendored upstream companions (Obra superpowers, addyosmani/agent-skills, ruflo-swarm, oh-my-claudecode, product-on-purpose/pm-skills). All five companions are pinned-SHA snapshots in third-party/ — see third-party/MANIFEST.md for refresh recipes and per-snapshot OUR_NOTES.md for integration scope.",
+      "Marketplace for the Continuous Improvement Claude Code plugin and four vendored upstream companions (Obra superpowers, addyosmani/agent-skills, ruflo-swarm, oh-my-claudecode). All four companions are pinned-SHA snapshots in third-party/ — see third-party/MANIFEST.md for refresh recipes and per-snapshot OUR_NOTES.md for integration scope. Product-management coverage is provided out-of-band by phuryn/pm-skills via Claude Code's plugin marketplace — see docs/THIRD_PARTY.md.",
     owner: {
       name: AUTHOR.name,
     },
