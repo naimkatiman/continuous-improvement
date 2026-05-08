@@ -147,6 +147,36 @@ For repos whose `verify-ladder.json` declares a `deploy_receipt` field — or wh
 
 INCOMPLETE receipts move to "Immediate operator action" in the close, never to "ready". Library-only / package-published repos skip this phase entirely (no deploy seam exists).
 
+### Phase 9: Synthetic Checks (production-vs-baseline diff)
+
+Phase 8 confirms the deploy seam. Phase 9 confirms the deployed surface matches the staging baseline on the dimensions that matter — endpoint payload shape, header presence, data freshness, routing correctness. A deploy can land with a matching SHA and a 200 healthcheck and still serve broken responses (stale data sources, dropped headers, regressed payloads). Phase 9 is the gate that catches that.
+
+**When this rung runs:**
+
+- ONLY after Phase 8 reports `Receipt status: COMPLETE`. An INCOMPLETE receipt blocks Phase 9 — fix the receipt gap first, then re-run.
+- ONLY when the resolved ladder declares `synthetic_checks` as a non-null directory path (default: `synthetic-checks/`). A `null` field skips the rung silently. A missing field falls through to the directory sniff: if `synthetic-checks/` exists at the repo root with at least one `*.synthetic.*` file, the rung activates; otherwise it is recorded as "skipped — no synthetic-checks directory found".
+
+**What the runner does:**
+
+1. List every `*.synthetic.{sh,mjs,ts,py}` file in the resolved directory in lexical order.
+2. For each file, set the input env vars: `BASE_URL` (production base from project config), `BASELINE_URL` (staging baseline from project config), `EXPECTED_SHA` (the merge SHA Phase 8 reported COMPLETE), `DEPLOY_BRANCH` (the deploy branch name), `RECEIPT_TIMESTAMP` (ISO-8601 of the receipt).
+3. Invoke the file via the right interpreter (`bash` for `.sh`, `node` for `.mjs`, `tsx` for `.ts`, `python` for `.py`). Files with unrecognized extensions are skipped with a warning.
+4. Capture stdout + stderr + exit code per file. On exit 0, the check passed. On any non-zero exit, the check failed and stdout is the operator-facing diff.
+5. Aggregate: if every file exited 0, Phase 9 is `PASS`. If any file exited non-zero, Phase 9 is `FAIL — synthetic drift on <filenames>` and the captured diffs go into the verification report verbatim (no agent re-summarization).
+
+**Surfacing rule:**
+
+A failed synthetic check surfaces as `INCOMPLETE — synthetic drift` at the same severity as a failed deploy receipt. The merge moves to "Immediate operator action" with the named drift and the diff payload. Do NOT downgrade synthetic drift to "warning" — the rung exists because the report flagged exactly this gap (deploys that look healthy but serve broken responses).
+
+**Anti-patterns specific to this rung:**
+
+- **Smoke checks masquerading as synthetic checks.** A check that only verifies "endpoint returns 200" passes against a stale deploy. Synthetic checks MUST diff production against a baseline.
+- **Hardcoded baseline URLs in the check.** Baseline lives in env (`BASELINE_URL`), not in the file. Hardcoding it breaks the convention and makes per-environment use impossible.
+- **Re-summarizing the diff.** The captured stdout from a failed check is the operator-facing artifact. The agent does not re-write or shorten it.
+- **Treating an absent directory as PASS.** No synthetic-checks directory means the rung is `skipped`, not `PASS`. The operator sees the absence in the resolved ladder.
+
+See `synthetic-checks/README.md` for the file convention, the input/output contract, and a runnable sample (`example-version-endpoint.synthetic.sh`).
+
 ## Output Format
 
 After running all phases, produce a verification report:
@@ -163,6 +193,8 @@ Security:     [PASS/FAIL] (X issues)
 Diff:         [X files changed]
 Goal landed:  [YES/NO] — <one-line evidence or gap>
 All promised: [YES/NO] — <X of Y steps Done; list any Skipped>
+Deploy:       [COMPLETE/INCOMPLETE/skipped] — <SHA + health summary>
+Synthetic:    [PASS/FAIL/skipped] — <X of Y checks; failed: <filenames>>
 
 Overall:   [READY/NOT READY] for PR
 

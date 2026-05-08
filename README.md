@@ -357,6 +357,7 @@ Authored end-to-end with `/superpowers` and `/proceed-with-the-recommendation`: 
 - [QUICKSTART.md](QUICKSTART.md) — 2-minute setup
 - [SKILL.md](SKILL.md) — full 7 Laws spec
 - [examples/](examples/) — bug fix, feature build, refactor walkthroughs
+- [templates/insights-claude-md.md](templates/insights-claude-md.md) — paste-in CLAUDE.md blocks for verification discipline, environment notes, think-before-acting, and git/deploy workflow (sourced from the 28-day usage report)
 - [CONTRIBUTING.md](CONTRIBUTING.md) — architecture, repo internals
 - [SECURITY.md](SECURITY.md)
 

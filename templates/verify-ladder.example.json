@@ -9,39 +9,52 @@
     "Three starter shapes are provided below — pick one, delete the others, then trim."
   ],
 
+  "_synthetic_checks_doc": [
+    "synthetic_checks names a directory (relative to the repo root) containing",
+    "*.synthetic.{sh,mjs,ts,py} files. Each file is invoked once after deploy-receipt",
+    "reports COMPLETE, with BASE_URL + BASELINE_URL + EXPECTED_SHA env vars set.",
+    "Exit 0 = production matches baseline; non-zero = drift, stdout is the diff.",
+    "Set to null to skip; set to a different path (e.g. 'infra/synthetic/') to relocate.",
+    "See synthetic-checks/README.md for the full contract."
+  ],
+
   "_typescript_node_example": {
-    "build":          "npm run build",
-    "typecheck":      "npx tsc --noEmit",
-    "lint":           "npm run lint",
-    "test":           "npm test",
-    "security":       "npm audit --audit-level=high",
-    "deploy_receipt": null
+    "build":            "npm run build",
+    "typecheck":        "npx tsc --noEmit",
+    "lint":             "npm run lint",
+    "test":             "npm test",
+    "security":         "npm audit --audit-level=high",
+    "deploy_receipt":   null,
+    "synthetic_checks": null
   },
 
   "_rust_cargo_example": {
-    "build":          "cargo build --release",
-    "typecheck":      "cargo check --all-targets",
-    "lint":           "cargo clippy --all-targets -- -D warnings",
-    "test":           "cargo test --all-features",
-    "security":       "cargo audit",
-    "deploy_receipt": null
+    "build":            "cargo build --release",
+    "typecheck":        "cargo check --all-targets",
+    "lint":             "cargo clippy --all-targets -- -D warnings",
+    "test":             "cargo test --all-features",
+    "security":         "cargo audit",
+    "deploy_receipt":   null,
+    "synthetic_checks": null
   },
 
   "_python_uv_example": {
-    "build":          null,
-    "typecheck":      "uv run pyright",
-    "lint":           "uv run ruff check .",
-    "test":           "uv run pytest",
-    "security":       "uv run pip-audit",
-    "deploy_receipt": null
+    "build":            null,
+    "typecheck":        "uv run pyright",
+    "lint":             "uv run ruff check .",
+    "test":             "uv run pytest",
+    "security":         "uv run pip-audit",
+    "deploy_receipt":   null,
+    "synthetic_checks": null
   },
 
   "_cloudflare_worker_example": {
-    "build":          "npm run build",
-    "typecheck":      "npx tsc --noEmit",
-    "lint":           "npm run lint",
-    "test":           "npm test",
-    "security":       "npm audit --audit-level=high",
-    "deploy_receipt": "npx wrangler deployments list --json"
+    "build":            "npm run build",
+    "typecheck":        "npx tsc --noEmit",
+    "lint":             "npm run lint",
+    "test":             "npm test",
+    "security":         "npm audit --audit-level=high",
+    "deploy_receipt":   "npx wrangler deployments list --json",
+    "synthetic_checks": "synthetic-checks/"
   }
 }
