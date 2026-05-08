@@ -51,7 +51,7 @@ The whole thing is MIT, free, and lives in this one repo. No service, no account
 
 **If you don't know which to pick, use Beginner.** It is enough for ~90% of users and adds no Node or bash dependency.
 
-### Beginner — inside Claude Code, two commands
+### Beginner — inside Claude Code, two commands (plus one optional companion)
 
 You get the 7 Laws skill, the hooks that enforce it, and the slash commands. Nothing else to install.
 
@@ -63,8 +63,24 @@ You get the 7 Laws skill, the hooks that enforce it, and the slash commands. Not
 
 The doubled name is correct: it reads as `<plugin>@<marketplace>`.
 
+**Optional companion (recommended).** The `/superpowers` dispatcher routes per-task to specialist skills (`writing-plans`, `test-driven-development`, `using-git-worktrees`, `dispatching-parallel-agents`, `finishing-a-development-branch`, etc.) shipped by Obra's `superpowers` plugin, which is vendored into this same marketplace as a pinned-SHA snapshot. Install it with one extra line:
+
+```bash
+/plugin install superpowers@continuous-improvement
+```
+
+Without the companion the dispatcher still works — every routing target has a concrete inline fallback — but specialist quality is fallback-quality, not dedicated-skill-quality.
+
 Verify: run `/discipline` in Claude Code — you should see the 7 Laws card.
 If the command is not recognized, restart your Claude Code session first; the marketplace did pick the plugin up but commands load on session start.
+
+**Second-stage verify (proves the hooks are live, not just the docs).** Ask Claude to write to a throwaway file with no research first:
+
+```
+Edit a new file scratch.txt and put the word "hello" in it. Don't research anything first.
+```
+
+You should see Claude pause or refuse — that is `gateguard` enforcing Law 1. If Claude writes the file with no pushback, the hooks did not install; see Troubleshooting below.
 
 ### Expert — adds MCP server, observation hooks, and instinct packs
 
@@ -145,20 +161,25 @@ Hooks capture every tool call. After ~20 observations, Claude analyzes patterns 
 
 ## Slash Commands
 
+`/seven-laws` is the canonical reflect-and-learn command. `/continuous-improvement` is kept as an alias for backward compatibility — both run the same workflow.
+
 ```
-/seven-laws                       Reflect, analyze, show status (brand-aligned name)
-/continuous-improvement           Same workflow as /seven-laws (kept for backward compat)
+/seven-laws                       Reflect, analyze, show status (canonical)
+/continuous-improvement           Alias for /seven-laws (kept for backward compat)
 /proceed-with-the-recommendation  Walk any agent's recommendation list top-to-bottom
 /superpowers                      Law activator — route the task to the right specialist
 /workspace-surface-audit          Audit repo + MCP + env, recommend high-value skills
 /planning-with-files              Create task_plan.md, findings.md, progress.md
 /discipline                       Quick reference card of the 7 Laws
 /dashboard                        Visual instinct health dashboard
-/ralph                            Autonomous PRD story-by-story loop (expert)
+/ralph                            Autonomous PRD story-by-story loop
 /learn-eval                       Capture session patterns into new skills (expert)
+/harvest                          Extract reusable patterns from session friction
+/release-train                    Coordinate a multi-PR release sequence
+/swarm                            Fan-out coordination across parallel sub-agents
 ```
 
-In expert mode, the same planning workflow is also available programmatically through the MCP tools `ci_plan_init` (initialize `task_plan.md`, `findings.md`, `progress.md` in the project root) and `ci_plan_status` (summarize their current contents).
+All 13 ship in the marketplace bundle. The Beginner install gets all of them. In Expert (`npx`) mode, the installer mirrors the full set into `~/.claude/commands/` and additionally exposes the planning workflow through the MCP tools `ci_plan_init` (initialize `task_plan.md`, `findings.md`, `progress.md` in the project root) and `ci_plan_status` (summarize their current contents).
 
 ---
 
