@@ -1,5 +1,5 @@
 export const PACKAGE_NAME = "continuous-improvement";
-export const VERSION = "3.8.0";
+export const VERSION = "3.9.0";
 export const PLUGIN_MODES = ["beginner", "expert"];
 const REPOSITORY_URL = "https://github.com/naimkatiman/continuous-improvement";
 const HOMEPAGE_URL = `${REPOSITORY_URL}#readme`;
