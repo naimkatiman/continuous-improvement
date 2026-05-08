@@ -58,10 +58,12 @@ describe("hooks/gateguard.mjs (runtime PreToolUse hook — issue #106)", () => {
         it("hooks/gateguard.mjs is present in the repo", () => {
             assert.ok(existsSync(HOOK_PATH), `expected ${HOOK_PATH} to exist — see issue #106 acceptance criteria`);
         });
-        it("hooks/gateguard.mjs is wired as the first PreToolUse hook", async () => {
-            const hooksJson = await import(join(REPO_ROOT, "hooks", "hooks.json"), {
-                with: { type: "json" },
-            });
+        it("hooks/gateguard.mjs is wired as the first PreToolUse hook in the plugin bundle", async () => {
+            // The runtime hooks.json is generated into the plugin bundle by the build,
+            // not into the repo-root hooks/. Source-of-truth lives in
+            // src/lib/plugin-metadata.mts → getPluginHooksConfig().
+            const hooksJsonPath = join(REPO_ROOT, "plugins", "continuous-improvement", "hooks", "hooks.json");
+            const hooksJson = await import(hooksJsonPath, { with: { type: "json" } });
             const preToolUse = hooksJson.default.hooks
                 .PreToolUse;
             assert.ok(Array.isArray(preToolUse) && preToolUse.length > 0, "PreToolUse hooks present");
