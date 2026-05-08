@@ -7,7 +7,9 @@ origin: community
 
 # GateGuard — Fact-Forcing Pre-Action Gate
 
-A PreToolUse hook that forces the agent to investigate before editing. Instead of self-evaluation ("are you sure?"), it demands concrete facts. The act of investigation creates awareness that self-evaluation never did.
+A skill that forces the agent to investigate before editing. Instead of self-evaluation ("are you sure?"), it demands concrete facts. The act of investigation creates awareness that self-evaluation never did.
+
+> **Implementation status (as of v3.9.0):** GateGuard ships as **model-side discipline only** — the agent loads this skill into context and refuses Edit/Write/destructive Bash until the facts below are presented. A runtime PreToolUse hook that physically blocks the tool call is on the roadmap, tracked in [issue #106](https://github.com/naimkatiman/continuous-improvement/issues/106). Until that ships, the gate's strength depends on the agent reading and applying this skill, not on a tripwire that the tool runtime can't bypass.
 
 ## When to Activate
 
@@ -124,18 +126,17 @@ This gate is what catches the squash-merge / ahead-of-origin trap recorded in th
 
 ## Quick Start
 
-### Option A: Use the continuous-improvement hook (zero install)
+### Today (v3.9.0): model-side skill
 
-The hook at `scripts/hooks/gateguard-fact-force.js` is included in this plugin. Enable it via hooks.json.
+The skill is registered when you install the plugin. The agent reads this file and applies the gates listed above before performing any qualifying tool call. No additional config needed — but no runtime tripwire either; the gate fires only when the agent chooses to honor it. If you observe the agent skipping the gate, name the Law back: *"You skipped Law 1 — research first."*
 
-### Option B: Full package with config
+### Roadmap: runtime PreToolUse hook
 
-```bash
-pip install gateguard-ai
-gateguard init
-```
+Tracked in [issue #106](https://github.com/naimkatiman/continuous-improvement/issues/106). Will physically block the first Edit/Write per session and every destructive Bash via a `hooks/gateguard.mjs` script wired into `hooks/hooks.json`. Acceptance criteria, RED-GREEN-REFACTOR plan, and out-of-scope items are all in the issue.
 
-This adds `.gateguard.yml` for per-project configuration (custom messages, ignore paths, gate toggles).
+### Roadmap: third-party `gateguard-ai` package
+
+The standalone `gateguard-ai` Python/CLI package referenced in earlier drafts of this skill is not currently part of this plugin and not a published package. It may ship later with `.gateguard.yml` per-project config; for now, treat it as design notes only.
 
 ## Anti-Patterns
 

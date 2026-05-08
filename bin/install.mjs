@@ -21,11 +21,18 @@ const SKILL_NAME = "continuous-improvement";
 const REPO_ROOT = join(__dirname, "..");
 const COMMAND_FILES = [
     "continuous-improvement.md",
+    "dashboard.md",
+    "discipline.md",
+    "harvest.md",
+    "learn-eval.md",
     "planning-with-files.md",
     "proceed-with-the-recommendation.md",
-    "discipline.md",
-    "dashboard.md",
-    "learn-eval.md",
+    "ralph.md",
+    "release-train.md",
+    "seven-laws.md",
+    "superpowers.md",
+    "swarm.md",
+    "workspace-surface-audit.md",
 ];
 const HOOK_TYPES = ["PreToolUse", "PostToolUse"];
 const SESSION_HOOK_TYPES = ["SessionStart", "SessionEnd"];
