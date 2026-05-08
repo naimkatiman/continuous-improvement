@@ -21,7 +21,7 @@
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it, before, after } from "node:test";
@@ -58,14 +58,16 @@ describe("hooks/gateguard.mjs (runtime PreToolUse hook — issue #106)", () => {
         it("hooks/gateguard.mjs is present in the repo", () => {
             assert.ok(existsSync(HOOK_PATH), `expected ${HOOK_PATH} to exist — see issue #106 acceptance criteria`);
         });
-        it("hooks/gateguard.mjs is wired as the first PreToolUse hook in the plugin bundle", async () => {
+        it("hooks/gateguard.mjs is wired as the first PreToolUse hook in the plugin bundle", () => {
             // The runtime hooks.json is generated into the plugin bundle by the build,
             // not into the repo-root hooks/. Source-of-truth lives in
             // src/lib/plugin-metadata.mts → getPluginHooksConfig().
+            // readFileSync + JSON.parse — avoids Node's ESM URL scheme requirement on
+            // Windows (`import("d:\\...")` fails with ERR_UNSUPPORTED_ESM_URL_SCHEME).
             const hooksJsonPath = join(REPO_ROOT, "plugins", "continuous-improvement", "hooks", "hooks.json");
-            const hooksJson = await import(hooksJsonPath, { with: { type: "json" } });
-            const preToolUse = hooksJson.default.hooks
-                .PreToolUse;
+            assert.ok(existsSync(hooksJsonPath), "plugin-bundle hooks.json should exist");
+            const hooksJson = JSON.parse(readFileSync(hooksJsonPath, "utf8"));
+            const preToolUse = hooksJson.hooks.PreToolUse;
             assert.ok(Array.isArray(preToolUse) && preToolUse.length > 0, "PreToolUse hooks present");
             const first = preToolUse[0].hooks[0];
             assert.match(first.command, /gateguard\.mjs/, "first PreToolUse hook must be gateguard");
