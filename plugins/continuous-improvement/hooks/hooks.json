@@ -1,9 +1,14 @@
 {
-  "description": "Observation, session lifecycle, and 3-section-close discipline hooks for continuous-improvement.",
+  "description": "Gateguard fact-forcing PreToolUse, observation, session lifecycle, and 3-section-close discipline hooks for continuous-improvement.",
   "hooks": {
     "PreToolUse": [
       {
         "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/gateguard.mjs\"",
+            "timeout": 5
+          },
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/observe.sh\"",

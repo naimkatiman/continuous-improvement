@@ -496,6 +496,11 @@ export function getClaudePluginManifest(): ClaudePluginManifest {
 }
 
 export function getPluginHooksConfig(): PluginHooksConfig {
+  const gateguardCommand = {
+    type: "command" as const,
+    command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/gateguard.mjs\"",
+    timeout: 5,
+  };
   const observeCommand = {
     type: "command" as const,
     command: "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/observe.sh\"",
@@ -514,9 +519,13 @@ export function getPluginHooksConfig(): PluginHooksConfig {
 
   return {
     description:
-      "Observation, session lifecycle, and 3-section-close discipline hooks for continuous-improvement.",
+      "Gateguard fact-forcing PreToolUse, observation, session lifecycle, and 3-section-close discipline hooks for continuous-improvement.",
     hooks: {
-      PreToolUse: [{ hooks: [observeCommand] }],
+      // gateguard runs FIRST so its block decision short-circuits before
+      // observe.sh records the tool call. observe.sh stays in PreToolUse for
+      // the observation feed; the Claude Code host runs both regardless of
+      // gateguard's decision.
+      PreToolUse: [{ hooks: [gateguardCommand, observeCommand] }],
       PostToolUse: [{ hooks: [observeCommand] }],
       SessionStart: [{ hooks: [sessionCommand] }],
       SessionEnd: [{ hooks: [sessionCommand] }],
