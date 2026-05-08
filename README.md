@@ -38,7 +38,7 @@ Every one of those failures is the agent skipping a step a disciplined engineer 
 ## What you get
 
 - **A 7-step discipline** the agent must follow every task — research → plan → execute one thing → verify → reflect → learn → iterate. Each Law has at least one skill or hook that enforces it.
-- **13 bundled skills** that turn the Laws from a doc into runtime behavior — `gateguard` blocks unverified Edit/Write/destructive Bash, `tdd-workflow` enforces RED → GREEN → REFACTOR, `verification-loop` runs build/types/tests/security before "done", `proceed-with-the-recommendation` walks any agent's recommendation list top-to-bottom with per-item verification.
+- **13 bundled skills** that turn the Laws from a doc into agent behavior — `gateguard` prompts the agent to investigate before Edit/Write/destructive Bash, `tdd-workflow` enforces RED → GREEN → REFACTOR, `verification-loop` runs build/types/tests/security before "done", `proceed-with-the-recommendation` walks any agent's recommendation list top-to-bottom with per-item verification. These run as model-side discipline; the agent reads each skill and applies it. The session and observation hooks (`hooks/`) wire the learning loop, not a runtime tool-call block — see [§ A note on enforcement](#a-note-on-enforcement).
 - **Mulahazah, the auto-leveling instinct engine** — hooks capture every tool call; after ~20 observations the agent analyzes patterns and creates instincts with confidence scores. Suggestions appear at 0.5+, auto-apply at 0.7+, decay when ignored. Project-scoped, promote to global after 2+ projects. You configure nothing.
 - **A GitHub Action transcript linter** that catches skipped Laws in CI — writes without prior research, edits without verification, too many files at once.
 - **Two install paths** — Beginner is two slash commands inside Claude Code (no Node, no bash, ~90% of users). Expert adds the MCP server, observation hooks, instinct packs, and the linter.
@@ -74,13 +74,11 @@ Without the companion the dispatcher still works — every routing target has a 
 Verify: run `/discipline` in Claude Code — you should see the 7 Laws card.
 If the command is not recognized, restart your Claude Code session first; the marketplace did pick the plugin up but commands load on session start.
 
-**Second-stage verify (proves the hooks are live, not just the docs).** Ask Claude to write to a throwaway file with no research first:
+**Second-stage verify (proves the bundle dropped beyond just the slash command).** Run `/dashboard` — the rendered card with `Level: CAPTURE` and observation counters confirms the skills + observation hooks landed.
 
-```
-Edit a new file scratch.txt and put the word "hello" in it. Don't research anything first.
-```
+### A note on enforcement
 
-You should see Claude pause or refuse — that is `gateguard` enforcing Law 1. If Claude writes the file with no pushback, the hooks did not install; see Troubleshooting below.
+The 7 Laws are enforced **at the model layer, not the runtime layer**. When you ask Claude to write a file with no research, `gateguard` prompts Claude to investigate first — but this is model-side discipline (the model reads the skill and chooses to comply), not a PreToolUse hook that physically refuses the tool call. The `hooks/` directory wires observation (`observe.sh`/`observe.mjs`) and end-of-turn three-section close (`three-section-close.mjs`); neither blocks an Edit. A roadmap item tracks adding a true runtime gate — see the open issue linked in [skills/gateguard.md](skills/gateguard.md). Until then, value comes from the agent reading the Laws as part of its loaded context.
 
 ### Expert — adds MCP server, observation hooks, and instinct packs
 
@@ -200,7 +198,7 @@ The plugin ships **1 core + 1 featured + 4 tier-1 + 4 tier-2 + 3 always-bundled 
 |---|-------|------|-----|--------------|
 | 1 | [`continuous-improvement`](SKILL.md) | core | — | The 7 Laws spec itself (research → plan → execute → verify → reflect → learn → iterate) |
 | 2 | [`proceed-with-the-recommendation`](skills/proceed-with-the-recommendation.md) ⭐ | featured | all 7 | Walks any agent's recommendation list top-to-bottom, routes each item, verifies per item, halts on `needs-approval` |
-| 3 | [`gateguard`](skills/gateguard.md) | 1 | 1 | PreToolUse gate that blocks Edit/Write/destructive Bash until concrete investigation is presented |
+| 3 | [`gateguard`](skills/gateguard.md) | 1 | 1 | Skill that prompts the agent to investigate (importers, schemas, user instruction) before Edit/Write/destructive Bash. Runtime PreToolUse hook is a roadmap item, not yet bundled. |
 | 4 | [`para-memory-files`](skills/para-memory-files.md) | 1 | 5 + 7 | Durable file-based memory using PARA (Projects/Areas/Resources/Archives) for cross-session context |
 | 5 | [`tdd-workflow`](skills/tdd-workflow.md) | 1 | 3 + 4 | RED → GREEN → REFACTOR enforcement with 80%+ coverage across unit/integration/E2E |
 | 6 | [`verification-loop`](skills/verification-loop.md) | 1 | 4 | Six-phase verification (build, types, lint, tests, security, diff) with PASS/FAIL report |

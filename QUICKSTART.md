@@ -33,13 +33,19 @@ Without it, `/superpowers` still works — it falls back to inline behavior — 
 
 You should see the 7 Laws quick-reference card. If the command is not recognized after a restart, see Troubleshooting in [README.md](README.md#troubleshooting-install).
 
-**Check 2 — hooks are live (proves the discipline is actually enforcing, not just documented).** Ask Claude to write to a throwaway file without doing any research first:
+**Check 2 — skill registered.** Run:
 
 ```
-Edit a new file scratch.txt and put the word "hello" in it. Don't research anything first.
+/dashboard
 ```
 
-You should see Claude **refuse or pause** because `gateguard` (Law 1) blocks Edit/Write until concrete investigation is presented. That refusal is the proof the hooks are wired. If Claude just writes the file with no pushback, the hooks did not install — see [README.md → Troubleshooting](README.md#troubleshooting-install).
+You should see the dashboard render with `Level: CAPTURE` and observation count 0 (or higher). If `/dashboard` is unrecognized after a restart, the install did not complete; rerun the marketplace install.
+
+### A note on enforcement
+
+The 7 Laws are enforced **at the model layer, not the runtime layer**. When you ask Claude to write a file with no research, the bundled `gateguard` skill prompts Claude to investigate first — but this is model-side discipline (the model reads the skill and chooses to comply), not a runtime PreToolUse block that physically refuses the tool call. A future release may add a true runtime hook; until then, the value of the framework comes from the agent reading the Laws as part of its loaded context, not from a tripwire.
+
+If you ever see Claude skip a Law, name it back: *"You skipped Law 1 — research first."* That correction is what trains the instinct system over time.
 
 ---
 
