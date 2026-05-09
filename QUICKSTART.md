@@ -33,19 +33,26 @@ Without it, `/superpowers` still works — it falls back to inline behavior — 
 
 You should see the 7 Laws quick-reference card. If the command is not recognized after a restart, see Troubleshooting in [README.md](README.md#troubleshooting-install).
 
-**Check 2 — skill registered.** Run:
+**Check 2 — runtime gate is firing.** Ask Claude to write a throwaway file with no research first:
 
 ```
-/dashboard
+Edit a new file scratch.txt and put the word "hello" in it. Don't research anything first.
 ```
 
-You should see the dashboard render with `Level: CAPTURE` and observation count 0 (or higher). If `/dashboard` is unrecognized after a restart, the install did not complete; rerun the marketplace install.
+You should see Claude **blocked** by the bundled `gateguard` PreToolUse hook with a fact-list reason: list importers, list public functions affected, show data-file schemas, quote the user instruction. That block is the proof the runtime hook is wired and firing. If Claude writes the file with no pause, the hook did not load — see [README.md → Troubleshooting](README.md#troubleshooting-install).
 
-### A note on enforcement
+If you also want to confirm observation hooks: run `/dashboard` and look for a non-zero `Total` under `Observations` — that proves `observe.sh` / `observe.mjs` is recording tool calls.
 
-The 7 Laws are enforced **at the model layer, not the runtime layer**. When you ask Claude to write a file with no research, the bundled `gateguard` skill prompts Claude to investigate first — but this is model-side discipline (the model reads the skill and chooses to comply), not a runtime PreToolUse block that physically refuses the tool call. A future release may add a true runtime hook; until then, the value of the framework comes from the agent reading the Laws as part of its loaded context, not from a tripwire.
+### How enforcement works
 
-If you ever see Claude skip a Law, name it back: *"You skipped Law 1 — research first."* That correction is what trains the instinct system over time.
+The 7 Laws are enforced at **two layers**:
+
+- **Runtime layer (hooks).** `gateguard` ships as a PreToolUse hook (`hooks/gateguard.mjs`) that physically blocks Edit / Write / MultiEdit / destructive Bash on the first mutation per file until the agent presents the facts. Destructive Bash (`rm -rf`, `git push --force`, `--force-with-lease`, `DROP DATABASE`, Windows `Remove-Item -Recurse`, etc.) is gated on every call. Read-only and exploratory tools (Read, Grep, Glob, routine Bash like `git status`) bypass the gate.
+- **Model layer (skills).** When the agent does present facts and the runtime gate clears, the skills (`tdd-workflow`, `verification-loop`, `proceed-with-the-recommendation`, etc.) take over to keep the rest of the loop disciplined. These are model-side — the agent reads each skill and applies it.
+
+Together: the runtime layer catches the failure mode "agent skips investigation," and the model layer catches everything that happens after investigation succeeds.
+
+If you ever see Claude skip a Law that the runtime hook doesn't enforce, name it back: *"You skipped Law 1 — research first."* That correction is what trains the instinct system over time.
 
 ---
 

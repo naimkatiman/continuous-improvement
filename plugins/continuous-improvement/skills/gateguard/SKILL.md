@@ -7,9 +7,9 @@ origin: community
 
 # GateGuard — Fact-Forcing Pre-Action Gate
 
-A skill that forces the agent to investigate before editing. Instead of self-evaluation ("are you sure?"), it demands concrete facts. The act of investigation creates awareness that self-evaluation never did.
+A runtime PreToolUse hook + skill pair that forces the agent to investigate before editing. Instead of self-evaluation ("are you sure?"), it demands concrete facts. The act of investigation creates awareness that self-evaluation never did.
 
-> **Implementation status (as of v3.9.0):** GateGuard ships as **model-side discipline only** — the agent loads this skill into context and refuses Edit/Write/destructive Bash until the facts below are presented. A runtime PreToolUse hook that physically blocks the tool call is on the roadmap, tracked in [issue #106](https://github.com/naimkatiman/continuous-improvement/issues/106). Until that ships, the gate's strength depends on the agent reading and applying this skill, not on a tripwire that the tool runtime can't bypass.
+> **Implementation status:** GateGuard ships as a **runtime PreToolUse hook** at `hooks/gateguard.mjs`, wired as the first PreToolUse entry in the plugin bundle. The hook physically blocks Edit / Write / MultiEdit and every destructive Bash on stdin/stdout JSON, returning `{decision: "block", reason: "..."}` until the agent presents facts and retries with the per-session clearance signal. This skill file is the human-readable spec the hook implements. Originally tracked in [issue #106](https://github.com/naimkatiman/continuous-improvement/issues/106) (closed; landed as PR #108).
 
 ## When to Activate
 
@@ -126,15 +126,22 @@ This gate is what catches the squash-merge / ahead-of-origin trap recorded in th
 
 ## Quick Start
 
-### Today (v3.9.0): model-side skill
+### Today: runtime hook + skill (zero install beyond the plugin)
 
-The skill is registered when you install the plugin. The agent reads this file and applies the gates listed above before performing any qualifying tool call. No additional config needed — but no runtime tripwire either; the gate fires only when the agent chooses to honor it. If you observe the agent skipping the gate, name the Law back: *"You skipped Law 1 — research first."*
+`hooks/gateguard.mjs` is bundled with this plugin and wired as the first PreToolUse hook in `plugins/continuous-improvement/hooks/hooks.json`. When you install the plugin, the runtime gate is live — no extra config, no opt-in. The hook reads tool input from stdin, classifies it through a data-driven routing table (Read/Grep/Glob → allow, Write/Edit/MultiEdit → mutating-file gate, Bash → destructive-pattern check), and emits `{decision, reason?}` on stdout. Per-session state lives at `~/.claude/instincts/<project-hash>/gateguard-session.json` (override via `GATEGUARD_SESSION_DIR` for tests) and caps cumulative clearances at `MAX_CLEARED_FILES = 50`.
 
-### Roadmap: runtime PreToolUse hook
+Smoke-test the runtime gate after install: ask Claude to write a throwaway file with no research first. The hook should return a `block` decision with a fact-list reason; Claude should pause rather than write.
 
-Tracked in [issue #106](https://github.com/naimkatiman/continuous-improvement/issues/106). Will physically block the first Edit/Write per session and every destructive Bash via a `hooks/gateguard.mjs` script wired into `hooks/hooks.json`. Acceptance criteria, RED-GREEN-REFACTOR plan, and out-of-scope items are all in the issue.
+### V1 honest limitations (not mitigated, documented)
 
-### Roadmap: third-party `gateguard-ai` package
+- **Honor system.** Once the agent flips `_gateguard_facts_presented: true` in `tool_input`, the hook can't verify the investigation actually happened. The 50-file cap bounds damage from stuck loops or rogue agents.
+- **State-file deletion.** `rm`-ing the session state resets every gate. Acceptable because the session itself is the trust boundary.
+- **Parallel-hook race.** Two simultaneous hook invocations can race the read+write of the state file. Acceptable trade-off vs Windows atomic-rename complexity.
+- **MultiEdit V1.** Currently gates on `edits[0].file_path` only. Per-file batching is a TODO.
+
+All four documented in `src/hooks/gateguard.mts` and `src/lib/gateguard-state.mts` headers.
+
+### Future: third-party `gateguard-ai` package
 
 The standalone `gateguard-ai` Python/CLI package referenced in earlier drafts of this skill is not currently part of this plugin and not a published package. It may ship later with `.gateguard.yml` per-project config; for now, treat it as design notes only.
 
