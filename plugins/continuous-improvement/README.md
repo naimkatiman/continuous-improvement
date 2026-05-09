@@ -8,6 +8,7 @@ Included surfaces:
 - `.claude-plugin/marketplace.json`
 - `skills/`
 - `commands/`
+- `agents/` — `code-reviewer`, `security-auditor`, `test-engineer` personas (auto-discovered Claude Code subagents; pattern from addy/agent-skills)
 - `hooks/`
 - `bin/mcp-server.mjs`
 - `bin/observe.mjs`
