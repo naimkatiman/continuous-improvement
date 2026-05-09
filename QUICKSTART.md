@@ -33,13 +33,13 @@ Without it, `/superpowers` still works — it falls back to inline behavior — 
 
 You should see the 7 Laws quick-reference card. If the command is not recognized after a restart, see Troubleshooting in [README.md](README.md#troubleshooting-install).
 
-**Check 2 — runtime gate is firing.** Ask Claude to write a throwaway file with no research first:
+**Check 2 — runtime gate is firing** (the `hooks/gateguard.mjs` script must invoke). Ask Claude to write a throwaway file with no research first:
 
 ```
 Edit a new file scratch.txt and put the word "hello" in it. Don't research anything first.
 ```
 
-You should see Claude **blocked** by the bundled `gateguard` PreToolUse hook with a fact-list reason: list importers, list public functions affected, show data-file schemas, quote the user instruction. That block is the proof the runtime hook is wired and firing. If Claude writes the file with no pause, the hook did not load — see [README.md → Troubleshooting](README.md#troubleshooting-install).
+You should see Claude **blocked** by the bundled `gateguard` PreToolUse hook (`hooks/gateguard.mjs`) with a fact-list reason: list importers, list public functions affected, show data-file schemas, quote the user instruction. That block is the proof the hook is wired and firing. If Claude writes the file with no pause, the hook did not load — see [README.md → Troubleshooting](README.md#troubleshooting-install).
 
 If you also want to confirm observation hooks: run `/dashboard` and look for a non-zero `Total` under `Observations` — that proves `observe.sh` / `observe.mjs` is recording tool calls.
 

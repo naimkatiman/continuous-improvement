@@ -74,13 +74,13 @@ Without the companion the dispatcher still works — every routing target has a 
 Verify: run `/discipline` in Claude Code — you should see the 7 Laws card.
 If the command is not recognized, restart your Claude Code session first; the marketplace did pick the plugin up but commands load on session start.
 
-**Second-stage verify (proves the runtime gate is firing, not just docs claiming it).** Ask Claude to write a throwaway file with no research first:
+**Second-stage verify (proves the runtime gate is firing — i.e. `hooks/gateguard.mjs` is invoked — not just docs claiming it).** Ask Claude to write a throwaway file with no research first:
 
 ```
 Edit a new file scratch.txt and put the word "hello" in it. Don't research anything first.
 ```
 
-You should see Claude **blocked** by the bundled `gateguard` PreToolUse hook with a fact-list reason. That block is the proof the hook is wired and enforcing. If Claude writes the file with no pause, the hook did not load — see Troubleshooting below. (To also verify observation hooks, run `/dashboard` and confirm a non-zero `Total` under `Observations`.)
+You should see Claude **blocked** by the bundled `gateguard` PreToolUse hook (`hooks/gateguard.mjs`) with a fact-list reason. That block is the proof the hook is wired and enforcing. If Claude writes the file with no pause, the hook did not load — see Troubleshooting below. (To also verify observation hooks, run `/dashboard` and confirm a non-zero `Total` under `Observations`.)
 
 ### How enforcement works
 

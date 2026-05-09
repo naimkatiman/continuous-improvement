@@ -67,7 +67,7 @@ Agents can read anything but only write to `src/api/`. Destructive commands are 
 
 ## Implementation
 
-Uses PreToolUse hooks to intercept Bash, Write, Edit, and MultiEdit tool calls. Checks the command/path against the active rules before allowing execution.
+Currently implemented as skill-side discipline: when restricted-mode is active, the agent reads this skill and refuses Bash, Write, Edit, and MultiEdit calls that violate the rules before invoking the tool. There is no bundled tool-call gate today — the same enforcement gap that existed for `gateguard` before issue #106 / PR #108. A future runtime version would track via a follow-up issue.
 
 ## Integration
 
