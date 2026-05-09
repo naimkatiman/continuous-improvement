@@ -126,6 +126,7 @@ async function writePluginBundleReadme(): Promise<void> {
     "- `.claude-plugin/marketplace.json`",
     "- `skills/`",
     "- `commands/`",
+    "- `agents/` — `code-reviewer`, `security-auditor`, `test-engineer` personas (auto-discovered Claude Code subagents; pattern from addy/agent-skills)",
     "- `hooks/`",
     "- `bin/mcp-server.mjs`",
     "- `bin/observe.mjs`",
@@ -192,6 +193,7 @@ async function writePluginBundle(): Promise<void> {
       getClaudePluginMarketplaceManifest(),
     ),
     copyDirectory(join(REPO_ROOT, "commands"), join(PLUGIN_BUNDLE_DIR, "commands")),
+    copyDirectory(join(REPO_ROOT, "agents"), join(PLUGIN_BUNDLE_DIR, "agents")),
     copyDirectory(join(REPO_ROOT, "hooks"), join(PLUGIN_BUNDLE_DIR, "hooks")),
     copyDirectory(
       join(REPO_ROOT, "instinct-packs"),
