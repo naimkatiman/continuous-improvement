@@ -5,3 +5,11 @@ node_modules/
 nanobanana-output/
 *.tmp
 dist/
+
+# Host-local Claude Code runtime state (scheduled_tasks.lock, worktrees/).
+# Recreated per session by the local harness; never source.
+.claude/
+
+# Stray full-clone of upstream addy/agent-skills.
+# Vendored snapshot at third-party/addy-agent-skills/ (pinned via MANIFEST.md) is the source of truth.
+agent-skills/
