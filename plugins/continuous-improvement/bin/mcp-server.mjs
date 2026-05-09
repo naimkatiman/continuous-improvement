@@ -787,8 +787,11 @@ rl.on("line", (line) => {
     }
 });
 function send(response) {
-    const json = JSON.stringify(response);
-    process.stdout.write(`Content-Length: ${Buffer.byteLength(json)}\r\n\r\n${json}`);
+    // MCP stdio transport spec: newline-delimited JSON-RPC over stdout, no
+    // Content-Length headers. Claude Code and every @modelcontextprotocol/sdk
+    // host parse stdout line-by-line; LSP-style framing produces a silent
+    // "Connecting…" hang because no line ever resolves to JSON.
+    process.stdout.write(`${JSON.stringify(response)}\n`);
 }
 function handleMessage(message) {
     const id = message.id;
