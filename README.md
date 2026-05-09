@@ -38,7 +38,7 @@ Every one of those failures is the agent skipping a step a disciplined engineer 
 ## What you get
 
 - **A 7-step discipline** the agent must follow every task — research → plan → execute one thing → verify → reflect → learn → iterate. Each Law has at least one skill or hook that enforces it.
-- **13 bundled skills** that turn the Laws from a doc into agent behavior — `gateguard` prompts the agent to investigate before Edit/Write/destructive Bash, `tdd-workflow` enforces RED → GREEN → REFACTOR, `verification-loop` runs build/types/tests/security before "done", `proceed-with-the-recommendation` walks any agent's recommendation list top-to-bottom with per-item verification. These run as model-side discipline; the agent reads each skill and applies it. The session and observation hooks (`hooks/`) wire the learning loop, not a runtime tool-call block — see [§ A note on enforcement](#a-note-on-enforcement).
+- **14 bundled skills + a runtime PreToolUse hook** that turn the Laws into enforced behavior — `gateguard` runs as a PreToolUse hook (`hooks/gateguard.mjs`) that physically blocks Edit/Write/destructive Bash until the agent presents fact-list investigation. `tdd-workflow` enforces RED → GREEN → REFACTOR, `verification-loop` runs build/types/tests/security before "done", `deploy-receipt` closes the merge-to-production gap (deployed SHA + healthcheck), `proceed-with-the-recommendation` walks any agent's recommendation list top-to-bottom with per-item verification. The runtime hook catches the "skipped investigation" failure mode at the tool-call layer; the skills run model-side once the gate clears. See [§ How enforcement works](#how-enforcement-works) for the two-layer model.
 - **Mulahazah, the auto-leveling instinct engine** — hooks capture every tool call; after ~20 observations the agent analyzes patterns and creates instincts with confidence scores. Suggestions appear at 0.5+, auto-apply at 0.7+, decay when ignored. Project-scoped, promote to global after 2+ projects. You configure nothing.
 - **A GitHub Action transcript linter** that catches skipped Laws in CI — writes without prior research, edits without verification, too many files at once.
 - **Two install paths** — Beginner is two slash commands inside Claude Code (no Node, no bash, ~90% of users). Expert adds the MCP server, observation hooks, instinct packs, and the linter.
@@ -74,11 +74,22 @@ Without the companion the dispatcher still works — every routing target has a 
 Verify: run `/discipline` in Claude Code — you should see the 7 Laws card.
 If the command is not recognized, restart your Claude Code session first; the marketplace did pick the plugin up but commands load on session start.
 
-**Second-stage verify (proves the bundle dropped beyond just the slash command).** Run `/dashboard` — the rendered card with `Level: CAPTURE` and observation counters confirms the skills + observation hooks landed.
+**Second-stage verify (proves the runtime gate is firing, not just docs claiming it).** Ask Claude to write a throwaway file with no research first:
 
-### A note on enforcement
+```
+Edit a new file scratch.txt and put the word "hello" in it. Don't research anything first.
+```
 
-The 7 Laws are enforced **at the model layer, not the runtime layer**. When you ask Claude to write a file with no research, `gateguard` prompts Claude to investigate first — but this is model-side discipline (the model reads the skill and chooses to comply), not a PreToolUse hook that physically refuses the tool call. The `hooks/` directory wires observation (`observe.sh`/`observe.mjs`) and end-of-turn three-section close (`three-section-close.mjs`); neither blocks an Edit. A roadmap item tracks adding a true runtime gate — see the open issue linked in [skills/gateguard.md](skills/gateguard.md). Until then, value comes from the agent reading the Laws as part of its loaded context.
+You should see Claude **blocked** by the bundled `gateguard` PreToolUse hook with a fact-list reason. That block is the proof the hook is wired and enforcing. If Claude writes the file with no pause, the hook did not load — see Troubleshooting below. (To also verify observation hooks, run `/dashboard` and confirm a non-zero `Total` under `Observations`.)
+
+### How enforcement works
+
+The 7 Laws are enforced at **two layers**:
+
+- **Runtime layer (hooks).** `gateguard` ships as a PreToolUse hook (`hooks/gateguard.mjs`) that physically blocks Edit / Write / MultiEdit / destructive Bash on the first mutation per file until the agent presents the facts named in [skills/gateguard.md § Gate Types](skills/gateguard.md). Destructive Bash (`rm -rf`, `git push --force`, `--force-with-lease`, `DROP DATABASE`, Windows `Remove-Item -Recurse`, etc.) is gated on every call, not just first. Read-only and exploratory tools (Read, Grep, Glob, routine Bash like `git status`) bypass the gate. Per-session state at `~/.claude/instincts/<project-hash>/gateguard-session.json` caps cumulative clearances at 50 distinct files to bound stuck-loop damage.
+- **Model layer (skills).** Once the runtime gate clears for a file, the rest of the discipline (`tdd-workflow`, `verification-loop`, `proceed-with-the-recommendation`, etc.) runs model-side — the agent reads each skill and applies it. `observe.sh` / `observe.mjs` records every tool call into the Mulahazah feed for instinct extraction; that surface is observational, not enforcement.
+
+V1 honest limitations: the runtime gate is honor-system once the agent flips `_gateguard_facts_presented: true` (the hook can't verify the investigation actually happened); the state file is deletable and parallel hook invocations can race. Documented in `src/hooks/gateguard.mts` and `src/lib/gateguard-state.mts` headers.
 
 ### Expert — adds MCP server, observation hooks, and instinct packs
 
@@ -187,28 +198,29 @@ Every bundled skill, command, and hook enforces at least one of the 7 Laws. The 
 
 ---
 
-## All 13 Skills
+## All 14 Skills
 
-The plugin ships **1 core + 1 featured + 4 tier-1 + 4 tier-2 + 3 always-bundled = 13 skills**. Source-of-truth lives in [`skills/`](skills/) (one `.md` per skill); the plugin bundle at [`plugins/continuous-improvement/skills/`](plugins/continuous-improvement/skills/) is regenerated by `npm run build`.
+The plugin ships **1 core + 1 featured + 5 tier-1 + 4 tier-2 + 3 always-bundled = 14 skills**. Source-of-truth lives in [`skills/`](skills/) (one `.md` per skill); the plugin bundle at [`plugins/continuous-improvement/skills/`](plugins/continuous-improvement/skills/) is regenerated by `npm run build`.
 
 <details>
-<summary>Show the full skill table (13 rows)</summary>
+<summary>Show the full skill table (14 rows)</summary>
 
 | # | Skill | Tier | Law | What it does |
 |---|-------|------|-----|--------------|
 | 1 | [`continuous-improvement`](SKILL.md) | core | — | The 7 Laws spec itself (research → plan → execute → verify → reflect → learn → iterate) |
 | 2 | [`proceed-with-the-recommendation`](skills/proceed-with-the-recommendation.md) ⭐ | featured | all 7 | Walks any agent's recommendation list top-to-bottom, routes each item, verifies per item, halts on `needs-approval` |
-| 3 | [`gateguard`](skills/gateguard.md) | 1 | 1 | Skill that prompts the agent to investigate (importers, schemas, user instruction) before Edit/Write/destructive Bash. Runtime PreToolUse hook is a roadmap item, not yet bundled. |
+| 3 | [`gateguard`](skills/gateguard.md) | 1 | 1 | Runtime PreToolUse hook (`hooks/gateguard.mjs`) + skill: physically blocks Edit/Write/MultiEdit and every destructive Bash until fact-list investigation is presented. Read-only and routine Bash bypass. |
 | 4 | [`para-memory-files`](skills/para-memory-files.md) | 1 | 5 + 7 | Durable file-based memory using PARA (Projects/Areas/Resources/Archives) for cross-session context |
 | 5 | [`tdd-workflow`](skills/tdd-workflow.md) | 1 | 3 + 4 | RED → GREEN → REFACTOR enforcement with 80%+ coverage across unit/integration/E2E |
 | 6 | [`verification-loop`](skills/verification-loop.md) | 1 | 4 | Six-phase verification (build, types, lint, tests, security, diff) with PASS/FAIL report |
-| 7 | [`safety-guard`](skills/safety-guard.md) | 2 | 3 | Three-mode runtime guard (careful/freeze/guard) that blocks destructive commands and locks edits to a directory |
-| 8 | [`strategic-compact`](skills/strategic-compact.md) | 2 | 5 | Suggests `/compact` at logical phase boundaries instead of arbitrary auto-compaction |
-| 9 | [`token-budget-advisor`](skills/token-budget-advisor.md) | 2 | 2 | Token estimator that offers 25/50/75/100% depth choices before answering |
-| 10 | [`wild-risa-balance`](skills/wild-risa-balance.md) | 2 | 2 | Pairs WILD (bold) generation with RISA (safe) execution; splits recommendation lists into pilots above a baseline |
-| 11 | [`ralph`](skills/ralph.md) | companion | 6 | Autonomous loop that executes a PRD story-by-story with quality checks between iterations |
-| 12 | [`superpowers`](skills/superpowers.md) | companion | activator | Law activator — routes tasks to the correct Law-aligned specialist so the right discipline fires automatically |
-| 13 | [`workspace-surface-audit`](skills/workspace-surface-audit.md) | companion | 1 | Audits the active repo, MCP servers, plugins, env, then recommends high-value skills/workflows |
+| 7 | [`deploy-receipt`](skills/deploy-receipt.md) | 1 | 4 | Closes the merge-to-production gap on auto-deploy targets (Railway, Cloudflare Workers, Vercel, Netlify, Fly.io). "Done" requires the deployed SHA matching merged HEAD + a healthcheck returning 200 — runs after the vendored `finishing-a-development-branch`. |
+| 8 | [`safety-guard`](skills/safety-guard.md) | 2 | 3 | Three-mode runtime guard (careful/freeze/guard) that blocks destructive commands and locks edits to a directory |
+| 9 | [`strategic-compact`](skills/strategic-compact.md) | 2 | 5 | Suggests `/compact` at logical phase boundaries instead of arbitrary auto-compaction |
+| 10 | [`token-budget-advisor`](skills/token-budget-advisor.md) | 2 | 2 | Token estimator that offers 25/50/75/100% depth choices before answering |
+| 11 | [`wild-risa-balance`](skills/wild-risa-balance.md) | 2 | 2 | Pairs WILD (bold) generation with RISA (safe) execution; splits recommendation lists into pilots above a baseline |
+| 12 | [`ralph`](skills/ralph.md) | companion | 6 | Autonomous loop that executes a PRD story-by-story with quality checks between iterations |
+| 13 | [`superpowers`](skills/superpowers.md) | companion | activator | Law activator — routes tasks to the correct Law-aligned specialist so the right discipline fires automatically |
+| 14 | [`workspace-surface-audit`](skills/workspace-surface-audit.md) | companion | 1 | Audits the active repo, MCP servers, plugins, env, then recommends high-value skills/workflows |
 
 </details>
 
@@ -294,7 +306,7 @@ A new skill is a fit if it provably enforces (or is a routed activator for) at l
 ### What is *not* automated (the honest limits)
 
 - The Law-coverage matrix above (`## Law Coverage`) is hand-maintained — add your new skill to the right Law row when you ship it.
-- The "All 13 Skills" count in the section header is a literal — bump it when N changes.
+- The "All 14 Skills" count in the section header is a literal — bump it when N changes.
 - Promotion between tiers (e.g. `2` → `1` after it proves itself) is a manual edit to the frontmatter `tier:` field, by design — the maintainer should make that call deliberately.
 
 ---
