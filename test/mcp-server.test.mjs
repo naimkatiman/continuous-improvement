@@ -18,26 +18,26 @@ class McpTestClient {
         });
     }
     drain() {
+        // MCP stdio transport spec: NDJSON. Each newline-terminated chunk is one
+        // JSON-RPC message; partial lines stay in the buffer until a newline arrives.
         while (this.resolvers.length > 0) {
-            const bufferString = this.buffer.toString("utf8");
-            const headerMatch = bufferString.match(/^Content-Length: (\d+)\r\n\r\n/);
-            if (!headerMatch) {
+            const newlineIndex = this.buffer.indexOf(0x0a); // '\n'
+            if (newlineIndex === -1) {
                 break;
             }
-            const headerLength = headerMatch[0].length;
-            const bodyLength = Number.parseInt(headerMatch[1], 10);
-            if (this.buffer.length < headerLength + bodyLength) {
-                break;
+            const lineBytes = this.buffer.slice(0, newlineIndex);
+            this.buffer = this.buffer.slice(newlineIndex + 1);
+            const line = lineBytes.toString("utf8").replace(/\r$/, "");
+            if (line.length === 0) {
+                continue;
             }
-            const bodyString = this.buffer.slice(headerLength, headerLength + bodyLength).toString("utf8");
-            this.buffer = this.buffer.slice(headerLength + bodyLength);
             const next = this.resolvers.shift();
             if (!next) {
                 break;
             }
             clearTimeout(next.timer);
             try {
-                next.resolve(JSON.parse(bodyString));
+                next.resolve(JSON.parse(line));
             }
             catch (error) {
                 next.resolve({
@@ -72,6 +72,44 @@ class McpTestClient {
 }
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const MCP_SERVER = join(__dirname, "..", "bin", "mcp-server.mjs");
+describe("MCP server — stdio wire format", () => {
+    // The MCP stdio transport spec requires newline-delimited JSON-RPC
+    // (NDJSON) over stdout/stdin. NOT LSP-style Content-Length framing.
+    // Claude Code, the @modelcontextprotocol/sdk reference clients, and every
+    // other host parse stdout one line at a time and JSON.parse each line.
+    // A server that emits "Content-Length: ...\r\n\r\n{...}" silently hangs
+    // in the host's "Connecting…" state because no line ever resolves to JSON.
+    it("emits NDJSON responses on stdout (not LSP Content-Length framing)", async () => {
+        const tempHome = join(tmpdir(), `ci-mcp-wire-${Date.now()}`);
+        mkdirSync(join(tempHome, ".claude", "instincts", "global"), { recursive: true });
+        const proc = spawn("node", [MCP_SERVER, "--mode", "beginner"], {
+            env: { ...process.env, HOME: tempHome },
+            stdio: ["pipe", "pipe", "pipe"],
+        });
+        const stdoutChunks = [];
+        proc.stdout.on("data", (chunk) => stdoutChunks.push(chunk));
+        proc.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} })}\n`);
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        const stdoutText = Buffer.concat(stdoutChunks).toString("utf8");
+        proc.kill();
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        try {
+            rmSync(tempHome, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+        }
+        catch {
+            // Windows stdio handle linger
+        }
+        assert.ok(!stdoutText.includes("Content-Length:"), `MCP stdio transport must NOT use LSP-style Content-Length framing. ` +
+            `Saw "${stdoutText.slice(0, 80)}". This breaks every host parser, including Claude Code.`);
+        const firstLine = stdoutText.split("\n")[0];
+        assert.ok(firstLine.length > 0, "Expected at least one line of output");
+        const parsed = JSON.parse(firstLine);
+        assert.equal(parsed.jsonrpc, "2.0");
+        assert.equal(parsed.id, 1);
+        assert.ok(parsed.result, "Initialize should return a result");
+        assert.ok(stdoutText.startsWith(firstLine + "\n"), "Each NDJSON message must terminate with a newline");
+    });
+});
 describe("MCP server — beginner mode", () => {
     let client;
     let tempHome = "";
