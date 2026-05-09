@@ -45,7 +45,8 @@
     "verify:docs-substrings": "node bin/check-docs-substrings.mjs",
     "verify:everything-mirror": "node bin/check-everything-mirror.mjs",
     "verify:routing-targets": "node bin/check-routing-targets.mjs",
-    "verify:all": "npm run verify:skill-mirror && npm run verify:skill-tiers && npm run verify:skill-law-tag && npm run verify:docs-substrings && npm run verify:everything-mirror && npm run verify:routing-targets && npm run typecheck"
+    "verify:doc-runtime-claims": "node bin/check-doc-runtime-claims.mjs",
+    "verify:all": "npm run verify:skill-mirror && npm run verify:skill-tiers && npm run verify:skill-law-tag && npm run verify:docs-substrings && npm run verify:everything-mirror && npm run verify:routing-targets && npm run verify:doc-runtime-claims && npm run typecheck"
   },
   "files": [
     ".claude-plugin/",
