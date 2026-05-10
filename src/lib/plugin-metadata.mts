@@ -1,5 +1,11 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 export const PACKAGE_NAME = "continuous-improvement";
-export const VERSION = "3.9.0";
+
+const PKG_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "package.json");
+export const VERSION: string = (JSON.parse(readFileSync(PKG_PATH, "utf8")) as { version: string }).version;
 
 export const PLUGIN_MODES = ["beginner", "expert"] as const;
 
