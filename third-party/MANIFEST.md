@@ -168,6 +168,13 @@ cp -r /tmp/addy-agent-skills-refresh/{skills,agents,hooks,references,docs,.claud
 cp /tmp/addy-agent-skills-refresh/{LICENSE,README.md,AGENTS.md,CONTRIBUTING.md} \
   third-party/addy-agent-skills/
 
+# Preserve upstream's empty .claude/commands/ directory (referenced by plugin.json's
+# "commands" key). Git does not track empty dirs, so add a .gitkeep sentinel.
+# Without this, /plugin install agent-skills@continuous-improvement fails with
+# "Path not found: ...\agent-skills\1.0.0\.claude\commands (commands)".
+mkdir -p third-party/addy-agent-skills/.claude/commands
+touch third-party/addy-agent-skills/.claude/commands/.gitkeep
+
 # Remove every CLAUDE.md inside the snapshot — they auto-load as session context.
 find third-party/addy-agent-skills -name CLAUDE.md -type f -delete
 
