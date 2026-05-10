@@ -1,6 +1,6 @@
 {
   "name": "continuous-improvement",
-  "version": "3.9.1",
+  "version": "3.9.2",
   "mode": "beginner",
   "description": "Beginner mode: see what your agent learned, list its instincts, and request a session reflection. Bundles four discipline skills (gateguard, para-memory-files, tdd-workflow, verification-loop) so research, memory, tests, and verification happen by default.",
   "tools": [
