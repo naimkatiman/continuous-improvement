@@ -101,6 +101,20 @@ fi
 # ---------------------------------------------------------------------------
 # Compute project hash and name
 # ---------------------------------------------------------------------------
+# Canonicalize MSYS-mounted Windows paths (/d/Path) to native form (D:/Path)
+# so the bash fallback hashes to the same project bucket as the Node observer.
+# Without this, Git Bash on Windows produces /d/Ai/repo from `git rev-parse`
+# while Node's child_process produces D:/Ai/repo for the same physical path,
+# splitting telemetry between two SHA-256 buckets per project.
+# Pattern matches /<single-letter>/... only — Linux/macOS paths like /usr,
+# /home, /Users are unaffected.
+case "$PROJECT_ROOT" in
+  /[a-zA-Z]/*)
+    drive_letter="$(printf '%s' "$PROJECT_ROOT" | cut -c2 | tr '[:lower:]' '[:upper:]')"
+    PROJECT_ROOT="${drive_letter}:$(printf '%s' "$PROJECT_ROOT" | cut -c3-)"
+    ;;
+esac
+
 PROJECT_HASH="$(printf '%s' "$PROJECT_ROOT" | sha256sum | cut -c1-12)"
 PROJECT_NAME="$(basename "${PROJECT_ROOT%.git}")"
 
