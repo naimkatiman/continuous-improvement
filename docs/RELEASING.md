@@ -13,18 +13,26 @@ The release pipeline is **tag-triggered**. Pushing a `v*` tag publishes the npm 
 
 ### 1. Bump version on a release PR
 
-The PR contains the version bump and nothing else.
+The PR contains the version bump and the regenerated plugin manifests — nothing else. `src/lib/plugin-metadata.mts` derives `VERSION` from `package.json` at runtime, so `npm run build` propagates the bump to all 5 generated manifests automatically. You never edit a constant.
 
 ```bash
 git switch main
 git pull --ff-only origin main
 git switch -c chore/release-vX.Y.Z
 npm version X.Y.Z --no-git-tag-version
-git add package.json package-lock.json
+npm run build
+git add package.json package-lock.json \
+  .claude-plugin/marketplace.json \
+  plugins/continuous-improvement/.claude-plugin/marketplace.json \
+  plugins/continuous-improvement/.claude-plugin/plugin.json \
+  plugins/beginner.json \
+  plugins/expert.json
 git commit -m "chore(release): cut vX.Y.Z"
 git push -u origin chore/release-vX.Y.Z
 gh pr create --title "chore(release): cut vX.Y.Z" --body "Release bump for X.Y.Z."
 ```
+
+If you forget `npm run build`, CI fails at `git diff --exit-code -- .claude-plugin bin test lib plugins`. Loud failure, not silent — just rebuild, restage the regenerated files, and push a new commit.
 
 ### 2. Merge the PR
 
