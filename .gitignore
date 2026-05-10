@@ -10,6 +10,11 @@ dist/
 # Recreated per session by the local harness; never source.
 .claude/
 
+# Exception: vendored snapshots may legitimately ship a .claude/ subtree
+# (e.g. addy-agent-skills/.claude/commands/ is referenced by upstream's plugin.json).
+!third-party/*/.claude/
+!third-party/*/.claude/**
+
 # Stray full-clone of upstream addy/agent-skills.
 # Vendored snapshot at third-party/addy-agent-skills/ (pinned via MANIFEST.md) is the source of truth.
 agent-skills/
