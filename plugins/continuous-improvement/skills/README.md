@@ -23,6 +23,7 @@ skill set on disk.
 - `verification-loop` — Enforces Law 4 (Verify Before Reporting) of the 7 Laws of AI Agent Discipline. A comprehensive verification system for agent coding sessions covering build, types, lint, tests, security, and diff with a PASS/FAIL report.
 
 ## Tier 2 — expert-mode add-ons
+- `handoff` — Enforces Law 5 (Reflect After Every Session) of the 7 Laws of AI Agent Discipline. Compact the current conversation into a handoff document for another agent to pick up. Ported from mattpocock/skills under MIT.
 - `recovery-classification` — Enforces Law 4 (Verify Before Reporting) of the 7 Laws of AI Agent Discipline. After any failure in the verification ladder or auto-loop, classify the failure class before retrying — provider, tool-schema, deterministic-policy, git, worktree, runtime — so retry-vs-pause-vs-self-heal-vs-stop is an intentional decision, not a generic 'try again'.
 - `safety-guard` — Enforces Law 3 (One Thing at a Time) of the 7 Laws of AI Agent Discipline by scoping edits to a directory and blocking destructive shell commands. Use this skill to prevent destructive operations when working on production systems or running agents autonomously.
 - `state-reconciliation` — Enforces Law 4 (Verify Before Reporting) of the 7 Laws of AI Agent Discipline. Pre-dispatch invariant: reconcile DB-vs-disk-vs-memory state before any unit runs, so a stale flag, missing artifact, or out-of-sync row never re-dispatches a unit that already completed or never started.

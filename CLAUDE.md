@@ -43,7 +43,7 @@ Project-local rules for AI coding agents. Global rules live in `~/.claude/CLAUDE
 
 ## third-party vendoring contract
 
-- The 4 vendored companions (`third-party/superpowers/`, `third-party/addy-agent-skills/`, `third-party/ruflo-swarm/`, `third-party/oh-my-claudecode/`) are **pinned-SHA snapshots**.
+- The 5 vendored companions (`third-party/superpowers/`, `third-party/addy-agent-skills/`, `third-party/ruflo-swarm/`, `third-party/oh-my-claudecode/`, `third-party/mattpocock-skills/`) are **pinned-SHA snapshots**.
 - Each snapshot must carry `MANIFEST.md` (SHA + version), `OUR_NOTES.md` (drift radar + integration scope), `CLAUDE.md` (read-only guard).
 - To refresh a snapshot: `node bin/refresh-third-party.mjs <name>` from a worktree off `origin/main`.
 - Never edit files inside `third-party/<name>/` directly — those are verbatim upstream copies. Cross-cutting integration code lives outside the snapshot.
