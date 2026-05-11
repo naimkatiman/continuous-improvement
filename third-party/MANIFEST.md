@@ -251,16 +251,19 @@ find third-party/ruflo-swarm -name CLAUDE.md -type f -delete
 | License | MIT |
 | Pinned SHA | `9fecab929abb904c68ce3366a1781df31ab22832` |
 | Snapshot date | 2026-05-11 |
-| Snapshot size | ~3 KB, 3 files |
+| Snapshot size | ~12 KB, 5 files |
 | Upstream version at SHA | unversioned (newsletter-tracked) |
 | Local path | `third-party/mattpocock-skills/` |
 
-Cherry-picked **two skills** (`handoff`, `grill-me`) from a 25+ skill repository, addressing two pre/post-execution gaps that existing in-repo skills do not cover cleanly: per-session compaction-to-handoff-doc (`handoff`) and pre-execution alignment interrogation (`grill-me`). Cold-storage only — **not** loaded by `plugins/continuous-improvement/` and **not** registered in `.claude-plugin/marketplace.json`. The user-facing exposure is via `skills/{handoff,grill-me}.md` + `commands/{handoff,grill-me}.md`, which credit Matt Pocock and link back to this snapshot. The full vendoring rationale and drift radar live in `third-party/mattpocock-skills/OUR_NOTES.md`.
+Cherry-picked **three skills** (`handoff`, `grill-me`, `grill-with-docs`) from a 25+ skill repository, addressing three gaps that existing in-repo skills do not cover cleanly: per-session compaction-to-handoff-doc (`handoff`), pre-execution alignment interrogation (`grill-me`), and grilling-that-updates-domain-docs-inline (`grill-with-docs`, mattpocock's most-recommended skill). Cold-storage only — **not** loaded by `plugins/continuous-improvement/` and **not** registered in `.claude-plugin/marketplace.json`. The user-facing exposure is via `skills/{handoff,grill-me,grill-with-docs}.md` + `commands/{handoff,grill-me,grill-with-docs}.md`, which credit Matt Pocock and link back to this snapshot. The full vendoring rationale and drift radar live in `third-party/mattpocock-skills/OUR_NOTES.md`.
 
 **Selective scope (verbatim from upstream):**
 
 - `skills/in-progress/handoff/SKILL.md` — the 11-line skill body
 - `skills/productivity/grill-me/SKILL.md` — the 12-line skill body
+- `skills/engineering/grill-with-docs/SKILL.md` — the grilling-with-docs body
+- `skills/engineering/grill-with-docs/CONTEXT-FORMAT.md` — bundled CONTEXT.md format spec
+- `skills/engineering/grill-with-docs/ADR-FORMAT.md` — bundled ADR format spec
 - `LICENSE` — copied from upstream **repo root** for MIT attribution
 
 **Excluded from snapshot (not vendored):**
@@ -284,10 +287,17 @@ rm -rf third-party/mattpocock-skills/skills
 rm -f  third-party/mattpocock-skills/LICENSE
 mkdir -p third-party/mattpocock-skills/skills/in-progress/handoff
 mkdir -p third-party/mattpocock-skills/skills/productivity/grill-me
+mkdir -p third-party/mattpocock-skills/skills/engineering/grill-with-docs
 cp /tmp/mattpocock-skills-refresh/skills/in-progress/handoff/SKILL.md \
   third-party/mattpocock-skills/skills/in-progress/handoff/SKILL.md
 cp /tmp/mattpocock-skills-refresh/skills/productivity/grill-me/SKILL.md \
   third-party/mattpocock-skills/skills/productivity/grill-me/SKILL.md
+cp /tmp/mattpocock-skills-refresh/skills/engineering/grill-with-docs/SKILL.md \
+  third-party/mattpocock-skills/skills/engineering/grill-with-docs/SKILL.md
+cp /tmp/mattpocock-skills-refresh/skills/engineering/grill-with-docs/CONTEXT-FORMAT.md \
+  third-party/mattpocock-skills/skills/engineering/grill-with-docs/CONTEXT-FORMAT.md
+cp /tmp/mattpocock-skills-refresh/skills/engineering/grill-with-docs/ADR-FORMAT.md \
+  third-party/mattpocock-skills/skills/engineering/grill-with-docs/ADR-FORMAT.md
 cp /tmp/mattpocock-skills-refresh/LICENSE \
   third-party/mattpocock-skills/LICENSE
 
