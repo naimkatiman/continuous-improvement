@@ -243,6 +243,59 @@ find third-party/ruflo-swarm -name CLAUDE.md -type f -delete
 
 > **Driver integration deferred.** Adding a `ruflo-swarm` SNAPSHOTS entry to `bin/refresh-third-party.mjs` is tracked as the same follow-up PR as `addy-agent-skills` — see `docs/plans/2026-05-07-ruflo-swarm-vendor.md` § "Deferred follow-ups". The recipe above is the source of truth in the meantime.
 
+### mattpocock/skills
+
+| Field | Value |
+|---|---|
+| Upstream | https://github.com/mattpocock/skills |
+| License | MIT |
+| Pinned SHA | `9fecab929abb904c68ce3366a1781df31ab22832` |
+| Snapshot date | 2026-05-11 |
+| Snapshot size | ~2 KB, 2 files |
+| Upstream version at SHA | unversioned (newsletter-tracked) |
+| Local path | `third-party/mattpocock-skills/` |
+
+Cherry-picked **single skill** (`handoff`) from a 25+ skill repository, addressing the per-session compaction-to-handoff-doc gap that `strategic-compact`, `para-memory-files`, and the global `wrap` skill do not cover. Cold-storage only — **not** loaded by `plugins/continuous-improvement/` and **not** registered in `.claude-plugin/marketplace.json`. The user-facing exposure is via `skills/handoff.md` + `commands/handoff.md`, which credit Matt Pocock and link back to this snapshot. The full vendoring rationale and drift radar live in `third-party/mattpocock-skills/OUR_NOTES.md`.
+
+**Selective scope (verbatim from upstream):**
+
+- `skills/in-progress/handoff/SKILL.md` — the 11-line skill body
+- `LICENSE` — copied from upstream **repo root** for MIT attribution
+
+**Excluded from snapshot (not vendored):**
+
+- The other 17+ skills across `engineering/`, `productivity/`, `misc/`, `personal/`, `in-progress/`, `deprecated/` — out of cherry-pick scope. Each is a separate decision and a separate port.
+- `README.md` (175 lines) — marketing piece for the upstream repo, not relevant to the cherry-picked skill.
+- `CLAUDE.md` — auto-load contamination risk; excluded for cross-contamination safety (consistent with how OMC, Obra, addy, ruflo are handled).
+- `CONTEXT.md`, `scripts/`, `docs/`, `.claude-plugin/`, `.out-of-scope/` — not vendor scope.
+
+**Refresh recipe:**
+
+```bash
+# 1. Pin the new SHA in this file under "Pinned SHA" above
+# 2. Shallow clone outside the repo
+git clone --depth 1 https://github.com/mattpocock/skills.git \
+  /tmp/mattpocock-skills-refresh
+git -C /tmp/mattpocock-skills-refresh rev-parse HEAD  # confirm matches Pinned SHA
+
+# 3. Wipe + re-copy the cherry-picked surface (skill body + repo-root LICENSE)
+rm -rf third-party/mattpocock-skills/skills
+rm -f  third-party/mattpocock-skills/LICENSE
+mkdir -p third-party/mattpocock-skills/skills/in-progress/handoff
+cp /tmp/mattpocock-skills-refresh/skills/in-progress/handoff/SKILL.md \
+  third-party/mattpocock-skills/skills/in-progress/handoff/SKILL.md
+cp /tmp/mattpocock-skills-refresh/LICENSE \
+  third-party/mattpocock-skills/LICENSE
+
+# Safety belt: nothing in this snapshot should be a CLAUDE.md
+find third-party/mattpocock-skills -name CLAUDE.md -type f -delete
+
+# 4. Single-concern commit:
+#    chore(third-party): refresh mattpocock/skills @ <new-sha>
+```
+
+> **Driver integration deferred.** Adding a `mattpocock-skills` SNAPSHOTS entry to `bin/refresh-third-party.mjs` is tracked as a follow-up alongside `addy-agent-skills` and `ruflo-swarm`. The recipe above is the source of truth in the meantime.
+
 <!--
   product-on-purpose/pm-skills was vendored here from 2026-05-07 to 2026-05-08
   (PR #91, SHA 8d23508cb7193435904e6d5f1e550051e0372b25, v2.13.1, Apache-2.0).
