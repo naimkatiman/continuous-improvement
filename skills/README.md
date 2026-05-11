@@ -45,6 +45,7 @@ These ship in the same plugin bundle regardless of mode and are available the mo
 | `ralph` | Autonomous loop that executes a PRD story-by-story with quality checks between iterations | [snarktank/ralph](https://github.com/snarktank/ralph) |
 | `superpowers` | **Law activator.** Routes tasks to the correct Law-aligned specialist (brainstorming → Law 2, writing-plans → Law 2, TDD → Law 3+4, verification-before-completion → Law 4, etc.) so the right discipline fires automatically. Not a peer skill — a dispatcher for the others. | [obra/superpowers](https://github.com/obra/superpowers) |
 | `handoff` | One-shot session compaction into an `mktemp`-backed markdown brief a fresh agent can pick up cold — goal, current state, decisions, open questions, next step, skills to load | [mattpocock/skills](https://github.com/mattpocock/skills/blob/main/skills/in-progress/handoff/SKILL.md) |
+| `grill-me` | Pre-execution alignment interrogation — interview the user one question at a time, walking every branch of the decision tree with a recommended answer for each, until the spec is shippable cold to a fresh agent | [mattpocock/skills](https://github.com/mattpocock/skills/blob/main/skills/productivity/grill-me/SKILL.md) |
 | `workspace-surface-audit` | Audits the active repo, MCP servers, plugins, and env, then recommends high-value skills/workflows | continuous-improvement |
 
 ## How they get to your machine
