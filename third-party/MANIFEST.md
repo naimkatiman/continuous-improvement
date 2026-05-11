@@ -251,15 +251,16 @@ find third-party/ruflo-swarm -name CLAUDE.md -type f -delete
 | License | MIT |
 | Pinned SHA | `9fecab929abb904c68ce3366a1781df31ab22832` |
 | Snapshot date | 2026-05-11 |
-| Snapshot size | ~2 KB, 2 files |
+| Snapshot size | ~3 KB, 3 files |
 | Upstream version at SHA | unversioned (newsletter-tracked) |
 | Local path | `third-party/mattpocock-skills/` |
 
-Cherry-picked **single skill** (`handoff`) from a 25+ skill repository, addressing the per-session compaction-to-handoff-doc gap that `strategic-compact`, `para-memory-files`, and the global `wrap` skill do not cover. Cold-storage only — **not** loaded by `plugins/continuous-improvement/` and **not** registered in `.claude-plugin/marketplace.json`. The user-facing exposure is via `skills/handoff.md` + `commands/handoff.md`, which credit Matt Pocock and link back to this snapshot. The full vendoring rationale and drift radar live in `third-party/mattpocock-skills/OUR_NOTES.md`.
+Cherry-picked **two skills** (`handoff`, `grill-me`) from a 25+ skill repository, addressing two pre/post-execution gaps that existing in-repo skills do not cover cleanly: per-session compaction-to-handoff-doc (`handoff`) and pre-execution alignment interrogation (`grill-me`). Cold-storage only — **not** loaded by `plugins/continuous-improvement/` and **not** registered in `.claude-plugin/marketplace.json`. The user-facing exposure is via `skills/{handoff,grill-me}.md` + `commands/{handoff,grill-me}.md`, which credit Matt Pocock and link back to this snapshot. The full vendoring rationale and drift radar live in `third-party/mattpocock-skills/OUR_NOTES.md`.
 
 **Selective scope (verbatim from upstream):**
 
 - `skills/in-progress/handoff/SKILL.md` — the 11-line skill body
+- `skills/productivity/grill-me/SKILL.md` — the 12-line skill body
 - `LICENSE` — copied from upstream **repo root** for MIT attribution
 
 **Excluded from snapshot (not vendored):**
@@ -278,12 +279,15 @@ git clone --depth 1 https://github.com/mattpocock/skills.git \
   /tmp/mattpocock-skills-refresh
 git -C /tmp/mattpocock-skills-refresh rev-parse HEAD  # confirm matches Pinned SHA
 
-# 3. Wipe + re-copy the cherry-picked surface (skill body + repo-root LICENSE)
+# 3. Wipe + re-copy the cherry-picked surface (skill bodies + repo-root LICENSE)
 rm -rf third-party/mattpocock-skills/skills
 rm -f  third-party/mattpocock-skills/LICENSE
 mkdir -p third-party/mattpocock-skills/skills/in-progress/handoff
+mkdir -p third-party/mattpocock-skills/skills/productivity/grill-me
 cp /tmp/mattpocock-skills-refresh/skills/in-progress/handoff/SKILL.md \
   third-party/mattpocock-skills/skills/in-progress/handoff/SKILL.md
+cp /tmp/mattpocock-skills-refresh/skills/productivity/grill-me/SKILL.md \
+  third-party/mattpocock-skills/skills/productivity/grill-me/SKILL.md
 cp /tmp/mattpocock-skills-refresh/LICENSE \
   third-party/mattpocock-skills/LICENSE
 
