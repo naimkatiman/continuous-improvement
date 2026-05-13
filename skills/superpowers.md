@@ -157,6 +157,17 @@ The override map inside `hooks/companion-preference.mjs` stays row-aligned with 
 
 The hook fails open. If `~/.claude/settings.json` is missing, malformed, or unreadable, the hook emits `{ "decision": "allow" }` and exits 0. Bugs in the hook never block tool calls — they only fail to enforce.
 
+### Telemetry
+
+Every hook invocation that touches a mapped CI skill appends one JSONL line to `~/.claude/instincts/<project-hash>/companion-preference.jsonl`. The line carries `ts`, `mode`, `action`, `ci_skill`, `companion`, `plugin`, and `companion_installed`. The action enum is:
+
+- `observation` — mode is `ci-first`; this is the shadow row showing what `companions-first` would have done.
+- `advisory` — mode is `companions-first`; stderr advisory was emitted.
+- `block` — mode is `strict-companions`; companion installed; tool call blocked.
+- `block-not-installed` — mode is `strict-companions`; companion missing; blocked with install hint.
+
+Non-mapped skills and non-`Skill` tool calls write nothing. The writer wraps `appendFileSync` in try/catch — telemetry failure never changes the hook decision, preserving the fail-open invariant. The JSONL file is the evidence base for a future default-flip decision: after a 7-day window, the operator can grep / aggregate the file to see which routing rows the override fires on, how often, and whether the companion was installed at the time.
+
 ## Stacked-PR Plan Precondition (≥3 files)
 
 Any change touching three or more files — across `skills/`, `src/`, `bin/`, `commands/`, or any combination — must produce a stacked-PR plan as a precondition to the first edit landing. The 28-day usage report shows a clean correlation: sessions that opened with a stacked-PR plan landed at `fully_achieved`; sessions that began as a single big-bang multi-file edit landed at `partially_achieved` (landing-page dark theme, market-data-hub wiring, RAG misrouting). Single-concern PRs are the lever that closes that gap.

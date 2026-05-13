@@ -236,6 +236,21 @@ export const DOCS_ASSERTIONS: DocsAssertion[] = [
   { file: "skills/superpowers.md", pattern: "fails open", source: "docs-substrings-manifest:superpowers-runtime-enforcement" },
   { file: "plugins/continuous-improvement/skills/superpowers/SKILL.md", pattern: "fails open", source: "docs-substrings-manifest:superpowers-runtime-enforcement" },
 
+  // superpowers Telemetry subsection — locked 2026-05-14 (PR 4 of dispatcher-bias train).
+  // The hook gained a JSONL telemetry writer at ~/.claude/instincts/<hash>/companion-preference.jsonl
+  // that fires under every mode including ci-first (which writes `observation` shadow rows). The
+  // "### Telemetry" subsection documents the JSONL path and the four-value action enum. Each
+  // assertion catches a specific class of regression:
+  //   - "### Telemetry"                     → removing the whole subsection
+  //   - "companion-preference.jsonl"        → renaming the JSONL file
+  //   - "observation"                       → losing the ci-first shadow row that makes default-flip decisions evidence-driven
+  { file: "skills/superpowers.md", pattern: "### Telemetry", source: "docs-substrings-manifest:superpowers-telemetry-jsonl" },
+  { file: "plugins/continuous-improvement/skills/superpowers/SKILL.md", pattern: "### Telemetry", source: "docs-substrings-manifest:superpowers-telemetry-jsonl" },
+  { file: "skills/superpowers.md", pattern: "companion-preference.jsonl", source: "docs-substrings-manifest:superpowers-telemetry-jsonl" },
+  { file: "plugins/continuous-improvement/skills/superpowers/SKILL.md", pattern: "companion-preference.jsonl", source: "docs-substrings-manifest:superpowers-telemetry-jsonl" },
+  { file: "skills/superpowers.md", pattern: "`observation`", source: "docs-substrings-manifest:superpowers-telemetry-jsonl" },
+  { file: "plugins/continuous-improvement/skills/superpowers/SKILL.md", pattern: "`observation`", source: "docs-substrings-manifest:superpowers-telemetry-jsonl" },
+
   // verification-loop per-project ladder — locked 2026-05-07 (PR C of second-release train).
   // Phase 0 (Ladder Resolution) was added so Phases 1–6 read the project's actual build/typecheck/
   // lint/test/security/deploy_receipt invocations from .claude/verify-ladder.json (or sniff /
