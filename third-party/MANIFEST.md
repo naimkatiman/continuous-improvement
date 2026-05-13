@@ -23,7 +23,6 @@ Pinned snapshots. Read-only. Refresh by bumping the SHA and re-running the docum
 - `missions/` — task templates
 - `templates/` — scaffold files
 - `examples/` — usage examples
-- `hooks/hooks.json` — hooks manifest
 - `docs/` — architecture + reference
 - `.claude-plugin/` — plugin manifest (read-only; we do not register this in our marketplace)
 - `LICENSE`, `README.md` (English only), `AGENTS.md`, `CHANGELOG.md`, `SECURITY.md`
@@ -34,6 +33,7 @@ Pinned snapshots. Read-only. Refresh by bumping the SHA and re-running the docum
 - `src/` (~11 MB, 1030 files — TypeScript source; we are not forking)
 - `bridge/` (~6 MB — runtime adapters)
 - `tests/`, `scripts/`, `benchmark/`, `benchmarks/`, `seminar/`, `shellmark/`, `research/`
+- `hooks/hooks.json` — every entry calls `$CLAUDE_PLUGIN_ROOT/scripts/run.cjs`, which lives in the excluded `src/` tree. With the runtime not vendored, registering these hooks would throw `MODULE_NOT_FOUND` on every PreToolUse/PostToolUse/SessionStart/Stop/PreCompact fire. See `third-party/oh-my-claudecode/OUR_NOTES.md` item 2 in "What is intentionally NOT integrated".
 - `package.json`, `package-lock.json`, `tsconfig.json`, `eslint.config.js`, `vitest.config.ts`, `typos.toml`
 - All non-English `README.*.md` files
 - `.github/`, `.git/`, `.gitignore`, `.gitattributes`, `.npmignore`, `.codex`, `.clawhip/`, `.mcp.json`
@@ -51,7 +51,7 @@ git -C /tmp/omc-refresh rev-parse HEAD  # confirm matches Pinned SHA
 # 3. Wipe + re-copy the selective surface
 rm -rf third-party/oh-my-claudecode
 mkdir -p third-party/oh-my-claudecode
-cp -r /tmp/omc-refresh/{agents,skills,missions,templates,examples,hooks,docs,.claude-plugin} \
+cp -r /tmp/omc-refresh/{agents,skills,missions,templates,examples,docs,.claude-plugin} \
   third-party/oh-my-claudecode/
 cp /tmp/omc-refresh/{LICENSE,README.md,AGENTS.md,CHANGELOG.md,SECURITY.md} \
   third-party/oh-my-claudecode/
