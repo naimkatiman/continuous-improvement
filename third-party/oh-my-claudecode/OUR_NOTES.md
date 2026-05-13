@@ -16,7 +16,7 @@ This snapshot is **registered in `.claude-plugin/marketplace.json`** as of PR A 
 
 The snapshot is **not loaded** into `plugins/continuous-improvement/` itself. Marketplace registration alone makes the 39 skills + 19 agents installable on demand; per-skill verbatim ports into the CI bundle remain single-concern PRs gated on user-pain triggers per the integration-candidates matrix below.
 
-Activating the plugin installs OMC's hooks, agents, and skills. Be aware of the heavy overlap with `/ralph` and `/superpowers` called out in the matrix below — when both are installed, the unified `/superpowers` dispatcher (PR B) prefers the CI-bundled implementation for the autonomous-loop entry point and surfaces OMC's variants as alternatives in the routing table only.
+Activating the plugin installs OMC's agents and skills only — `hooks/` is intentionally stripped from this snapshot (see item 2 below). Be aware of the heavy overlap with `/ralph` and `/superpowers` called out in the matrix below — when both are installed, the unified `/superpowers` dispatcher (PR B) prefers the CI-bundled implementation for the autonomous-loop entry point and surfaces OMC's variants as alternatives in the routing table only.
 
 ## Overlap with the 7 Laws (read this before integrating anything)
 
@@ -36,7 +36,7 @@ Activating the plugin installs OMC's hooks, agents, and skills. Be aware of the 
 ## What is intentionally NOT integrated (and why)
 
 1. **OMC's `ralph` skill.** Our `ralph` is already a Tier-1 skill under the 7 Laws and is shaped around the Mulahazah learning loop. Adopting OMC's would fork the contract. Stay on ours.
-2. **OMC's hooks.** Our `hooks/three-section-close.mjs` enforces a project-specific output contract. OMC's hooks have different goals. Mixing them creates ordering surprises.
+2. **OMC's hooks (removed from snapshot).** `hooks/hooks.json` was stripped from this snapshot — not just disabled. Reasons: (a) every entry calls `$CLAUDE_PLUGIN_ROOT/scripts/run.cjs`, which lives in upstream's `src/` and is explicitly excluded from vendoring per item 4 below, so the hooks throw `MODULE_NOT_FOUND` on every fire when the plugin is installed; (b) our `hooks/three-section-close.mjs` enforces a project-specific output contract and mixing OMC's hooks would create ordering surprises. The selective-scope and refresh recipe in `third-party/MANIFEST.md` reflect the strip.
 3. **OMC's plugin manifest** (`.claude-plugin/plugin.json`). Read-only reference only. Do not register `omc` in our `.claude-plugin/marketplace.json`.
 4. **OMC's `src/` and `dist/`.** Not vendored. We have no intent to fork the runtime. If we ever want OMC behavior, install from upstream.
 

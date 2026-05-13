@@ -64,7 +64,6 @@ const SNAPSHOTS = [
       "missions",
       "templates",
       "examples",
-      "hooks",
       "docs",
       ".claude-plugin",
     ],
@@ -75,6 +74,14 @@ const SNAPSHOTS = [
       "CHANGELOG.md",
       "SECURITY.md",
     ],
+    // Defense in depth. After the selective copy, forcibly delete these
+    // paths from the local snapshot. Encodes the "intentionally NOT
+    // integrated" contract (OUR_NOTES.md item 2) in data, so a careless
+    // future edit that adds "hooks" or "src" to selectiveDirs cannot
+    // silently reintroduce the MODULE_NOT_FOUND bug: every entry in
+    // OMC's hooks/hooks.json calls $CLAUDE_PLUGIN_ROOT/scripts/run.cjs,
+    // which lives under src/scripts/ — neither is vendored.
+    excludePostCopy: ["hooks", "src/scripts"],
   },
   {
     name: "superpowers",
@@ -307,6 +314,19 @@ async function refreshOne(snapshot, { force }) {
     // Strip every CLAUDE.md (auto-loads as session context).
     const stripped = await deleteClaudeMdRecursive(localAbs);
 
+    // Defense in depth: forcibly delete excludePostCopy paths from the
+    // local snapshot, regardless of whether they were copied. Guards
+    // against silent regressions if selectiveDirs is later edited to
+    // include a path that the snapshot has explicitly opted out of.
+    let excluded = 0;
+    for (const p of snapshot.excludePostCopy ?? []) {
+      const target = join(localAbs, p);
+      if (await pathExists(target)) {
+        await rm(target, { recursive: true, force: true });
+        excluded++;
+      }
+    }
+
     // Print git diff stat scoped to the snapshot path.
     const diffStat = runGit(
       ["diff", "--stat", "--", snapshot.localPath],
@@ -317,7 +337,7 @@ async function refreshOne(snapshot, { force }) {
     log(`  pinned SHA   : ${pinned}`);
     log(`  upstream HEAD: ${headSha}`);
     log(
-      `  status       : updated (${copiedDirs} dirs, ${copiedFiles} files, ${stripped} CLAUDE.md stripped)`,
+      `  status       : updated (${copiedDirs} dirs, ${copiedFiles} files, ${stripped} CLAUDE.md stripped, ${excluded} excluded paths removed)`,
     );
     if (diffStat.stdout.trim()) {
       log("  diff --stat  :");
