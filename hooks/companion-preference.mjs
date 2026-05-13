@@ -23,7 +23,9 @@
  * § "Which rows the override affects" — drift will surface when the test
  * suite or a follow-up audit walks the table against this map.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 const OVERRIDES = {
@@ -87,6 +89,47 @@ function normalizeSkill(skill) {
 function resolveHome() {
     return process.env.HOME ?? process.env.USERPROFILE ?? homedir();
 }
+function resolveProjectRoot() {
+    const fromEnv = process.env.CLAUDE_PROJECT_DIR;
+    if (fromEnv)
+        return fromEnv;
+    try {
+        const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "ignore"],
+        }).trim();
+        if (root)
+            return root;
+    }
+    catch {
+        // not in a git repo
+    }
+    return "global";
+}
+function telemetryPath(home) {
+    const hash = createHash("sha256")
+        .update(resolveProjectRoot())
+        .digest("hex")
+        .slice(0, 12);
+    return join(home, ".claude", "instincts", hash, "companion-preference.jsonl");
+}
+/**
+ * Append one JSONL line per hook decision. Wrapped to fail open: any write
+ * error (read-only dir, disk full, race on mkdir) is swallowed and the hook
+ * decision proceeds. Telemetry must never block tool calls.
+ */
+function writeTelemetry(home, event) {
+    try {
+        const path = telemetryPath(home);
+        const dir = join(path, "..");
+        if (!existsSync(dir))
+            mkdirSync(dir, { recursive: true });
+        appendFileSync(path, `${JSON.stringify(event)}\n`);
+    }
+    catch {
+        // fail-open — telemetry failure never changes the decision
+    }
+}
 function main() {
     const raw = readStdin();
     let payload;
@@ -110,21 +153,35 @@ function main() {
     }
     const home = resolveHome();
     const mode = readMode(home);
+    const installed = isCompanionInstalled(home, override.plugin);
+    const baseEvent = {
+        ts: new Date().toISOString(),
+        hook: "companion-preference",
+        ci_skill: normalized,
+        companion: override.companion,
+        plugin: override.plugin,
+        companion_installed: installed,
+    };
     if (mode === "ci-first") {
+        // Shadow row: what companions-first would have done. This is the data
+        // set that earns a future default-flip decision.
+        writeTelemetry(home, { ...baseEvent, mode, action: "observation" });
         emitAndExit({ decision: "allow" });
     }
     if (mode === "companions-first") {
         process.stderr.write(`[continuous-improvement] companion_preference=companions-first → prefer \`${override.companion}\` over \`ci:${normalized}\`.\n`);
+        writeTelemetry(home, { ...baseEvent, mode, action: "advisory" });
         emitAndExit({ decision: "allow" });
     }
     // strict-companions: always block; reason depends on install state.
-    const installed = isCompanionInstalled(home, override.plugin);
     if (installed) {
+        writeTelemetry(home, { ...baseEvent, mode, action: "block" });
         emitAndExit({
             decision: "block",
             reason: `companion_preference=strict-companions: route to \`${override.companion}\` instead of \`ci:${normalized}\`. The CI fallback is suppressed by your setting.`,
         });
     }
+    writeTelemetry(home, { ...baseEvent, mode, action: "block-not-installed" });
     emitAndExit({
         decision: "block",
         reason: `companion_preference=strict-companions: companion plugin \`${override.plugin}\` is not installed. Install with \`/plugin install ${override.plugin}@continuous-improvement\` or relax the setting to \`companions-first\` or \`ci-first\` in ~/.claude/settings.json.`,
