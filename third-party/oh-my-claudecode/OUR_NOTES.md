@@ -37,8 +37,8 @@ Activating the plugin installs OMC's agents and skills only — `hooks/` is inte
 
 1. **OMC's `ralph` skill.** Our `ralph` is already a Tier-1 skill under the 7 Laws and is shaped around the Mulahazah learning loop. Adopting OMC's would fork the contract. Stay on ours.
 2. **OMC's hooks (removed from snapshot).** `hooks/hooks.json` was stripped from this snapshot — not just disabled. Reasons: (a) every entry calls `$CLAUDE_PLUGIN_ROOT/scripts/run.cjs`, which lives in upstream's `src/` and is explicitly excluded from vendoring per item 4 below, so the hooks throw `MODULE_NOT_FOUND` on every fire when the plugin is installed; (b) our `hooks/three-section-close.mjs` enforces a project-specific output contract and mixing OMC's hooks would create ordering surprises. The selective-scope and refresh recipe in `third-party/MANIFEST.md` reflect the strip.
-3. **OMC's plugin manifest** (`.claude-plugin/plugin.json`). Read-only reference only. Do not register `omc` in our `.claude-plugin/marketplace.json`.
-4. **OMC's `src/` and `dist/`.** Not vendored. We have no intent to fork the runtime. If we ever want OMC behavior, install from upstream.
+3. **OMC's plugin manifest** (`.claude-plugin/plugin.json`). Vendored but **packaging-patched**: the `mcpServers: "./.mcp.json"` key was stripped because `.mcp.json` is excluded from vendoring per item 4 below (see `third-party/MANIFEST.md` exclusions), so leaving the pointer in would have Claude Code's plugin loader resolve a missing file on every install. The patch is one-key minimal; all other fields are verbatim upstream. Same precedent as the hooks/ strip in item 2 — a packaging correction for a pointer to an excluded-from-vendoring runtime, not a fork of upstream content.
+4. **OMC's `src/` and `dist/` (and `.mcp.json`).** Not vendored. We have no intent to fork the runtime, and the `.mcp.json` MCP server registration is a per-install user opt-in surface that should not be pre-wired by a cold-storage snapshot. If we ever want OMC behavior, install from upstream.
 
 ## Ported from OMC into the 7 Laws
 
