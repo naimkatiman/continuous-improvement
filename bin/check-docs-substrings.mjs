@@ -267,6 +267,23 @@ export const DOCS_ASSERTIONS = [
     { file: "plugins/continuous-improvement/skills/proceed-with-the-recommendation/SKILL.md", pattern: `The "no" escape valve (both tiers)`, source: "wild-risa-tiers.test.mts" },
     { file: "skills/proceed-with-the-recommendation.md", pattern: "explicit handoff signal", source: "wild-risa-tiers.test.mts" },
     { file: "plugins/continuous-improvement/skills/proceed-with-the-recommendation/SKILL.md", pattern: "explicit handoff signal", source: "wild-risa-tiers.test.mts" },
+    // proceed-with-the-recommendation --once fast-path mode — locked 2026-05-13 (PR 2 of dispatcher-bias train).
+    // The orchestrator gained an opt-in mode that runs Phase 1 + Phase 3 + Phase 4 only on single-item
+    // safe-tagged confirmations, skipping P-MAG, Plan, Reflect, and the three-section close. Hard
+    // preconditions refuse --once and fall back to the full flow if list size != 1, item is not safe,
+    // it touches > 3 files / > 150 LOC, hits restricted dirs, or is destructive. Each assertion below
+    // catches a specific class of regression:
+    //   - "## Fast-Path: `--once` Mode"        → removing the whole section
+    //   - "Refuse --once if any fail"-shaped   → losing the precondition gate (matched via "--once refused:")
+    //   - "Phase 0 — P-MAG" + "**Skipped.**"   → losing the explicit phase-status table (matched via "Skipped.** Reason: single-item")
+    { file: "skills/proceed-with-the-recommendation.md", pattern: "## Fast-Path: `--once` Mode", source: "docs-substrings-manifest:proceed-once-mode" },
+    { file: "plugins/continuous-improvement/skills/proceed-with-the-recommendation/SKILL.md", pattern: "## Fast-Path: `--once` Mode", source: "docs-substrings-manifest:proceed-once-mode" },
+    { file: "skills/proceed-with-the-recommendation.md", pattern: "--once refused:", source: "docs-substrings-manifest:proceed-once-mode" },
+    { file: "plugins/continuous-improvement/skills/proceed-with-the-recommendation/SKILL.md", pattern: "--once refused:", source: "docs-substrings-manifest:proceed-once-mode" },
+    { file: "skills/proceed-with-the-recommendation.md", pattern: "Skipped.** Reason: single-item", source: "docs-substrings-manifest:proceed-once-mode" },
+    { file: "plugins/continuous-improvement/skills/proceed-with-the-recommendation/SKILL.md", pattern: "Skipped.** Reason: single-item", source: "docs-substrings-manifest:proceed-once-mode" },
+    { file: "commands/proceed-with-the-recommendation.md", pattern: "Fast-path: `--once` mode", source: "docs-substrings-manifest:proceed-once-mode" },
+    { file: "plugins/continuous-improvement/commands/proceed-with-the-recommendation.md", pattern: "Fast-path: `--once` mode", source: "docs-substrings-manifest:proceed-once-mode" },
 ];
 export function checkAssertions(repoRoot, assertions = DOCS_ASSERTIONS) {
     const fileCache = new Map();

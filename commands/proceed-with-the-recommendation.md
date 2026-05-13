@@ -18,6 +18,26 @@ Invoke immediately after the agent has offered a numbered list of recommendation
 - "execute the recommendations"
 - "yes do it" / "all of them"
 
+## Fast-path: `--once` mode
+
+For a single-item, `safe`-tagged confirmation, append `--once` to skip P-MAG, Plan, Reflect, and the three-section close. Runs Phase 1 + Phase 3 + Phase 4 only and ends with one line: `Done: <item>. Verified: <check + output>.`
+
+Trigger phrases:
+
+- `/proceed-with-the-recommendation --once`
+- `/proceed --once`
+- "proceed once with that" / "just do that one"
+- Any standard trigger phrase plus the literal `--once` suffix
+
+Hard preconditions (the skill refuses `--once` and falls back to the full flow if any fail):
+
+- Recommendation list has exactly one item
+- Item is tagged `safe` (not `caution`, not `needs-approval`)
+- Item touches ≤3 files, ≤150 LOC, and none of `.github/`, `bin/`, `lib/`, `src/`, `third-party/`
+- Item is not destructive (no deploy, force-push, DB drop, secret rotation)
+
+Full behavior is defined in [`skills/proceed-with-the-recommendation.md`](../skills/proceed-with-the-recommendation.md) under § "Fast-Path: `--once` Mode".
+
 ## What happens
 
 1. **Pre-flight (Law 1)** — restate the recommendation list in original order, tag each `safe` / `caution` / `needs-approval`
