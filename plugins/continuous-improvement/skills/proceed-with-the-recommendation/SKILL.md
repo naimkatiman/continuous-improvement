@@ -57,6 +57,78 @@ Do NOT use when:
 - User scoped the work ("just the first one", "only the safe ones") — honor the scope
 - Recommendations conflict with project agent-instruction files (CLAUDE.md / AGENTS.md / GEMINI.md / equivalent)
 
+## Fast-Path: `--once` Mode
+
+For single-item, low-risk confirmations, the seven-phase flow below is overkill — P-MAG + plan-restate + reflect + three-section close add more ceremony than the work itself. `--once` is an opt-in fast path that runs **Phase 1 (Pre-Flight) + Phase 3 (Execute) + Phase 4 (Verify) only**. Phase 0 (P-MAG), Phase 2 (Plan), Phase 5 (Iterate-on-failure restart), Phase 6 (Reflect), and Phase 7 (three-section close) are skipped.
+
+### When `--once` applies
+
+Invoke `--once` only when ALL of the following hold:
+
+- The prior turn's recommendation list contained **exactly one** item.
+- The item is tagged **`safe`** in Phase 1 (not `caution`, not `needs-approval`).
+- The item is fully verifiable with a single smallest check (one typecheck, one curl, one read-back, one command output snippet).
+- The user explicitly added `--once` to the trigger or invoked `/proceed-with-the-recommendation --once`.
+
+### Trigger phrases for `--once`
+
+- `/proceed-with-the-recommendation --once`
+- `/proceed --once`
+- "proceed once with that"
+- "just do that one"
+- Any standard trigger phrase plus the literal `--once` suffix anywhere in the user message
+
+### What runs under `--once`
+
+| Phase | Status under `--once` |
+|---|---|
+| Phase 0 — P-MAG | **Skipped.** Reason: single-item runs do not accumulate enough state to need a past-mistake gate; running it twice on the same surface within minutes is wasted ceremony. |
+| Phase 1 — Pre-Flight | **Runs.** Restate the one item, tag it `safe`, route it. |
+| Phase 2 — Plan | **Skipped.** Reason: a one-line item does not need a `docs/plans/` artifact. |
+| Phase 3 — Execute | **Runs.** Route to the preferred skill or inline fallback. |
+| Phase 4 — Verify | **Runs.** Smallest check, with the output snippet quoted verbatim. |
+| Phase 5 — Iterate | **Halts on failure.** If Phase 4 fails, do NOT silently restart — report the failure and stop. The operator decides whether to re-invoke the full flow. |
+| Phase 6 — Reflect | **Skipped.** No Reflection block, no `observations.jsonl` append, no `Will NOT repeat:` carry-forward. |
+| Phase 7 — Three-section close | **Skipped.** The reply ends with a single line: `Done: <item>. Verified: <check + output>.` No tiered tables, no WILD/RISA, no `Want me to: A or B?` closer. |
+
+### Hard preconditions (refuse `--once` if any fail)
+
+`--once` MUST refuse and fall back to the full flow if:
+
+- The recommendation list has more than one item. The seven-phase flow exists because multi-item runs accumulate state across items; the fast path cannot guarantee that.
+- The item is tagged `caution` or `needs-approval`. P-MAG is the gate that catches "we already broke this last week"; skipping it on caution-tagged work is exactly the failure pattern the gate was built for.
+- The item touches `>3` files, `>150` LOC, or any of `.github/`, `bin/`, `lib/`, `src/`, `third-party/`. Those surfaces have explicit invariants (`verify:all`, the third-party vendor contract, the `.mts` build pipeline) that the seven-phase flow protects.
+- The item is destructive (deploy, force-push, DB drop, secret rotation, file delete that is not a generated artifact). These always route through the full flow regardless of size.
+
+If a precondition fails, emit one line: `--once refused: <reason>. Falling back to full proceed flow.` and continue with Phase 0.
+
+### What you give up
+
+`--once` trades reflection + learning + close-discipline for speed. Concrete losses per skipped phase:
+
+- **No P-MAG read** — past mistakes from prior sessions are not surfaced. Acceptable on single-file safe edits; risky on anything touching code paths the operator has corrected before.
+- **No Reflect block** — the run does not append to `observations.jsonl`. Mulahazah will not learn from this iteration.
+- **No three-section close** — the next turn cannot use `wild-risa-balance` tier inference from a `## Recommendation (expert|beginner)` heading because no such heading shipped.
+
+`--once` is the right call when the work is genuinely smaller than the ceremony. For anything larger, the seven-phase flow is the discipline.
+
+### Example
+
+Prior turn (last item from a five-item recommendation block):
+
+> 5. Run `npm run verify:docs-substrings` and confirm green before committing.
+
+Operator: `/proceed --once`
+
+Under `--once`, the entire response is two lines:
+
+```
+Routed to: inline (Bash). Item: "Run npm run verify:docs-substrings and confirm green." Tag: safe.
+Done: ran `npm run verify:docs-substrings`. Verified: `OK docs-substrings: all 150 substring assertion(s) match their target files.`
+```
+
+No Phase 0 quote, no `Will NOT repeat:`, no Reflection, no tiered tables, no `Want me to:` closer.
+
 ## Phase 0: Acknowledge (Past Mistake Acknowledgment Gate / P-MAG)
 
 Before research begins, the skill must read its own track record. The instinct system records corrections; this gate forces the read at the moment they actually matter — before a new recommendation list is touched. **Three rules, in order. None is optional.**
