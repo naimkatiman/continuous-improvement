@@ -507,6 +507,11 @@ export function getPluginHooksConfig(): PluginHooksConfig {
     command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/gateguard.mjs\"",
     timeout: 5,
   };
+  const companionPreferenceCommand = {
+    type: "command" as const,
+    command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/companion-preference.mjs\"",
+    timeout: 5,
+  };
   const observeCommand = {
     type: "command" as const,
     command: "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/observe.sh\"",
@@ -525,13 +530,17 @@ export function getPluginHooksConfig(): PluginHooksConfig {
 
   return {
     description:
-      "Gateguard fact-forcing PreToolUse, observation, session lifecycle, and 3-section-close discipline hooks for continuous-improvement.",
+      "Gateguard fact-forcing PreToolUse, companion-preference enforcement, observation, session lifecycle, and 3-section-close discipline hooks for continuous-improvement.",
     hooks: {
       // gateguard runs FIRST so its block decision short-circuits before
-      // observe.sh records the tool call. observe.sh stays in PreToolUse for
-      // the observation feed; the Claude Code host runs both regardless of
-      // gateguard's decision.
-      PreToolUse: [{ hooks: [gateguardCommand, observeCommand] }],
+      // companion-preference and observe.sh see the call. companion-preference
+      // runs second on Skill tool calls; it is a no-op under ci-first (the
+      // default) and never blocks under companions-first. observe.sh stays in
+      // PreToolUse for the observation feed; the Claude Code host runs all
+      // three regardless of gateguard's decision.
+      PreToolUse: [
+        { hooks: [gateguardCommand, companionPreferenceCommand, observeCommand] },
+      ],
       PostToolUse: [{ hooks: [observeCommand] }],
       SessionStart: [{ hooks: [sessionCommand] }],
       SessionEnd: [{ hooks: [sessionCommand] }],
