@@ -37,7 +37,7 @@
  *   2 — bad CLI usage / unknown snapshot name
  */
 import { spawnSync } from "node:child_process";
-import { cp, mkdir, readFile, rm, stat } from "node:fs/promises";
+import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { argv, cwd, exit, stderr, stdout } from "node:process";
@@ -82,6 +82,14 @@ const SNAPSHOTS = [
     // OMC's hooks/hooks.json calls $CLAUDE_PLUGIN_ROOT/scripts/run.cjs,
     // which lives under src/scripts/ — neither is vendored.
     excludePostCopy: ["hooks", "src/scripts"],
+    // Packaging patches applied after the selective copy. For each entry,
+    // load the JSON file, delete the listed top-level keys, write it back
+    // pretty-printed. Use case: upstream's plugin.json points at runtime
+    // files we exclude from vendoring (e.g. .mcp.json), so the pointers
+    // resolve to missing files at install time. See OUR_NOTES.md item 3.
+    postCopyJsonKeyDeletes: [
+      { file: ".claude-plugin/plugin.json", keys: ["mcpServers"] },
+    ],
   },
   {
     name: "superpowers",
@@ -327,6 +335,34 @@ async function refreshOne(snapshot, { force }) {
       }
     }
 
+    // Packaging patches: drop named top-level keys from JSON files.
+    // For pointers to runtime files we exclude from vendoring (e.g.
+    // plugin.json's "mcpServers" → ".mcp.json"), leaving the key in
+    // would let Claude Code's loader resolve a missing file on every
+    // install. One-key minimal mutation; all other fields stay verbatim.
+    let patchedKeys = 0;
+    for (const patch of snapshot.postCopyJsonKeyDeletes ?? []) {
+      const target = join(localAbs, patch.file);
+      if (!(await pathExists(target))) {
+        throw new Error(
+          `[${snapshot.name}] postCopyJsonKeyDeletes: file "${patch.file}" missing after copy`,
+        );
+      }
+      const text = await readFile(target, "utf8");
+      const obj = JSON.parse(text);
+      let changed = false;
+      for (const key of patch.keys) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+          delete obj[key];
+          changed = true;
+          patchedKeys++;
+        }
+      }
+      if (changed) {
+        await writeFile(target, JSON.stringify(obj, null, 2) + "\n", "utf8");
+      }
+    }
+
     // Print git diff stat scoped to the snapshot path.
     const diffStat = runGit(
       ["diff", "--stat", "--", snapshot.localPath],
@@ -337,7 +373,7 @@ async function refreshOne(snapshot, { force }) {
     log(`  pinned SHA   : ${pinned}`);
     log(`  upstream HEAD: ${headSha}`);
     log(
-      `  status       : updated (${copiedDirs} dirs, ${copiedFiles} files, ${stripped} CLAUDE.md stripped, ${excluded} excluded paths removed)`,
+      `  status       : updated (${copiedDirs} dirs, ${copiedFiles} files, ${stripped} CLAUDE.md stripped, ${excluded} excluded paths removed, ${patchedKeys} json keys patched)`,
     );
     if (diffStat.stdout.trim()) {
       log("  diff --stat  :");

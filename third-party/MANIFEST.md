@@ -34,9 +34,10 @@ Pinned snapshots. Read-only. Refresh by bumping the SHA and re-running the docum
 - `bridge/` (~6 MB — runtime adapters)
 - `tests/`, `scripts/`, `benchmark/`, `benchmarks/`, `seminar/`, `shellmark/`, `research/`
 - `hooks/hooks.json` — every entry calls `$CLAUDE_PLUGIN_ROOT/scripts/run.cjs`, which lives in the excluded `src/` tree. With the runtime not vendored, registering these hooks would throw `MODULE_NOT_FOUND` on every PreToolUse/PostToolUse/SessionStart/Stop/PreCompact fire. See `third-party/oh-my-claudecode/OUR_NOTES.md` item 2 in "What is intentionally NOT integrated".
+- `.mcp.json` — MCP server registration is a per-install user opt-in surface and should not be pre-wired by a cold-storage snapshot. Because `.claude-plugin/plugin.json` (which IS vendored) declares `"mcpServers": "./.mcp.json"`, the vendored `plugin.json` is **packaging-patched** to drop that key (see refresh recipe step 3.5 below). All other `plugin.json` fields are verbatim upstream. See `third-party/oh-my-claudecode/OUR_NOTES.md` item 3.
 - `package.json`, `package-lock.json`, `tsconfig.json`, `eslint.config.js`, `vitest.config.ts`, `typos.toml`
 - All non-English `README.*.md` files
-- `.github/`, `.git/`, `.gitignore`, `.gitattributes`, `.npmignore`, `.codex`, `.clawhip/`, `.mcp.json`
+- `.github/`, `.git/`, `.gitignore`, `.gitattributes`, `.npmignore`, `.codex`, `.clawhip/`
 - `CLAUDE.md` (root) and `docs/CLAUDE.md` — both auto-load as Claude Code session context if read from this subtree, leaking OMC's operating principles into the active 7 Laws session. Excluded for cross-contamination safety. The root `CLAUDE.md` was empirically observed to leak; `docs/CLAUDE.md` is excluded preemptively without empirical confirmation. Upstream still ships both; refer to upstream URL when needed.
 
 **Refresh recipe:**
@@ -60,6 +61,14 @@ cp /tmp/omc-refresh/{LICENSE,README.md,AGENTS.md,CHANGELOG.md,SECURITY.md} \
 # (root CLAUDE.md is not copied above; docs/CLAUDE.md gets copied by the dir cp,
 # so it must be deleted post-copy.)
 find third-party/oh-my-claudecode -name CLAUDE.md -type f -delete
+
+# 3.5. Packaging-patch plugin.json: drop the mcpServers key that points at
+#      .mcp.json (excluded from vendoring above). One-key minimal mutation;
+#      all other fields stay verbatim upstream. See OUR_NOTES.md item 3.
+node -e "const f='third-party/oh-my-claudecode/.claude-plugin/plugin.json'; \
+  const j=JSON.parse(require('fs').readFileSync(f,'utf8')); \
+  delete j.mcpServers; \
+  require('fs').writeFileSync(f, JSON.stringify(j, null, 2) + '\n');"
 
 # 4. Single-concern commit:
 #    chore(third-party): refresh oh-my-claudecode @ <new-sha>
