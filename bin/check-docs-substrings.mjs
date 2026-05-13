@@ -312,6 +312,20 @@ export const DOCS_ASSERTIONS = [
     { file: "plugins/continuous-improvement/skills/proceed-with-the-recommendation/SKILL.md", pattern: "Skipped.** Reason: single-item", source: "docs-substrings-manifest:proceed-once-mode" },
     { file: "commands/proceed-with-the-recommendation.md", pattern: "Fast-path: `--once` mode", source: "docs-substrings-manifest:proceed-once-mode" },
     { file: "plugins/continuous-improvement/commands/proceed-with-the-recommendation.md", pattern: "Fast-path: `--once` mode", source: "docs-substrings-manifest:proceed-once-mode" },
+    // /companion-preference status reader — locked 2026-05-14 (PR 5 of dispatcher-bias train).
+    // The reader CLI (bin/companion-preference-status.mjs) and slash command (commands/companion-preference.md)
+    // turn the JSONL telemetry from PR #138 into a per-skill aggregation report. The slash command must
+    // expose the frontmatter name, the canonical CLI invocation, and the documented --json subcommand.
+    // Each assertion catches a specific class of regression:
+    //   - "name: companion-preference"                → renaming the slash command
+    //   - "companion-preference-status.mjs"            → renaming the CLI entry point
+    //   - "## Subcommands"                             → losing the documented surface (--json, --days, --all)
+    { file: "commands/companion-preference.md", pattern: "name: companion-preference", source: "docs-substrings-manifest:companion-preference-status-reader" },
+    { file: "plugins/continuous-improvement/commands/companion-preference.md", pattern: "name: companion-preference", source: "docs-substrings-manifest:companion-preference-status-reader" },
+    { file: "commands/companion-preference.md", pattern: "companion-preference-status.mjs", source: "docs-substrings-manifest:companion-preference-status-reader" },
+    { file: "plugins/continuous-improvement/commands/companion-preference.md", pattern: "companion-preference-status.mjs", source: "docs-substrings-manifest:companion-preference-status-reader" },
+    { file: "commands/companion-preference.md", pattern: "## Subcommands", source: "docs-substrings-manifest:companion-preference-status-reader" },
+    { file: "plugins/continuous-improvement/commands/companion-preference.md", pattern: "## Subcommands", source: "docs-substrings-manifest:companion-preference-status-reader" },
 ];
 export function checkAssertions(repoRoot, assertions = DOCS_ASSERTIONS) {
     const fileCache = new Map();
