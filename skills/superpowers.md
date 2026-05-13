@@ -145,9 +145,17 @@ The override does not disable:
 
 These are framework invariants, not routing preferences. The flag re-orders which specialist runs; it does not weaken what the framework guarantees.
 
-### What this does not do
+### Runtime enforcement
 
-This override is documented routing protocol the model reads at task time, not a runtime gate like `hooks/gateguard.mjs`. A user-installed hook that reads `~/.claude/settings.json` and rewrites tool calls is a separate concern (tracked as a follow-up under `docs/plans/2026-05-13-dispatcher-companion-override-and-once-mode.md`). Until that lands, an agent operating in good faith honors the flag the same way it honors any other documented dispatcher rule; an agent that ignores it is a discipline failure the instinct system records, not a runtime denial.
+The override is enforced at the PreToolUse layer by `hooks/companion-preference.mjs`. On every `Skill` tool call, the hook reads `~/.claude/settings.json` for the `companion_preference` value and:
+
+- `ci-first` (default): no-op, allow.
+- `companions-first`: emit a one-line stderr advisory naming the preferred companion; allow.
+- `strict-companions`: block the call. Reason names the companion when its plugin is installed, or the `/plugin install <plugin>@continuous-improvement` hint when it is not.
+
+The override map inside `hooks/companion-preference.mjs` stays row-aligned with the "Which rows the override affects" table above. Drift surfaces in the hook test suite, which walks the same pairs and fails on any new CI→companion row that the hook does not recognize.
+
+The hook fails open. If `~/.claude/settings.json` is missing, malformed, or unreadable, the hook emits `{ "decision": "allow" }` and exits 0. Bugs in the hook never block tool calls — they only fail to enforce.
 
 ## Stacked-PR Plan Precondition (≥3 files)
 

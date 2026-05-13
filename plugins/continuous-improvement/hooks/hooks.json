@@ -1,5 +1,5 @@
 {
-  "description": "Gateguard fact-forcing PreToolUse, observation, session lifecycle, and 3-section-close discipline hooks for continuous-improvement.",
+  "description": "Gateguard fact-forcing PreToolUse, companion-preference enforcement, observation, session lifecycle, and 3-section-close discipline hooks for continuous-improvement.",
   "hooks": {
     "PreToolUse": [
       {
@@ -7,6 +7,11 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/gateguard.mjs\"",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/companion-preference.mjs\"",
             "timeout": 5
           },
           {

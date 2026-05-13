@@ -191,6 +191,20 @@ export const DOCS_ASSERTIONS = [
     { file: "plugins/continuous-improvement/skills/superpowers/SKILL.md", pattern: "companion_preference", source: "docs-substrings-manifest:superpowers-companion-preference-override" },
     { file: "skills/superpowers.md", pattern: "strict-companions", source: "docs-substrings-manifest:superpowers-companion-preference-override" },
     { file: "plugins/continuous-improvement/skills/superpowers/SKILL.md", pattern: "strict-companions", source: "docs-substrings-manifest:superpowers-companion-preference-override" },
+    // superpowers Runtime Enforcement subsection — locked 2026-05-13 (PR 3 of dispatcher-bias train).
+    // The Companion-Preference Override moved from documented-only to runtime-enforced via
+    // hooks/companion-preference.mjs (PreToolUse). The "### Runtime enforcement" subsection
+    // names the hook file as the verify:doc-runtime-claims anchor and describes the per-mode
+    // decision contract. Each assertion catches a specific class of regression:
+    //   - "### Runtime enforcement"           → removing the whole subsection
+    //   - "hooks/companion-preference.mjs"    → losing the hook anchor (also satisfies doc-runtime-claims)
+    //   - "fails open"                        → losing the no-block-on-bug invariant
+    { file: "skills/superpowers.md", pattern: "### Runtime enforcement", source: "docs-substrings-manifest:superpowers-runtime-enforcement" },
+    { file: "plugins/continuous-improvement/skills/superpowers/SKILL.md", pattern: "### Runtime enforcement", source: "docs-substrings-manifest:superpowers-runtime-enforcement" },
+    { file: "skills/superpowers.md", pattern: "hooks/companion-preference.mjs", source: "docs-substrings-manifest:superpowers-runtime-enforcement" },
+    { file: "plugins/continuous-improvement/skills/superpowers/SKILL.md", pattern: "hooks/companion-preference.mjs", source: "docs-substrings-manifest:superpowers-runtime-enforcement" },
+    { file: "skills/superpowers.md", pattern: "fails open", source: "docs-substrings-manifest:superpowers-runtime-enforcement" },
+    { file: "plugins/continuous-improvement/skills/superpowers/SKILL.md", pattern: "fails open", source: "docs-substrings-manifest:superpowers-runtime-enforcement" },
     // verification-loop per-project ladder — locked 2026-05-07 (PR C of second-release train).
     // Phase 0 (Ladder Resolution) was added so Phases 1–6 read the project's actual build/typecheck/
     // lint/test/security/deploy_receipt invocations from .claude/verify-ladder.json (or sniff /
