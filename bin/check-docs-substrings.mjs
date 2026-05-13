@@ -177,6 +177,20 @@ export const DOCS_ASSERTIONS = [
     { file: "plugins/continuous-improvement/skills/superpowers/SKILL.md", pattern: "## Stacked-PR Plan Precondition (≥3 files)", source: "docs-substrings-manifest:superpowers-stacked-pr-precondition" },
     { file: "skills/superpowers.md", pattern: "Per-PR table", source: "docs-substrings-manifest:superpowers-stacked-pr-precondition" },
     { file: "plugins/continuous-improvement/skills/superpowers/SKILL.md", pattern: "Per-PR table", source: "docs-substrings-manifest:superpowers-stacked-pr-precondition" },
+    // superpowers Companion-Preference Override — locked 2026-05-13 (PR 1 of dispatcher-bias train).
+    // The dispatcher gained an opt-in settings key (~/.claude/settings.json →
+    // continuous_improvement.companion_preference: "ci-first" | "companions-first" | "strict-companions")
+    // that lets an operator who installed a companion plugin promote it over the CI-bundled default.
+    // Each assertion below catches a specific class of regression:
+    //   - "## Companion-Preference Override" → removing the whole override section
+    //   - "companion_preference"              → renaming or moving the settings key
+    //   - "strict-companions"                 → losing the hard-halt variant
+    { file: "skills/superpowers.md", pattern: "## Companion-Preference Override", source: "docs-substrings-manifest:superpowers-companion-preference-override" },
+    { file: "plugins/continuous-improvement/skills/superpowers/SKILL.md", pattern: "## Companion-Preference Override", source: "docs-substrings-manifest:superpowers-companion-preference-override" },
+    { file: "skills/superpowers.md", pattern: "companion_preference", source: "docs-substrings-manifest:superpowers-companion-preference-override" },
+    { file: "plugins/continuous-improvement/skills/superpowers/SKILL.md", pattern: "companion_preference", source: "docs-substrings-manifest:superpowers-companion-preference-override" },
+    { file: "skills/superpowers.md", pattern: "strict-companions", source: "docs-substrings-manifest:superpowers-companion-preference-override" },
+    { file: "plugins/continuous-improvement/skills/superpowers/SKILL.md", pattern: "strict-companions", source: "docs-substrings-manifest:superpowers-companion-preference-override" },
     // verification-loop per-project ladder — locked 2026-05-07 (PR C of second-release train).
     // Phase 0 (Ladder Resolution) was added so Phases 1–6 read the project's actual build/typecheck/
     // lint/test/security/deploy_receipt invocations from .claude/verify-ladder.json (or sniff /
