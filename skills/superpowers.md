@@ -136,7 +136,7 @@ These are the routing rows where the override changes the resolved target. Rows 
 
 ### Hard halts that remain regardless of the flag
 
-The override does **not** disable:
+The override does not disable:
 
 - `gateguard` PreToolUse fact-list enforcement (Law 1, runtime layer in `hooks/gateguard.mjs`)
 - Stop-hook three-section-close discipline (Law 4 + Law 7, runtime layer in `hooks/three-section-close.mjs`)
