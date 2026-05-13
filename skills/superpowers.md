@@ -94,6 +94,61 @@ When a task trigger fires, the dispatcher resolves to the first available skill 
 
 When no installed plugin in the chain resolves, the dispatcher falls back to the inline protocols below (Test-Driven Development, Brainstorming, Plan Format, etc.) so the workflow still works on a clean install.
 
+## Companion-Preference Override
+
+The four-source routing table above is **CI-first by default**: where a CI-bundled skill (`ci:tdd-workflow`, `ci:verification-loop`, `ci:planning-with-files`, `ci:context-budget`, `ci:ralph`, `ci:learn-eval`) and a companion skill resolve the same trigger, the table lists the CI skill first and the dispatcher picks it. That is the conservative default — the CI plugin ships with the marketplace, the companions are opt-in installs, so a clean install routes to skills that are guaranteed present.
+
+Once the operator has explicitly installed a companion plugin (`superpowers@continuous-improvement`, `agent-skills@continuous-improvement`, `ruflo-swarm@continuous-improvement`, `oh-my-claudecode@continuous-improvement`), the default starts working against them: the installed companion is shadowed by the CI fallback for the same trigger. This override flag respects the operator's explicit install choice without forcing every user to relitigate routing per task.
+
+### Setting the flag
+
+Add a `continuous_improvement.companion_preference` key to `~/.claude/settings.json`:
+
+```json
+{
+  "continuous_improvement": {
+    "companion_preference": "companions-first"
+  }
+}
+```
+
+Valid values:
+
+| Value | Behavior |
+|---|---|
+| `"ci-first"` (default) | Unchanged from the routing tables above. CI-bundled skills win every chain where they appear. |
+| `"companions-first"` | For any routing row that lists both a CI skill and a companion alternative, the dispatcher reads the chain right-to-left: companion first, CI as the silent fallback if the companion plugin is not installed. CI-only rows (`ci:gateguard`, `ci:deploy-receipt`, `ci:workspace-surface-audit`, `ci:proceed-with-the-recommendation`) are unaffected because no companion exists. |
+| `"strict-companions"` | Same as `companions-first`, but the CI fallback is suppressed. If the companion plugin is not installed, the dispatcher hard-halts with the same shape as the missing-companion detection in `/superpowers` and asks the operator to install the companion or change the flag. Use when you want a guarantee that the installed companion ran, not the CI shim. |
+
+### Which rows the override affects
+
+These are the routing rows where the override changes the resolved target. Rows not listed here are CI-only or companion-only and route the same under any setting.
+
+| Trigger | `ci-first` (default) | `companions-first` |
+|---|---|---|
+| Write a failing test before code | `ci:tdd-workflow` | `superpowers:test-driven-development`, then `agent-skills:test-driven-development` |
+| Verify before declaring done | `ci:verification-loop` | `superpowers:verification-before-completion` |
+| Curate the right context window | `ci:context-budget` | `agent-skills:context-engineering` |
+| Long autonomous run with quality gates | `ci:ralph` | `oh-my-claudecode:ultrawork`, then `ci:ralph` |
+| Reflect after session, extract patterns | `ci:learn-eval` | `oh-my-claudecode:retrospective` |
+
+`superpowers:writing-plans` already wins the planning chain under both settings — it is the first entry, with `ci:planning-with-files` as the third fallback — so that row is unchanged.
+
+### Hard halts that remain regardless of the flag
+
+The override does **not** disable:
+
+- `gateguard` PreToolUse fact-list enforcement (Law 1, runtime layer in `hooks/gateguard.mjs`)
+- Stop-hook three-section-close discipline (Law 4 + Law 7, runtime layer in `hooks/three-section-close.mjs`)
+- Dispatcher commitments 1–6 above (subagent-driven-development default, parallel fan-out routing, TDD RED-GREEN-REFACTOR, worktree isolation, finishing-a-development-branch before push, distinct Obra/CI variants)
+- Phase 0 P-MAG in `proceed-with-the-recommendation` (Law 5 + Law 7)
+
+These are framework invariants, not routing preferences. The flag re-orders which specialist runs; it does not weaken what the framework guarantees.
+
+### What this does not do
+
+This override is documented routing protocol the model reads at task time, not a runtime gate like `hooks/gateguard.mjs`. A user-installed hook that reads `~/.claude/settings.json` and rewrites tool calls is a separate concern (tracked as a follow-up under `docs/plans/2026-05-13-dispatcher-companion-override-and-once-mode.md`). Until that lands, an agent operating in good faith honors the flag the same way it honors any other documented dispatcher rule; an agent that ignores it is a discipline failure the instinct system records, not a runtime denial.
+
 ## Stacked-PR Plan Precondition (≥3 files)
 
 Any change touching three or more files — across `skills/`, `src/`, `bin/`, `commands/`, or any combination — must produce a stacked-PR plan as a precondition to the first edit landing. The 28-day usage report shows a clean correlation: sessions that opened with a stacked-PR plan landed at `fully_achieved`; sessions that began as a single big-bang multi-file edit landed at `partially_achieved` (landing-page dark theme, market-data-hub wiring, RAG misrouting). Single-concern PRs are the lever that closes that gap.
