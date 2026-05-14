@@ -97,14 +97,17 @@ This shows what the system has learned — instincts, confidence levels, and the
 
 ## How auto-leveling works
 
-You don't configure anything. The system promotes itself:
+You don't configure anything. The system promotes itself. The unit is
+**observations** — one per tool call, not one per session — so a single active
+session can produce dozens. The four levels below mirror the source-of-truth
+table in [SKILL.md](SKILL.md):
 
-| Your usage | What happens |
-|-----------|-------------|
-| First sessions | Hooks capture tool calls silently. No behavior change. |
-| After ~20 sessions | Agent analyzes patterns, creates instincts (silent — you see nothing) |
-| After ~50 sessions | Instincts cross 0.5 → agent starts suggesting: "Consider: [action]" |
-| After ~100 sessions | Instincts cross 0.7 → agent auto-applies learned behaviors |
+| Level | Trigger | What happens |
+|-------|---------|-------------|
+| CAPTURE | < 20 observations | Hooks capture tool calls silently. No behavior change. |
+| ANALYZE | 20+ observations | Agent analyzes patterns, creates instincts (silent — you see nothing) |
+| SUGGEST | Any instinct at 0.5–0.69 confidence | Agent suggests inline: "Consider: [action]" |
+| AUTO-APPLY | Any instinct at 0.7+ confidence | Agent auto-applies the learned behavior |
 
 Corrections drop instinct confidence. Unused instincts decay. The system self-corrects.
 
