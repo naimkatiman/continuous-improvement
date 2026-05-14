@@ -274,3 +274,41 @@ describe("installer - pack loader", () => {
         assert.match(combined, /Unknown pack/, "Unknown pack name should produce error output");
     });
 });
+describe("installer - marketplace collision warning", () => {
+    let tempHome = "";
+    before(() => {
+        tempHome = join(tmpdir(), `ci-test-collision-${Date.now()}`);
+        mkdirSync(join(tempHome, ".claude"), { recursive: true });
+    });
+    after(() => {
+        rmSync(tempHome, { recursive: true, force: true });
+    });
+    it("warns when a marketplace install of continuous-improvement is present", () => {
+        mkdirSync(join(tempHome, ".claude", "plugins", "continuous-improvement"), {
+            recursive: true,
+        });
+        const result = spawnSync("node", [INSTALL_SCRIPT, "install"], {
+            env: { ...process.env, HOME: tempHome },
+            cwd: tempHome,
+            encoding: "utf8",
+        });
+        const combined = (result.stdout ?? "") + (result.stderr ?? "");
+        assert.match(combined, /Possible Beginner\+Expert collision/);
+    });
+    it("does not warn on a clean ~/.claude with no plugins dir", () => {
+        const cleanHome = join(tmpdir(), `ci-test-clean-${Date.now()}`);
+        mkdirSync(join(cleanHome, ".claude"), { recursive: true });
+        try {
+            const result = spawnSync("node", [INSTALL_SCRIPT, "install"], {
+                env: { ...process.env, HOME: cleanHome },
+                cwd: cleanHome,
+                encoding: "utf8",
+            });
+            const combined = (result.stdout ?? "") + (result.stderr ?? "");
+            assert.doesNotMatch(combined, /Possible Beginner\+Expert collision/);
+        }
+        finally {
+            rmSync(cleanHome, { recursive: true, force: true });
+        }
+    });
+});
