@@ -1,11 +1,17 @@
+<!-- README landing-page structure rationale: docs/plans/2026-05-14-readme-landing-rewrite.md -->
+
 <p align="center">
   <img src="assets/combined.gif" alt="Before vs After — The 7 Laws of AI Agent Discipline" width="700" />
 </p>
 
-<h1 align="center">The 7 Laws of AI Agent Discipline</h1>
+<h1 align="center">A seatbelt for Claude Code</h1>
 
 <p align="center">
-  <b>Stop your Claude Code agent from skipping steps, guessing, and declaring "done" without verifying.</b>
+  <b>Research first. Edit safely. Verify before done. Remember what worked.</b>
+</p>
+
+<p align="center">
+  <i>The 7 Laws of AI Agent Discipline — runtime hooks, enforcement skills, and project memory.</i>
 </p>
 
 <p align="center">
@@ -18,6 +24,54 @@
 <p align="center">
   <b>New here?</b> → <a href="QUICKSTART.md">QUICKSTART.md</a> (2 minutes)
 </p>
+
+> **What this is *not*:** a prompt template, a `CLAUDE.md`, or a vibes-based reminder. It is a runtime hook (`hooks/gateguard.mjs`) plus a bundled skill set that physically blocks `Edit` / `Write` / destructive `Bash` until the agent has done the work.
+
+---
+
+## What this does
+
+Claude Code is powerful but skips the boring discipline: it edits before reading, guesses instead of checking, stacks five concerns into one commit, and says "done" without running tests. Continuous Improvement adds three layers that stop that:
+
+1. **Before an edit** — [`gateguard`](skills/gateguard.md) ships as a `PreToolUse` hook (`hooks/gateguard.mjs`) that physically blocks `Edit` / `Write` / `MultiEdit` and destructive `Bash` until the agent presents a fact-list investigation.
+2. **During work** — bundled skills enforce planning, one-thing-at-a-time execution, TDD ([`tdd-workflow`](skills/tdd-workflow.md)), and a six-phase verification ladder ([`verification-loop`](skills/verification-loop.md)) before "done".
+3. **After work** — `/seven-laws` reflection plus the Mulahazah instinct engine capture lessons so the same mistake does not repeat next session.
+
+Beginner install is two slash commands inside Claude Code (no Node, no bash). Expert install adds MCP tools, observation hooks, instinct packs, and a GitHub Action transcript linter for CI.
+
+---
+
+## Before and after
+
+Without Continuous Improvement, "fix the login redirect bug" looks like this:
+
+> Claude edits `Login.tsx`, `LoginForm.tsx`, `useAuth.ts`, `authRouter.ts`, `redirects.ts`, and `useNavigate.ts` — six files, no plan, no investigation. Says "done". The redirect still loops. You roll back six files.
+
+With Continuous Improvement, the same prompt is forced through the gate:
+
+> `gateguard` blocks the first `Edit` until Claude presents a fact list. Claude reads `useAuth.ts`, finds the existing `redirectAfterLogin` helper, traces *why* the redirect loops (a stale `from` query param), and edits one line in one file. `verification-loop` runs the tests. The reply names the file, the line, the cause.
+
+Same agent. Same model. Different discipline.
+
+---
+
+## Who this is for
+
+Use this if you:
+
+- ship from real repositories with real consequences
+- have been bitten by an agent that edits before understanding
+- want tests, builds, or healthchecks to pass before "done"
+- want lessons from yesterday to survive into today
+
+Skip it if you:
+
+- only do one-off prompts (no edits, no commits)
+- do not use Claude Code
+- dislike *any* friction before agent edits
+- want a prompt template, not a runtime gate
+
+(The runtime gate is `hooks/gateguard.mjs`; full mechanics in [How enforcement works](#how-enforcement-works) below.)
 
 ---
 
@@ -34,16 +88,6 @@ You have used Claude Code (or any agentic coding tool) long enough to recognize 
 | 5 | **Forgotten lessons** | Next session starts from zero — prior corrections, decisions, instincts are lost; the same mistake repeats next week | Law 5 (Reflect), Law 7 (Learn) | [`handoff`](skills/handoff.md), [`para-memory-files`](skills/para-memory-files.md), Mulahazah instinct engine |
 
 Three of those alignment + reflection skills (`grill-me`, `grill-with-docs`, `handoff`) are MIT-licensed ports from mattpocock/skills; the rest are continuous-improvement-native. Every failure mode has at least one runtime hook or model-side skill that catches it before it lands in the diff.
-
-## What you get
-
-- **A 7-step discipline** the agent must follow every task — research → plan → execute one thing → verify → reflect → learn → iterate. Each Law has at least one skill or hook that enforces it.
-- **20 bundled skills + a runtime PreToolUse hook + 3 native review agents** that turn the Laws into enforced behavior — including three skills ported from [mattpocock/skills](https://github.com/mattpocock/skills) under MIT that close the alignment chain (`grill-me`, `grill-with-docs`, `handoff`), and three native review agents shipped in [`plugins/continuous-improvement/agents/`](plugins/continuous-improvement/agents/) (`code-reviewer`, `security-auditor`, `test-engineer`) that the orchestrator routes to during the verify and review phases. `gateguard` runs as a PreToolUse hook (`hooks/gateguard.mjs`) that physically blocks Edit/Write/destructive Bash until the agent presents fact-list investigation. `tdd-workflow` enforces RED → GREEN → REFACTOR, `verification-loop` runs build/types/tests/security before "done", `deploy-receipt` closes the merge-to-production gap (deployed SHA + healthcheck), `proceed-with-the-recommendation` walks any agent's recommendation list top-to-bottom with per-item verification. The runtime hook catches the "skipped investigation" failure mode at the tool-call layer; the skills run model-side once the gate clears. See [§ How enforcement works](#how-enforcement-works) for the two-layer model.
-- **Mulahazah, the auto-leveling instinct engine** — hooks capture every tool call; after ~20 observations the agent analyzes patterns and creates instincts with confidence scores. Suggestions appear at 0.5+, auto-apply at 0.7+, decay when ignored. Project-scoped, promote to global after 2+ projects. You configure nothing.
-- **A GitHub Action transcript linter** that catches skipped Laws in CI — writes without prior research, edits without verification, too many files at once.
-- **Two install paths** — Beginner is two slash commands inside Claude Code (no Node, no bash, ~90% of users). Expert adds the MCP server, observation hooks, instinct packs, and the linter.
-
-The whole thing is MIT, free, and lives in this one repo. No service, no account, no telemetry leaves your machine.
 
 ---
 
@@ -148,19 +192,13 @@ Research -> Plan -> Execute (one thing) -> Verify -> Reflect -> Learn -> Iterate
   <img src="assets/diagram-7-laws-loop.jpg" alt="The 7 Laws of AI Agent Discipline — circular workflow loop" width="820" />
 </p>
 
-Full spec, reflection-block format, and anti-examples: [SKILL.md](SKILL.md).
+Full spec, reflection-block format, and anti-examples: [SKILL.md](SKILL.md). Full Law-to-tool alignment matrix: [CONTRIBUTING.md § Law Coverage Matrix](CONTRIBUTING.md#law-coverage-matrix).
 
 ---
 
-## Mulahazah: Auto-Leveling Learning
+## Mulahazah: auto-leveling learning
 
-Hooks capture every tool call. After ~20 observations, Claude analyzes patterns and creates **instincts** with confidence scores:
-
-- **< 0.5** silent (stored, not surfaced)
-- **0.5–0.69** suggested inline when relevant
-- **0.7+** auto-applied
-- User corrections drop confidence by 0.1; unused instincts decay
-- Project-scoped, promoted to global after seen across 2+ projects
+Hooks capture every tool call. After ~20 observations Claude analyzes patterns and creates **instincts** with confidence scores: silent below 0.5, suggested at 0.5–0.69, auto-applied at 0.7+. Corrections drop confidence by 0.1; unused instincts decay. Project-scoped; promoted to global after seen across 2+ projects. You configure nothing.
 
 <p align="center">
   <img src="assets/diagram-mulahazah-learning.jpg" alt="Mulahazah pipeline" width="820" />
@@ -195,128 +233,9 @@ All 16 ship in the marketplace bundle. The Beginner install gets all of them. In
 
 ---
 
-## Law Coverage
+## Skills
 
-Every bundled skill, command, and hook enforces at least one of the 7 Laws. The full Law-to-tool alignment matrix lives in [CONTRIBUTING.md → Law Coverage Matrix](CONTRIBUTING.md#law-coverage-matrix); each skill's `description:` also leads with `Enforces Law N (...)` so the tag shows up every time the skill is loaded. Operator-level mode toggles live in the **Operator modes** section above the 7 Laws, alongside install.
-
----
-
-## All 20 Skills
-
-The plugin ships **1 core + 1 featured + 5 tier-1 + 10 tier-2 + 3 always-bundled = 20 skills**. Source-of-truth lives in [`skills/`](skills/) (one `.md` per skill); the plugin bundle at [`plugins/continuous-improvement/skills/`](plugins/continuous-improvement/skills/) is regenerated by `npm run build`.
-
-<details>
-<summary>Show the full skill table (20 rows)</summary>
-
-| # | Skill | Tier | Law | What it does |
-|---|-------|------|-----|--------------|
-| 1 | [`continuous-improvement`](SKILL.md) | core | — | The 7 Laws spec itself (research → plan → execute → verify → reflect → learn → iterate) |
-| 2 | [`proceed-with-the-recommendation`](skills/proceed-with-the-recommendation.md) ⭐ | featured | all 7 | Walks any agent's recommendation list top-to-bottom, routes each item, verifies per item, halts on `needs-approval` |
-| 3 | [`gateguard`](skills/gateguard.md) | 1 | 1 | Runtime PreToolUse hook (`hooks/gateguard.mjs`) + skill: physically blocks Edit/Write/MultiEdit and every destructive Bash until fact-list investigation is presented. Read-only and routine Bash bypass. |
-| 4 | [`para-memory-files`](skills/para-memory-files.md) | 1 | 5 + 7 | Durable file-based memory using PARA (Projects/Areas/Resources/Archives) for cross-session context |
-| 5 | [`tdd-workflow`](skills/tdd-workflow.md) | 1 | 3 + 4 | RED → GREEN → REFACTOR enforcement with 80%+ coverage across unit/integration/E2E |
-| 6 | [`verification-loop`](skills/verification-loop.md) | 1 | 4 | Six-phase verification (build, types, lint, tests, security, diff) with PASS/FAIL report |
-| 7 | [`deploy-receipt`](skills/deploy-receipt.md) | 1 | 4 | Closes the merge-to-production gap on auto-deploy targets (Railway, Cloudflare Workers, Vercel, Netlify, Fly.io). "Done" requires the deployed SHA matching merged HEAD + a healthcheck returning 200 — runs after the vendored `finishing-a-development-branch`. |
-| 8 | [`safety-guard`](skills/safety-guard.md) | 2 | 3 | Three-mode runtime guard (careful/freeze/guard) that blocks destructive commands and locks edits to a directory |
-| 9 | [`strategic-compact`](skills/strategic-compact.md) | 2 | 5 | Suggests `/compact` at logical phase boundaries instead of arbitrary auto-compaction |
-| 10 | [`token-budget-advisor`](skills/token-budget-advisor.md) | 2 | 2 | Token estimator that offers 25/50/75/100% depth choices before answering |
-| 11 | [`wild-risa-balance`](skills/wild-risa-balance.md) | 2 | 2 | Pairs WILD (bold) generation with RISA (safe) execution; splits recommendation lists into pilots above a baseline |
-| 12 | [`recovery-classification`](skills/recovery-classification.md) | 2 | 4 | After any verification-ladder or auto-loop failure, classify the failure class (provider, tool-schema, deterministic-policy, git, worktree, runtime) before retrying — turns generic "try again" into an intentional retry-vs-pause-vs-self-heal-vs-stop decision |
-| 13 | [`state-reconciliation`](skills/state-reconciliation.md) | 2 | 4 | Pre-dispatch invariant: reconcile DB-vs-disk-vs-memory state before any unit runs, so a stale flag, missing artifact, or out-of-sync row never re-dispatches a unit that already completed or never started |
-| 14 | [`worktree-safety`](skills/worktree-safety.md) | 2 | 4 | Pre-dispatch invariant: validate worktree root before any source-writing tool call — catches missing `.git`, fallback path-only creation, stale leases, foreign-session ownership, and non-worktree git operations before they corrupt history |
-| 15 | [`grill-me`](skills/grill-me.md) | 2 | 1 | Pre-execution alignment interrogation — interview one question at a time with a recommended answer, walk every branch, stop when shippable. Ported from [mattpocock/skills](https://github.com/mattpocock/skills) under MIT. |
-| 16 | [`grill-with-docs`](skills/grill-with-docs.md) | 2 | 1 + 7 | `grill-me` with persistent outcomes — challenges the plan against the existing `CONTEXT.md` glossary, sharpens fuzzy terms, updates `CONTEXT.md` + `docs/adr/` inline. Bundles CONTEXT.md + ADR format specs. Ported from [mattpocock/skills](https://github.com/mattpocock/skills) under MIT. |
-| 17 | [`handoff`](skills/handoff.md) | 2 | 5 | End-of-session compaction into an `mktemp`-backed markdown brief a fresh agent can pick up cold. Ported from [mattpocock/skills](https://github.com/mattpocock/skills) under MIT. |
-| 18 | [`ralph`](skills/ralph.md) | companion | 6 | Autonomous loop that executes a PRD story-by-story with quality checks between iterations |
-| 19 | [`superpowers`](skills/superpowers.md) | companion | activator | Law activator — routes tasks to the correct Law-aligned specialist so the right discipline fires automatically |
-| 20 | [`workspace-surface-audit`](skills/workspace-surface-audit.md) | companion | 1 | Audits the active repo, MCP servers, plugins, env, then recommends high-value skills/workflows |
-
-</details>
-
-The orchestrator skill `proceed-with-the-recommendation` also routes to optional companion skills from external plugins (e.g. `obra/superpowers`, `code-review`, `frontend-design`, `commit-commands`). Each routing target has an inline fallback in the orchestrator, so the plugin works on a clean install with nothing else present — install the dedicated companion only when you want a specialist over the fallback. Full target list with source-plugin and risk-if-absent: [`plugins/continuous-improvement/README.md` § Required vs Optional companions](plugins/continuous-improvement/README.md#required-vs-optional-companions).
-
-### Beginner gets — by default
-
-Tier 1 + featured + companion. Auto-installed when you run the plugin install commands above. No flags, no choices.
-
-### Expert gets — additionally
-
-Tier 2 (`safety-guard`, `strategic-compact`, `token-budget-advisor`, `wild-risa-balance`), the MCP server (12 tools incl. `ci_plan_init`/`ci_plan_status`), session-observation hooks for Mulahazah, and `/learn-eval` for capturing session patterns into new skills.
-
-### Drop-in single-file install
-
-Want one skill without the whole plugin? Copy the `.md` file straight into `~/.claude/skills/<name>/SKILL.md`:
-
-```bash
-SKILL=proceed-with-the-recommendation
-mkdir -p ~/.claude/skills/$SKILL
-curl -L https://raw.githubusercontent.com/naimkatiman/continuous-improvement/main/skills/$SKILL.md \
-  -o ~/.claude/skills/$SKILL/SKILL.md
-```
-
----
-
-## Evolution — adding a new skill
-
-Drop one `.md` file into [`skills/`](skills/), run `npm run build`, and the plugin bundle, manifests, and bundled-skills README regenerate from that source. Seven lints (`verify:all` + `verify:generated`) block the merge if anything drifts.
-
-### The 5-step recipe
-
-```bash
-# 1. Create the source file
-touch skills/<your-skill>.md
-```
-
-```yaml
-# 2. Frontmatter must declare name + tier + Law-tagged description
----
-name: <your-skill>
-tier: "1"                # core | featured | "1" | "2" | companion
-description: "Enforces Law N (<law name>) of the 7 Laws of AI Agent Discipline. <what it does>."
----
-```
-
-```bash
-# 3. Regenerate the bundle (also writes plugins/.../skills/<your-skill>/SKILL.md
-#    + the bundled-skills README, which is itself generator-output)
-npm run build
-
-# 4. Run all 6 verify lints — must all pass
-npm run verify:all
-
-# 5. Commit one concern at a time (per CLAUDE.md): the source skill alone first,
-#    then any wiring (hooks, commands, Law-coverage table updates) as separate commits
-git add skills/<your-skill>.md plugins/continuous-improvement/skills/<your-skill>/
-git commit -m "feat(skills): add <your-skill> for Law N enforcement"
-```
-
-### What the build does for you automatically
-
-- **Mirrors source → bundle** (`bin/generate-plugin-manifests.mjs`): copies `skills/<name>.md` to `plugins/continuous-improvement/skills/<name>/SKILL.md`
-- **Regenerates plugin manifests** with the new skill listed in tier order
-- **Re-renders** [`plugins/continuous-improvement/skills/README.md`](plugins/continuous-improvement/skills/README.md) (do not edit by hand — generator output)
-
-### What the lints enforce so you cannot ship a half-wired skill
-
-| Lint | Blocks |
-|------|--------|
-| `verify:skill-mirror` | source `skills/<name>.md` and `plugins/.../<name>/SKILL.md` are out of sync |
-| `verify:skill-tiers` | skill has missing or unrecognized `tier:` value |
-| `verify:skill-law-tag` | skill description does not start with `Enforces Law N` (or `Law activator`, or `all 7 Laws`) |
-| `verify:docs-substrings` | README/QUICKSTART references a removed/renamed skill |
-| `verify:everything-mirror` | non-skill files in `plugins/continuous-improvement/` drift from their root-level source |
-| `verify:routing-targets` | `proceed-with-the-recommendation` names a routing target that is neither bundled nor declared in `optional-companions.json` |
-| `verify:generated` | `npm run build` was not re-run after a source change |
-
-### When to fold a new external skill into the 7 Laws
-
-A new skill is a fit if it provably enforces (or is a routed activator for) at least one of the 7 Laws. The Law-tag lint will refuse it otherwise. If it sits outside the laws (a domain skill — e.g. SQL optimization), keep it as an external plugin. The 7 Laws plugin stays disciplined about scope; that is the point.
-
-### What is *not* automated (the honest limits)
-
-- The Law-coverage matrix above (`## Law Coverage`) is hand-maintained — add your new skill to the right Law row when you ship it.
-- The "All 20 Skills" count in the section header is a literal — bump it when N changes.
-- Promotion between tiers (e.g. `2` → `1` after it proves itself) is a manual edit to the frontmatter `tier:` field, by design — the maintainer should make that call deliberately.
+The plugin ships **20 skills** — 1 core + 1 featured + 5 tier-1 + 10 tier-2 + 3 always-bundled. Beginner install gets tier-1, featured, and the always-bundled companion; Expert adds tier-2, the MCP server, and observation hooks. Full catalog with per-skill descriptions, Law tagging, and drop-in single-file install: [docs/skills.md](docs/skills.md). Adding a 21st skill: [CONTRIBUTING.md § Evolution — adding a new skill](CONTRIBUTING.md#evolution--adding-a-new-skill).
 
 ---
 
@@ -331,9 +250,7 @@ Lint agent behavior in CI. Detects skipped laws.
     strict: true
 ```
 
-`@v3` is a floating major-version tag that retargets on every `v3.x.y` release. Pin to a specific tag (`@v3.7.0`) if you need byte-reproducible CI; use `@v3` to ride patch and minor bumps automatically. See [CONTRIBUTING.md § Release](CONTRIBUTING.md#release) for the retarget policy.
-
-Catches: writes without prior research (Law 1), too many edits without verification (Law 3), code changes without tests/builds (Law 4), too many files at once (Law 6). Run locally with `node bin/lint-transcript.mjs <file>`.
+Catches writes without prior research (Law 1), too many edits without verification (Law 3), code changes without tests/builds (Law 4), too many files at once (Law 6). Run locally with `node bin/lint-transcript.mjs <file>`. The `@v3` floating-tag retarget policy lives in [CONTRIBUTING.md § Release](CONTRIBUTING.md#release).
 
 ---
 
@@ -377,9 +294,10 @@ Authored end-to-end with `/superpowers` and `/proceed-with-the-recommendation`: 
 
 - [QUICKSTART.md](QUICKSTART.md) — 2-minute setup
 - [SKILL.md](SKILL.md) — full 7 Laws spec
+- [docs/skills.md](docs/skills.md) — full 20-skill catalog
 - [examples/](examples/) — bug fix, feature build, refactor walkthroughs
 - [templates/insights-claude-md.md](templates/insights-claude-md.md) — paste-in CLAUDE.md blocks for verification discipline, environment notes, think-before-acting, and git/deploy workflow (sourced from the 28-day usage report)
-- [CONTRIBUTING.md](CONTRIBUTING.md) — architecture, repo internals
+- [CONTRIBUTING.md](CONTRIBUTING.md) — architecture, repo internals, adding a new skill
 - [SECURITY.md](SECURITY.md)
 
 MIT.
