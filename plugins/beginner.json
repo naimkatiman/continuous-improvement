@@ -46,8 +46,9 @@
   "hooks": {
     "included": [
       "PreToolUse",
-      "PostToolUse"
+      "PostToolUse",
+      "UserPromptSubmit"
     ],
-    "description": "Silently captures every tool call as observations. Lightweight and non-blocking."
+    "description": "Silently captures every tool call as observations and routes prompts to the matching discipline skill via the route table. Lightweight and non-blocking."
   }
 }
