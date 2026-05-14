@@ -25,6 +25,8 @@ Without it, `/superpowers` still works — it falls back to inline behavior — 
 
 ### Verify the install — two checks
 
+**Fastest path:** restart Claude Code, then run `/verify-install` — it walks all three checks (commands loaded, gateguard fires, observation capture recording) and prints a single ✓ wired / ✗ missing line. The manual checks below are the same probes done by hand, kept here so you can see what each one proves.
+
 **Check 1 — slash command loaded.** Quit and reopen Claude Code (slash commands only load on session start), then run:
 
 ```

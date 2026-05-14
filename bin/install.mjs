@@ -32,6 +32,7 @@ const COMMAND_FILES = [
     "seven-laws.md",
     "superpowers.md",
     "swarm.md",
+    "verify-install.md",
     "workspace-surface-audit.md",
 ];
 const HOOK_TYPES = ["PreToolUse", "PostToolUse"];

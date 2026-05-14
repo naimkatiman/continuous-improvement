@@ -81,6 +81,7 @@ const COMMAND_FILES = [
   "seven-laws.md",
   "superpowers.md",
   "swarm.md",
+  "verify-install.md",
   "workspace-surface-audit.md",
 ] as const;
 const HOOK_TYPES: readonly HookType[] = ["PreToolUse", "PostToolUse"];
