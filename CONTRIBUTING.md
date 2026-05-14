@@ -122,6 +122,68 @@ git status     # source changes plus regenerated bin/, lib/, test/, or plugins/ 
 Reusable runtime modules live in `src/lib/*.mts` and compile to `lib/*.mjs`.
 They are listed explicitly in `package.json` `files` so they ship with the npm tarball.
 
+## Evolution — adding a new skill
+
+Drop one `.md` file into [`skills/`](skills/), run `npm run build`, and the plugin bundle, manifests, and bundled-skills README regenerate from that source. Seven lints (`verify:all` + `verify:generated`) block the merge if anything drifts.
+
+### The 5-step recipe
+
+```bash
+# 1. Create the source file
+touch skills/<your-skill>.md
+```
+
+```yaml
+# 2. Frontmatter must declare name + tier + Law-tagged description
+---
+name: <your-skill>
+tier: "1"                # core | featured | "1" | "2" | companion
+description: "Enforces Law N (<law name>) of the 7 Laws of AI Agent Discipline. <what it does>."
+---
+```
+
+```bash
+# 3. Regenerate the bundle (also writes plugins/.../skills/<your-skill>/SKILL.md
+#    + the bundled-skills README, which is itself generator-output)
+npm run build
+
+# 4. Run all verify lints — must all pass
+npm run verify:all
+
+# 5. Commit one concern at a time: the source skill alone first,
+#    then any wiring (hooks, commands, Law-coverage table updates) as separate commits
+git add skills/<your-skill>.md plugins/continuous-improvement/skills/<your-skill>/
+git commit -m "feat(skills): add <your-skill> for Law N enforcement"
+```
+
+### What the build does for you automatically
+
+- **Mirrors source → bundle** (`bin/generate-plugin-manifests.mjs`): copies `skills/<name>.md` to `plugins/continuous-improvement/skills/<name>/SKILL.md`
+- **Regenerates plugin manifests** with the new skill listed in tier order
+- **Re-renders** [`plugins/continuous-improvement/skills/README.md`](plugins/continuous-improvement/skills/README.md) (do not edit by hand — generator output)
+
+### What the lints enforce so you cannot ship a half-wired skill
+
+| Lint | Blocks |
+|------|--------|
+| `verify:skill-mirror` | source `skills/<name>.md` and `plugins/.../<name>/SKILL.md` are out of sync |
+| `verify:skill-tiers` | skill has missing or unrecognized `tier:` value |
+| `verify:skill-law-tag` | skill description does not start with `Enforces Law N` (or `Law activator`, or `all 7 Laws`) |
+| `verify:docs-substrings` | README/QUICKSTART references a removed/renamed skill |
+| `verify:everything-mirror` | non-skill files in `plugins/continuous-improvement/` drift from their root-level source |
+| `verify:routing-targets` | `proceed-with-the-recommendation` names a routing target that is neither bundled nor declared in `optional-companions.json` |
+| `verify:generated` | `npm run build` was not re-run after a source change |
+
+### When to fold a new external skill into the 7 Laws
+
+A new skill is a fit if it provably enforces (or is a routed activator for) at least one of the 7 Laws. The Law-tag lint will refuse it otherwise. If it sits outside the laws (a domain skill — e.g. SQL optimization), keep it as an external plugin. The 7 Laws plugin stays disciplined about scope; that is the point.
+
+### What is *not* automated (the honest limits)
+
+- The [Law Coverage Matrix](#law-coverage-matrix) below is hand-maintained — add your new skill to the right Law row when you ship it.
+- The "20 skills" count appears in both [README.md](README.md) and [docs/skills.md](docs/skills.md) — bump both when N changes.
+- Promotion between tiers (e.g. `2` → `1` after it proves itself) is a manual edit to the frontmatter `tier:` field, by design — the maintainer should make that call deliberately.
+
 ## Testing
 
 ### Prerequisites
