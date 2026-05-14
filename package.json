@@ -1,7 +1,7 @@
 {
   "name": "continuous-improvement",
   "version": "3.9.2",
-  "description": "Stops Claude Code from skipping research, claiming 'done' without verifying, and repeating yesterday's mistakes. The 7 Laws of AI Agent Discipline — 13 enforcement skills, gating hooks, the Mulahazah auto-leveling instinct engine, and a GitHub Action transcript linter. Beginner: one /plugin install command. Expert: adds MCP tools and session hooks.",
+  "description": "Stops Claude Code from skipping research, claiming 'done' without verifying, and repeating yesterday's mistakes. The 7 Laws of AI Agent Discipline — 20 bundled skills, gating hooks, the Mulahazah auto-leveling instinct engine, and a GitHub Action transcript linter. Beginner: one /plugin install command. Expert: adds MCP tools and session hooks.",
   "keywords": [
     "claude-code",
     "claude-code-skill",
@@ -42,11 +42,12 @@
     "verify:skill-mirror": "node bin/check-skill-mirror.mjs",
     "verify:skill-tiers": "node bin/check-skill-tiers.mjs",
     "verify:skill-law-tag": "node bin/check-skill-law-tag.mjs",
+    "verify:skill-count": "node bin/check-skill-count.mjs",
     "verify:docs-substrings": "node bin/check-docs-substrings.mjs",
     "verify:everything-mirror": "node bin/check-everything-mirror.mjs",
     "verify:routing-targets": "node bin/check-routing-targets.mjs",
     "verify:doc-runtime-claims": "node bin/check-doc-runtime-claims.mjs",
-    "verify:all": "npm run verify:skill-mirror && npm run verify:skill-tiers && npm run verify:skill-law-tag && npm run verify:docs-substrings && npm run verify:everything-mirror && npm run verify:routing-targets && npm run verify:doc-runtime-claims && npm run typecheck"
+    "verify:all": "npm run verify:skill-mirror && npm run verify:skill-tiers && npm run verify:skill-law-tag && npm run verify:skill-count && npm run verify:docs-substrings && npm run verify:everything-mirror && npm run verify:routing-targets && npm run verify:doc-runtime-claims && npm run typecheck"
   },
   "files": [
     ".claude-plugin/",

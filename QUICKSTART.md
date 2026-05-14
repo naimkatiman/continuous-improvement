@@ -25,6 +25,8 @@ Without it, `/superpowers` still works — it falls back to inline behavior — 
 
 ### Verify the install — two checks
 
+**Fastest path:** restart Claude Code, then run `/verify-install` — it walks all three checks (commands loaded, gateguard fires, observation capture recording) and prints a single ✓ wired / ✗ missing line. The manual checks below are the same probes done by hand, kept here so you can see what each one proves.
+
 **Check 1 — slash command loaded.** Quit and reopen Claude Code (slash commands only load on session start), then run:
 
 ```
@@ -97,14 +99,17 @@ This shows what the system has learned — instincts, confidence levels, and the
 
 ## How auto-leveling works
 
-You don't configure anything. The system promotes itself:
+You don't configure anything. The system promotes itself. The unit is
+**observations** — one per tool call, not one per session — so a single active
+session can produce dozens. The four levels below mirror the source-of-truth
+table in [SKILL.md](SKILL.md):
 
-| Your usage | What happens |
-|-----------|-------------|
-| First sessions | Hooks capture tool calls silently. No behavior change. |
-| After ~20 sessions | Agent analyzes patterns, creates instincts (silent — you see nothing) |
-| After ~50 sessions | Instincts cross 0.5 → agent starts suggesting: "Consider: [action]" |
-| After ~100 sessions | Instincts cross 0.7 → agent auto-applies learned behaviors |
+| Level | Trigger | What happens |
+|-------|---------|-------------|
+| CAPTURE | < 20 observations | Hooks capture tool calls silently. No behavior change. |
+| ANALYZE | 20+ observations | Agent analyzes patterns, creates instincts (silent — you see nothing) |
+| SUGGEST | Any instinct at 0.5–0.69 confidence | Agent suggests inline: "Consider: [action]" |
+| AUTO-APPLY | Any instinct at 0.7+ confidence | Agent auto-applies the learned behavior |
 
 Corrections drop instinct confidence. Unused instincts decay. The system self-corrects.
 

@@ -8,6 +8,42 @@ All notable changes to this skill are documented here.
 
 ---
 
+## [3.9.2] — 2026-05-10
+
+Manifest-derivation patch. One fix plus the release cut.
+
+### Fixed
+
+- **Manifests track the package version automatically** (PR #122) — `VERSION` in `src/lib/plugin-metadata.mts` is now derived from `package.json` at build time instead of being a hand-maintained constant. `npm run build` regenerates `marketplace.json` and `plugin.json` with the correct version on every release without a separate manual edit. v3.9.2 was the first release cut with auto-derived manifests (PR #123).
+
+---
+
+## [3.9.1] — 2026-05-10
+
+First release through the tag-triggered `release.yml` pipeline. The `v3.9.0` tag was placed before PR #99 merged, so this release range also carries the feature and CI work that landed on top of the v3.8.0 dispatcher train — the substantive items are listed below; the `[3.9.0]` entry above describes only PRs #97–#99.
+
+### Added
+
+- **`release.yml` tag-triggered npm publish** (PR #119) — pushing a `v*` tag now builds, verifies, and publishes to npm, with the retarget policy and cut procedure documented in `docs/RELEASING.md`. PR #120 cut v3.9.1 as the first exercise of this pipeline.
+- **`gateguard` runtime PreToolUse hook** (PRs #106, #108) — `hooks/gateguard.mjs` ships as the runtime layer that physically blocks Edit/Write/MultiEdit and destructive Bash until fact-list investigation is presented. PR #107 added hotfix-PR mode, a synthetic-checks rung, and the insights CLAUDE.md template.
+- **Native review-agent trio** (PR #112) — `code-reviewer`, `security-auditor`, and `test-engineer` agents in `plugins/continuous-improvement/agents/`, routed by the orchestrator during verify and review phases.
+- **Three verification-ladder skills** (PR #117) — `state-reconciliation`, `recovery-classification`, and `worktree-safety` added as pre-dispatch invariants.
+- **`verify:doc-runtime-claims` lint** (commit `241e8fe`) — codifies the audit-twice rule: any user-facing runtime-hook claim must carry a `hooks/<file>.mjs` anchor within ±5 lines.
+- **Repo-root `.mcp.json`** (PR #113) — dogfoods `bin/mcp-server.mjs` from inside the repo.
+
+### Changed
+
+- **Installer path collapse + dispatcher rewrite** (commit `bc76bfe`) — installer paths collapsed, versions synced, installer surface expanded.
+- **`pm-skills` switched from vendored snapshot to out-of-band marketplace install** (PR #101) — product-management coverage now installs via `phuryn/pm-skills` per `docs/THIRD_PARTY.md` instead of being vendored under `third-party/`.
+- **CI `verify-generated` check widened** (PR #99) — `git diff` path widened to `.claude-plugin bin test lib plugins`.
+
+### Fixed
+
+- **MCP server emits NDJSON over stdio** (PR #114) — corrected the transport framing to the MCP spec (NDJSON, not LSP-style framing).
+- **`gateguard` doc wording reverted** (commit `5eca467`) — the "runtime gate is roadmap" wording was reverted once the hook actually shipped.
+
+---
+
 ## [3.9.0] — 2026-05-07
 
 Issue-burndown release. Three PRs landed on top of v3.8.0 — one Windows correctness fix, one test-coverage expansion, one CI hardening — closing two long-standing issues (#59, #2) and tightening the regression net for the class of failure #59 surfaced. No skill or behavior changes; this release is reliability and contributor-experience only.

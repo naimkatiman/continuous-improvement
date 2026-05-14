@@ -86,3 +86,28 @@ describe("commands/planning-with-files.md", () => {
         assert.match(content, /recover/i);
     });
 });
+describe("commands/verify-install.md", () => {
+    let content = "";
+    it("exists", () => {
+        const path = join(COMMANDS_DIR, "verify-install.md");
+        assert.ok(existsSync(path), "verify-install.md should exist");
+        content = readFileSync(path, "utf8");
+    });
+    it("has valid frontmatter", () => {
+        assert.match(content, /^---\r?\n/);
+        assert.match(content, /name: verify-install/);
+        assert.match(content, /description:/);
+    });
+    it("walks the three post-install checks in order", () => {
+        assert.match(content, /Check 1 — slash commands loaded/);
+        assert.match(content, /Check 2 — gateguard runtime hook fires/);
+        assert.match(content, /Check 3 — observation capture recording/);
+    });
+    it("anchors the gateguard check to the actual hook file", () => {
+        assert.match(content, /hooks\/gateguard\.mjs/);
+    });
+    it("requires a single pass/fail summary line", () => {
+        assert.match(content, /✓ wired/);
+        assert.match(content, /✗ /);
+    });
+});

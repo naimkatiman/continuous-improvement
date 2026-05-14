@@ -8,7 +8,7 @@
  *   npx continuous-improvement install --pack react   # load starter instinct pack
  *   npx continuous-improvement install --uninstall    # remove everything
  */
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, } from "node:fs";
 import { execSync } from "node:child_process";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -32,6 +32,7 @@ const COMMAND_FILES = [
     "seven-laws.md",
     "superpowers.md",
     "swarm.md",
+    "verify-install.md",
     "workspace-surface-audit.md",
 ];
 const HOOK_TYPES = ["PreToolUse", "PostToolUse"];
@@ -51,6 +52,62 @@ function readJsonFile(filePath) {
     }
     catch {
         return null;
+    }
+}
+// The observation hooks (hooks/observe.sh, hooks/session.sh) are bash scripts.
+// On Windows without Git Bash / WSL the hook commands written into settings.json
+// silently no-op, so the user finishes install thinking observation capture is
+// live when it never fires. Refuse the install with one actionable line instead.
+function assertBashAvailableOnWindows() {
+    if (process.platform !== "win32")
+        return;
+    try {
+        execSync("bash --version", { stdio: "ignore" });
+    }
+    catch {
+        console.error("  ✗ Install refused: the observation hooks (hooks/observe.sh, hooks/session.sh) " +
+            "are bash scripts, but `bash --version` is not on PATH. Install Git Bash or WSL, " +
+            "reopen your shell, and re-run — see README → Troubleshooting install.");
+        process.exit(1);
+    }
+}
+// The marketplace `/plugin install` path and this npx installer both write into
+// ~/.claude/. Running both duplicates hooks, commands, and skills. We cannot
+// fully resolve Claude Code's marketplace layout from here, so this is a loud
+// best-effort warning, not a hard refuse — a scan failure must never block install.
+function warnOnMarketplaceCollision() {
+    const pluginsDir = join(getHomeDir(), ".claude", "plugins");
+    if (!existsSync(pluginsDir))
+        return;
+    let hit = false;
+    try {
+        for (const entry of readdirSync(pluginsDir)) {
+            if (entry.includes(SKILL_NAME)) {
+                hit = true;
+                break;
+            }
+            const sub = join(pluginsDir, entry);
+            try {
+                if (statSync(sub).isDirectory() &&
+                    readdirSync(sub).some((e) => e.includes(SKILL_NAME))) {
+                    hit = true;
+                    break;
+                }
+            }
+            catch {
+                // unreadable entry — skip it
+            }
+        }
+    }
+    catch {
+        // best-effort — never block install on a scan failure
+        return;
+    }
+    if (hit) {
+        console.warn("\n  ! Possible Beginner+Expert collision: a marketplace install of\n" +
+            "    continuous-improvement looks present under ~/.claude/plugins/. Running the\n" +
+            "    npx installer on top of it duplicates hooks/commands/skills in ~/.claude/.\n" +
+            "    Pick ONE path — marketplace (/plugin install) or npx — not both.\n");
     }
 }
 const rawArgs = process.argv.slice(2);
@@ -403,6 +460,8 @@ console.log(`
 continuous-improvement (mode: ${INSTALL_MODE})
 Research → Plan → Execute → Verify → Reflect → Learn → Iterate
 `);
+assertBashAvailableOnWindows();
+warnOnMarketplaceCollision();
 console.log("Installing to Claude Code...\n");
 const installed = installSkill() ? 1 : 0;
 const modeInfo = {
@@ -417,7 +476,14 @@ if (packIndex !== -1 && rawArgs[packIndex + 1]) {
         const project = getProjectHashSync();
         const targetDir = join(getHomeDir(), ".claude", "instincts", project.hash);
         mkdirSync(targetDir, { recursive: true });
-        const instincts = JSON.parse(readFileSync(packPath, "utf8"));
+        let instincts = [];
+        try {
+            instincts = JSON.parse(readFileSync(packPath, "utf8"));
+        }
+        catch (error) {
+            console.error(`  ✗ Pack "${packName}" could not be loaded: ${getErrorMessage(error)}\n` +
+                `    ${packPath} is not valid JSON. No instincts were written — fix or re-fetch the pack file.`);
+        }
         let loaded = 0;
         for (const instinct of instincts) {
             const instinctPath = join(targetDir, `${instinct.id}.yaml`);

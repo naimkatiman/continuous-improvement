@@ -221,15 +221,17 @@ Hooks capture every tool call. After ~20 observations Claude analyzes patterns a
 /grill-with-docs                  Grill-me with persistent outcomes — updates CONTEXT.md + ADRs inline
 /handoff                          End-of-session compaction into mktemp brief for the next agent
 /discipline                       Quick reference card of the 7 Laws
+/verify-install                   One-shot post-install check — commands, gateguard, observe
 /dashboard                        Visual instinct health dashboard
+/companion-preference             Inspect companion-preference hook telemetry
 /ralph                            Autonomous PRD story-by-story loop
-/learn-eval                       Capture session patterns into new skills (expert)
-/harvest                          Extract reusable patterns from session friction
+/learn-eval                       Capture session patterns into new skills (needs observation history)
+/harvest                          Extract reusable patterns from session friction (needs observation history)
 /release-train                    Coordinate a multi-PR release sequence
 /swarm                            Fan-out coordination across parallel sub-agents
 ```
 
-All 16 ship in the marketplace bundle. The Beginner install gets all of them. In Expert (`npx`) mode, the installer mirrors the full set into `~/.claude/commands/` and additionally exposes the planning workflow through the MCP tools `ci_plan_init` (initialize `task_plan.md`, `findings.md`, `progress.md` in the project root) and `ci_plan_status` (summarize their current contents).
+All 18 ship in the marketplace bundle. The Beginner install gets all of them — with one caveat: `/learn-eval` and `/harvest` only produce useful output once Mulahazah has accumulated observation history (~20 observations), so running them on day 1 returns an empty result, not a broken command. `/swarm` and `/release-train` are orchestration commands aimed at larger multi-agent or multi-PR work. In Expert (`npx`) mode, the installer mirrors the full set into `~/.claude/commands/` and additionally exposes the planning workflow through the MCP tools `ci_plan_init` (initialize `task_plan.md`, `findings.md`, `progress.md` in the project root) and `ci_plan_status` (summarize their current contents).
 
 ---
 
