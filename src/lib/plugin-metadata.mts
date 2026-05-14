@@ -147,7 +147,7 @@ const KEYWORDS = [
 ];
 const CLAUDE_PLUGIN_CATEGORY = "productivity";
 const SHARED_PLUGIN_DESCRIPTION =
-  "Stops Claude Code from skipping research, claiming 'done' without verifying, and repeating yesterday's mistakes. The 7 Laws of AI Agent Discipline — 13 enforcement skills, gating hooks, and the Mulahazah auto-leveling instinct engine.";
+  "Stops Claude Code from skipping research, claiming 'done' without verifying, and repeating yesterday's mistakes. The 7 Laws of AI Agent Discipline — 20 bundled skills, gating hooks, and the Mulahazah auto-leveling instinct engine.";
 
 // Four vendored upstream companions registered alongside the CI plugin.
 // Each entry points at a pinned-SHA snapshot under third-party/<name>/.
