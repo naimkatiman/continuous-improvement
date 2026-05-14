@@ -1,0 +1,35 @@
+{
+  "description": "Declarative prompt-router for the continuous-improvement UserPromptSubmit hook. Each row maps a regex (prompt-side trigger) to a skill the agent should consider invoking. First match wins; rows are evaluated in order. Edit this file to grow the routing table — no code change required.",
+  "rows": [
+    {
+      "pattern": "\\b(write|add|new)\\s+(a\\s+)?(failing\\s+)?test\\b|\\btdd\\b|\\bred[- ]green[- ]refactor\\b",
+      "flags": "i",
+      "skill": "tdd-workflow",
+      "reason": "Prompt mentions writing tests, TDD, or RED-GREEN-REFACTOR."
+    },
+    {
+      "pattern": "\\b(verify|verification|prove\\s+it\\s+works|smallest\\s+check|check\\s+it\\s+passes)\\b",
+      "flags": "i",
+      "skill": "verification-loop",
+      "reason": "Prompt asks for verification before declaring done."
+    },
+    {
+      "pattern": "\\b(plan|blueprint|design\\s+(the\\s+)?approach|step[- ]by[- ]step\\s+plan|roadmap)\\b",
+      "flags": "i",
+      "skill": "planning-with-files",
+      "reason": "Prompt asks for a plan, blueprint, or design before implementation."
+    },
+    {
+      "pattern": "\\b(security\\s+review|threat\\s+model|owasp|vulnerab|auth(entication|orization)\\s+check)\\b",
+      "flags": "i",
+      "skill": "security-review",
+      "reason": "Prompt touches security review, threat modeling, or auth surface."
+    },
+    {
+      "pattern": "\\b(code\\s+review|review\\s+(my|the|this)\\s+(code|pr|diff|patch)|critique\\s+(the|this)\\s+code)\\b",
+      "flags": "i",
+      "skill": "code-review",
+      "reason": "Prompt asks for a code review on existing changes."
+    }
+  ]
+}

@@ -83,9 +83,10 @@
     "included": [
       "PreToolUse",
       "PostToolUse",
+      "UserPromptSubmit",
       "SessionStart",
       "SessionEnd"
     ],
-    "description": "Full hook suite: observation capture + session-level instinct loading and auto-reflection."
+    "description": "Full hook suite: observation capture, lazy prompt routing, session-level instinct loading, and auto-reflection."
   }
 }

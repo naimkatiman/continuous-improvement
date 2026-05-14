@@ -10,7 +10,13 @@ export const VERSION: string = (JSON.parse(readFileSync(PKG_PATH, "utf8")) as { 
 export const PLUGIN_MODES = ["beginner", "expert"] as const;
 
 export type PluginMode = typeof PLUGIN_MODES[number];
-export type HookType = "PreToolUse" | "PostToolUse" | "SessionStart" | "SessionEnd" | "Stop";
+export type HookType =
+  | "PreToolUse"
+  | "PostToolUse"
+  | "UserPromptSubmit"
+  | "SessionStart"
+  | "SessionEnd"
+  | "Stop";
 
 export interface SchemaProperty {
   default?: boolean | number | string | string[];
@@ -422,16 +428,16 @@ const MODE_METADATA: Record<PluginMode, ModeMetadata> = {
   beginner: {
     description:
       "Beginner mode: see what your agent learned, list its instincts, and request a session reflection. Bundles four discipline skills (gateguard, para-memory-files, tdd-workflow, verification-loop) so research, memory, tests, and verification happen by default.",
-    hooks: ["PreToolUse", "PostToolUse"],
+    hooks: ["PreToolUse", "PostToolUse", "UserPromptSubmit"],
     hookDescription:
-      "Silently captures every tool call as observations. Lightweight and non-blocking.",
+      "Silently captures every tool call as observations and routes prompts to the matching discipline skill via the route table. Lightweight and non-blocking.",
   },
   expert: {
     description:
       "Expert mode: tune confidence, manage instincts, and persist plans on disk. Adds safety, token-budget, and strategic-compact skills plus the /learn-eval command so long sessions stay disciplined and learnings survive context resets.",
-    hooks: ["PreToolUse", "PostToolUse", "SessionStart", "SessionEnd"],
+    hooks: ["PreToolUse", "PostToolUse", "UserPromptSubmit", "SessionStart", "SessionEnd"],
     hookDescription:
-      "Full hook suite: observation capture + session-level instinct loading and auto-reflection.",
+      "Full hook suite: observation capture, lazy prompt routing, session-level instinct loading, and auto-reflection.",
   },
 };
 
@@ -527,21 +533,30 @@ export function getPluginHooksConfig(): PluginHooksConfig {
     command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/three-section-close.mjs\"",
     timeout: 5,
   };
+  const routePromptCommand = {
+    type: "command" as const,
+    command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/route-prompt.mjs\"",
+    timeout: 5,
+  };
 
   return {
     description:
-      "Gateguard fact-forcing PreToolUse, companion-preference enforcement, observation, session lifecycle, and 3-section-close discipline hooks for continuous-improvement.",
+      "Gateguard fact-forcing PreToolUse, companion-preference enforcement, observation, session lifecycle, 3-section-close discipline, and UserPromptSubmit lazy-routing hooks for continuous-improvement.",
     hooks: {
-      // gateguard runs FIRST so its block decision short-circuits before
-      // companion-preference and observe.sh see the call. companion-preference
-      // runs second on Skill tool calls; it is a no-op under ci-first (the
-      // default) and never blocks under companions-first. observe.sh stays in
-      // PreToolUse for the observation feed; the Claude Code host runs all
-      // three regardless of gateguard's decision.
+      // gateguard runs FIRST on PreToolUse so its block decision short-circuits
+      // before companion-preference sees the call. companion-preference runs
+      // second on Skill tool calls; it is a no-op under ci-first (the default)
+      // and never blocks under companions-first. observe.sh only runs on
+      // PostToolUse: gateguard-blocked calls are intentionally not observed so
+      // PreToolUse stays at two subprocesses on the hot path. route-prompt
+      // fires on UserPromptSubmit and emits a system-reminder when a prompt
+      // pattern in hooks/route-table.json matches; non-matching prompts pass
+      // through with no output.
       PreToolUse: [
-        { hooks: [gateguardCommand, companionPreferenceCommand, observeCommand] },
+        { hooks: [gateguardCommand, companionPreferenceCommand] },
       ],
       PostToolUse: [{ hooks: [observeCommand] }],
+      UserPromptSubmit: [{ hooks: [routePromptCommand] }],
       SessionStart: [{ hooks: [sessionCommand] }],
       SessionEnd: [{ hooks: [sessionCommand] }],
       Stop: [{ hooks: [threeSectionCloseCommand] }],
