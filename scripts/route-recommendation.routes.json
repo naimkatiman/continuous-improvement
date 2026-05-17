@@ -1,0 +1,213 @@
+{
+  "_doc": [
+    "Routing table for proceed-with-the-recommendation Phase 3.",
+    "scripts/route-recommendation.mjs reads this file; the skill body cites the script.",
+    "Each row maps a recommendation TYPE to a preferred-skill chain + inline fallback.",
+    "Patterns are case-insensitive regexes. First-match-wins; the script preserves row order on ties."
+  ],
+  "rows": [
+    {
+      "name": "Long-running / PRD-style autonomous execution",
+      "patterns": ["\\bprd\\b", "\\bautonomous\\b", "long.running", "iterati(ve|on) loop", "ralph"],
+      "preferred": ["ralph"],
+      "fallback": "Break into sub-recommendations, run proceed-with-the-recommendation recursively per sub-item.",
+      "marker": null
+    },
+    {
+      "name": "Implement feature / add capability",
+      "patterns": ["implement.*feature", "add.*(capability|feature|endpoint)", "build.*feature", "new feature"],
+      "preferred": ["superpowers:brainstorming", "superpowers:writing-plans"],
+      "fallback": "Restate goal → list 3 design options → pick one → outline files to touch → build.",
+      "marker": "superpowers"
+    },
+    {
+      "name": "Fix bug / investigate failure",
+      "patterns": ["fix.*bug", "investigat(e|ion).*(failure|issue|bug)", "debug", "broken", "root.cause"],
+      "preferred": ["superpowers:systematic-debugging"],
+      "fallback": "Hypothesis → add logs/tests → reproduce → smallest fix → verify with the failing repro.",
+      "marker": "superpowers:systematic-debugging"
+    },
+    {
+      "name": "Write tests / add coverage",
+      "patterns": ["write tests?", "add (test|coverage)", "tdd", "test-driven", "unit test"],
+      "preferred": ["superpowers:test-driven-development", "tdd-workflow"],
+      "fallback": "RED (failing test) → GREEN (minimal code) → REFACTOR; one test, one behavior.",
+      "marker": null
+    },
+    {
+      "name": "Refactor / dead code cleanup",
+      "patterns": ["refactor", "dead code", "cleanup", "remove (duplicat|unused)", "simplify"],
+      "preferred": ["simplify"],
+      "fallback": "Find dupes/unused exports, delete in place, re-run type check and smallest test.",
+      "marker": "simplify"
+    },
+    {
+      "name": "Security review / auth audit",
+      "patterns": ["security review", "auth audit", "vulnerab", "owasp", "secret(s|.scan)"],
+      "preferred": ["security-review"],
+      "fallback": "Scan for hardcoded secrets, unsanitized input, missing authz, SQL string concat, open CORS.",
+      "marker": "security-review"
+    },
+    {
+      "name": "Code review before merge",
+      "patterns": ["code review", "review (the )?(diff|pr|change)", "pre-merge review"],
+      "preferred": ["superpowers:requesting-code-review", "code-review"],
+      "fallback": "Read diff top-to-bottom, flag CRITICAL / HIGH / MEDIUM.",
+      "marker": "code-review"
+    },
+    {
+      "name": "Verify before shipping",
+      "patterns": ["verify (before|that)", "verification", "pre.ship", "before (the )?(merge|ship|push)"],
+      "preferred": ["superpowers:verification-before-completion"],
+      "fallback": "Smallest check that proves correctness: typecheck + one test + one curl.",
+      "marker": "superpowers:verification-before-completion"
+    },
+    {
+      "name": "Multiple independent tasks",
+      "patterns": ["multiple (independent )?tasks", "parallel(ize)? (tasks|agents)", "fan out"],
+      "preferred": ["superpowers:dispatching-parallel-agents"],
+      "fallback": "Launch N parallel `Agent` tool calls in one message; reconcile results after.",
+      "marker": "superpowers:dispatching-parallel-agents"
+    },
+    {
+      "name": "Merge / close branch",
+      "patterns": ["merge (the )?branch", "close.*branch", "finish.*branch", "open (the )?pr", "ship (the )?pr"],
+      "preferred": ["superpowers:finishing-a-development-branch"],
+      "fallback": "Verify clean tree, rebase on main, green CI, open PR with summary + test plan.",
+      "marker": "superpowers:finishing-a-development-branch"
+    },
+    {
+      "name": "Post-merge deploy receipt (auto-deploy projects)",
+      "patterns": ["deploy receipt", "post.merge.*deploy", "deployed sha", "auto.deploy", "merge.*deployed"],
+      "preferred": ["deploy-receipt"],
+      "fallback": "Confirm deployed SHA == merge SHA via provider CLI, GitHub Deployments API, or version-endpoint curl, plus a 200 from a documented healthcheck. INCOMPLETE receipt blocks the merge from being reported as done.",
+      "marker": null
+    },
+    {
+      "name": "Schedule a follow-up",
+      "patterns": ["schedule (a )?(follow.up|task|run)", "remind me", "later today", "tomorrow"],
+      "preferred": ["schedule"],
+      "fallback": "Tell user the exact action + cadence; if no scheduler, write a dated TODO/memory entry.",
+      "marker": "schedule"
+    },
+    {
+      "name": "Recurring poll / interval task",
+      "patterns": ["recurring", "every (\\d+|few) (minute|hour|day)", "poll (every|until)", "loop (every|until)"],
+      "preferred": ["loop"],
+      "fallback": "Tell user the cadence + how to re-run manually.",
+      "marker": "loop"
+    },
+    {
+      "name": "Library / API docs lookup",
+      "patterns": ["lookup (the )?(docs|api)", "documentation (for|on)", "api docs", "library docs"],
+      "preferred": ["documentation-lookup"],
+      "fallback": "Use `WebFetch` against the official docs URL, cite what changed.",
+      "marker": "documentation-lookup"
+    },
+    {
+      "name": "Frontend / UI design work",
+      "patterns": ["frontend (work|design)", "ui design", "(landing|marketing) page", "redesign.*ui"],
+      "preferred": ["frontend-design:frontend-design"],
+      "fallback": "Build smallest vertical slice first, verify in browser before styling.",
+      "marker": "frontend-design"
+    },
+    {
+      "name": "Settings / hooks / permission change",
+      "patterns": ["settings\\.json", "hooks?\\.json", "permission(s)?( change)?", "update.*(setting|config)"],
+      "preferred": ["update-config"],
+      "fallback": "Edit `~/.claude/settings.json` with a minimal patch; restart session.",
+      "marker": "update-config"
+    },
+    {
+      "name": "Commit and push",
+      "patterns": ["commit and push", "commit (the )?(change|fix)", "push (the )?(commit|branch)", "git push"],
+      "preferred": ["commit-commands:commit", "commit-commands:commit-push-pr"],
+      "fallback": "`git add <specific files>` → commit with `type(scope): outcome` → push when asked.",
+      "marker": "commit-commands"
+    },
+    {
+      "name": "Continuous-improvement analysis / instinct update",
+      "patterns": ["continuous.improvement", "7 laws", "seven laws", "instinct (update|capture)", "reflect.*session"],
+      "preferred": ["continuous-improvement"],
+      "fallback": "Run the 7-Laws Reflection block manually; append to `observations.jsonl`.",
+      "marker": null
+    },
+    {
+      "name": "Spec-first contract before code",
+      "patterns": ["spec-first", "spec.driven", "write (a )?spec (before|for)", "contract first"],
+      "preferred": ["agent-skills:spec-driven-development"],
+      "fallback": "Restate the contract as a testable spec; downstream tests/code regenerate from it.",
+      "marker": "agent-skills"
+    },
+    {
+      "name": "Source-first reading before writing",
+      "patterns": ["source.first", "read (the )?(source|implementation) first", "read before writ"],
+      "preferred": ["agent-skills:source-driven-development"],
+      "fallback": "Read the existing implementation top-to-bottom first; never write blind.",
+      "marker": "agent-skills"
+    },
+    {
+      "name": "Curate context window before answering",
+      "patterns": ["context (window|budget)", "trim (the )?context", "context engineering"],
+      "preferred": ["agent-skills:context-engineering", "context-budget"],
+      "fallback": "Trim irrelevant context; keep only the load-bearing files in scope.",
+      "marker": "agent-skills"
+    },
+    {
+      "name": "Slice atomic increment with safe deploy",
+      "patterns": ["atomic (increment|change)", "smallest reviewable", "incremental implementation", "feature flag"],
+      "preferred": ["agent-skills:incremental-implementation"],
+      "fallback": "Smallest reviewable change; ship behind a flag if the full scope is too big.",
+      "marker": "agent-skills"
+    },
+    {
+      "name": "Refine vague request into ranked options",
+      "patterns": ["refine (the )?(idea|request)", "rank (the )?option", "brainstorm", "explore (alternatives|options)"],
+      "preferred": ["agent-skills:idea-refine", "superpowers:brainstorming"],
+      "fallback": "Compress N ideas to 1 with explicit scoring criteria.",
+      "marker": "agent-skills"
+    },
+    {
+      "name": "Fan out N agents on isolated worktrees with shared contract",
+      "patterns": ["swarm", "worktree.*shared contract", "fan out.*worktree", "provider migration"],
+      "preferred": ["superpowers:dispatching-parallel-agents", "ruflo-swarm:swarm-init"],
+      "fallback": "Use the swarm contract: fixed roles + base ref + shared contract test; reconcile results after.",
+      "marker": "ruflo-swarm"
+    },
+    {
+      "name": "Stream live observation of long agent runs",
+      "patterns": ["stream.*observation", "live observation", "monitor.*long run", "monitor-stream"],
+      "preferred": ["ruflo-swarm:monitor-stream"],
+      "fallback": "Push-based event log; poll fallback if the MCP server is offline.",
+      "marker": "ruflo-swarm"
+    },
+    {
+      "name": "Visual regression / browser-level diff",
+      "patterns": ["visual (regression|diff)", "screenshot diff", "browser.*regression", "visual-verdict"],
+      "preferred": ["oh-my-claudecode:visual-verdict"],
+      "fallback": "Playwright screenshot diff against staging baseline.",
+      "marker": "oh-my-claudecode"
+    },
+    {
+      "name": "Multi-session retrospective across a sprint",
+      "patterns": ["retrospective", "sprint review", "multi.session review", "what worked.*what failed"],
+      "preferred": ["oh-my-claudecode:retrospective", "learn-eval"],
+      "fallback": "What worked / what failed / what to do differently / 3 ranked next moves.",
+      "marker": "oh-my-claudecode"
+    },
+    {
+      "name": "Long autonomous run with quality gates",
+      "patterns": ["long autonomous", "ultrawork", "quality gates? (between|per) iteration"],
+      "preferred": ["oh-my-claudecode:ultrawork", "ralph"],
+      "fallback": "PRD-shaped autonomous loop with verify-between-iterations.",
+      "marker": "oh-my-claudecode"
+    },
+    {
+      "name": "Product-management work",
+      "patterns": ["\\bprd\\b.*(write|draft)", "okrs?", "personas?", "jtbd", "lean canvas", "market siz", "competitive analysis", "user stor(y|ies)", "acceptance criteria", "launch checklist"],
+      "preferred": ["phuryn/pm-skills (out-of-band install)"],
+      "fallback": "Keep the work shape (problem → user → goal → metric → scope; Given/When/Then per story; objective + 3-5 measurable KRs; we-believe / we'll-know hypothesis; TAM/SAM/SOM bottom-up) without depending on a specific routing target.",
+      "marker": "phuryn/pm-skills"
+    }
+  ]
+}

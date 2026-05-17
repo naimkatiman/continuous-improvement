@@ -202,6 +202,8 @@ For each item in the ORIGINAL order:
 
 ### Routing Table (with Inline Fallbacks)
 
+Run [`scripts/route-recommendation.mjs "<item>"`](../scripts/route-recommendation.mjs) to match a single recommendation item to its preferred chain + inline fallback. Default mode prints the matched row; `--json` for programmatic consumption; `--list` enumerates every row. The programmatic source of truth is [`scripts/route-recommendation.routes.json`](../scripts/route-recommendation.routes.json) — the table below is the human-readable documentation that mirrors it. If they drift, the routes.json file wins.
+
 Rows whose **Preferred skill** is not bundled with the `continuous-improvement` plugin carry a `(Reference behavior — does not require <skill>.)` marker on the fallback cell. The marker makes the soft-dependency contract visible at point of use: the inline fallback is fully self-contained and runs without that skill installed. Rows whose preferred skill ships with the plugin (`ralph`, `tdd-workflow`, `continuous-improvement`) carry no marker — the dedicated skill is always available.
 
 | Recommendation type | Preferred skill | Inline fallback |
