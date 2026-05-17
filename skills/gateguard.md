@@ -97,30 +97,37 @@ A second Claude/Codex/Maulana session can be running on the same host and the sa
 
 **On the first Edit / Write / mutating Bash of a session:**
 
-```
-Baseline these three values and quote them in your response:
+Run [`scripts/git-state-snapshot.sh`](../scripts/git-state-snapshot.sh) and quote its JSON envelope verbatim. Example output:
 
-1. `git rev-parse HEAD` — record the commit you started on
-2. `git rev-parse @{u}` (if branch tracks an upstream) — record where origin was
-3. `git status --porcelain` — record the working tree state
-
-If any value is "unknown" (detached HEAD, no upstream, untracked-only tree),
-say so explicitly. Do not proceed past the baseline silently.
 ```
+{"head":"966ce51","upstream":"966ce51","dirty":0,"root":"/path/to/repo","branch":"main"}
+```
+
+Field meanings:
+
+1. `head` — short SHA of the commit you started on
+2. `upstream` — short SHA of `@{u}` if the branch tracks an upstream, else the literal `"none"`
+3. `dirty` — integer count of `git status --porcelain` lines (0 == clean)
+4. `root` — repo root path from `git rev-parse --show-toplevel`
+5. `branch` — current branch name, or the literal `"detached"`
+
+If `upstream` is `"none"` or `branch` is `"detached"`, say so explicitly. Do not proceed past the baseline silently. If the script exits non-zero (output is `{"error":"not-a-git-repo"}`), HALT — the harness is not running in a git checkout and no mutation should land here.
 
 **On every subsequent Edit / Write / mutating Bash, before allowing the action:**
 
-```
-Re-check the three baselines against current state:
+Re-run [`scripts/git-state-snapshot.sh`](../scripts/git-state-snapshot.sh) and diff against the baseline:
 
-1. `git rev-parse HEAD` — has it advanced past your baseline without your commits?
-2. `git rev-parse @{u}` — did upstream move while you worked?
-3. `git status --porcelain` — are there modifications you did not introduce?
+1. `head` — has it advanced past your baseline without your commits?
+2. `upstream` — did upstream move while you worked?
+3. `dirty` — are there modifications you did not introduce (count increased)?
+4. `branch` — did the working tree switch branches under you?
 
 If ANY of those drifted from baseline, HALT. Emit:
-"Parallel-actor divergence: <field> moved from <baseline> to <current>.
+
+```
+Parallel-actor divergence: <field> moved from <baseline> to <current>.
 Working tree may belong to another session. Stop, surface to operator,
-get clearance before next mutation."
+get clearance before next mutation.
 ```
 
 This gate is what catches the squash-merge / ahead-of-origin trap recorded in the operator's memory (`feedback_pre_branch_check.md`, `feedback_parallel_actor.md`) — both classes of failure occurred because a baseline was never captured at session start.
