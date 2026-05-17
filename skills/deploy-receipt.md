@@ -3,6 +3,7 @@ name: deploy-receipt
 tier: "1"
 description: Enforces Law 4 (Verify Before Reporting) of the 7 Laws of AI Agent Discipline at the deploy seam. A merge into a branch that auto-deploys is not "done" until the deploy provider reports the merged commit SHA running and a healthcheck endpoint returns 200. Companion to the vendored `finishing-a-development-branch` skill — does not replace it, runs after it for projects on Railway, Cloudflare Workers, Vercel, Netlify, Fly.io, or any other auto-deploy target.
 origin: https://github.com/naimkatiman/continuous-improvement
+disable-model-invocation: true
 ---
 
 # Deploy Receipt — Closing the Merge-to-Production Gap

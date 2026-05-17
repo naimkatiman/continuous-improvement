@@ -3,6 +3,7 @@ name: safety-guard
 tier: "2"
 description: Enforces Law 3 (One Thing at a Time) of the 7 Laws of AI Agent Discipline by scoping edits to a directory and blocking destructive shell commands. Use this skill to prevent destructive operations when working on production systems or running agents autonomously.
 origin: continuous-improvement
+disable-model-invocation: true
 ---
 
 # Safety Guard — Prevent Destructive Operations

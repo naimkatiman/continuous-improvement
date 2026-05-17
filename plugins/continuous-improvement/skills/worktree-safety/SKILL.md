@@ -3,6 +3,7 @@ name: worktree-safety
 tier: "2"
 description: "Enforces Law 4 (Verify Before Reporting) of the 7 Laws of AI Agent Discipline. Pre-dispatch invariant: validate worktree root before any source-writing tool call. Catches missing .git, fallback path-only creation, stale leases, foreign-session ownership, and non-worktree git operations before they corrupt history."
 origin: continuous-improvement
+user-invocable: false
 ---
 
 # Worktree Safety Skill

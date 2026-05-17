@@ -3,6 +3,7 @@ name: state-reconciliation
 tier: "2"
 description: "Enforces Law 4 (Verify Before Reporting) of the 7 Laws of AI Agent Discipline. Pre-dispatch invariant: reconcile DB-vs-disk-vs-memory state before any unit runs, so a stale flag, missing artifact, or out-of-sync row never re-dispatches a unit that already completed or never started."
 origin: continuous-improvement
+user-invocable: false
 ---
 
 # State Reconciliation Skill
