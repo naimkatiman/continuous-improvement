@@ -74,7 +74,7 @@ Probe and record (no destructive commands; quote results inline):
 - **jq availability.** `command -v jq` (or `Get-Command jq`). When jq is missing, observation-pipeline hooks fall back to a thin schema and curl/JSON one-liners need a node/python rewrite.
 - **Case-sensitive filesystem.** Test by creating two paths differing only in case in a tempdir. NTFS (Windows) and APFS (macOS default) are case-insensitive; Linux ext4 and case-sensitive APFS are case-sensitive. Affects `CLAUDE.md` vs `claude.md` resolution and import paths.
 - **CWD baseline.** `pwd` (or `Get-Location`) recorded at session start. `tsc`, build scripts, and some test runners change CWD as a side effect; subsequent commands run from the wrong directory return "deps not installed" or "config not found" misreads.
-- **Parallel-actor expectation.** Document whether a second Claude / Codex / Maulana session may operate on the same working tree. If yes, the `gateguard` Parallel-Actor Gate must baseline `git rev-parse HEAD` + `git status --porcelain` + upstream before the first mutation, and re-check on every subsequent mutation.
+- **Parallel-actor expectation.** Document whether a second Claude / Codex / Maulana session may operate on the same working tree. If yes, the `gateguard` Parallel-Actor Gate uses [`scripts/git-state-snapshot.sh`](../scripts/git-state-snapshot.sh) to produce a single JSON envelope (`{head, upstream, dirty, root, branch}`) for the baseline and the divergence check. This skill records whether parallel-actor is expected; gateguard owns the runtime mechanics, so the audit doesn't restate the git-command triple.
 
 Output the recorded grain as a single fenced block so it survives context compaction and any later phase can reference it without re-probing:
 

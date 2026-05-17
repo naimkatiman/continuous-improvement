@@ -32,10 +32,10 @@ The continuous-improvement repo runs on Windows + Git Bash with `autocrlf=true` 
 
 Before any source-writing call, verify all five. Fail closed on any miss.
 
-1. **Root validity** — `git rev-parse --show-toplevel` resolves; the resolved path matches CWD after symlink-safe canonicalization.
+1. **Root validity** — `git rev-parse --show-toplevel` resolves; the resolved path matches CWD after symlink-safe canonicalization. The `root` field of [`scripts/git-state-snapshot.sh`](../scripts/git-state-snapshot.sh) carries the canonicalized root, and its non-zero exit on `{"error":"not-a-git-repo"}` is itself the fail-closed signal — no second probe needed.
 2. **`.git` presence** — `.git` exists (file pointer for worktrees, directory for primary checkout). A missing or unreadable `.git` is an immediate stop.
 3. **Worktree registration** — `git worktree list` includes the resolved root with no `prunable` flag. Prunable worktrees can be deleted by another process at any moment.
-4. **Branch alignment** — current branch matches the lease ledger; `HEAD` is not detached unless the unit explicitly asked for detached state.
+4. **Branch alignment** — current branch matches the lease ledger; `HEAD` is not detached unless the unit explicitly asked for detached state. The snapshot script's `branch` field carries either the branch name or the literal `"detached"`, so detached-state is observable without a second probe.
 5. **Lease ownership** — the session ID in `.git/worktrees/<name>/lease` (or your equivalent ledger) matches this session. Stale or foreign leases block the call.
 
 Output a single fenced block before any source-writing dispatch:
