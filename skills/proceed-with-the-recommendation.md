@@ -135,15 +135,17 @@ Before research begins, the skill must read its own track record. The instinct s
 
 ### Rule 1 — Acknowledge before context (right context from the beginning)
 
-Scan three surfaces and quote literal evidence:
+Run [`scripts/scan-past-mistakes.mjs`](../scripts/scan-past-mistakes.mjs) at the project root. Scan three surfaces in one pass and surface every entry with a citation:
 
-- `~/.claude/instincts/<project-hash>/observations.jsonl` — last 10 entries with `type: failure` or `correction`
-- `~/.claude/projects/<project-hash>/memory/feedback_*.md` — auto-memory `feedback`-typed entries (named-pattern corrections the operator declared in prior sessions); `~/.claude/projects/<project-hash>/memory/MEMORY.md` is the index of these files
-- The active project's `CLAUDE.md` "Past Mistakes" section (if present)
+- `~/.claude/instincts/<project-hash>/observations.jsonl` — last N (default 10) entries with `type: failure` or `correction` (legacy `event` field also matched for pre-2026-05-06 rows)
+- `~/.claude/projects/<project-hash>/memory/feedback_*.md` — every file whose frontmatter declares `type: feedback`; the canonical home of the operator's named corrections (e.g. `feedback_past_mistake_gate.md`, `feedback_no_git_add_all_on_windows.md`)
+- `<project-root>/CLAUDE.md` "## Past Mistakes" table rows (if present)
 
-The auto-memory `feedback_*.md` surface is the canonical home of the operator's named corrections (e.g. `feedback_past_mistake_gate.md`, `feedback_no_git_add_all_on_windows.md`). Skipping it because the file path is project-host-specific is the most common silent failure of this gate — the rule explicitly enumerates it so this skill cannot rationalize the omission.
+Pass `--json` for machine consumption, or override paths via `--observations <path>`, `--memory-dir <dir>`, `--claude-md <path>` (the auto-detection derives all three from the project root via the standard `<hash>` convention). If the script outputs `No prior mistakes recorded — proceed.`, all three surfaces were empty and Rule 1 is satisfied.
 
-Emit one line per matching entry: `Past mistake observed: <quote>. Source: <file:line>. Active in current scope: yes|no.` If all three surfaces are empty, emit `No prior mistakes recorded — proceed.` Never skip silently — silent skip defeats the instinct system.
+For each scanned entry, emit one line: `Past mistake observed: <quote>. Source: <file:line>. Active in current scope: yes|no.` The script provides the quote + source citation; the active-in-scope judgment is yours — read each surface against the recommendation list and decide.
+
+Skipping this scan because the surface paths are project-host-specific is the historically most common silent failure of this gate; the script removes that excuse. If the script must run, a skip surfaces as no output emitted at all — making the bypass detectable rather than invisible.
 
 ### Rule 2 — Clearance gate (don't proceed until the mistake is gone)
 
