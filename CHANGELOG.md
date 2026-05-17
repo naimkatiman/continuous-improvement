@@ -6,6 +6,10 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- **GateGuard MultiEdit docs now match runtime behavior** — the skill docs no longer describe MultiEdit as `edits[0].file_path` V1; they now document the per-file gate that blocks mixed-clearance batches until every edited path is cleared or facts are presented, and the runtime keeps the 50-file cap intact even for multi-file batches while naming the full batch in the block reason.
+
 ---
 
 ## [3.9.2] — 2026-05-10

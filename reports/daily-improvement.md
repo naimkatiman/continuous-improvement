@@ -2,6 +2,16 @@
 
 Fixed 13 test failures caused by Windows platform incompatibilities in test infrastructure.
 
+## 2026-05-17 — GateGuard MultiEdit parity
+- Tightened `src/hooks/gateguard.mts` so `MultiEdit` batches are evaluated and cleared per edited file, with mixed-clearance batches naming the whole file set in the denial reason.
+- Added regression coverage in `src/test/gateguard-hook.test.mts` for mixed-clearance `MultiEdit` batches and cap enforcement.
+- Verified with `npm run build`, `npm run verify:all`, and `node --test test/gateguard-hook.test.mjs`.
+
+## 2026-05-16 — GateGuard empty-path fallback
+- Improved `src/hooks/gateguard.mts` so blank `file_path` values render `<unknown>` instead of an empty slot in block reasons.
+- Added a regression test in `src/test/gateguard-hook.test.mts` for `Write` with `file_path: ""`.
+- Verified with `npm run build`, `npm run verify:all`, and `node --test test/gateguard-hook.test.mjs`.
+
 ## Project Snapshot
 
 | Field | Value |

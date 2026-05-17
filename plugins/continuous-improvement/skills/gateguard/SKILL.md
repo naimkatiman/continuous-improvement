@@ -137,9 +137,10 @@ Smoke-test the runtime gate after install: ask Claude to write a throwaway file 
 - **Honor system.** Once the agent flips `_gateguard_facts_presented: true` in `tool_input`, the hook can't verify the investigation actually happened. The 50-file cap bounds damage from stuck loops or rogue agents.
 - **State-file deletion.** `rm`-ing the session state resets every gate. Acceptable because the session itself is the trust boundary.
 - **Parallel-hook race.** Two simultaneous hook invocations can race the read+write of the state file. Acceptable trade-off vs Windows atomic-rename complexity.
-- **MultiEdit V1.** Currently gates on `edits[0].file_path` only. Per-file batching is a TODO.
 
-All four documented in `src/hooks/gateguard.mts` and `src/lib/gateguard-state.mts` headers.
+**MultiEdit per-file gating.** The hook clears and checks every `edits[]` path individually, so a mixed-clearance batch blocks until *all* edited files are cleared or facts are presented. The block reason now names the whole batch, not just the first uncleared path.
+
+These behaviors are documented in `src/hooks/gateguard.mts` and `src/lib/gateguard-state.mts` headers.
 
 ### Future: third-party `gateguard-ai` package
 

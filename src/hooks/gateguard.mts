@@ -18,13 +18,16 @@
  * V1 honest limitations (see src/lib/gateguard-state.mts header):
  *   honor-system flag, state-file deletion, parallel-hook race.
  *
- * MultiEdit handling (V1): gates on edits[0].file_path only. Per-file
- * batching is not implemented — TODO: extend to gate every entry in
- * edits[]. Tracked in issue #106 acceptance criteria item 5.
+ * MultiEdit handling gates every edited file individually. The hook blocks
+ * unless all edited paths are already cleared, or the agent presents facts
+ * for the call and the hook records clearance for each edited path.
+ * Block reasons now name the whole batch instead of just the first uncleared
+ * path.
  */
 
 import { readFileSync } from "node:fs";
 import {
+  MAX_CLEARED_FILES,
   isCapReached,
   loadState,
   markFileCleared,
@@ -101,20 +104,43 @@ function classifyTool(toolName: string, toolInput: ToolInput): GateType {
   return "allow";
 }
 
-function extractFilePath(toolInput: ToolInput): string {
-  if (typeof toolInput.file_path === "string") return toolInput.file_path;
-  // MultiEdit V1: first edit's file_path is the canonical key.
+function extractFilePaths(toolInput: ToolInput): string[] {
+  if (typeof toolInput.file_path === "string") return [toolInput.file_path];
   if (Array.isArray(toolInput.edits) && toolInput.edits.length > 0) {
-    const first = toolInput.edits[0];
-    if (first && typeof first.file_path === "string") return first.file_path;
+    return toolInput.edits
+      .map((edit) => (edit && typeof edit.file_path === "string" ? edit.file_path : ""))
+      .filter((filePath): filePath is string => filePath !== "");
   }
-  if (typeof toolInput.command === "string") return toolInput.command;
+  if (typeof toolInput.command === "string") return [toolInput.command];
+  return [];
+}
+
+function firstUnclearedFilePath(toolInput: ToolInput, clearedFiles: Record<string, { cleared_at: string }>): string {
+  const filePaths = extractFilePaths(toolInput);
+  const uncleared = filePaths.find((path) => !(path in clearedFiles));
+  if (uncleared) return uncleared;
+  if (filePaths.length > 0) return filePaths[0]!;
   return "";
 }
 
-function buildMutatingFileReason(toolName: string, filePath: string): string {
+function countDistinctNewFilePaths(
+  filePaths: string[],
+  clearedFiles: Record<string, { cleared_at: string }>,
+): number {
+  return new Set(filePaths.filter((path) => !(path in clearedFiles))).size;
+}
+
+function formatFileTarget(filePaths: string[]): string {
+  const nonEmpty = filePaths.filter((path) => path !== "");
+  if (nonEmpty.length === 0) return "<unknown>";
+  if (nonEmpty.length === 1) return nonEmpty[0]!;
+  return `${nonEmpty.length} files (${nonEmpty.join(", ")})`;
+}
+
+function buildMutatingFileReason(toolName: string, filePaths: string[]): string {
+  const target = formatFileTarget(filePaths);
   return [
-    `Before ${toolName === "Write" ? "creating" : "editing"} ${filePath || "<unknown>"}, present these facts:`,
+    `Before ${toolName === "Write" ? "creating" : "editing"} ${target}, present these facts:`,
     "",
     "  1. List ALL files that import/require this file (use Grep)",
     "  2. List the public functions/classes affected by this change",
@@ -140,7 +166,7 @@ function buildDestructiveBashReason(command: string): string {
 
 function buildCapReachedReason(): string {
   return [
-    "Gateguard session clearance cap reached (50 distinct files).",
+    `Gateguard session clearance cap reached (${MAX_CLEARED_FILES} distinct files).`,
     "Start a new Claude Code session to reset the gate. The cap exists to bound",
     "stuck-loop or rogue-agent clearance from compounding within a single session.",
   ].join("\n");
@@ -184,23 +210,27 @@ function main(): void {
   // mutating-file
   const sessionDir = resolveSessionDir();
   const state = loadState(sessionDir);
-  const filePath = extractFilePath(toolInput);
+  const filePaths = extractFilePaths(toolInput);
+  const filePath = firstUnclearedFilePath(toolInput, state.cleared_files);
   const factsFlagged = toolInput._gateguard_facts_presented === true;
-  const alreadyCleared = filePath !== "" && filePath in state.cleared_files;
+  const alreadyCleared = filePaths.length > 0 && filePaths.every((path) => path in state.cleared_files);
+  const newFileCount = countDistinctNewFilePaths(filePaths, state.cleared_files);
 
   if (!factsFlagged && !alreadyCleared) {
-    emit({ decision: "block", reason: buildMutatingFileReason(toolName, filePath) });
+    emit({ decision: "block", reason: buildMutatingFileReason(toolName, filePaths.length > 0 ? filePaths : [filePath]) });
     return;
   }
 
   if (factsFlagged && !alreadyCleared) {
-    if (isCapReached(state)) {
+    if (isCapReached(state) || Object.keys(state.cleared_files).length + newFileCount > MAX_CLEARED_FILES) {
       emit({ decision: "block", reason: buildCapReachedReason() });
       return;
     }
-    if (filePath !== "") {
-      saveState(sessionDir, markFileCleared(state, filePath));
+    let nextState = state;
+    for (const path of filePaths) {
+      nextState = markFileCleared(nextState, path);
     }
+    if (filePaths.length > 0) saveState(sessionDir, nextState);
   }
 
   emit({ decision: "allow" });

@@ -22,7 +22,7 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it, before, after } from "node:test";
@@ -51,6 +51,22 @@ function runHook(toolName: string, toolInput: Record<string, unknown>, sessionDi
   const stdout = result.stdout.trim();
   assert.notEqual(stdout, "", "hook must emit a JSON decision on stdout");
   return JSON.parse(stdout) as HookDecision;
+}
+
+function seedClearedFiles(sessionDir: string, files: string[]): void {
+  writeFileSync(
+    join(sessionDir, "gateguard-session.json"),
+    `${JSON.stringify(
+      {
+        created_at: new Date().toISOString(),
+        cleared_files: Object.fromEntries(
+          files.map((file) => [file, { cleared_at: new Date().toISOString() }]),
+        ),
+      },
+      null,
+      2,
+    )}\n`,
+  );
 }
 
 describe("hooks/gateguard.mjs (runtime PreToolUse hook — issue #106)", () => {
@@ -109,6 +125,12 @@ describe("hooks/gateguard.mjs (runtime PreToolUse hook — issue #106)", () => {
       assert.match(decision.reason ?? "", /import|require|Glob|user'?s? .*instruction/i);
     });
 
+    it("first Write call with an empty file_path falls back to <unknown>", () => {
+      const decision = runHook("Write", { file_path: "", content: "hello" }, sessionDir);
+      assert.equal(decision.decision, "block");
+      assert.match(decision.reason ?? "", /Before creating <unknown>, present these facts:/);
+    });
+
     it("first Edit call is blocked with a fact-list reason", () => {
       const decision = runHook(
         "Edit",
@@ -123,6 +145,50 @@ describe("hooks/gateguard.mjs (runtime PreToolUse hook — issue #106)", () => {
       const decision = runHook("Bash", { command: "rm -rf node_modules" }, sessionDir);
       assert.equal(decision.decision, "block");
       assert.match(decision.reason ?? "", /rollback|delete|destructive/i);
+    });
+
+    it("MultiEdit blocks when one edited file has clearance and another does not", () => {
+      seedClearedFiles(sessionDir, ["already-cleared.txt"]);
+
+      const decision = runHook(
+        "MultiEdit",
+        {
+          edits: [
+            { file_path: "already-cleared.txt", old_string: "x", new_string: "y" },
+            { file_path: "needs-clearance.txt", old_string: "a", new_string: "b" },
+          ],
+        },
+        sessionDir,
+      );
+
+      assert.equal(decision.decision, "block");
+      assert.match(decision.reason ?? "", /Before editing 2 files \(already-cleared\.txt, needs-clearance\.txt\)/);
+      assert.match(decision.reason ?? "", /already-cleared\.txt/);
+      assert.match(decision.reason ?? "", /needs-clearance\.txt/);
+    });
+
+    it("MultiEdit with facts does not exceed the per-session cap", () => {
+      const capSessionDir = mkdtempSync(join(tmpdir(), "gateguard-cap-test-"));
+      try {
+        const seeded = Array.from({ length: 48 }, (_, index) => `seed-${index + 1}.txt`);
+        seedClearedFiles(capSessionDir, seeded);
+
+        const edits = Array.from({ length: 5 }, (_, index) => ({
+          file_path: `batch-${index + 1}.txt`,
+          old_string: "x",
+          new_string: "y",
+        }));
+
+        const decision = runHook("MultiEdit", { edits, _gateguard_facts_presented: true }, capSessionDir);
+        assert.equal(decision.decision, "block", "cap-exceeding multi-edit should be blocked");
+
+        const state = JSON.parse(readFileSync(join(capSessionDir, "gateguard-session.json"), "utf8")) as {
+          cleared_files?: Record<string, unknown>;
+        };
+        assert.ok((state.cleared_files ? Object.keys(state.cleared_files).length : 0) <= 50);
+      } finally {
+        rmSync(capSessionDir, { recursive: true, force: true });
+      }
     });
   });
 
@@ -165,6 +231,26 @@ describe("hooks/gateguard.mjs (runtime PreToolUse hook — issue #106)", () => {
         sessionDir,
       );
       assert.equal(allowed.decision, "allow", "second write with facts allowed");
+    });
+
+    it("MultiEdit with facts clears every edited file and allows a retry", () => {
+      const edits = [
+        { file_path: "multi-a.txt", old_string: "x", new_string: "y" },
+        { file_path: "multi-b.txt", old_string: "p", new_string: "q" },
+      ];
+
+      const blocked = runHook("MultiEdit", { edits }, sessionDir);
+      assert.equal(blocked.decision, "block", "first multi-edit blocks");
+
+      const allowed = runHook(
+        "MultiEdit",
+        { edits, _gateguard_facts_presented: true },
+        sessionDir,
+      );
+      assert.equal(allowed.decision, "allow", "multi-edit with facts is allowed");
+
+      const retry = runHook("MultiEdit", { edits }, sessionDir);
+      assert.equal(retry.decision, "allow", "retry is allowed after all files are cleared");
     });
   });
 });
