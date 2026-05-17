@@ -3,6 +3,7 @@ name: wild-risa-balance
 tier: "2"
 description: Enforces Law 2 (Plan Is Sacred) of the 7 Laws of AI Agent Discipline. Decision-framing lens that pairs WILD generation with RISA execution when emitting recommendation lists. Not a runtime hook.
 origin: continuous-improvement
+user-invocable: false
 ---
 
 # WILD / RISA Balance

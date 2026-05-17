@@ -3,6 +3,7 @@ name: recovery-classification
 tier: "2"
 description: "Enforces Law 4 (Verify Before Reporting) of the 7 Laws of AI Agent Discipline. After any failure in the verification ladder or auto-loop, classify the failure class before retrying — provider, tool-schema, deterministic-policy, git, worktree, runtime — so retry-vs-pause-vs-self-heal-vs-stop is an intentional decision, not a generic 'try again'."
 origin: continuous-improvement
+user-invocable: false
 ---
 
 # Recovery Classification Skill
