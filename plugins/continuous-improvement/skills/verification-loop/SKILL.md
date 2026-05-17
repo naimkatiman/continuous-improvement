@@ -164,11 +164,13 @@ Phase 8 confirms the deploy seam. Phase 9 confirms the deployed surface matches 
 
 **What the runner does:**
 
+Implementation: `scripts/run-synthetic.mjs` encodes the lexical walk, interpreter map, env injection, and exit-code aggregation below. The prose is documentation, not the contract — when the two disagree, the script wins.
+
 1. List every `*.synthetic.{sh,mjs,ts,py}` file in the resolved directory in lexical order.
 2. For each file, set the input env vars: `BASE_URL` (production base from project config), `BASELINE_URL` (staging baseline from project config), `EXPECTED_SHA` (the merge SHA Phase 8 reported COMPLETE), `DEPLOY_BRANCH` (the deploy branch name), `RECEIPT_TIMESTAMP` (ISO-8601 of the receipt).
 3. Invoke the file via the right interpreter (`bash` for `.sh`, `node` for `.mjs`, `tsx` for `.ts`, `python` for `.py`). Files with unrecognized extensions are skipped with a warning.
 4. Capture stdout + stderr + exit code per file. On exit 0, the check passed. On any non-zero exit, the check failed and stdout is the operator-facing diff.
-5. Aggregate: if every file exited 0, Phase 9 is `PASS`. If any file exited non-zero, Phase 9 is `FAIL — synthetic drift on <filenames>` and the captured diffs go into the verification report verbatim (no agent re-summarization).
+5. Aggregate: if every file exited 0, Phase 9 is `PASS`. If any file exited non-zero, Phase 9 is `FAIL — synthetic drift on <filenames>` and the captured diffs go into the verification report verbatim (no agent re-summarization). Exit code 2 with zero drift (every non-pass was a config error from the check itself) surfaces as `INCOMPLETE — config error` to distinguish "gate did not run" from "gate ran and found drift".
 
 **Surfacing rule:**
 
