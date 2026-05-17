@@ -21,14 +21,7 @@ This skill defines the receipt that closes that gap, without modifying the vendo
 Activate when ALL of the following are true:
 
 1. A merge into the deploy branch (typically `main` or `master`) has just landed
-2. The repo declares an auto-deploy target — detect via any of:
-   - `railway.toml`, `railway.json`, or `RAILWAY_*` env vars in `.env.example`
-   - `wrangler.toml` / `wrangler.jsonc` (Cloudflare Workers)
-   - `vercel.json` or `.vercel/` directory
-   - `netlify.toml`
-   - `fly.toml`
-   - `app.yaml` (App Engine), `apprunner.yaml` (App Runner)
-   - GitHub Actions workflow with `deploy:` job triggered on push to the deploy branch
+2. [`scripts/detect-deploy-target.sh`](../scripts/detect-deploy-target.sh) returns a value other than `none` at the repo root. The script encodes the full file-marker table — `railway.toml` / `railway.json` → `railway`, `wrangler.toml` / `wrangler.jsonc` → `cloudflare`, `vercel.json` / `.vercel/` → `vercel`, `netlify.toml` → `netlify`, `fly.toml` → `fly`, `app.yaml` → `appengine`, `apprunner.yaml` → `apprunner`, `.github/workflows/*.yml` with a `deploy:` job → `gha-deploy`. First match wins, in that order. The script is the source of truth; the file list above is documentation
 3. `finishing-a-development-branch` has reported "merged" — not "PR opened", not "review pending"
 
 Do NOT activate when:
@@ -52,17 +45,19 @@ The skill is provider-aware but never hardcodes a specific API key or token shap
 
 ### Route A — Provider CLI (preferred when authenticated)
 
-The CLI is the highest-fidelity source.
+The CLI is the highest-fidelity source. Run [`scripts/get-deployed-sha.sh <provider>`](../scripts/get-deployed-sha.sh) — the script owns the per-provider pipeline (CLI + jq filter) and prints just the SHA on stdout. Inspect the pipeline shape without executing via `bash scripts/get-deployed-sha.sh --show-command <provider>`.
 
-| Provider | Command shape | Receipt extraction |
-|---|---|---|
-| Railway | `railway status --json` | `.deployments[0].meta.commitHash` |
-| Cloudflare Workers | `wrangler deployments list --json` | `[0].metadata.deployment_trigger.metadata.commit_hash` |
-| Vercel | `vercel inspect <url> --json` | `.gitSource.sha` |
-| Netlify | `netlify api listSiteDeploys --data='{"site_id":"<id>"}'` | `[0].commit_ref` |
-| Fly.io | `fly releases --json` | `[0].commit_sha` |
+Provider-to-pipeline map (cited from the script, not redefined here):
 
-If the CLI is not installed or not authenticated in this session, fall through to Route B. Do NOT prompt the operator to install the CLI mid-session — that is a drive-by.
+| Provider value | CLI |
+|---|---|
+| `railway` | `railway` |
+| `cloudflare` | `wrangler` |
+| `vercel` | `vercel` |
+| `netlify` | `netlify` |
+| `fly` | `fly` |
+
+Exit codes from the script: `0` on success (SHA printed), `2` on missing/unknown provider (usage error), `3` when the required CLI is not installed locally — that is the fall-through signal to Route B, not a hard failure. Do NOT prompt the operator to install the CLI mid-session — that is a drive-by.
 
 ### Route B — GitHub Deployments API (works for any provider that posts back)
 

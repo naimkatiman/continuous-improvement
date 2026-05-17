@@ -143,7 +143,11 @@ If either is `No`, the verification report goes back to the operator with the ex
 
 ### Phase 8: Deploy Receipt (auto-deploy projects only)
 
-For repos whose `verify-ladder.json` declares a `deploy_receipt` field — or whose sniff path detects an auto-deploy target (Railway, Cloudflare Workers, Vercel, Netlify, Fly.io) — the verify is not complete until the deployed SHA matches the merge SHA and a healthcheck returns 200. Hand off to the `deploy-receipt` skill (Law 4 deploy-seam companion landed in PR #83) and treat its `Receipt status: COMPLETE` as the gate.
+For repos whose `verify-ladder.json` declares a `deploy_receipt` field — or whose sniff path detects an auto-deploy target — the verify is not complete until the deployed SHA matches the merge SHA and a healthcheck returns 200. Hand off to the `deploy-receipt` skill (Law 4 deploy-seam companion landed in PR #83) and treat its `Receipt status: COMPLETE` as the gate.
+
+**Detection.** Run [`scripts/detect-deploy-target.sh`](../scripts/detect-deploy-target.sh) at the repo root. Output is one of `railway` / `cloudflare` / `vercel` / `netlify` / `fly` / `appengine` / `apprunner` / `gha-deploy` / `none`. Anything except `none` triggers handoff to `deploy-receipt`; `none` means Phase 8 is skipped (no deploy seam exists).
+
+**SHA extraction.** For the detected provider, [`scripts/get-deployed-sha.sh <provider>`](../scripts/get-deployed-sha.sh) returns the currently-deployed SHA via the provider CLI; `--show-command <provider>` prints the pipeline shape without executing (useful for dry-runs and citation). `deploy-receipt` owns the receipt's other components (health endpoint, build artifact, on-incomplete modes) and Route B/C fallbacks.
 
 INCOMPLETE receipts move to "Immediate operator action" in the close, never to "ready". Library-only / package-published repos skip this phase entirely (no deploy seam exists).
 
