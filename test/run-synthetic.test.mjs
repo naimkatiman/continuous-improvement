@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -230,5 +230,3 @@ describe("run-synthetic — timeout", () => {
         }
     });
 });
-// Suppress unused-import warning when nothing in this file uses mkdirSync directly.
-void mkdirSync;
