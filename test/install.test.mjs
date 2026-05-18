@@ -75,6 +75,50 @@ describe("installer", () => {
         assert.ok(existsSync(observerJs), "bin/observe.mjs should be installed");
         assert.ok(existsSync(observeEvent), "lib/observe-event.mjs should be installed");
     });
+    it("normalizes hook command paths for Windows-style homes", () => {
+        const winRoot = join(tmpdir(), `ci-test-win-${Date.now()}`);
+        try {
+            const winHome = join(winRoot, "Users\\naim");
+            mkdirSync(join(winHome, ".claude"), { recursive: true });
+            const settingsPath = join(winHome, ".claude", "settings.json");
+            writeFileSync(settingsPath, JSON.stringify({
+                hooks: {
+                    PreToolUse: [
+                        {
+                            matcher: "",
+                            hooks: [
+                                {
+                                    type: "command",
+                                    command: 'bash "C:\\Users\\naim\\.claude\\instincts\\observe.sh"',
+                                },
+                            ],
+                        },
+                    ],
+                },
+            }, null, 2) + "\n");
+            execFileSync("node", [INSTALL_SCRIPT, "install", "--mode", "expert"], {
+                env: { ...process.env, HOME: winHome },
+                encoding: "utf8",
+            });
+            const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
+            const observeCommands = (settings.hooks?.PreToolUse || [])
+                .flatMap((entry) => entry.hooks || [])
+                .map((hook) => hook.command)
+                .filter((command) => Boolean(command));
+            const observeCommand = observeCommands.find((command) => command.includes("observe.sh"));
+            const sessionCommand = settings.hooks?.SessionStart?.[0]?.hooks?.[0]?.command;
+            assert.ok(observeCommand, "observe.sh hook command should exist");
+            assert.match(observeCommand, /^bash ".+observe\.sh"$/);
+            assert.doesNotMatch(observeCommand, /\\/);
+            assert.equal(observeCommands.filter((command) => command.includes("observe.sh")).length, 1, "broken legacy observe.sh hook should be replaced, not duplicated");
+            assert.ok(sessionCommand, "session.sh hook command should exist in expert mode");
+            assert.match(sessionCommand, /^bash ".+session\.sh"$/);
+            assert.doesNotMatch(sessionCommand, /\\/);
+        }
+        finally {
+            rmSync(winRoot, { recursive: true, force: true });
+        }
+    });
     it("patches settings.json with hooks", () => {
         const settingsPath = join(tempHome, ".claude", "settings.json");
         assert.ok(existsSync(settingsPath), "settings.json should exist");
@@ -205,6 +249,216 @@ describe("installer - foreign-hook preservation", () => {
         const hasObserve = (settings.hooks?.PreToolUse || []).some((entry) => Array.isArray(entry.hooks) &&
             entry.hooks.some((hook) => hook.command?.includes("observe.sh")));
         assert.ok(!hasObserve, "observe.sh hook should still be removed");
+    });
+});
+describe("installer - exact hook matching", () => {
+    let tempHome = "";
+    before(() => {
+        tempHome = join(tmpdir(), `ci-test-exact-${Date.now()}`);
+        mkdirSync(join(tempHome, ".claude"), { recursive: true });
+        const seed = {
+            hooks: {
+                PreToolUse: [
+                    {
+                        matcher: "",
+                        hooks: [{ type: "command", command: "echo observe.sh but not really" }],
+                    },
+                ],
+                SessionStart: [
+                    {
+                        matcher: "",
+                        hooks: [{ type: "command", command: "echo session.sh but not really" }],
+                    },
+                ],
+            },
+        };
+        writeFileSync(join(tempHome, ".claude", "settings.json"), JSON.stringify(seed, null, 2) + "\n");
+        execFileSync("node", [INSTALL_SCRIPT, "install", "--mode", "expert"], {
+            env: { ...process.env, HOME: tempHome },
+            encoding: "utf8",
+        });
+    });
+    after(() => {
+        rmSync(tempHome, { recursive: true, force: true });
+    });
+    it("installs the real observe and session hooks even when foreign commands mention their names", () => {
+        const settingsPath = join(tempHome, ".claude", "settings.json");
+        const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
+        const observeCommand = `bash "${join(tempHome, ".claude", "instincts", "observe.sh").replace(/\\/g, "/")}"`;
+        const sessionCommand = `bash "${join(tempHome, ".claude", "instincts", "session.sh").replace(/\\/g, "/")}"`;
+        const preToolCommands = (settings.hooks?.PreToolUse || [])
+            .flatMap((entry) => entry.hooks || [])
+            .map((hook) => hook.command)
+            .filter((command) => Boolean(command));
+        const sessionStartCommands = (settings.hooks?.SessionStart || [])
+            .flatMap((entry) => entry.hooks || [])
+            .map((hook) => hook.command)
+            .filter((command) => Boolean(command));
+        assert.equal(preToolCommands.filter((command) => command === observeCommand).length, 1, "real observe.sh hook should be installed exactly once");
+        assert.equal(sessionStartCommands.filter((command) => command === sessionCommand).length, 1, "real session.sh hook should be installed exactly once");
+    });
+});
+describe("installer - cleanup persistence coexistence", () => {
+    let tempHome = "";
+    before(() => {
+        tempHome = join(tmpdir(), `ci-test-cleanup-${Date.now()}`);
+        mkdirSync(join(tempHome, ".claude"), { recursive: true });
+        const cleanObserveCommand = `bash "${join(tempHome, ".claude", "instincts", "observe.sh").replace(/\\/g, "/")}"`;
+        const seed = {
+            hooks: {
+                PreToolUse: [
+                    {
+                        matcher: "",
+                        hooks: [{ type: "command", command: cleanObserveCommand }],
+                    },
+                    {
+                        matcher: "",
+                        hooks: [
+                            {
+                                type: "command",
+                                command: 'bash "C:\\Users\\naim\\.claude\\instincts\\observe.sh"',
+                            },
+                        ],
+                    },
+                ],
+            },
+        };
+        writeFileSync(join(tempHome, ".claude", "settings.json"), JSON.stringify(seed, null, 2) + "\n");
+        execFileSync("node", [INSTALL_SCRIPT, "install"], {
+            env: { ...process.env, HOME: tempHome },
+            encoding: "utf8",
+        });
+    });
+    after(() => {
+        rmSync(tempHome, { recursive: true, force: true });
+    });
+    it("removes the broken legacy observe hook while keeping the existing clean hook once", () => {
+        const settingsPath = join(tempHome, ".claude", "settings.json");
+        const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
+        const preToolCommands = (settings.hooks?.PreToolUse || [])
+            .flatMap((entry) => entry.hooks || [])
+            .map((hook) => hook.command)
+            .filter((command) => Boolean(command));
+        const cleanObserveCommand = `bash "${join(tempHome, ".claude", "instincts", "observe.sh").replace(/\\/g, "/")}"`;
+        assert.equal(preToolCommands.filter((command) => command === cleanObserveCommand).length, 1, "existing clean observe hook should remain exactly once");
+        assert.equal(preToolCommands.filter((command) => command.includes("observe.sh") && command.includes("\\")).length, 0, "broken legacy observe hook should be removed");
+    });
+});
+// Regression: prior to PR #74 the installer dropped the entire PreToolUse entry
+// to remove a broken backslash-laden observe.sh hook, which silently wiped any
+// foreign command sharing the same entry. The fix filters at the hook level.
+describe("installer - mixed-entry preservation", () => {
+    let tempHome = "";
+    before(() => {
+        tempHome = join(tmpdir(), `ci-test-mixed-${Date.now()}`);
+        mkdirSync(join(tempHome, ".claude"), { recursive: true });
+        const seed = {
+            hooks: {
+                PreToolUse: [
+                    {
+                        matcher: "",
+                        hooks: [
+                            { type: "command", command: "echo mixed-foreign-pre" },
+                            {
+                                type: "command",
+                                command: 'bash "C:\\Users\\naim\\.claude\\instincts\\observe.sh"',
+                            },
+                        ],
+                    },
+                ],
+            },
+        };
+        writeFileSync(join(tempHome, ".claude", "settings.json"), JSON.stringify(seed, null, 2) + "\n");
+        execFileSync("node", [INSTALL_SCRIPT, "install"], {
+            env: { ...process.env, HOME: tempHome },
+            encoding: "utf8",
+        });
+    });
+    after(() => {
+        rmSync(tempHome, { recursive: true, force: true });
+    });
+    it("preserves a foreign command sharing an entry with a broken observe hook", () => {
+        const settingsPath = join(tempHome, ".claude", "settings.json");
+        const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
+        const allCommands = (settings.hooks?.PreToolUse || [])
+            .flatMap((entry) => entry.hooks || [])
+            .map((hook) => hook.command)
+            .filter((command) => Boolean(command));
+        assert.ok(allCommands.some((command) => command === "echo mixed-foreign-pre"), "Foreign command must survive even when it shares an entry with a broken observe hook");
+        assert.ok(!allCommands.some((command) => command.includes("observe.sh") && command.includes("\\")), "Broken backslash-laden observe.sh hook must be removed");
+        assert.ok(allCommands.some((command) => command.includes("observe.sh")), "A fresh forward-slash observe.sh hook must be installed");
+    });
+    // The uninstall arm of the same regression. Install separates the foreign
+    // and observe.sh hooks into distinct entries, so we re-seed the mixed entry
+    // directly before --uninstall to prove the uninstall path filters per-hook.
+    // Entry-level filtering would wipe the foreign command along with the
+    // broken observe hook in the same entry.
+    it("removes a broken observe hook on uninstall while preserving the shared-entry foreign command", () => {
+        const settingsPath = join(tempHome, ".claude", "settings.json");
+        const seed = {
+            hooks: {
+                PreToolUse: [
+                    {
+                        matcher: "",
+                        hooks: [
+                            { type: "command", command: "echo mixed-foreign-pre" },
+                            {
+                                type: "command",
+                                command: 'bash "C:\\Users\\naim\\.claude\\instincts\\observe.sh"',
+                            },
+                        ],
+                    },
+                ],
+            },
+        };
+        writeFileSync(settingsPath, JSON.stringify(seed, null, 2) + "\n");
+        execFileSync("node", [INSTALL_SCRIPT, "--uninstall"], {
+            env: { ...process.env, HOME: tempHome },
+            encoding: "utf8",
+        });
+        const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
+        const allCommands = (settings.hooks?.PreToolUse || [])
+            .flatMap((entry) => entry.hooks || [])
+            .map((hook) => hook.command)
+            .filter((command) => Boolean(command));
+        assert.ok(allCommands.some((command) => command === "echo mixed-foreign-pre"), "Foreign command must survive --uninstall when it shares an entry with a broken observe hook");
+        assert.ok(!allCommands.some((command) => command.includes("observe.sh")), "Broken observe.sh hook sharing the entry must be removed by --uninstall");
+    });
+    it("preserves malformed hook rows while removing empty broken-only entries", () => {
+        const settingsPath = join(tempHome, ".claude", "settings.json");
+        const seed = {
+            hooks: {
+                PreToolUse: [
+                    null,
+                    { matcher: "", hooks: null },
+                    { matcher: "", hooks: [{ type: "command" }] },
+                    {
+                        matcher: "",
+                        hooks: [
+                            {
+                                type: "command",
+                                command: 'bash "C:\\Users\\naim\\.claude\\instincts\\observe.sh"',
+                            },
+                        ],
+                    },
+                ],
+            },
+        };
+        writeFileSync(settingsPath, JSON.stringify(seed, null, 2) + "\n");
+        execFileSync("node", [INSTALL_SCRIPT, "install"], {
+            env: { ...process.env, HOME: tempHome },
+            encoding: "utf8",
+        });
+        const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
+        const entries = settings.hooks?.PreToolUse || [];
+        assert.ok(entries.some((entry) => entry === null), "null hook row should be preserved");
+        assert.ok(entries.some((entry) => entry && entry.hooks === null), "rows with hooks:null should be preserved");
+        assert.ok(entries.some((entry) => {
+            if (!entry || !Array.isArray(entry.hooks))
+                return false;
+            return entry.hooks.some((hook) => hook.command === undefined) && entry.hooks.length === 1;
+        }), "rows with malformed hook objects should be preserved");
+        assert.ok(!entries.some((entry) => Array.isArray(entry?.hooks) && entry.hooks.length === 0), "empty hook rows should not remain after filtering");
     });
 });
 describe("installer - input validation", () => {

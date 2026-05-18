@@ -2,6 +2,17 @@
 
 Fixed 13 test failures caused by Windows platform incompatibilities in test infrastructure.
 
+## 2026-05-19 — Installer cleanup persistence verification
+- Re-ran `npm run build` after the installer cleanup coexistence fix to regenerate `bin/install.mjs` and the mirrored test output.
+- Verified the full installer suite with `node --test test/install.test.mjs`; all 29 tests passed, including the coexistence regression, Windows-style path normalization, and mixed-entry preservation cases.
+- No new code changes were needed today; this cycle just confirmed the existing installer fix is green on the current working tree.
+
+## 2026-05-18 — Installer cleanup persistence coexistence fix
+- Fixed `src/bin/install.mts` so cleanup-only hook filtering is persisted even when a clean installer hook already exists alongside a broken legacy `observe.sh` entry in the same hook type.
+- Added regression coverage in `src/test/install.test.mts` for the coexistence case, proving the broken legacy hook is removed while the clean hook remains exactly once.
+- Also changed the observe/session hook entries to be constructed per target bucket instead of reusing one object across paired hook types, so future mutations can't leak between `PreToolUse`/`PostToolUse` or `SessionStart`/`SessionEnd`.
+- Verified with `npm run build`, `node --test test/install.test.mjs`, and `npm run verify:all` (`29 pass / 0 fail` in the targeted installer suite).
+
 ## 2026-05-17 — GateGuard MultiEdit parity
 - Tightened `src/hooks/gateguard.mts` so `MultiEdit` batches are evaluated and cleared per edited file, with mixed-clearance batches naming the whole file set in the denial reason.
 - Added regression coverage in `src/test/gateguard-hook.test.mts` for mixed-clearance `MultiEdit` batches and cap enforcement.

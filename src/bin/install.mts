@@ -46,7 +46,7 @@ interface McpServerConfig {
 }
 
 interface ClaudeSettings {
-  hooks?: Partial<Record<HookType, HookEntry[]>>;
+  hooks?: Partial<Record<HookType, Array<HookEntry | null>>>;
   mcpServers?: Record<string, McpServerConfig>;
 }
 
@@ -86,9 +86,40 @@ const COMMAND_FILES = [
 ] as const;
 const HOOK_TYPES: readonly HookType[] = ["PreToolUse", "PostToolUse"];
 const SESSION_HOOK_TYPES: readonly HookType[] = ["SessionStart", "SessionEnd"];
+// Iterated by install cleanup and uninstall cleanup. Deduped via Set so an
+// accidental overlap between HOOK_TYPES and SESSION_HOOK_TYPES never causes
+// a hook bucket to be processed twice.
+const ALL_HOOK_TYPES: readonly HookType[] = Array.from(
+  new Set<HookType>([...HOOK_TYPES, ...SESSION_HOOK_TYPES]),
+);
+
+// Our installer writes `bash ".../.claude/instincts/(observe|session).sh"`.
+// Older Windows installs sometimes stored the same command with backslashes in
+// the quoted path; those no-op because bash can't resolve them. We strip only
+// that installer-owned command shape so foreign hooks that merely mention
+// observe.sh/session.sh survive.
+const INSTALLER_OBSERVE_SESSION_COMMAND_RE =
+  /^bash ".*[\\/]\.claude[\\/]instincts[\\/](?:observe|session)\.sh"$/;
+
+function isBrokenObserveOrSessionCommand(command: unknown): boolean {
+  if (typeof command !== "string") return false;
+  return command.includes("\\") && INSTALLER_OBSERVE_SESSION_COMMAND_RE.test(command);
+}
+
+// Any installer-owned observe.sh / session.sh hook command, broken or clean.
+// Used by uninstall to drop both freshly-installed forward-slash hooks and any
+// stale legacy entries. Pairs with isBrokenObserveOrSessionCommand above.
+function isOurObserveOrSessionCommand(command: unknown): boolean {
+  if (typeof command !== "string") return false;
+  return INSTALLER_OBSERVE_SESSION_COMMAND_RE.test(command);
+}
 
 function getHomeDir(): string {
   return process.env.HOME || process.env.USERPROFILE || homedir();
+}
+
+function toBashPath(filePath: string): string {
+  return filePath.replace(/\\/g, "/");
 }
 
 function isInstallMode(value: string | undefined): value is InstallMode {
@@ -299,10 +330,13 @@ function setupMcpServer(): void {
   }
 }
 
-function hookAlreadyPatched(entries: HookEntry[], scriptName: string): boolean {
+function hookAlreadyPatched(entries: HookEntry[], expectedCommand: string): boolean {
   return entries.some((entry) =>
+    entry &&
     Array.isArray(entry.hooks) &&
-    entry.hooks.some((hook) => hook.command.includes(scriptName))
+    entry.hooks.some(
+      (hook) => typeof hook?.command === "string" && hook.command === expectedCommand,
+    )
   );
 }
 
@@ -319,43 +353,87 @@ function patchClaudeSettings(observePath: string): void {
     settings.hooks = {};
   }
 
-  const hookEntry: HookEntry = {
-    matcher: "",
-    hooks: [
-      {
-        type: "command",
-        command: `bash "${observePath}"`,
-      },
-    ],
-  };
-
+  // Strip broken legacy observe/session hooks at the hook level, not the entry
+  // level. A single entry may carry a foreign command alongside a broken hook;
+  // dropping the whole entry to remove the broken hook would also wipe the
+  // foreign one. Malformed rows (missing/non-array .hooks) are preserved verbatim
+  // — we don't know enough to filter them safely, and dropping risks data loss.
   let changed = false;
+
+  for (const hookType of ALL_HOOK_TYPES) {
+    const hookEntries = settings.hooks[hookType];
+    if (!Array.isArray(hookEntries)) continue;
+
+    let entryListChanged = false;
+    const cleanedEntries: Array<HookEntry | null> = [];
+
+    for (const entry of hookEntries) {
+      const entryHooks = (entry as HookEntry | null | undefined)?.hooks;
+      if (!Array.isArray(entryHooks)) {
+        cleanedEntries.push(entry);
+        continue;
+      }
+
+      const filteredHooks = entryHooks.filter(
+        (hook) => !isBrokenObserveOrSessionCommand(hook?.command),
+      );
+
+      if (filteredHooks.length === entryHooks.length) {
+        cleanedEntries.push(entry);
+        continue;
+      }
+
+      entryListChanged = true;
+      if (filteredHooks.length > 0) {
+        const cleanedEntry: HookEntry = {
+          ...(entry as HookEntry),
+          hooks: filteredHooks,
+        };
+        cleanedEntries.push(cleanedEntry);
+      }
+    }
+
+    if (entryListChanged) {
+      settings.hooks[hookType] = cleanedEntries as HookEntry[];
+      changed = true;
+    }
+  }
+
+  const observeCommand = `bash "${toBashPath(observePath)}"`;
 
   for (const hookType of HOOK_TYPES) {
     if (!Array.isArray(settings.hooks[hookType])) {
       settings.hooks[hookType] = [];
     }
     const hookEntries = settings.hooks[hookType] as HookEntry[];
-    if (!hookAlreadyPatched(hookEntries, "observe.sh")) {
-      hookEntries.push(hookEntry);
+    if (!hookAlreadyPatched(hookEntries, observeCommand)) {
+      hookEntries.push({
+        matcher: "",
+        hooks: [
+          {
+            type: "command",
+            command: observeCommand,
+          },
+        ],
+      });
       changed = true;
     }
   }
 
   if (INSTALL_MODE === "expert") {
     const sessionPath = join(getHomeDir(), ".claude", "instincts", "session.sh");
-    const sessionHook: HookEntry = {
-      matcher: "",
-      hooks: [{ type: "command", command: `bash "${sessionPath}"` }],
-    };
+    const sessionCommand = `bash "${toBashPath(sessionPath)}"`;
 
     for (const hookType of SESSION_HOOK_TYPES) {
       if (!Array.isArray(settings.hooks[hookType])) {
         settings.hooks[hookType] = [];
       }
       const hookEntries = settings.hooks[hookType] as HookEntry[];
-      if (!hookAlreadyPatched(hookEntries, "session.sh")) {
-        hookEntries.push(sessionHook);
+      if (!hookAlreadyPatched(hookEntries, sessionCommand)) {
+        hookEntries.push({
+          matcher: "",
+          hooks: [{ type: "command", command: sessionCommand }],
+        });
         changed = true;
       }
     }
@@ -436,23 +514,51 @@ function uninstallAll(): void {
     if (settings) {
       let changed = false;
 
-      for (const hookType of [...HOOK_TYPES, ...SESSION_HOOK_TYPES]) {
+      // Filter at the hook level, not the entry level. A foreign command may
+      // share an entry with one of ours; entry-level deletion would silently
+      // wipe the foreign hook. Malformed rows (missing/non-array .hooks) are
+      // preserved verbatim — we don't know enough to filter them safely.
+      // ALL_HOOK_TYPES dedupes any future overlap between HOOK_TYPES and
+      // SESSION_HOOK_TYPES so a bucket is never processed twice.
+      for (const hookType of ALL_HOOK_TYPES) {
         const hookEntries = settings.hooks?.[hookType];
         if (!Array.isArray(hookEntries)) {
           continue;
         }
 
-        const nextEntries = hookEntries.filter((entry) =>
-          !entry.hooks.some((hook) =>
-            hook.command.includes("observe.sh") || hook.command.includes("session.sh")
-          )
-        );
+        let entryListChanged = false;
+        const cleanedEntries: Array<HookEntry | null> = [];
 
-        if (nextEntries.length !== hookEntries.length) {
-          changed = true;
+        for (const entry of hookEntries) {
+          const entryHooks = (entry as HookEntry | null | undefined)?.hooks;
+          if (!Array.isArray(entryHooks)) {
+            cleanedEntries.push(entry);
+            continue;
+          }
+
+          const filteredHooks = entryHooks.filter(
+            (hook) => !isOurObserveOrSessionCommand(hook?.command),
+          );
+
+          if (filteredHooks.length === entryHooks.length) {
+            cleanedEntries.push(entry);
+            continue;
+          }
+
+          entryListChanged = true;
+          if (filteredHooks.length > 0) {
+            const cleanedEntry: HookEntry = {
+          ...(entry as HookEntry),
+          hooks: filteredHooks,
+        };
+        cleanedEntries.push(cleanedEntry);
+          }
         }
 
-        settings.hooks![hookType] = nextEntries;
+        if (entryListChanged) {
+          settings.hooks![hookType] = cleanedEntries as HookEntry[];
+          changed = true;
+        }
       }
 
       if (settings.mcpServers?.["continuous-improvement"]) {

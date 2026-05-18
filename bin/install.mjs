@@ -37,8 +37,34 @@ const COMMAND_FILES = [
 ];
 const HOOK_TYPES = ["PreToolUse", "PostToolUse"];
 const SESSION_HOOK_TYPES = ["SessionStart", "SessionEnd"];
+// Iterated by install cleanup and uninstall cleanup. Deduped via Set so an
+// accidental overlap between HOOK_TYPES and SESSION_HOOK_TYPES never causes
+// a hook bucket to be processed twice.
+const ALL_HOOK_TYPES = Array.from(new Set([...HOOK_TYPES, ...SESSION_HOOK_TYPES]));
+// Our installer writes `bash ".../.claude/instincts/(observe|session).sh"`.
+// Older Windows installs sometimes stored the same command with backslashes in
+// the quoted path; those no-op because bash can't resolve them. We strip only
+// that installer-owned command shape so foreign hooks that merely mention
+// observe.sh/session.sh survive.
+const INSTALLER_OBSERVE_SESSION_COMMAND_RE = /^bash ".*[\\/]\.claude[\\/]instincts[\\/](?:observe|session)\.sh"$/;
+function isBrokenObserveOrSessionCommand(command) {
+    if (typeof command !== "string")
+        return false;
+    return command.includes("\\") && INSTALLER_OBSERVE_SESSION_COMMAND_RE.test(command);
+}
+// Any installer-owned observe.sh / session.sh hook command, broken or clean.
+// Used by uninstall to drop both freshly-installed forward-slash hooks and any
+// stale legacy entries. Pairs with isBrokenObserveOrSessionCommand above.
+function isOurObserveOrSessionCommand(command) {
+    if (typeof command !== "string")
+        return false;
+    return INSTALLER_OBSERVE_SESSION_COMMAND_RE.test(command);
+}
 function getHomeDir() {
     return process.env.HOME || process.env.USERPROFILE || homedir();
+}
+function toBashPath(filePath) {
+    return filePath.replace(/\\/g, "/");
 }
 function isInstallMode(value) {
     return value === "beginner" || value === "expert";
@@ -226,9 +252,10 @@ function setupMcpServer() {
         console.log("  ✓ Claude Desktop MCP config updated");
     }
 }
-function hookAlreadyPatched(entries, scriptName) {
-    return entries.some((entry) => Array.isArray(entry.hooks) &&
-        entry.hooks.some((hook) => hook.command.includes(scriptName)));
+function hookAlreadyPatched(entries, expectedCommand) {
+    return entries.some((entry) => entry &&
+        Array.isArray(entry.hooks) &&
+        entry.hooks.some((hook) => typeof hook?.command === "string" && hook.command === expectedCommand));
 }
 function patchClaudeSettings(observePath) {
     const settingsPath = join(getHomeDir(), ".claude", "settings.json");
@@ -240,39 +267,75 @@ function patchClaudeSettings(observePath) {
     if (!settings.hooks) {
         settings.hooks = {};
     }
-    const hookEntry = {
-        matcher: "",
-        hooks: [
-            {
-                type: "command",
-                command: `bash "${observePath}"`,
-            },
-        ],
-    };
+    // Strip broken legacy observe/session hooks at the hook level, not the entry
+    // level. A single entry may carry a foreign command alongside a broken hook;
+    // dropping the whole entry to remove the broken hook would also wipe the
+    // foreign one. Malformed rows (missing/non-array .hooks) are preserved verbatim
+    // — we don't know enough to filter them safely, and dropping risks data loss.
     let changed = false;
+    for (const hookType of ALL_HOOK_TYPES) {
+        const hookEntries = settings.hooks[hookType];
+        if (!Array.isArray(hookEntries))
+            continue;
+        let entryListChanged = false;
+        const cleanedEntries = [];
+        for (const entry of hookEntries) {
+            const entryHooks = entry?.hooks;
+            if (!Array.isArray(entryHooks)) {
+                cleanedEntries.push(entry);
+                continue;
+            }
+            const filteredHooks = entryHooks.filter((hook) => !isBrokenObserveOrSessionCommand(hook?.command));
+            if (filteredHooks.length === entryHooks.length) {
+                cleanedEntries.push(entry);
+                continue;
+            }
+            entryListChanged = true;
+            if (filteredHooks.length > 0) {
+                const cleanedEntry = {
+                    ...entry,
+                    hooks: filteredHooks,
+                };
+                cleanedEntries.push(cleanedEntry);
+            }
+        }
+        if (entryListChanged) {
+            settings.hooks[hookType] = cleanedEntries;
+            changed = true;
+        }
+    }
+    const observeCommand = `bash "${toBashPath(observePath)}"`;
     for (const hookType of HOOK_TYPES) {
         if (!Array.isArray(settings.hooks[hookType])) {
             settings.hooks[hookType] = [];
         }
         const hookEntries = settings.hooks[hookType];
-        if (!hookAlreadyPatched(hookEntries, "observe.sh")) {
-            hookEntries.push(hookEntry);
+        if (!hookAlreadyPatched(hookEntries, observeCommand)) {
+            hookEntries.push({
+                matcher: "",
+                hooks: [
+                    {
+                        type: "command",
+                        command: observeCommand,
+                    },
+                ],
+            });
             changed = true;
         }
     }
     if (INSTALL_MODE === "expert") {
         const sessionPath = join(getHomeDir(), ".claude", "instincts", "session.sh");
-        const sessionHook = {
-            matcher: "",
-            hooks: [{ type: "command", command: `bash "${sessionPath}"` }],
-        };
+        const sessionCommand = `bash "${toBashPath(sessionPath)}"`;
         for (const hookType of SESSION_HOOK_TYPES) {
             if (!Array.isArray(settings.hooks[hookType])) {
                 settings.hooks[hookType] = [];
             }
             const hookEntries = settings.hooks[hookType];
-            if (!hookAlreadyPatched(hookEntries, "session.sh")) {
-                hookEntries.push(sessionHook);
+            if (!hookAlreadyPatched(hookEntries, sessionCommand)) {
+                hookEntries.push({
+                    matcher: "",
+                    hooks: [{ type: "command", command: sessionCommand }],
+                });
                 changed = true;
             }
         }
@@ -349,16 +412,43 @@ function uninstallAll() {
         const settings = readJsonFile(settingsPath);
         if (settings) {
             let changed = false;
-            for (const hookType of [...HOOK_TYPES, ...SESSION_HOOK_TYPES]) {
+            // Filter at the hook level, not the entry level. A foreign command may
+            // share an entry with one of ours; entry-level deletion would silently
+            // wipe the foreign hook. Malformed rows (missing/non-array .hooks) are
+            // preserved verbatim — we don't know enough to filter them safely.
+            // ALL_HOOK_TYPES dedupes any future overlap between HOOK_TYPES and
+            // SESSION_HOOK_TYPES so a bucket is never processed twice.
+            for (const hookType of ALL_HOOK_TYPES) {
                 const hookEntries = settings.hooks?.[hookType];
                 if (!Array.isArray(hookEntries)) {
                     continue;
                 }
-                const nextEntries = hookEntries.filter((entry) => !entry.hooks.some((hook) => hook.command.includes("observe.sh") || hook.command.includes("session.sh")));
-                if (nextEntries.length !== hookEntries.length) {
+                let entryListChanged = false;
+                const cleanedEntries = [];
+                for (const entry of hookEntries) {
+                    const entryHooks = entry?.hooks;
+                    if (!Array.isArray(entryHooks)) {
+                        cleanedEntries.push(entry);
+                        continue;
+                    }
+                    const filteredHooks = entryHooks.filter((hook) => !isOurObserveOrSessionCommand(hook?.command));
+                    if (filteredHooks.length === entryHooks.length) {
+                        cleanedEntries.push(entry);
+                        continue;
+                    }
+                    entryListChanged = true;
+                    if (filteredHooks.length > 0) {
+                        const cleanedEntry = {
+                            ...entry,
+                            hooks: filteredHooks,
+                        };
+                        cleanedEntries.push(cleanedEntry);
+                    }
+                }
+                if (entryListChanged) {
+                    settings.hooks[hookType] = cleanedEntries;
                     changed = true;
                 }
-                settings.hooks[hookType] = nextEntries;
             }
             if (settings.mcpServers?.["continuous-improvement"]) {
                 delete settings.mcpServers["continuous-improvement"];

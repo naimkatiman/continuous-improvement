@@ -8,6 +8,8 @@ All notable changes to this skill are documented here.
 
 ### Fixed
 
+- **Installer now persists cleanup-only hook filtering** — `src/bin/install.mts` now writes `settings.json` when it strips broken legacy observe/session hooks even if the clean installer hook was already present, so coexistence cases no longer leave stale legacy commands behind. Regression coverage now seeds a clean observe hook alongside a broken legacy one and verifies the broken entry disappears while the clean one remains once.
+- **Installer now clones hook entries per target bucket** — the observe/session hook entries are now constructed inside each loop iteration instead of reusing one object across `PreToolUse`/`PostToolUse` or `SessionStart`/`SessionEnd`, so a future mutation in one bucket can't silently leak into the paired bucket.
 - **GateGuard MultiEdit docs now match runtime behavior** — the skill docs no longer describe MultiEdit as `edits[0].file_path` V1; they now document the per-file gate that blocks mixed-clearance batches until every edited path is cleared or facts are presented, and the runtime keeps the 50-file cap intact even for multi-file batches while naming the full batch in the block reason.
 
 ---
