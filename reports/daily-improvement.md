@@ -5,6 +5,7 @@ Fixed 13 test failures caused by Windows platform incompatibilities in test infr
 ## 2026-05-19 — Installer cleanup persistence verification
 - Re-ran `npm run build` after the installer cleanup coexistence fix to regenerate `bin/install.mjs` and the mirrored test output.
 - Verified the full installer suite with `node --test test/install.test.mjs`; all 29 tests passed, including the coexistence regression, Windows-style path normalization, and mixed-entry preservation cases.
+- Confirmed the repo-wide gate with `npm run verify:all`; all checks passed, including `verify:skill-mirror`, `verify:everything-mirror`, `verify:routing-targets`, and `typecheck`.
 - No new code changes were needed today; this cycle just confirmed the existing installer fix is green on the current working tree.
 
 ## 2026-05-18 — Installer cleanup persistence coexistence fix
