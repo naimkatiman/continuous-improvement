@@ -2,6 +2,28 @@
 
 Fixed 13 test failures caused by Windows platform incompatibilities in test infrastructure.
 
+## 2026-05-21 — Hourly MCP test flake fix
+- Replaced `Date.now()`-based temp-home names in `src/test/mcp-server.test.mts` with `mkdtempSync()` so the wire-format, beginner, and expert MCP suites get isolated homes even when test blocks overlap.
+- Verified the repo with `npm run build`, `npm run verify:all`, and `node --test test/mcp-server.test.mjs`; all checks passed, including the targeted 23-test MCP suite.
+
+## 2026-05-21 — Hourly verification pass
+- Re-ran `npm run verify:all` at 2026-05-21T02:11:42Z; the full repo gate stayed green with the same 20 skill mirrors, 176 docs substring assertions, 43 mirrored files, 37 routing targets, 21 doc runtime claims, 50 test files, and 8 script citations passing plus typecheck.
+- No code changes were needed this cycle; the repo remains clean aside from this report update.
+
+## 2026-05-20 — Repo hygiene verification
+- Confirmed `.gitattributes` already enforces LF line endings, so the prior CRLF follow-up note was unnecessary.
+- Re-ran `npm run typecheck`; it passed cleanly on the current tree.
+- Resolved the verification ladder with `node scripts/resolve-verify-ladder.mjs`; build, typecheck, lint, and test all map to the repo’s `package.json` scripts, while security / deploy receipt / synthetic checks remain operator-gated.
+- Verified the full repo gate with `npm run verify:all` at 2026-05-20T06:04:31Z; all 20 skill mirrors, 176 docs substring assertions, 43 mirrored files, 37 routing targets, 21 doc runtime claims, 50 test files, and 8 script citations passed, plus typecheck.
+- Re-verified the full repo gate at 2026-05-20T08:09:16Z after this follow-up check; still all green.
+- Re-ran `npm run verify:all` at 2026-05-20T10:20:43Z during the current hourly loop; the full gate remained green.
+- Re-ran `npm run verify:all` again at 2026-05-20T12:05:02Z; the full repo gate stayed green with the same 20 skill mirrors, 176 docs substring assertions, 43 mirrored files, 37 routing targets, 21 doc runtime claims, 50 test files, and 8 script citations passing plus typecheck.
+- Re-ran `npm run typecheck` at 2026-05-20T14:11:24Z after the latest report update; it passed cleanly.
+- Re-ran `npm run typecheck` again at 2026-05-20T15:04:55Z during the current hourly loop; it passed cleanly.
+- Ran `git diff --check` at 2026-05-20T14:11:24Z; no whitespace or patch-format issues were reported.
+- Clarified this report’s stale `observe.sh` 200ms note so it points at the current hook-test budget and remaining-failure set.
+- No code changes were needed for this cycle — the repo state is green on the full verification ladder.
+
 ## 2026-05-19 — Installer cleanup persistence verification
 - Re-ran `npm run build` after the installer cleanup coexistence fix to regenerate `bin/install.mjs` and the mirrored test output.
 - Verified the full installer suite with `node --test test/install.test.mjs`; all 29 tests passed, including the coexistence regression, Windows-style path normalization, and mixed-entry preservation cases.
@@ -61,5 +83,5 @@ Fixed 13 test failures caused by Windows platform incompatibilities in test infr
 ## Deferred Items
 
 - Investigate installer test failures (Windows path handling in `bin/install.mjs`)
-- Consider adding `.gitattributes` to enforce LF line endings and prevent future CRLF issues
 - MCP server test isolation (clean instinct state before test runs)
+- Note: `.gitattributes` already exists and enforces LF line endings, so no follow-up is needed there.

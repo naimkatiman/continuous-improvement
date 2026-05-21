@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
@@ -116,7 +116,7 @@ describe("MCP server — stdio wire format", () => {
   // A server that emits "Content-Length: ...\r\n\r\n{...}" silently hangs
   // in the host's "Connecting…" state because no line ever resolves to JSON.
   it("emits NDJSON responses on stdout (not LSP Content-Length framing)", async () => {
-    const tempHome = join(tmpdir(), `ci-mcp-wire-${Date.now()}`);
+    const tempHome = mkdtempSync(join(tmpdir(), "ci-mcp-wire-"));
     mkdirSync(join(tempHome, ".claude", "instincts", "global"), { recursive: true });
 
     const proc = spawn("node", [MCP_SERVER, "--mode", "beginner"], {
@@ -166,7 +166,7 @@ describe("MCP server — beginner mode", () => {
   let tempHome = "";
 
   before(async () => {
-    tempHome = join(tmpdir(), `ci-mcp-test-${Date.now()}`);
+    tempHome = mkdtempSync(join(tmpdir(), "ci-mcp-test-"));
     mkdirSync(join(tempHome, ".claude", "instincts", "global"), { recursive: true });
 
     const proc = spawn("node", [MCP_SERVER, "--mode", "beginner"], {
@@ -260,7 +260,7 @@ describe("MCP server — expert mode", () => {
   let tempWorkspace = "";
 
   before(async () => {
-    tempHome = join(tmpdir(), `ci-mcp-expert-${Date.now()}`);
+    tempHome = mkdtempSync(join(tmpdir(), "ci-mcp-expert-"));
     mkdirSync(join(tempHome, ".claude", "instincts", "global"), { recursive: true });
     tempWorkspace = join(tempHome, "workspace");
     mkdirSync(tempWorkspace, { recursive: true });
