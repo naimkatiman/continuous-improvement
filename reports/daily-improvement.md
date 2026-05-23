@@ -2,13 +2,14 @@
 
 Fixed 13 test failures caused by Windows platform incompatibilities in test infrastructure.
 
+## 2026-05-21 – 2026-05-22 — Consolidated hourly verification passes
+- 24 consecutive hourly loops ran `npm run verify:all` from 2026-05-21T05:01:17Z through 2026-05-22T06:04:36Z.
+- The full repo gate stayed green on every pass: 20 skill mirrors, 176 docs substring assertions, 43 mirrored files, 37 routing targets, 21 doc runtime claims, 50 test files, and 8 script citations, plus typecheck.
+- No code changes were needed across this window; the repo remained clean after the prior MCP temp-home flake fix.
+
 ## 2026-05-21 — Hourly MCP test flake fix
 - Replaced `Date.now()`-based temp-home names in `src/test/mcp-server.test.mts` with `mkdtempSync()` so the wire-format, beginner, and expert MCP suites get isolated homes even when test blocks overlap.
 - Verified the repo with `npm run build`, `npm run verify:all`, and `node --test test/mcp-server.test.mjs`; all checks passed, including the targeted 23-test MCP suite.
-
-## 2026-05-21 — Hourly verification pass
-- Re-ran `npm run verify:all` at 2026-05-21T02:11:42Z; the full repo gate stayed green with the same 20 skill mirrors, 176 docs substring assertions, 43 mirrored files, 37 routing targets, 21 doc runtime claims, 50 test files, and 8 script citations passing plus typecheck.
-- No code changes were needed this cycle; the repo remains clean aside from this report update.
 
 ## 2026-05-20 — Repo hygiene verification
 - Confirmed `.gitattributes` already enforces LF line endings, so the prior CRLF follow-up note was unnecessary.
