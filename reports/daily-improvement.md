@@ -2,6 +2,10 @@
 
 Fixed 13 test failures caused by Windows platform incompatibilities in test infrastructure.
 
+## 2026-05-23 — Trailing newline hygiene
+- Added missing trailing newlines to `.vscode/extensions.json` and `src/test/wild-risa-spec.test.mts` (the compiled `test/wild-risa-spec.test.mjs` already had one).
+- Verified with `npm run verify:all` and `npm test`; full repo gate stayed green (660 pass / 0 fail).
+
 ## 2026-05-23 — Executable-bit fix for shell scripts with shebangs
 - Added missing `+x` permissions to 5 first-party shell scripts that carry `#!/usr/bin/env bash` shebangs but were not executable: `bin/pre-commit-block-strays.sh`, `scripts/detect-deploy-target.sh`, `scripts/get-deployed-sha.sh`, `scripts/git-state-snapshot.sh`, and `synthetic-checks/example-version-endpoint.synthetic.sh`.
 - Verified with `node --test test/git-state-snapshot.test.mjs test/detect-deploy-target.test.mjs test/get-deployed-sha.test.mjs` (19 pass / 0 fail) and `npm run verify:all`; full repo gate stayed green.
