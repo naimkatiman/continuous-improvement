@@ -2,6 +2,10 @@
 
 Fixed 13 test failures caused by Windows platform incompatibilities in test infrastructure.
 
+## 2026-05-23 — Executable-bit fix for shell scripts with shebangs
+- Added missing `+x` permissions to 5 first-party shell scripts that carry `#!/usr/bin/env bash` shebangs but were not executable: `bin/pre-commit-block-strays.sh`, `scripts/detect-deploy-target.sh`, `scripts/get-deployed-sha.sh`, `scripts/git-state-snapshot.sh`, and `synthetic-checks/example-version-endpoint.synthetic.sh`.
+- Verified with `node --test test/git-state-snapshot.test.mjs test/detect-deploy-target.test.mjs test/get-deployed-sha.test.mjs` (19 pass / 0 fail) and `npm run verify:all`; full repo gate stayed green.
+
 ## 2026-05-21 – 2026-05-22 — Consolidated hourly verification passes
 - 24 consecutive hourly loops ran `npm run verify:all` from 2026-05-21T05:01:17Z through 2026-05-22T06:04:36Z.
 - The full repo gate stayed green on every pass: 20 skill mirrors, 176 docs substring assertions, 43 mirrored files, 37 routing targets, 21 doc runtime claims, 50 test files, and 8 script citations, plus typecheck.
