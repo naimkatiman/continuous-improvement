@@ -2,6 +2,10 @@
 
 Fixed 13 test failures caused by Windows platform incompatibilities in test infrastructure.
 
+## 2026-05-23 — Stale Project Snapshot table in daily report
+- Updated the "Project Snapshot" table at the bottom of `reports/daily-improvement.md` from v3.1.0 to v3.9.2 and from the outdated 104-test count (84/20 and 97/7) to the current 661 pass / 0 fail reality.
+- Verified with `npm run verify:all`; full repo gate stayed green.
+
 ## 2026-05-23 — Trailing newline hygiene
 - Added missing trailing newlines to `.vscode/extensions.json` and `src/test/wild-risa-spec.test.mts` (the compiled `test/wild-risa-spec.test.mjs` already had one).
 - Verified with `npm run verify:all` and `npm test`; full repo gate stayed green (660 pass / 0 fail).
@@ -59,11 +63,10 @@ Fixed 13 test failures caused by Windows platform incompatibilities in test infr
 
 | Field | Value |
 |-------|-------|
-| Project | continuous-improvement v3.1.0 |
+| Project | continuous-improvement v3.9.2 |
 | Stack | Node.js (ESM), MCP server, GitHub Action, CLI tools |
 | Stage | Published npm package, active development |
-| Tests Before | 84 pass / 20 fail (104 total) |
-| Tests After | 97 pass / 7 fail (104 total) |
+| Tests (current) | 661 pass / 0 fail |
 
 ## Changes Implemented
 
