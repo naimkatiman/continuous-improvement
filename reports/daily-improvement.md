@@ -2,6 +2,11 @@
 
 Fixed 13 test failures caused by Windows platform incompatibilities in test infrastructure.
 
+## 2026-05-23 — Plugin bundle `mcp-server.mjs` executable-bit regression fix
+- The in-progress `package.json` build-script chmod step was only setting `+x` on files in `bin/` but missed `plugins/continuous-improvement/bin/mcp-server.mjs`, so after `npm run build` the plugin copy lost its executable bit (regression from HEAD where it was 755).
+- Added `plugins/continuous-improvement/bin/mcp-server.mjs` to the build-script chmod list so the plugin bundle stays executable after every rebuild.
+- Verified with `npm run build` and `npm run verify:all`; the full repo gate stayed green (661 pass / 0 fail) and `plugins/continuous-improvement/bin/mcp-server.mjs` now carries `+x`.
+
 ## 2026-05-23 — Stale Project Snapshot table in daily report
 - Updated the "Project Snapshot" table at the bottom of `reports/daily-improvement.md` from v3.1.0 to v3.9.2 and from the outdated 104-test count (84/20 and 97/7) to the current 661 pass / 0 fail reality.
 - Verified with `npm run verify:all`; full repo gate stayed green.
