@@ -2,6 +2,11 @@
 
 Fixed 13 test failures caused by Windows platform incompatibilities in test infrastructure.
 
+## 2026-05-25 — Fix stale skill count in `llms.txt`
+- `llms.txt` line 3 described the project as having "13 enforcement skills", but the repo currently bundles 20 skills (as counted by `ls skills/*.md | wc -l` and confirmed by `verify:routing-targets`). The package.json description and README both say "20 bundled skills".
+- Updated the tagline to read "20 bundled skills, gating hooks, the Mulahazah auto-leveling instinct engine, and a GitHub Action transcript linter." to match current reality.
+- Verified with `npm run verify:all` and `node --test test/community.test.mjs`; the full repo gate stayed green (661 pass / 0 fail) and the community tests confirmed `llms.txt` remains valid.
+
 ## 2026-05-25 — Commit landing page, Action marketplace docs, and fix stale RELEASING note
 - Committed 7 files of in-progress work from the prior session: `docs/landing/index.html` (project landing page), `.github/workflows/pages.yml` (GitHub Pages deploy), `.github/FUNDING.yml` (sponsorship), README.md + package.json (landing links), `.github/workflows/release.yml` (auto major-version tag update), and `docs/RELEASING.md` (Action Marketplace publishing docs).
 - Fixed a stale note in `docs/RELEASING.md` line 108: it still claimed the major-version tag must be moved manually, but `.github/workflows/release.yml` now automates this via `git tag -fa` and `git push --force` in the release job.
