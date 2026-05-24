@@ -2,6 +2,11 @@
 
 Fixed 13 test failures caused by Windows platform incompatibilities in test infrastructure.
 
+## 2026-05-24 — Fix stale "five-source" references in `commands/superpowers.md`
+- The prior commit `a12d8eb` fixed the stale "five-source" wording in `skills/superpowers.md` and its plugin mirror, but missed the same stale references in `commands/superpowers.md` lines 10 and 12 and its plugin mirror `plugins/continuous-improvement/commands/superpowers.md`.
+- Changed "across five sources" to "across four sources" and "## Routing surface (five sources)" to "## Routing surface (four sources)" in both files, matching the actual four registered upstream companions listed in the table below.
+- Verified with `npm run verify:all`; the full repo gate stayed green (661 pass / 0 fail) and `verify:everything-mirror` confirmed both files remain in sync.
+
 ## 2026-05-24 — Trailing whitespace cleanup in `hooks/observe.sh`
 - Removed four trailing spaces from the blank line between the observation rotation `mv` and the archive cleanup comment in `hooks/observe.sh` line 136, and from its plugin mirror `plugins/continuous-improvement/hooks/observe.sh` line 136.
 - Verified with `npm run verify:all`; the full repo gate stayed green (661 pass / 0 fail) and `verify:everything-mirror` confirmed both files remain in sync.
