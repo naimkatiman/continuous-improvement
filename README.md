@@ -17,12 +17,13 @@
 <p align="center">
   <a href="https://www.npmjs.com/package/continuous-improvement"><img src="https://img.shields.io/npm/v/continuous-improvement" alt="npm"></a>
   <a href="https://docs.anthropic.com/en/docs/claude-code"><img src="https://img.shields.io/badge/Claude%20Code-skill-blueviolet" alt="Claude Code"></a>
+  <a href="https://github.com/marketplace/actions/ai-agent-discipline-linter"><img src="https://img.shields.io/badge/GitHub%20Action-marketplace-blue" alt="GitHub Action"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="license"></a>
   <a href="test/"><img src="https://img.shields.io/badge/tests-passing-brightgreen" alt="tests"></a>
 </p>
 
 <p align="center">
-  <b>New here?</b> → <a href="QUICKSTART.md">QUICKSTART.md</a> (2 minutes)
+  <b>New here?</b> → <a href="QUICKSTART.md">QUICKSTART.md</a> (2 minutes) · <a href="https://naimkatiman.github.io/continuous-improvement">Landing page</a>
 </p>
 
 > **What this is *not*:** a prompt template, a `CLAUDE.md`, or a vibes-based reminder. It is a runtime hook (`hooks/gateguard.mjs`) plus a bundled skill set that physically blocks `Edit` / `Write` / destructive `Bash` until the agent has done the work.

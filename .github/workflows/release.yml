@@ -57,3 +57,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag
+
+      - name: Update major version tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          MAJOR="v${TAG_VERSION%%.*}"
+          echo "Updating major version tag $MAJOR -> $GITHUB_REF_NAME"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -fa "$MAJOR" -m "$MAJOR -> $GITHUB_REF_NAME"
+          git push origin "$MAJOR" --force
+          echo "✓ Major version tag $MAJOR updated"
