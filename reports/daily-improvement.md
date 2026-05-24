@@ -2,6 +2,10 @@
 
 Fixed 13 test failures caused by Windows platform incompatibilities in test infrastructure.
 
+## 2026-05-24 — Comment typo fix in `bin/refresh-third-party.mjs`
+- Fixed typo "rerunns" → "reruns" in the file header docblock line 5. The comment describes what the driver does when refreshing vendored third-party snapshots.
+- Verified with `npm run verify:all`; the full repo gate stayed green (661 pass / 0 fail).
+
 ## 2026-05-24 — Stale version in `.cloudplugin/marketplace.json`
 - `.cloudplugin/marketplace.json` still declared version `3.2.0`, but the package has been at `3.9.2` since 2026-05-19 (see `package.json` and `.claude-plugin/marketplace.json`).
 - Updated `"version"` from `3.2.0` to `3.9.2` to match the current release.
@@ -15,6 +19,11 @@ Fixed 13 test failures caused by Windows platform incompatibilities in test infr
 ## 2026-05-24 — Trailing whitespace cleanup in `hooks/observe.sh`
 - Removed four trailing spaces from the blank line between the observation rotation `mv` and the archive cleanup comment in `hooks/observe.sh` line 136, and from its plugin mirror `plugins/continuous-improvement/hooks/observe.sh` line 136.
 - Verified with `npm run verify:all`; the full repo gate stayed green (661 pass / 0 fail) and `verify:everything-mirror` confirmed both files remain in sync.
+
+## 2026-05-24 — Fix stale "five-source" reference in superpowers skill docs
+- `skills/superpowers.md` § "Using Superpowers" and its plugin mirror `plugins/continuous-improvement/skills/superpowers/SKILL.md` both described the dispatcher as resolving triggers through a "five-source routing table", but the heading two lines above reads "## Four-Source Routing Table" and `pm-skills` is explicitly out-of-band. This was a stale reference left over from the v3.8.0 five-plugin dispatcher plan where `pm-skills` was briefly considered a registered source.
+- Changed "five-source" to "four-source" in both files to match the actual four registered upstream companions (Obra superpowers, addy agent-skills, ruflo-swarm, oh-my-claudecode) plus the CI plugin itself.
+- Verified with `npm run verify:all` and `npm test`; the full repo gate stayed green (661 pass / 0 fail) and the `everything-mirror` check confirmed both files remain in sync.
 
 ## 2026-05-23 — Plugin bundle `mcp-server.mjs` executable-bit regression fix
 - The in-progress `package.json` build-script chmod step was only setting `+x` on files in `bin/` but missed `plugins/continuous-improvement/bin/mcp-server.mjs`, so after `npm run build` the plugin copy lost its executable bit (regression from HEAD where it was 755).
@@ -77,11 +86,6 @@ Fixed 13 test failures caused by Windows platform incompatibilities in test infr
 - Improved `src/hooks/gateguard.mts` so blank `file_path` values render `<unknown>` instead of an empty slot in block reasons.
 - Added a regression test in `src/test/gateguard-hook.test.mts` for `Write` with `file_path: ""`.
 - Verified with `npm run build`, `npm run verify:all`, and `node --test test/gateguard-hook.test.mjs`.
-
-## 2026-05-24 — Fix stale "five-source" reference in superpowers skill docs
-- `skills/superpowers.md` § "Using Superpowers" and its plugin mirror `plugins/continuous-improvement/skills/superpowers/SKILL.md` both described the dispatcher as resolving triggers through a "five-source routing table", but the heading two lines above reads "## Four-Source Routing Table" and `pm-skills` is explicitly out-of-band. This was a stale reference left over from the v3.8.0 five-plugin dispatcher plan where `pm-skills` was briefly considered a registered source.
-- Changed "five-source" to "four-source" in both files to match the actual four registered upstream companions (Obra superpowers, addy agent-skills, ruflo-swarm, oh-my-claudecode) plus the CI plugin itself.
-- Verified with `npm run verify:all` and `npm test`; the full repo gate stayed green (661 pass / 0 fail) and the `everything-mirror` check confirmed both files remain in sync.
 
 ## Project Snapshot
 

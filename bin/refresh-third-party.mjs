@@ -2,7 +2,7 @@
 /**
  * Refresh vendored third-party snapshots.
  *
- * Reads pinned SHAs from third-party/MANIFEST.md and rerunns the documented
+ * Reads pinned SHAs from third-party/MANIFEST.md and reruns the documented
  * selective copy for each snapshot, in code, so refreshes are reproducible
  * across Windows / macOS / Linux without bash.
  *
