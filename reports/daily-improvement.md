@@ -2,6 +2,10 @@
 
 Fixed 13 test failures caused by Windows platform incompatibilities in test infrastructure.
 
+## 2026-05-24 — Trailing whitespace cleanup in `hooks/observe.sh`
+- Removed four trailing spaces from the blank line between the observation rotation `mv` and the archive cleanup comment in `hooks/observe.sh` line 136, and from its plugin mirror `plugins/continuous-improvement/hooks/observe.sh` line 136.
+- Verified with `npm run verify:all`; the full repo gate stayed green (661 pass / 0 fail) and `verify:everything-mirror` confirmed both files remain in sync.
+
 ## 2026-05-23 — Plugin bundle `mcp-server.mjs` executable-bit regression fix
 - The in-progress `package.json` build-script chmod step was only setting `+x` on files in `bin/` but missed `plugins/continuous-improvement/bin/mcp-server.mjs`, so after `npm run build` the plugin copy lost its executable bit (regression from HEAD where it was 755).
 - Added `plugins/continuous-improvement/bin/mcp-server.mjs` to the build-script chmod list so the plugin bundle stays executable after every rebuild.
