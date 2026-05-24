@@ -2,6 +2,11 @@
 
 Fixed 13 test failures caused by Windows platform incompatibilities in test infrastructure.
 
+## 2026-05-25 — Fix remaining stale "Five-Source Dispatcher" title in `skills/superpowers.md`
+- Commits `a12d8eb` and `204e8ad` fixed stale "five-source" references in the body text of `skills/superpowers.md`, `commands/superpowers.md`, and their plugin mirrors, but missed the H1 title on line 8 which still read "(Five-Source Dispatcher)".
+- Changed the title to "(Four-Source Dispatcher)" in both `skills/superpowers.md` and its plugin mirror `plugins/continuous-improvement/skills/superpowers/SKILL.md`, matching the frontmatter description ("Unified four-source dispatcher"), the body text ("four registered marketplaces"), and the actual four registered upstream companions.
+- Verified with `npm run verify:all`; the full repo gate stayed green (661 pass / 0 fail) and `verify:everything-mirror` confirmed both files remain in sync.
+
 ## 2026-05-25 — Fix stale skill count in `llms.txt`
 - `llms.txt` line 3 described the project as having "13 enforcement skills", but the repo currently bundles 20 skills (as counted by `ls skills/*.md | wc -l` and confirmed by `verify:routing-targets`). The package.json description and README both say "20 bundled skills".
 - Updated the tagline to read "20 bundled skills, gating hooks, the Mulahazah auto-leveling instinct engine, and a GitHub Action transcript linter." to match current reality.
