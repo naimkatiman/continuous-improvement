@@ -280,7 +280,7 @@ Clean separation, parallel development, easy cleanup.
 
 ## Using Superpowers
 
-Superpowers skills activate when their trigger conditions are detected. The dispatcher resolves each trigger through the five-source routing table above:
+Superpowers skills activate when their trigger conditions are detected. The dispatcher resolves each trigger through the four-source routing table above:
 
 - "Create a feature" → `superpowers:brainstorming` → `superpowers:writing-plans` → `superpowers:executing-plans`
 - "Fix this bug" → `superpowers:systematic-debugging` → `superpowers:verification-before-completion`

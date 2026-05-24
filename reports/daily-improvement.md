@@ -64,6 +64,11 @@ Fixed 13 test failures caused by Windows platform incompatibilities in test infr
 - Added a regression test in `src/test/gateguard-hook.test.mts` for `Write` with `file_path: ""`.
 - Verified with `npm run build`, `npm run verify:all`, and `node --test test/gateguard-hook.test.mjs`.
 
+## 2026-05-24 — Fix stale "five-source" reference in superpowers skill docs
+- `skills/superpowers.md` § "Using Superpowers" and its plugin mirror `plugins/continuous-improvement/skills/superpowers/SKILL.md` both described the dispatcher as resolving triggers through a "five-source routing table", but the heading two lines above reads "## Four-Source Routing Table" and `pm-skills` is explicitly out-of-band. This was a stale reference left over from the v3.8.0 five-plugin dispatcher plan where `pm-skills` was briefly considered a registered source.
+- Changed "five-source" to "four-source" in both files to match the actual four registered upstream companions (Obra superpowers, addy agent-skills, ruflo-swarm, oh-my-claudecode) plus the CI plugin itself.
+- Verified with `npm run verify:all` and `npm test`; the full repo gate stayed green (661 pass / 0 fail) and the `everything-mirror` check confirmed both files remain in sync.
+
 ## Project Snapshot
 
 | Field | Value |
