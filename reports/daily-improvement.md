@@ -2,6 +2,11 @@
 
 Fixed 13 test failures caused by Windows platform incompatibilities in test infrastructure.
 
+## 2026-05-24 — Stale version in `.cloudplugin/marketplace.json`
+- `.cloudplugin/marketplace.json` still declared version `3.2.0`, but the package has been at `3.9.2` since 2026-05-19 (see `package.json` and `.claude-plugin/marketplace.json`).
+- Updated `"version"` from `3.2.0` to `3.9.2` to match the current release.
+- Verified with `npm run verify:all`; the full repo gate stayed green (661 pass / 0 fail).
+
 ## 2026-05-24 — Fix stale "five-source" references in `commands/superpowers.md`
 - The prior commit `a12d8eb` fixed the stale "five-source" wording in `skills/superpowers.md` and its plugin mirror, but missed the same stale references in `commands/superpowers.md` lines 10 and 12 and its plugin mirror `plugins/continuous-improvement/commands/superpowers.md`.
 - Changed "across five sources" to "across four sources" and "## Routing surface (five sources)" to "## Routing surface (four sources)" in both files, matching the actual four registered upstream companions listed in the table below.
