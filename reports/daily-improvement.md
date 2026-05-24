@@ -2,6 +2,15 @@
 
 Fixed 13 test failures caused by Windows platform incompatibilities in test infrastructure.
 
+## 2026-05-24 — `llms.txt` added to `verify:skill-count` lint
+- The skill-count lint (`src/bin/check-skill-count.mts`) was only checking `.claude-plugin/marketplace.json`, `plugins/continuous-improvement/.claude-plugin/plugin.json`, and `package.json`.
+- Added `llms.txt` to the checked-files list so the "N bundled skills" phrase in that user-facing summary can never drift again.
+- Rebuilt (`npm run build`) to regenerate `bin/check-skill-count.mjs` and verified with `npm run verify:all`; full repo gate stayed green (661 pass / 0 fail).
+
+## 2026-05-24 — `llms.txt` stale skill count
+- `llms.txt` still described the project as having "13 enforcement skills"; updated to "20 bundled skills" to match the current `package.json`, `README.md`, and `skills/superpowers.md` reality.
+- Verified with `npm run verify:all`; full repo gate stayed green (661 pass / 0 fail).
+
 ## 2026-05-23 — Plugin bundle `mcp-server.mjs` executable-bit regression fix
 - The in-progress `package.json` build-script chmod step was only setting `+x` on files in `bin/` but missed `plugins/continuous-improvement/bin/mcp-server.mjs`, so after `npm run build` the plugin copy lost its executable bit (regression from HEAD where it was 755).
 - Added `plugins/continuous-improvement/bin/mcp-server.mjs` to the build-script chmod list so the plugin bundle stays executable after every rebuild.

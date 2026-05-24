@@ -24,6 +24,7 @@
  *   - .claude-plugin/marketplace.json
  *   - plugins/continuous-improvement/.claude-plugin/plugin.json
  *   - package.json
+ *   - llms.txt
  *
  * Usage:
  *   node bin/check-skill-count.mjs              # Check the current repo
@@ -43,6 +44,7 @@ const CHECKED_FILES: ReadonlyArray<string> = [
   ".claude-plugin/marketplace.json",
   "plugins/continuous-improvement/.claude-plugin/plugin.json",
   "package.json",
+  "llms.txt",
 ];
 
 export function countSkills(repoRoot: string): number {
