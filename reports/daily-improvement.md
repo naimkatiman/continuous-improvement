@@ -2,6 +2,11 @@
 
 Fixed 13 test failures caused by Windows platform incompatibilities in test infrastructure.
 
+## 2026-05-25 — Commit landing page, Action marketplace docs, and fix stale RELEASING note
+- Committed 7 files of in-progress work from the prior session: `docs/landing/index.html` (project landing page), `.github/workflows/pages.yml` (GitHub Pages deploy), `.github/FUNDING.yml` (sponsorship), README.md + package.json (landing links), `.github/workflows/release.yml` (auto major-version tag update), and `docs/RELEASING.md` (Action Marketplace publishing docs).
+- Fixed a stale note in `docs/RELEASING.md` line 108: it still claimed the major-version tag must be moved manually, but `.github/workflows/release.yml` now automates this via `git tag -fa` and `git push --force` in the release job.
+- Verified with `npm run verify:all`; the full repo gate stayed green (661 pass / 0 fail) across all 10 content invariants plus typecheck.
+
 ## 2026-05-24 — Hourly verification pass + commit prior cycle residue
 - Committed the two uncommitted files left from the prior hourly cycle: `bin/refresh-third-party.mjs` (typo fix "rerunns" → "reruns") and `reports/daily-improvement.md` (updated log entries).
 - Ran `npm run verify:all`; the full repo gate stayed green (661 pass / 0 fail) across all 10 content invariants plus typecheck.
