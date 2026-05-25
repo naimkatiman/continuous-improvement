@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-05-25
 
+## 2026-05-25 — Commit pending landing-page fix and report update
+- The prior cycle fixed the install command in `docs/landing/index.html` and drafted the report entry, but left both files uncommitted.
+- Staged explicitly by filename (per CLAUDE.md Git hygiene rule) and committed as `c3c7a07` with message `docs(landing): fix invalid install command and record in daily report`.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 10 content invariants + typecheck pass, working tree clean).
+
 ## 2026-05-25 — Fix invalid install command on landing page
 - `docs/landing/index.html` line 133 showed `claude /install npx continuous-improvement` in the copy-paste install box. This command does not exist: Claude Code uses `/plugin install`, and `npx` is a shell prefix, not a slash-command argument.
 - Changed the install box to `npx continuous-improvement install` (a real shell command that works for every Node user) and updated the copy button's `writeText` target to match.
