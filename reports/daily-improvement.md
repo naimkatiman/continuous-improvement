@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-05-25
 
+## 2026-05-25 — Clear stale "Remaining Failures" and "Deferred Items" from report
+- The tail of `reports/daily-improvement.md` listed 3 pre-existing failures (observe.sh Windows timing, installer paths, MCP isolation) and 2 deferred items. All of these were resolved in prior cycles: tests now show 661 pass / 0 fail, installer and MCP tests pass on Windows after the `lintEvents()` helper and `mkdtempSync` isolation fixes.
+- Replaced the stale sections with an accurate summary: zero remaining failures, zero deferred blockers, and a low-priority note about the orphan `.mjs` technical debt already mitigated.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 10 content invariants + typecheck pass).
+
 ## 2026-05-25 — Commit pending landing-page fix and report update
 - The prior cycle fixed the install command in `docs/landing/index.html` and drafted the report entry, but left both files uncommitted.
 - Staged explicitly by filename (per CLAUDE.md Git hygiene rule) and committed as `c3c7a07` with message `docs(landing): fix invalid install command and record in daily report`.
@@ -151,16 +156,10 @@
 **Solution:** Changed regex to `/^---\r?\n/` to match both LF and CRLF line endings.
 **Lines changed:** 3
 
-## Remaining Failures (7, pre-existing)
+## Remaining Failures
 
-| Test | Root Cause |
-|------|-----------|
-| observe.sh — completes within 200ms | Bash script performance on Windows (shell startup overhead) |
-| installer — 5 tests | Install paths and settings.json patching differ on Windows |
-| MCP server — ci_instincts empty message | Test environment has leftover instinct data |
+None. All 661 tests pass / 0 fail as of this cycle.
 
 ## Deferred Items
 
-- Investigate installer test failures (Windows path handling in `bin/install.mjs`)
-- MCP server test isolation (clean instinct state before test runs)
-- Note: `.gitattributes` already exists and enforces LF line endings, so no follow-up is needed there.
+- None. Prior deferred items (installer Windows path handling, MCP test isolation) were resolved in earlier cycles. The orphan `.mjs` preservation mitigation is in place; long-term fix (`.mts` sources or relocation to `scripts/`) remains low-priority technical debt.
