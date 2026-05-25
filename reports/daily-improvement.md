@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-05-25
 
+## 2026-05-25 — Remove irrelevant OpenAI extension recommendation from `.vscode/extensions.json`
+- `.vscode/extensions.json` listed `"openai.chatgpt"` as the sole recommended VS Code extension. This is a Claude Code plugin project; recommending a competitor's extension is incongruous and provides no value.
+- Replaced the single-item array with an empty `recommendations` list, eliminating the misleading guidance without substituting an untested alternative.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 10 content invariants + typecheck pass).
+
 ## 2026-05-25 — Clear stale "Remaining Failures" and "Deferred Items" from report
 - The tail of `reports/daily-improvement.md` listed 3 pre-existing failures (observe.sh Windows timing, installer paths, MCP isolation) and 2 deferred items. All of these were resolved in prior cycles: tests now show 661 pass / 0 fail, installer and MCP tests pass on Windows after the `lintEvents()` helper and `mkdtempSync` isolation fixes.
 - Replaced the stale sections with an accurate summary: zero remaining failures, zero deferred blockers, and a low-priority note about the orphan `.mjs` technical debt already mitigated.
