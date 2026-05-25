@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-05-25
 
+## 2026-05-25 — Fix invalid install command on landing page
+- `docs/landing/index.html` line 133 showed `claude /install npx continuous-improvement` in the copy-paste install box. This command does not exist: Claude Code uses `/plugin install`, and `npx` is a shell prefix, not a slash-command argument.
+- Changed the install box to `npx continuous-improvement install` (a real shell command that works for every Node user) and updated the copy button's `writeText` target to match.
+- Verified with `npm run verify:all`; the full repo gate stayed green (661 pass / 0 fail). The landing page is not covered by the mirror checks (it is a generated standalone asset), so no mirror update was needed.
+
 ## 2026-05-25 — Update stale report header date
 - The H1 title of `reports/daily-improvement.md` still read "2026-04-13", the date the report was first created. All entries below it are from May 2026.
 - Updated the title to "2026-05-25" to match the current reporting period.
