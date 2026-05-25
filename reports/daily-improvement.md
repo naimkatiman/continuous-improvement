@@ -1,5 +1,11 @@
 # Daily Improvement Report — 2026-05-25
 
+## 2026-05-25 — Update stale stats in `reports/assets/update-card.html`
+- The HTML summary card at `reports/assets/update-card.html` still showed April 13, 2026 data: v3.1.0, 97/104 tests (93%), and old change summaries from the lint-transcript/CRLF fix era.
+- Updated the card to current reality: May 25, 2026 — v3.9.2, 661/661 tests (100%), 18 fixes tracked, and representative change summaries from the May improvement cycle (orphan `.mjs` preservation, stale reference fixes, MCP isolation, installer coexistence, GateGuard parity).
+- Also updated the `<title>` element to match the current reporting period.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 10 content invariants + typecheck pass). The card is a standalone generated asset, so no mirror update was needed.
+
 ## 2026-05-25 — Remove irrelevant OpenAI extension recommendation from `.vscode/extensions.json`
 - `.vscode/extensions.json` listed `"openai.chatgpt"` as the sole recommended VS Code extension. This is a Claude Code plugin project; recommending a competitor's extension is incongruous and provides no value.
 - Replaced the single-item array with an empty `recommendations` list, eliminating the misleading guidance without substituting an untested alternative.
