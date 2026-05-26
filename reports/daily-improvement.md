@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-05-26
 
+## 2026-05-26 — Sync plugin manifest description with package.json
+- `package.json` line 4 describes the project as including "a GitHub Action transcript linter", but the generated plugin manifests (`.claude-plugin/marketplace.json`, `plugins/continuous-improvement/.claude-plugin/plugin.json`, `plugins/continuous-improvement/.claude-plugin/marketplace.json`) were missing this claim because `src/lib/plugin-metadata.mts` line 149 hardcoded `SHARED_PLUGIN_DESCRIPTION` without it.
+- Updated `SHARED_PLUGIN_DESCRIPTION` to include "and a GitHub Action transcript linter." so all generated plugin manifests match the package description.
+- Verified with `npm run build` (manifests regenerated) and `npm run verify:all`; the full repo gate stayed green (all 10 content invariants + typecheck pass). The `verify:everything-mirror` check confirmed the plugin bundle copies remain in sync.
+
 ## 2026-05-26 — Update npm installs badge on landing page
 - `docs/landing/index.html` line 124 showed "📦 538+ npm installs/mo", but the upstream npm registry reports 550 downloads for the last 30-day period (verified via `api.npmjs.org/downloads/point/last-month/continuous-improvement` at 2026-05-26T16:30Z).
 - Updated the badge from 538+ → 550+ so the landing page reflects current reality.
