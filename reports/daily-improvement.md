@@ -1,4 +1,9 @@
-# Daily Improvement Report — 2026-05-25
+# Daily Improvement Report — 2026-05-26
+
+## 2026-05-26 — Fix stale `<title>` in `reports/assets/update-card.html`
+- The HTML summary card's `<title>` element still read "2026-04-13", missed during the prior card update that refreshed the body content to May 25, 2026 data.
+- Updated the title to "2026-05-25" to match the current card body and reporting period.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 10 content invariants + typecheck pass). The card is a standalone generated asset, so no mirror update was needed.
 
 ## 2026-05-25 — Update stale stats in `reports/assets/update-card.html`
 - The HTML summary card at `reports/assets/update-card.html` still showed April 13, 2026 data: v3.1.0, 97/104 tests (93%), and old change summaries from the lint-transcript/CRLF fix era.
