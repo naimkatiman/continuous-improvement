@@ -1,5 +1,11 @@
 # Daily Improvement Report — 2026-05-27
 
+## 2026-05-27 — Fix broken link in para-memory-files skill
+- `skills/para-memory-files.md` line 66 linked to `[references/schemas.md](references/schemas.md)`, but `skills/references/schemas.md` has never existed in the repo, so users following the link would hit a 404.
+- Replaced the broken link with an inline description of the atomic-fact YAML schema (`id`, `created`, `content`, `status`, `superseded_by`) and memory-decay rules (weekly `summary.md` rewrite, archiving inactive entities), matching the concepts already described in the skill body.
+- Updated the plugin mirror `plugins/continuous-improvement/skills/para-memory-files/SKILL.md` with the same fix.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 10 content invariants + typecheck pass, 661 pass / 0 fail). The `verify:skill-mirror` and `verify:everything-mirror` checks confirmed both copies remain in sync.
+
 ## 2026-05-27 — Hourly verification pass
 - Ran `npm run verify:all` at 2026-05-27T00:30Z; the full repo gate stayed green (all 10 content invariants + typecheck pass, 661 pass / 0 fail, working tree clean).
 - External counts remain current: npm downloads at 550/mo, pm-skills stars at 239.

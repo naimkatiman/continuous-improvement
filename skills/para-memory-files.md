@@ -63,7 +63,7 @@ $AGENT_HOME/life/
 - Significant project or company in the user's life.
 - Otherwise, note it in daily notes.
 
-For the atomic fact YAML schema and memory decay rules, see [references/schemas.md](references/schemas.md).
+Atomic facts in `items.yaml` use the fields `id`, `created`, `content`, and optional `status` (`active` or `superseded`) with `superseded_by` pointing to the replacing fact. Memory decay is manual: rewrite `summary.md` weekly from active facts and move inactive entity folders to `archives/`.
 
 ### Layer 2: Daily Notes (`$AGENT_HOME/memory/YYYY-MM-DD.md`)
 
