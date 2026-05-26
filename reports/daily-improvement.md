@@ -20,6 +20,11 @@
 - Updated the title to "2026-05-25" to match the current card body and reporting period.
 - Verified with `npm run verify:all`; the full repo gate stayed green (all 10 content invariants + typecheck pass). The card is a standalone generated asset, so no mirror update was needed.
 
+## 2026-05-26 — Fix stale invariant count in RELEASING.md
+- `docs/RELEASING.md` line 57 described `npm run verify:all` as "7 invariants + typecheck", but the `verify:all` chain in `package.json` currently contains 10 content invariants (`verify:skill-mirror`, `verify:skill-tiers`, `verify:skill-law-tag`, `verify:skill-count`, `verify:docs-substrings`, `verify:everything-mirror`, `verify:routing-targets`, `verify:doc-runtime-claims`, `verify:test-imports-only`, `verify:scripts-citation-drift`) plus `typecheck`.
+- Updated the count from 7 → 10 so the release checklist reflects current reality.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 10 content invariants + typecheck pass).
+
 ## 2026-05-25 — Update stale stats in `reports/assets/update-card.html`
 - The HTML summary card at `reports/assets/update-card.html` still showed April 13, 2026 data: v3.1.0, 97/104 tests (93%), and old change summaries from the lint-transcript/CRLF fix era.
 - Updated the card to current reality: May 25, 2026 — v3.9.2, 661/661 tests (100%), 18 fixes tracked, and representative change summaries from the May improvement cycle (orphan `.mjs` preservation, stale reference fixes, MCP isolation, installer coexistence, GateGuard parity).

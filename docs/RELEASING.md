@@ -54,7 +54,7 @@ git push origin vX.Y.Z
 
 1. `npm ci` + `npm run build`
 2. `git diff --exit-code` to ensure generated artifacts are committed
-3. `npm run verify:all` (7 invariants + typecheck)
+3. `npm run verify:all` (10 invariants + typecheck)
 4. `node --test test/*.test.mjs`
 5. Asserts `package.json` version equals the tag
 6. `npm publish --access public`
