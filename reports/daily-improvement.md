@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-05-26
 
+## 2026-05-26 — Update npm installs badge on landing page
+- `docs/landing/index.html` line 124 showed "📦 538+ npm installs/mo", but the upstream npm registry reports 550 downloads for the last 30-day period (verified via `api.npmjs.org/downloads/point/last-month/continuous-improvement` at 2026-05-26T16:30Z).
+- Updated the badge from 538+ → 550+ so the landing page reflects current reality.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 10 content invariants + typecheck pass). The landing page is a standalone generated asset, so no mirror update was needed.
+
 ## 2026-05-26 — Update stale pm-skills star count in README
 - `README.md` line 288 listed pm-skills as having "189 stars", but the upstream repo `product-on-purpose/pm-skills` currently shows 239 stars (verified via GitHub API at 2026-05-26T15:30Z).
 - Updated the count from 189 → 239 so the "In the wild" section reflects current reality.
