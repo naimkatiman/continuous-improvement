@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-05-26
 
+## 2026-05-26 — Fix broken QUICKSTART.md link on landing page
+- `docs/landing/index.html` line 236 linked to `QUICKSTART.md` with a relative `href="QUICKSTART.md"`. The GitHub Pages workflow (`.github/workflows/pages.yml`) deploys `docs/landing/` as the site root, so the relative link resolves to `https://naimkatiman.github.io/continuous-improvement/QUICKSTART.md` — but `QUICKSTART.md` lives at the repo root, not inside `docs/landing/`. This produced a 404 for anyone clicking "Read Quickstart" on the deployed landing page.
+- Changed the link to the absolute GitHub blob URL `https://github.com/naimkatiman/continuous-improvement/blob/main/QUICKSTART.md` so it works correctly from the deployed site.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 10 content invariants + typecheck pass). The landing page is a standalone generated asset, so no mirror update was needed.
+
 ## 2026-05-26 — Sync plugin manifest description with package.json
 - `package.json` line 4 describes the project as including "a GitHub Action transcript linter", but the generated plugin manifests (`.claude-plugin/marketplace.json`, `plugins/continuous-improvement/.claude-plugin/plugin.json`, `plugins/continuous-improvement/.claude-plugin/marketplace.json`) were missing this claim because `src/lib/plugin-metadata.mts` line 149 hardcoded `SHARED_PLUGIN_DESCRIPTION` without it.
 - Updated `SHARED_PLUGIN_DESCRIPTION` to include "and a GitHub Action transcript linter." so all generated plugin manifests match the package description.
