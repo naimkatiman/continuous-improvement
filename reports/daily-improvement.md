@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-05-26
 
+## 2026-05-26 — Update report card date to May 26
+- The HTML summary card at `reports/assets/update-card.html` still showed "May 25, 2026" in the body date and "2026-05-25" in the `<title>`, despite the daily report being dated 2026-05-26.
+- Updated both the `<title>` and the visible date line to "May 26, 2026" / "2026-05-26" so the card matches the current reporting period.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 10 content invariants + typecheck pass). The card is a standalone generated asset, so no mirror update was needed.
+
 ## 2026-05-26 — Fix stale `<title>` in `reports/assets/update-card.html`
 - The HTML summary card's `<title>` element still read "2026-04-13", missed during the prior card update that refreshed the body content to May 25, 2026 data.
 - Updated the title to "2026-05-25" to match the current card body and reporting period.
