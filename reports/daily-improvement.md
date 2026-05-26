@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-05-26
 
+## 2026-05-26 — Update stale pm-skills star count in README
+- `README.md` line 288 listed pm-skills as having "189 stars", but the upstream repo `product-on-purpose/pm-skills` currently shows 239 stars (verified via GitHub API at 2026-05-26T15:30Z).
+- Updated the count from 189 → 239 so the "In the wild" section reflects current reality.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 10 content invariants + typecheck pass). The plugin bundle `README.md` does not mention pm-skills, so no mirror update was needed.
+
 ## 2026-05-26 — Update report card date to May 26
 - The HTML summary card at `reports/assets/update-card.html` still showed "May 25, 2026" in the body date and "2026-05-25" in the `<title>`, despite the daily report being dated 2026-05-26.
 - Updated both the `<title>` and the visible date line to "May 26, 2026" / "2026-05-26" so the card matches the current reporting period.
