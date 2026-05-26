@@ -1,4 +1,9 @@
-# Daily Improvement Report — 2026-05-26
+# Daily Improvement Report — 2026-05-27
+
+## 2026-05-27 — Hourly verification pass
+- Ran `npm run verify:all` at 2026-05-27T00:30Z; the full repo gate stayed green (all 10 content invariants + typecheck pass, 661 pass / 0 fail, working tree clean).
+- External counts remain current: npm downloads at 550/mo, pm-skills stars at 239.
+- No code changes were needed for this cycle; the repo state is clean and green.
 
 ## 2026-05-26 — Fix broken QUICKSTART.md link on landing page
 - `docs/landing/index.html` line 236 linked to `QUICKSTART.md` with a relative `href="QUICKSTART.md"`. The GitHub Pages workflow (`.github/workflows/pages.yml`) deploys `docs/landing/` as the site root, so the relative link resolves to `https://naimkatiman.github.io/continuous-improvement/QUICKSTART.md` — but `QUICKSTART.md` lives at the repo root, not inside `docs/landing/`. This produced a 404 for anyone clicking "Read Quickstart" on the deployed landing page.
