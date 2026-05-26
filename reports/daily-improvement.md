@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-05-27
 
+## 2026-05-27 — Update pm-skills star count in README
+- `README.md` line 288 listed pm-skills as having "239 stars", but the upstream repo `product-on-purpose/pm-skills` currently shows 240 stars (verified via GitHub API at 2026-05-26T20:30Z).
+- Updated the count from 239 → 240 so the "In the wild" section reflects current reality.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 10 content invariants + typecheck pass). The plugin bundle `README.md` does not mention pm-skills, so no mirror update was needed.
+
 ## 2026-05-27 — Fix broken link in para-memory-files skill
 - `skills/para-memory-files.md` line 66 linked to `[references/schemas.md](references/schemas.md)`, but `skills/references/schemas.md` has never existed in the repo, so users following the link would hit a 404.
 - Replaced the broken link with an inline description of the atomic-fact YAML schema (`id`, `created`, `content`, `status`, `superseded_by`) and memory-decay rules (weekly `summary.md` rewrite, archiving inactive entities), matching the concepts already described in the skill body.
