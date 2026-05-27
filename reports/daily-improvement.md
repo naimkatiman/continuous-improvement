@@ -1,5 +1,12 @@
 # Daily Improvement Report — 2026-05-27
 
+## 2026-05-27 — Fix broken internal links in agents/README and token-budget-advisor skill
+- `agents/README.md` contained three markdown links to `[references/orchestration-patterns.md](../references/orchestration-patterns.md)`, but `references/orchestration-patterns.md` has never existed at the repo root (only in `third-party/addy-agent-skills/`). Users following the link would hit a 404.
+- `skills/token-budget-advisor.md` linked to `[context-budget](../context-budget/SKILL.md)`, but `context-budget` is not a bundled skill in this repo and the path has never existed.
+- Removed the broken link markup from both files, replacing with plain text / code-style references so the narrative remains intact without promising a file that does not exist.
+- Updated the plugin mirrors `plugins/continuous-improvement/agents/README.md` and `plugins/continuous-improvement/skills/token-budget-advisor/SKILL.md` with the same fixes.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 10 content invariants + typecheck pass, 661 pass / 0 fail). The `verify:everything-mirror` check confirmed both copies remain in sync.
+
 ## 2026-05-27 — Update pm-skills star count in README
 - `README.md` line 288 listed pm-skills as having "239 stars", but the upstream repo `product-on-purpose/pm-skills` currently shows 240 stars (verified via GitHub API at 2026-05-26T20:30Z).
 - Updated the count from 239 → 240 so the "In the wild" section reflects current reality.
