@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-05-27
 
+## 2026-05-27 — Update pm-skills star count in README
+- `README.md` line 288 listed pm-skills as having "240 stars", but the upstream repo `product-on-purpose/pm-skills` currently shows 245 stars (verified via GitHub API at 2026-05-27T16:30Z).
+- Updated the count from 240 → 245 so the "In the wild" section reflects current reality.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 10 content invariants + typecheck pass). The plugin bundle `README.md` does not mention pm-skills, so no mirror update was needed.
+
 ## 2026-05-27 — Fix broken example links in grill-with-docs skill
 - `skills/grill-with-docs.md` lines 185-187 contained three markdown links inside a `Context Map` example code block: `[Ordering](./src/ordering/CONTEXT.md)`, `[Billing](./src/billing/CONTEXT.md)`, and `[Fulfillment](./src/fulfillment/CONTEXT.md)`. These paths have never existed in this repo (they were hypothetical examples from the ported mattpocock skill), so any user clicking them would hit a 404.
 - Removed the link markup from all three lines, replacing with plain list text (`Ordering`, `Billing`, `Fulfillment`) so the example remains readable without promising files that do not exist.
