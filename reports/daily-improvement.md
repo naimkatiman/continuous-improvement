@@ -1,5 +1,11 @@
 # Daily Improvement Report — 2026-05-27
 
+## 2026-05-27 — Fix broken example links in grill-with-docs skill
+- `skills/grill-with-docs.md` lines 185-187 contained three markdown links inside a `Context Map` example code block: `[Ordering](./src/ordering/CONTEXT.md)`, `[Billing](./src/billing/CONTEXT.md)`, and `[Fulfillment](./src/fulfillment/CONTEXT.md)`. These paths have never existed in this repo (they were hypothetical examples from the ported mattpocock skill), so any user clicking them would hit a 404.
+- Removed the link markup from all three lines, replacing with plain list text (`Ordering`, `Billing`, `Fulfillment`) so the example remains readable without promising files that do not exist.
+- Updated the plugin mirror `plugins/continuous-improvement/skills/grill-with-docs/SKILL.md` with the same fix.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 10 content invariants + typecheck pass, 661 pass / 0 fail). The `verify:skill-mirror` and `verify:everything-mirror` checks confirmed both copies remain in sync.
+
 ## 2026-05-27 — Fix broken internal links in agents/README and token-budget-advisor skill
 - `agents/README.md` contained three markdown links to `[references/orchestration-patterns.md](../references/orchestration-patterns.md)`, but `references/orchestration-patterns.md` has never existed at the repo root (only in `third-party/addy-agent-skills/`). Users following the link would hit a 404.
 - `skills/token-budget-advisor.md` linked to `[context-budget](../context-budget/SKILL.md)`, but `context-budget` is not a bundled skill in this repo and the path has never existed.
