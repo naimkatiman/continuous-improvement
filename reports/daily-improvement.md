@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-05-28
 
+## 2026-05-28 — Stop tracking volatile external counts in committed files
+- The loop had been generating a commit every few hours just to nudge two hardcoded numbers: the pm-skills star count in `README.md` line 288 and the "550+ npm installs/mo" badge in `docs/landing/index.html` line 124. These values drift continuously and several prior entries even logged stale reads as corrections (e.g. 16:30Z set 245, then a later 20:30Z entry "corrected" it back to 240). That is churn, not improvement.
+- Removed both literals: README heading is now `### pm-skills (product-on-purpose, Apache 2.0)` (the linked repo shows the live star count), and the install-count badge is dropped from the landing hero (the "Install from npm" CTA links to the live npm page). Nothing volatile remains for the loop to chase.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 10 content invariants + typecheck pass). The landing page is a standalone generated asset and the README is not mirrored, so `verify:everything-mirror` confirmed all 43 mirrored files still match with no update needed.
+
 ## 2026-05-28 — Update pm-skills star count in README
 - `README.md` line 288 listed pm-skills as having "246 stars", but the upstream repo `product-on-purpose/pm-skills` currently shows 248 stars (verified via GitHub API at 2026-05-28T02:30Z).
 - Updated the count from 246 → 248 so the "In the wild" section reflects current reality.
