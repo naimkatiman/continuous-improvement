@@ -33,6 +33,12 @@ import {
   parseGoalFromPlan,
   scoreObservations,
 } from "../lib/goal-state.mjs";
+import {
+  buildIndex,
+  formatRecallHits,
+  query as queryRecall,
+  type RecallObservation,
+} from "../lib/recall-index.mjs";
 
 type Level = "AUTO-APPLY" | "SUGGEST" | "ANALYZE" | "CAPTURE";
 type InstinctScope = "project" | "global";
@@ -897,6 +903,39 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
       return text(
         `## Goal Check\n\n**Goal source:** ${goalSource}\n\n${formatDriftReport(report)}`
       );
+    }
+
+    case "ci_recall": {
+      if (MODE !== "expert") {
+        return error("ci_recall requires expert mode");
+      }
+
+      const queryString = getString(params.query).trim();
+      if (!queryString) {
+        return error("query is required");
+      }
+      const k = getNumber(params.k, 5);
+      const since = getString(params.since).trim();
+
+      // Recall searches the full history, not just the recent window.
+      const recallObservations: RecallObservation[] = getRecentObservations(project.hash, 100000).map(
+        (observation) => ({
+          ts: getString(observation.ts),
+          session: getString((observation as Record<string, unknown>).session),
+          session_id: getString((observation as Record<string, unknown>).session_id),
+          tool: getString(observation.tool),
+          input_summary: getString((observation as Record<string, unknown>).input_summary),
+          output_summary: getString((observation as Record<string, unknown>).output_summary),
+        })
+      );
+
+      if (recallObservations.length === 0) {
+        return text("No observations yet. Hooks capture tool calls automatically; recall searches that history.");
+      }
+
+      const index = buildIndex(recallObservations);
+      const hits = queryRecall(index, queryString, { k, since: since || undefined });
+      return text(formatRecallHits(hits, queryString));
     }
 
     case "ci_dashboard": {

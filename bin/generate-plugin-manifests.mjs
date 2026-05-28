@@ -149,6 +149,7 @@ async function writePluginBundle() {
         copyFileTo(join(REPO_ROOT, "lib", "resolve-home-dir.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "resolve-home-dir.mjs")),
         copyFileTo(join(REPO_ROOT, "lib", "observe-event.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "observe-event.mjs")),
         copyFileTo(join(REPO_ROOT, "lib", "goal-state.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "goal-state.mjs")),
+        copyFileTo(join(REPO_ROOT, "lib", "recall-index.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "recall-index.mjs")),
         copyFileTo(join(REPO_ROOT, "LICENSE"), join(PLUGIN_BUNDLE_DIR, "LICENSE")),
         writePluginBundleReadme(),
     ]);

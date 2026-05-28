@@ -147,7 +147,7 @@ const KEYWORDS = [
 ];
 const CLAUDE_PLUGIN_CATEGORY = "productivity";
 const SHARED_PLUGIN_DESCRIPTION =
-  "Stops Claude Code from skipping research, claiming 'done' without verifying, and repeating yesterday's mistakes. The 7 Laws of AI Agent Discipline — 21 bundled skills, gating hooks, and the Mulahazah auto-leveling instinct engine.";
+  "Stops Claude Code from skipping research, claiming 'done' without verifying, and repeating yesterday's mistakes. The 7 Laws of AI Agent Discipline — 22 bundled skills, gating hooks, and the Mulahazah auto-leveling instinct engine.";
 
 // Four vendored upstream companions registered alongside the CI plugin.
 // Each entry points at a pinned-SHA snapshot under third-party/<name>/.
@@ -442,6 +442,28 @@ const EXPERT_TOOL_ENTRIES: ToolCatalogEntry[] = [
         },
       },
       required: [],
+    },
+  },
+  {
+    name: "ci_recall",
+    description:
+      "Search past tool-call observations with BM25 ranking. Answers 'have I seen this before?' against ~/.claude/instincts/<hash>/observations.jsonl and returns the most relevant past activity with redacted snippets. Lexical, not semantic.",
+    manifestWhat: "Search past sessions for relevant prior activity (episodic recall)",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Search terms, e.g. an error message or a past task" },
+        k: {
+          type: "number",
+          description: "How many results to return (default: 5)",
+          default: 5,
+        },
+        since: {
+          type: "string",
+          description: "Only search rows newer than this — ISO timestamp or relative window like '7d', '24h', '30m'",
+        },
+      },
+      required: ["query"],
     },
   },
 ];

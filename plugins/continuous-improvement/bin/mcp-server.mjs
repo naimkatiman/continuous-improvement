@@ -19,6 +19,7 @@ import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { PACKAGE_NAME, VERSION, getToolDefinitions, isPluginMode, } from "../lib/plugin-metadata.mjs";
 import { formatDriftReport, parseGoalFromPlan, scoreObservations, } from "../lib/goal-state.mjs";
+import { buildIndex, formatRecallHits, query as queryRecall, } from "../lib/recall-index.mjs";
 function getHomeDir() {
     return process.env.HOME || process.env.USERPROFILE || homedir();
 }
@@ -709,6 +710,32 @@ function handleTool(name, params) {
             }));
             const report = scoreObservations(goalObservations, goal, { window: limit });
             return text(`## Goal Check\n\n**Goal source:** ${goalSource}\n\n${formatDriftReport(report)}`);
+        }
+        case "ci_recall": {
+            if (MODE !== "expert") {
+                return error("ci_recall requires expert mode");
+            }
+            const queryString = getString(params.query).trim();
+            if (!queryString) {
+                return error("query is required");
+            }
+            const k = getNumber(params.k, 5);
+            const since = getString(params.since).trim();
+            // Recall searches the full history, not just the recent window.
+            const recallObservations = getRecentObservations(project.hash, 100000).map((observation) => ({
+                ts: getString(observation.ts),
+                session: getString(observation.session),
+                session_id: getString(observation.session_id),
+                tool: getString(observation.tool),
+                input_summary: getString(observation.input_summary),
+                output_summary: getString(observation.output_summary),
+            }));
+            if (recallObservations.length === 0) {
+                return text("No observations yet. Hooks capture tool calls automatically; recall searches that history.");
+            }
+            const index = buildIndex(recallObservations);
+            const hits = queryRecall(index, queryString, { k, since: since || undefined });
+            return text(formatRecallHits(hits, queryString));
         }
         case "ci_dashboard": {
             if (MODE !== "expert") {

@@ -55,6 +55,10 @@
     {
       "name": "ci_goal_check",
       "what": "Detect when a session has drifted from its stated goal"
+    },
+    {
+      "name": "ci_recall",
+      "what": "Search past sessions for relevant prior activity (episodic recall)"
     }
   ],
   "setup": {
