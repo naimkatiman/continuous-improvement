@@ -23,6 +23,7 @@ skill set on disk.
 - `verification-loop` — Enforces Law 4 (Verify Before Reporting) of the 7 Laws of AI Agent Discipline. A comprehensive verification system for agent coding sessions covering build, types, lint, tests, security, and diff with a PASS/FAIL report.
 
 ## Tier 2 — expert-mode add-ons
+- `goal-monitor` — Enforces Law 2 (Plan Is Sacred) of the 7 Laws of AI Agent Discipline. Detects when a session has drifted away from its stated goal by scoring recent tool activity against the '## Goal' section of task_plan.md, so drift is caught mid-session instead of at end-of-session reflection.
 - `grill-me` — Enforces Law 1 (Research Before Executing) of the 7 Laws of AI Agent Discipline. Interview the user relentlessly about a plan or design until shared understanding is reached, resolving every branch of the decision tree before any code is written. Ported from mattpocock/skills under MIT.
 - `grill-with-docs` — Enforces Law 1 (Research Before Executing) and Law 7 (Learn From Every Session) of the 7 Laws of AI Agent Discipline. Grilling session that challenges your plan against the existing domain model, sharpens terminology, and updates CONTEXT.md + ADRs inline as decisions crystallise. Ported from mattpocock/skills under MIT.
 - `handoff` — Enforces Law 5 (Reflect After Every Session) of the 7 Laws of AI Agent Discipline. Compact the current conversation into a handoff document for another agent to pick up. Ported from mattpocock/skills under MIT.

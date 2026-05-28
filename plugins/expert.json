@@ -51,6 +51,10 @@
     {
       "name": "ci_load_pack",
       "what": "Load starter instinct packs (react, python, go) into the current project"
+    },
+    {
+      "name": "ci_goal_check",
+      "what": "Detect when a session has drifted from its stated goal"
     }
   ],
   "setup": {

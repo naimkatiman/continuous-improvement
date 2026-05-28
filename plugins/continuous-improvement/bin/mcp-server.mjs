@@ -18,6 +18,7 @@ import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { PACKAGE_NAME, VERSION, getToolDefinitions, isPluginMode, } from "../lib/plugin-metadata.mjs";
+import { formatDriftReport, parseGoalFromPlan, scoreObservations, } from "../lib/goal-state.mjs";
 function getHomeDir() {
     return process.env.HOME || process.env.USERPROFILE || homedir();
 }
@@ -664,6 +665,50 @@ function handleTool(name, params) {
                 }
             }
             return text(lines.join("\n"));
+        }
+        case "ci_goal_check": {
+            if (MODE !== "expert") {
+                return error("ci_goal_check requires expert mode");
+            }
+            const limit = getNumber(params.limit, 30);
+            const explicit = getString(params.goal_file).trim();
+            const workspaceRoot = getWorkspaceRoot();
+            const candidates = explicit
+                ? [explicit]
+                : [
+                    join(workspaceRoot, PLANNING_FILES.taskPlan),
+                    join(INSTINCTS_DIR, project.hash, "goal.md"),
+                ];
+            let goalContent = "";
+            let goalSource = "";
+            for (const candidate of candidates) {
+                if (!existsSync(candidate)) {
+                    continue;
+                }
+                try {
+                    goalContent = readFileSync(candidate, "utf8");
+                    goalSource = candidate;
+                    break;
+                }
+                catch {
+                    // try the next candidate
+                }
+            }
+            if (!goalContent) {
+                return text(`No goal source found. Looked for: ${candidates.join(", ")}.\nRun ci_plan_init (or /planning-with-files) to create ${PLANNING_FILES.taskPlan} with a '## Goal' section.`);
+            }
+            const goal = parseGoalFromPlan(goalContent);
+            if (!goal) {
+                return text(`Found ${goalSource} but it has no '## Goal' section. Add one — ci_plan_init seeds it. Optional '## Goal Keywords' and '## Goal Scope' sections sharpen the drift signal.`);
+            }
+            const goalObservations = getRecentObservations(project.hash, limit).map((observation) => ({
+                ts: getString(observation.ts),
+                tool: getString(observation.tool),
+                input_summary: getString(observation.input_summary),
+                output_summary: getString(observation.output_summary),
+            }));
+            const report = scoreObservations(goalObservations, goal, { window: limit });
+            return text(`## Goal Check\n\n**Goal source:** ${goalSource}\n\n${formatDriftReport(report)}`);
         }
         case "ci_dashboard": {
             if (MODE !== "expert") {
