@@ -285,7 +285,7 @@ Every skill description leads with `Enforces Law N (...)` so the discipline tag 
 
 Workflows from this repo, applied to real open-source contributions:
 
-### pm-skills (product-on-purpose, 246 stars, Apache 2.0)
+### pm-skills (product-on-purpose, 248 stars, Apache 2.0)
 
 [F-07 discover-market-sizing](https://github.com/product-on-purpose/pm-skills/pull/141) - new domain skill in the Discover phase covering TAM/SAM/SOM market sizing for the [pm-skills](https://github.com/product-on-purpose/pm-skills) library.
 

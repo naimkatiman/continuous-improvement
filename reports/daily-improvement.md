@@ -1,4 +1,9 @@
-# Daily Improvement Report — 2026-05-27
+# Daily Improvement Report — 2026-05-28
+
+## 2026-05-28 — Update pm-skills star count in README
+- `README.md` line 288 listed pm-skills as having "246 stars", but the upstream repo `product-on-purpose/pm-skills` currently shows 248 stars (verified via GitHub API at 2026-05-28T02:30Z).
+- Updated the count from 246 → 248 so the "In the wild" section reflects current reality.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 10 content invariants + typecheck pass). The plugin bundle `README.md` does not mention pm-skills, so no mirror update was needed.
 
 ## 2026-05-27 — Update pm-skills star count in README
 - `README.md` line 288 listed pm-skills as having "245 stars", but the upstream repo `product-on-purpose/pm-skills` currently shows 246 stars (verified via GitHub API at 2026-05-27T21:30Z).
