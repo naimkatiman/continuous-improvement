@@ -11,7 +11,7 @@
  *   node bin/mcp-server.mjs --mode beginner  # explicit beginner
  */
 import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { createInterface } from "node:readline";
@@ -20,6 +20,7 @@ import { createHash } from "node:crypto";
 import { PACKAGE_NAME, VERSION, getToolDefinitions, isPluginMode, } from "../lib/plugin-metadata.mjs";
 import { formatDriftReport, parseGoalFromPlan, scoreObservations, } from "../lib/goal-state.mjs";
 import { buildIndex, formatRecallHits, query as queryRecall, } from "../lib/recall-index.mjs";
+import { draftFromCandidate, extractTrajectories, findCandidates, formatCandidates, serializeDraft, } from "../lib/skill-distill.mjs";
 function getHomeDir() {
     return process.env.HOME || process.env.USERPROFILE || homedir();
 }
@@ -196,6 +197,16 @@ function getRecentObservations(projectHash, limit = 50) {
     catch {
         return [];
     }
+}
+function readDistillObservations(projectHash) {
+    return getRecentObservations(projectHash, 100000).map((observation) => ({
+        ts: getString(observation.ts),
+        session: getString(observation.session),
+        session_id: getString(observation.session_id),
+        tool: getString(observation.tool),
+        input_summary: getString(observation.input_summary),
+        output_summary: getString(observation.output_summary),
+    }));
 }
 function detectLevel(projectHash) {
     const observationCount = countObservations(projectHash);
@@ -736,6 +747,84 @@ function handleTool(name, params) {
             const index = buildIndex(recallObservations);
             const hits = queryRecall(index, queryString, { k, since: since || undefined });
             return text(formatRecallHits(hits, queryString));
+        }
+        case "ci_distill_candidates": {
+            if (MODE !== "expert") {
+                return error("ci_distill_candidates requires expert mode");
+            }
+            const distillObservations = readDistillObservations(project.hash);
+            const candidates = findCandidates(extractTrajectories(distillObservations));
+            return text(formatCandidates(candidates));
+        }
+        case "ci_distill_propose": {
+            if (MODE !== "expert") {
+                return error("ci_distill_propose requires expert mode");
+            }
+            const id = getString(params.id).trim();
+            if (!id) {
+                return error("id is required — run ci_distill_candidates to list current candidate ids");
+            }
+            const distillObservations = readDistillObservations(project.hash);
+            const candidate = findCandidates(extractTrajectories(distillObservations)).find((entry) => entry.id === id);
+            if (!candidate) {
+                return error(`No candidate "${id}". Run ci_distill_candidates to list current ids.`);
+            }
+            const draft = serializeDraft(draftFromCandidate(candidate));
+            const draftsDir = join(INSTINCTS_DIR, project.hash, "drafts");
+            mkdirSync(draftsDir, { recursive: true });
+            const draftPath = join(draftsDir, `${id}.yaml`);
+            writeFileSync(draftPath, draft);
+            return text([
+                "## Draft written",
+                "",
+                `**Path:** ${draftPath}`,
+                "",
+                "Edit the body to capture the real recipe (preconditions, concrete steps, gotchas), then promote with:",
+                "",
+                `  ci_distill_promote id=${id}`,
+                "",
+                "```yaml",
+                draft.trimEnd(),
+                "```",
+            ].join("\n"));
+        }
+        case "ci_distill_promote": {
+            if (MODE !== "expert") {
+                return error("ci_distill_promote requires expert mode");
+            }
+            const id = getString(params.id).trim();
+            if (!id) {
+                return error("id is required");
+            }
+            const draftPath = join(INSTINCTS_DIR, project.hash, "drafts", `${id}.yaml`);
+            if (!existsSync(draftPath)) {
+                return error(`No draft at ${draftPath}. Run ci_distill_propose id=${id} first.`);
+            }
+            let parsed = null;
+            try {
+                parsed = parseYamlInstinct(readFileSync(draftPath, "utf8"));
+            }
+            catch {
+                parsed = null;
+            }
+            if (!parsed) {
+                return error(`Draft ${draftPath} could not be parsed as an instinct. Check the YAML shape.`);
+            }
+            const promoted = {
+                ...parsed,
+                confidence: 0.5,
+                source: "distilled",
+                scope: "project",
+                observation_count: 1,
+            };
+            writeInstinct(project.hash, promoted);
+            try {
+                rmSync(draftPath);
+            }
+            catch {
+                // best-effort cleanup; the live instinct is already written
+            }
+            return text(`Promoted **${promoted.id}** to a project instinct at confidence ${promoted.confidence} (SUGGEST tier). The draft has been consumed.`);
         }
         case "ci_dashboard": {
             if (MODE !== "expert") {

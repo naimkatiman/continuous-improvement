@@ -226,6 +226,10 @@ async function writePluginBundle(): Promise<void> {
       join(REPO_ROOT, "lib", "recall-index.mjs"),
       join(PLUGIN_BUNDLE_DIR, "lib", "recall-index.mjs"),
     ),
+    copyFileTo(
+      join(REPO_ROOT, "lib", "skill-distill.mjs"),
+      join(PLUGIN_BUNDLE_DIR, "lib", "skill-distill.mjs"),
+    ),
     copyFileTo(join(REPO_ROOT, "LICENSE"), join(PLUGIN_BUNDLE_DIR, "LICENSE")),
     writePluginBundleReadme(),
   ]);
