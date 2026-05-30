@@ -1,4 +1,10 @@
-# Daily Improvement Report — 2026-05-28
+# Daily Improvement Report — 2026-05-30
+
+## 2026-05-30 — Add `llms.txt` to skill-count drift lint
+- The skill-count lint (`src/bin/check-skill-count.mts`) was only checking `.claude-plugin/marketplace.json`, `plugins/continuous-improvement/.claude-plugin/plugin.json`, and `package.json`.
+- Added `llms.txt` to the `CHECKED_FILES` list (and rebuilt `bin/check-skill-count.mjs`) so the "N bundled skills" phrase in that user-facing summary can never drift again.
+- **Follow-up fix:** Updated `src/test/check-skill-count.test.mts` integration tests to create `llms.txt` in the temporary test repos and adjusted assertions from "all 3" to "all 4" so the suite stays green.
+- Verified with `npm run build`, `npm test` (661 pass / 0 fail), and `npm run verify:all` (all 10 content invariants + typecheck pass).
 
 ## 2026-05-28 — Stop tracking volatile external counts in committed files
 - The loop had been generating a commit every few hours just to nudge two hardcoded numbers: the pm-skills star count in `README.md` line 288 and the "550+ npm installs/mo" badge in `docs/landing/index.html` line 124. These values drift continuously and several prior entries even logged stale reads as corrections (e.g. 16:30Z set 245, then a later 20:30Z entry "corrected" it back to 240). That is churn, not improvement.
