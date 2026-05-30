@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-05-30
 
+## 2026-05-30 — Fix missing execute permissions on scripts/*.mjs and synthetic-checks/*.mjs
+- The four hand-authored `.mjs` scripts in `scripts/` (`resolve-verify-ladder.mjs`, `route-recommendation.mjs`, `run-synthetic.mjs`, `scan-past-mistakes.mjs`) and the one hand-authored script in `synthetic-checks/` (`example-payload-shape.synthetic.mjs`) all carry `#!/usr/bin/env node` shebangs and are documented as runnable entrypoints (e.g. `node scripts/run-synthetic.mjs`, `node scripts/scan-past-mistakes.mjs`), yet none had the executable bit set.
+- Ran `chmod +x scripts/*.mjs synthetic-checks/*.mjs` so these first-party runnable scripts can also be invoked directly as `./scripts/<name>.mjs` or `./synthetic-checks/<name>.mjs` without a leading `node`.
+- Verified with `npm run verify:all` (all 10 content invariants + typecheck pass, 661 pass / 0 fail). These directories are not part of the plugin bundle, so no mirror updates were needed.
+
 ## 2026-05-30 — Fix missing execute permissions on bin/*.mjs scripts
 - All 23 `.mjs` files in `bin/` have `#!/usr/bin/env node` shebangs and are designed to be run directly, yet only 5 of them were made executable by the build script (`install.mjs`, `lint-transcript.mjs`, `unified-cli.mjs`, `mcp-server.mjs`, and the plugin copy of `mcp-server.mjs`). The remaining 18 scripts (verification lints, generators, etc.) lacked the executable bit, so `./bin/<name>.mjs` would fail with "Permission denied" even though the file is a valid CLI entrypoint.
 - Ran `chmod +x bin/*.mjs` to fix the current files.
