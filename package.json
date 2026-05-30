@@ -32,7 +32,7 @@
     "ci": "bin/unified-cli.mjs"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && node bin/generate-plugin-manifests.mjs && node -e \"const fs=require('node:fs'); for (const f of ['bin/install.mjs','bin/lint-transcript.mjs','bin/unified-cli.mjs','bin/mcp-server.mjs','plugins/continuous-improvement/bin/mcp-server.mjs']) { fs.chmodSync(f, 0o755); }\"",
+    "build": "tsc -p tsconfig.json && node bin/generate-plugin-manifests.mjs && node -e \"const fs=require('node:fs'); for (const f of fs.readdirSync('bin')) { if (f.endsWith('.mjs')) fs.chmodSync('bin/'+f, 0o755); } fs.chmodSync('plugins/continuous-improvement/bin/mcp-server.mjs', 0o755); \"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "clean": "node -e \"const fs=require('node:fs'); const orphans=new Set(['bin/refresh-third-party.mjs','test/check-everything-mirror.test.mjs']); for (const dir of ['bin','test','lib']) { if (!fs.existsSync(dir)) continue; for (const file of fs.readdirSync(dir)) { const p=dir+'/'+file; if (file.endsWith('.mjs') && !orphans.has(p)) fs.rmSync(p, { force: true }); } }\"",
     "hooks:stats": "node bin/hook-stats.mjs",

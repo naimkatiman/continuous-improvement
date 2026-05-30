@@ -1,5 +1,11 @@
 # Daily Improvement Report — 2026-05-30
 
+## 2026-05-30 — Fix missing execute permissions on bin/*.mjs scripts
+- All 23 `.mjs` files in `bin/` have `#!/usr/bin/env node` shebangs and are designed to be run directly, yet only 5 of them were made executable by the build script (`install.mjs`, `lint-transcript.mjs`, `unified-cli.mjs`, `mcp-server.mjs`, and the plugin copy of `mcp-server.mjs`). The remaining 18 scripts (verification lints, generators, etc.) lacked the executable bit, so `./bin/<name>.mjs` would fail with "Permission denied" even though the file is a valid CLI entrypoint.
+- Ran `chmod +x bin/*.mjs` to fix the current files.
+- Updated `package.json` `build` script to iterate over `fs.readdirSync('bin')` and `chmodSync` every `.mjs` file, instead of maintaining a hardcoded list of 5 paths. This prevents future builds from silently regressing permissions when new bin scripts are added.
+- Verified with `npm run build`, `npm test` (661 pass / 0 fail), and `npm run verify:all` (all 10 content invariants + typecheck pass). No mirror updates were needed because `package.json` is not a mirrored file.
+
 ## 2026-05-30 — Update stale dates in reports/assets/update-card.html
 - The HTML summary card at `reports/assets/update-card.html` still showed "May 27, 2026" in the body date and "2026-05-27" in the `<title>`, despite the daily report being dated 2026-05-30.
 - Updated both the `<title>` and the visible date line to "May 30, 2026" / "2026-05-30" so the card matches the current reporting period.
