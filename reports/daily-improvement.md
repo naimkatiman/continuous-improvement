@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-05-30
 
+## 2026-05-30 — Update stale dates in reports/assets/update-card.html
+- The HTML summary card at `reports/assets/update-card.html` still showed "May 27, 2026" in the body date and "2026-05-27" in the `<title>`, despite the daily report being dated 2026-05-30.
+- Updated both the `<title>` and the visible date line to "May 30, 2026" / "2026-05-30" so the card matches the current reporting period.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 10 content invariants + typecheck pass). The card is a standalone generated asset, so no mirror update was needed.
+
 ## 2026-05-30 — Add `llms.txt` to skill-count drift lint
 - The skill-count lint (`src/bin/check-skill-count.mts`) was only checking `.claude-plugin/marketplace.json`, `plugins/continuous-improvement/.claude-plugin/plugin.json`, and `package.json`.
 - Added `llms.txt` to the `CHECKED_FILES` list (and rebuilt `bin/check-skill-count.mjs`) so the "N bundled skills" phrase in that user-facing summary can never drift again.
