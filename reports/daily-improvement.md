@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-05-31
 
+## 2026-05-31 — Update stale invariant count in CLAUDE.md
+- `CLAUDE.md` line 19 described `npm run verify:all` as "10 content invariants + typecheck", but the `verify:all` chain in `package.json` currently contains 11 content invariants (the 10 previously listed plus `verify:third-party-shape`, which was integrated in the prior commit).
+- Updated the count from 10 → 11 and added `third-party-shape` to the enumerated list so the agent guidance reflects current reality.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 11 content invariants + typecheck pass). No mirror update was needed because `CLAUDE.md` is not a mirrored file.
+
 ## 2026-05-31 — Integrate `verify:third-party-shape` into `verify:all` gate
 - `bin/check-third-party-shape.mjs` and its test `test/check-third-party-shape.test.mjs` have existed since the third-party shape invariant was implemented, but the check was never wired into the `verify:all` script chain in `package.json`. This meant a missing `OUR_NOTES.md`, absent `LICENSE`, or drift between a snapshot directory and its `MANIFEST.md` entry could go undetected until someone ran the standalone script manually.
 - Added `"verify:third-party-shape": "node bin/check-third-party-shape.mjs"` to the `scripts` section and inserted `npm run verify:third-party-shape &&` into the `verify:all` chain immediately before `npm run typecheck`, bringing the full repo gate from 10 content invariants + typecheck to 11 content invariants + typecheck.
