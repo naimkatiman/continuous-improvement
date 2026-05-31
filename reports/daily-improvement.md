@@ -1,4 +1,9 @@
-# Daily Improvement Report — 2026-05-31
+# Daily Improvement Report — 2026-06-01
+
+## 2026-06-01 — Update stale report dates to June 1
+- The HTML summary card at `reports/assets/update-card.html` still showed "May 31, 2026" / "2026-05-31" in the `<title>` and visible date line, despite the daily report already containing a 2026-06-01 entry.
+- Updated both the `<title>` and the visible date line to "June 1, 2026" / "2026-06-01" so the card matches the current reporting period. Also updated the report header from "2026-05-31" to "2026-06-01".
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 11 content invariants + typecheck pass). The card is a standalone generated asset, so no mirror update was needed.
 
 ## 2026-06-01 — Merge PR #159 and prune stale remote-tracking ref
 - PR #159 (`hourly/2026-05-31-delete-stale-merged-branches`) was open with all checks green (lint-transcript + test matrix on Node 18/20/22). It contained two commits: the second sweep of stale merged remote branches (8 branches deleted) and the build-script fix to persist execute permissions on `scripts/*.mjs` and `synthetic-checks/*.mjs`.
