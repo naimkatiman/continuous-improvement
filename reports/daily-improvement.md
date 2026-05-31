@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-05-31
 
+## 2026-05-31 — Integrate `verify:third-party-shape` into `verify:all` gate
+- `bin/check-third-party-shape.mjs` and its test `test/check-third-party-shape.test.mjs` have existed since the third-party shape invariant was implemented, but the check was never wired into the `verify:all` script chain in `package.json`. This meant a missing `OUR_NOTES.md`, absent `LICENSE`, or drift between a snapshot directory and its `MANIFEST.md` entry could go undetected until someone ran the standalone script manually.
+- Added `"verify:third-party-shape": "node bin/check-third-party-shape.mjs"` to the `scripts` section and inserted `npm run verify:third-party-shape &&` into the `verify:all` chain immediately before `npm run typecheck`, bringing the full repo gate from 10 content invariants + typecheck to 11 content invariants + typecheck.
+- Verified with `npm run verify:all` (all 11 content invariants + typecheck pass, 661 pass / 0 fail). This completes the deferred follow-up #2 from `docs/plans/2026-05-07-addy-agent-skills-vendor.md` § "Deferred follow-ups" (generic third-party shape invariant gate).
+
 ## 2026-05-31 — Fix missing execute permissions on plugin bin copies
 - The `build` script in `package.json` iterated over `bin/`, `hooks/`, `lib/`, `plugins/continuous-improvement/lib/`, and `plugins/continuous-improvement/hooks/` to set `0o755` on every `.mjs` file, but `plugins/continuous-improvement/bin/` was only partially covered: `mcp-server.mjs` was explicitly chmodded while `backfill.mjs` and `observe.mjs` were skipped. After `npm run clean && npm run build`, these two shebang-bearing files reverted to mode `100644`, causing `git diff` to flag a mode regression even though content was unchanged.
 - Replaced the single-file `fs.chmodSync('plugins/continuous-improvement/bin/mcp-server.mjs', 0o755)` call with a loop over `fs.readdirSync('plugins/continuous-improvement/bin')` that chmods every `.mjs` file, matching the treatment already applied to the other five directories.
