@@ -1,4 +1,46 @@
-# Daily Improvement Report — 2026-05-30
+# Daily Improvement Report — 2026-05-31
+
+## 2026-05-31 — Commit prior verified RELEASING.md fix and report entry
+- The prior hourly cycle updated `docs/RELEASING.md` (10 → 11 invariants) and drafted the report entry, but left both files uncommitted on `main`.
+- Staged explicitly by filename and committed via branch `hourly/2026-05-31-commit-residue` + PR, per the repo's "no direct push to main" rule.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 11 content invariants + typecheck pass).
+
+## 2026-05-31 — Update stale invariant count in docs/RELEASING.md
+- `docs/RELEASING.md` line 57 described the release workflow step 3 as `npm run verify:all` (10 invariants + typecheck), but the `verify:all` chain was expanded to 11 content invariants in the prior cycle when `verify:third-party-shape` was integrated.
+- Updated the count from 10 → 11 so the release procedure document reflects current reality, matching the CLAUDE.md update from the prior entry.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 11 content invariants + typecheck pass). No mirror update was needed because `docs/RELEASING.md` is not a mirrored file.
+
+## 2026-05-31 — Update stale invariant count in CLAUDE.md
+- `CLAUDE.md` line 19 described `npm run verify:all` as "10 content invariants + typecheck", but the `verify:all` chain in `package.json` currently contains 11 content invariants (the 10 previously listed plus `verify:third-party-shape`, which was integrated in the prior commit).
+- Updated the count from 10 → 11 and added `third-party-shape` to the enumerated list so the agent guidance reflects current reality.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 11 content invariants + typecheck pass). No mirror update was needed because `CLAUDE.md` is not a mirrored file.
+
+## 2026-05-31 — Integrate `verify:third-party-shape` into `verify:all` gate
+- `bin/check-third-party-shape.mjs` and its test `test/check-third-party-shape.test.mjs` have existed since the third-party shape invariant was implemented, but the check was never wired into the `verify:all` script chain in `package.json`. This meant a missing `OUR_NOTES.md`, absent `LICENSE`, or drift between a snapshot directory and its `MANIFEST.md` entry could go undetected until someone ran the standalone script manually.
+- Added `"verify:third-party-shape": "node bin/check-third-party-shape.mjs"` to the `scripts` section and inserted `npm run verify:third-party-shape &&` into the `verify:all` chain immediately before `npm run typecheck`, bringing the full repo gate from 10 content invariants + typecheck to 11 content invariants + typecheck.
+- Verified with `npm run verify:all` (all 11 content invariants + typecheck pass, 661 pass / 0 fail). This completes the deferred follow-up #2 from `docs/plans/2026-05-07-addy-agent-skills-vendor.md` § "Deferred follow-ups" (generic third-party shape invariant gate).
+
+## 2026-05-31 — Fix missing execute permissions on plugin bin copies
+- The `build` script in `package.json` iterated over `bin/`, `hooks/`, `lib/`, `plugins/continuous-improvement/lib/`, and `plugins/continuous-improvement/hooks/` to set `0o755` on every `.mjs` file, but `plugins/continuous-improvement/bin/` was only partially covered: `mcp-server.mjs` was explicitly chmodded while `backfill.mjs` and `observe.mjs` were skipped. After `npm run clean && npm run build`, these two shebang-bearing files reverted to mode `100644`, causing `git diff` to flag a mode regression even though content was unchanged.
+- Replaced the single-file `fs.chmodSync('plugins/continuous-improvement/bin/mcp-server.mjs', 0o755)` call with a loop over `fs.readdirSync('plugins/continuous-improvement/bin')` that chmods every `.mjs` file, matching the treatment already applied to the other five directories.
+- Verified with `npm run build` (all 3 plugin bin files now carry `100755`), `npm run verify:all` (all 10 content invariants + typecheck pass), and `git status` (working tree clean except for the intended `package.json` change).
+
+## 2026-05-31 — Commit prior verified changes and fix stale card date
+- The prior hourly cycle updated `CLAUDE.md` (orphan count), `package.json` (`clean` now covers `hooks/`, build script now chmods plugin hook copies), and drafted the report entries, but left all files uncommitted.
+- Staged explicitly by filename and committed.
+- Also fixed the HTML summary card at `reports/assets/update-card.html` which still showed "May 30, 2026" / "2026-05-30" in the `<title>` and visible date line. Updated both to "May 31, 2026" / "2026-05-31" so the card matches the current reporting period.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 10 content invariants + typecheck pass). The card is a standalone generated asset, so no mirror update was needed.
+
+## 2026-05-31 — Document missing orphan `.mjs` in CLAUDE.md
+- `hooks/three-section-close.mjs` is a hand-authored orphan file (it carries a `#!/usr/bin/env node` shebang and has no corresponding `src/hooks/three-section-close.mts` source), yet it was missing from the known-orphan list in `CLAUDE.md`. The file already survives `npm run clean` because the clean script only touches `bin/`, `test/`, and `lib/`.
+- Updated the orphan note in `CLAUDE.md` from "Two known orphan `.mjs` files" to "Three known orphan `.mjs` files" and added `hooks/three-section-close.mjs` to the enumerated list, clarifying that `hooks/` is not touched by clean.
+- Verified with `npm run typecheck` and `npm run verify:all`; the full repo gate stayed green (all 10 content invariants + typecheck pass). No mirror update was needed because `CLAUDE.md` is not a mirrored file.
+
+## 2026-05-31 — Include `hooks/` in `npm run clean` and fix plugin hook permissions
+- The `clean` script only removed generated `.mjs` files from `bin/`, `test/`, and `lib/`, yet `src/hooks/*.mts` sources compile to `hooks/*.mjs` just like the other three directories. This meant generated hook files were never cleaned, leaving stale artifacts after source deletions or renames.
+- Added `'hooks'` to the `clean` directory loop and added `hooks/three-section-close.mjs` to the `orphans` Set so the hand-authored orphan survives clean, matching the treatment of `bin/refresh-third-party.mjs` and `test/check-everything-mirror.test.mjs`.
+- Discovered during verification that `generate-plugin-manifests.mjs` copies `hooks/` into the plugin bundle *before* the build script's chmod loops run, so a fresh `clean && build` left `plugins/continuous-improvement/hooks/*.mjs` at mode `100644` even though root `hooks/*.mjs` were corrected to `100755`. Added a `chmodSync` loop for `plugins/continuous-improvement/hooks/*.mjs` to the build script so plugin hook copies are always executable.
+- Verified with `npm run clean` (only `three-section-close.mjs` remained in `hooks/`), `npm run build` (all 4 hook files regenerated with `100755` and plugin copies matched), `npm test` (661 pass / 0 fail), and `npm run verify:all` (all 10 content invariants + typecheck pass).
 
 ## 2026-05-30 — Fix missing execute permissions on plugin lib copies
 - The three `.mjs` library files copied into `plugins/continuous-improvement/lib/` (`observe-event.mjs`, `plugin-metadata.mjs`, `resolve-home-dir.mjs`) are generated by `tsc` and copied by `generate-plugin-manifests.mjs`, yet they were tracked in git as mode `100644` even though their source counterparts in `lib/` had already been fixed to `100755`. This meant a fresh clone followed by `npm run build` would leave the plugin copies without the executable bit, and `git diff --exit-code -- plugins` would eventually flag the mismatch.

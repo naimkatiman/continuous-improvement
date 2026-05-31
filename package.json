@@ -32,9 +32,9 @@
     "ci": "bin/unified-cli.mjs"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && node bin/generate-plugin-manifests.mjs && node -e \"const fs=require('node:fs'); for (const f of fs.readdirSync('bin')) { if (f.endsWith('.mjs')) fs.chmodSync('bin/'+f, 0o755); } for (const f of fs.readdirSync('hooks')) { if (f.endsWith('.mjs')) fs.chmodSync('hooks/'+f, 0o755); } for (const f of fs.readdirSync('lib')) { if (f.endsWith('.mjs')) fs.chmodSync('lib/'+f, 0o755); } fs.chmodSync('plugins/continuous-improvement/bin/mcp-server.mjs', 0o755); for (const f of fs.readdirSync('plugins/continuous-improvement/lib')) { if (f.endsWith('.mjs')) fs.chmodSync('plugins/continuous-improvement/lib/'+f, 0o755); } \"",
+    "build": "tsc -p tsconfig.json && node bin/generate-plugin-manifests.mjs && node -e \"const fs=require('node:fs'); for (const f of fs.readdirSync('bin')) { if (f.endsWith('.mjs')) fs.chmodSync('bin/'+f, 0o755); } for (const f of fs.readdirSync('hooks')) { if (f.endsWith('.mjs')) fs.chmodSync('hooks/'+f, 0o755); } for (const f of fs.readdirSync('lib')) { if (f.endsWith('.mjs')) fs.chmodSync('lib/'+f, 0o755); } for (const f of fs.readdirSync('plugins/continuous-improvement/bin')) { if (f.endsWith('.mjs')) fs.chmodSync('plugins/continuous-improvement/bin/'+f, 0o755); } for (const f of fs.readdirSync('plugins/continuous-improvement/lib')) { if (f.endsWith('.mjs')) fs.chmodSync('plugins/continuous-improvement/lib/'+f, 0o755); } for (const f of fs.readdirSync('plugins/continuous-improvement/hooks')) { if (f.endsWith('.mjs')) fs.chmodSync('plugins/continuous-improvement/hooks/'+f, 0o755); } \"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "clean": "node -e \"const fs=require('node:fs'); const orphans=new Set(['bin/refresh-third-party.mjs','test/check-everything-mirror.test.mjs']); for (const dir of ['bin','test','lib']) { if (!fs.existsSync(dir)) continue; for (const file of fs.readdirSync(dir)) { const p=dir+'/'+file; if (file.endsWith('.mjs') && !orphans.has(p)) fs.rmSync(p, { force: true }); } }\"",
+    "clean": "node -e \"const fs=require('node:fs'); const orphans=new Set(['bin/refresh-third-party.mjs','hooks/three-section-close.mjs','test/check-everything-mirror.test.mjs']); for (const dir of ['bin','hooks','test','lib']) { if (!fs.existsSync(dir)) continue; for (const file of fs.readdirSync(dir)) { const p=dir+'/'+file; if (file.endsWith('.mjs') && !orphans.has(p)) fs.rmSync(p, { force: true }); } }\"",
     "hooks:stats": "node bin/hook-stats.mjs",
     "test": "npm run build && node --test test/*.test.mjs",
     "lint": "node bin/lint-transcript.mjs --help",
@@ -49,7 +49,8 @@
     "verify:doc-runtime-claims": "node bin/check-doc-runtime-claims.mjs",
     "verify:test-imports-only": "node bin/check-test-imports-only.mjs",
     "verify:scripts-citation-drift": "node bin/check-scripts-citation-drift.mjs",
-    "verify:all": "npm run verify:skill-mirror && npm run verify:skill-tiers && npm run verify:skill-law-tag && npm run verify:skill-count && npm run verify:docs-substrings && npm run verify:everything-mirror && npm run verify:routing-targets && npm run verify:doc-runtime-claims && npm run verify:test-imports-only && npm run verify:scripts-citation-drift && npm run typecheck"
+    "verify:third-party-shape": "node bin/check-third-party-shape.mjs",
+    "verify:all": "npm run verify:skill-mirror && npm run verify:skill-tiers && npm run verify:skill-law-tag && npm run verify:skill-count && npm run verify:docs-substrings && npm run verify:everything-mirror && npm run verify:routing-targets && npm run verify:doc-runtime-claims && npm run verify:test-imports-only && npm run verify:scripts-citation-drift && npm run verify:third-party-shape && npm run typecheck"
   },
   "files": [
     ".claude-plugin/",
