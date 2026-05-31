@@ -1,5 +1,15 @@
 # Daily Improvement Report — 2026-05-31
 
+## 2026-05-31 — Commit prior verified RELEASING.md fix and report entry
+- The prior hourly cycle updated `docs/RELEASING.md` (10 → 11 invariants) and drafted the report entry, but left both files uncommitted on `main`.
+- Staged explicitly by filename and committed via branch `hourly/2026-05-31-commit-residue` + PR, per the repo's "no direct push to main" rule.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 11 content invariants + typecheck pass).
+
+## 2026-05-31 — Update stale invariant count in docs/RELEASING.md
+- `docs/RELEASING.md` line 57 described the release workflow step 3 as `npm run verify:all` (10 invariants + typecheck), but the `verify:all` chain was expanded to 11 content invariants in the prior cycle when `verify:third-party-shape` was integrated.
+- Updated the count from 10 → 11 so the release procedure document reflects current reality, matching the CLAUDE.md update from the prior entry.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 11 content invariants + typecheck pass). No mirror update was needed because `docs/RELEASING.md` is not a mirrored file.
+
 ## 2026-05-31 — Update stale invariant count in CLAUDE.md
 - `CLAUDE.md` line 19 described `npm run verify:all` as "10 content invariants + typecheck", but the `verify:all` chain in `package.json` currently contains 11 content invariants (the 10 previously listed plus `verify:third-party-shape`, which was integrated in the prior commit).
 - Updated the count from 10 → 11 and added `third-party-shape` to the enumerated list so the agent guidance reflects current reality.
