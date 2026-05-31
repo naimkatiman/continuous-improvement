@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-05-31
 
+## 2026-05-31 — Protect `scripts/` and `synthetic-checks/` execute permissions in build script
+- On 2026-05-30, execute permissions were manually fixed on `scripts/*.mjs` and `synthetic-checks/*.mjs`, but the `build` script in `package.json` only looped over `bin/`, `hooks/`, `lib/`, and `plugins/continuous-improvement/` subdirectories. This meant a fresh `npm run clean && npm run build` (or any future build after permission loss) would leave the five `.mjs` files in `scripts/` and `synthetic-checks/` at mode `100644` despite their `#!/usr/bin/env node` shebangs.
+- Added two `fs.readdirSync` loops to the `build` script: one for `scripts/` and one for `synthetic-checks/`, mirroring the treatment already applied to the other six directories. Every `.mjs` file in both directories now gets `fs.chmodSync(..., 0o755)` after every build.
+- Verified with `npm run build` (no errors, manifests regenerated) and `npm run verify:all` (all 11 content invariants + typecheck pass). `ls -la scripts/*.mjs synthetic-checks/*.mjs` confirms all five files carry `100755`.
+
 ## 2026-05-31 — Delete stale merged remote branches (second sweep)
 - Eight feature branches still existed on the remote even though their PRs were merged weeks or months ago: `extract-resolve-home-dir` (PR #42, merged 2026-04-29), `feat/agent-agnostic-skills-sweep` (PR #40, merged 2026-04-28), `feat/companions-readme-section-v2` (PR #73, merged 2026-05-06), `feat/node-observer-rich-schema` (PR #52, merged 2026-05-05), `feat/proceed-skill-agent-agnostic` (PR #38, merged 2026-04-28), `feat/wild-risa-proactive-surfacing` (PR #51, merged 2026-05-05), `fix/routing-targets-mts-sources` (PR #74, merged 2026-05-06), and `harden-skills` (PR #41, merged 2026-04-29). These predate the `--delete-branch` default or were created before the squash-merge workflow consistently cleaned up remotes.
 - Deleted them from the remote with `git push origin --delete ...`.
