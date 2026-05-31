@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-05-31
 
+## 2026-05-31 — Fix missing execute permissions on plugin bin copies
+- The `build` script in `package.json` iterated over `bin/`, `hooks/`, `lib/`, `plugins/continuous-improvement/lib/`, and `plugins/continuous-improvement/hooks/` to set `0o755` on every `.mjs` file, but `plugins/continuous-improvement/bin/` was only partially covered: `mcp-server.mjs` was explicitly chmodded while `backfill.mjs` and `observe.mjs` were skipped. After `npm run clean && npm run build`, these two shebang-bearing files reverted to mode `100644`, causing `git diff` to flag a mode regression even though content was unchanged.
+- Replaced the single-file `fs.chmodSync('plugins/continuous-improvement/bin/mcp-server.mjs', 0o755)` call with a loop over `fs.readdirSync('plugins/continuous-improvement/bin')` that chmods every `.mjs` file, matching the treatment already applied to the other five directories.
+- Verified with `npm run build` (all 3 plugin bin files now carry `100755`), `npm run verify:all` (all 10 content invariants + typecheck pass), and `git status` (working tree clean except for the intended `package.json` change).
+
 ## 2026-05-31 — Commit prior verified changes and fix stale card date
 - The prior hourly cycle updated `CLAUDE.md` (orphan count), `package.json` (`clean` now covers `hooks/`, build script now chmods plugin hook copies), and drafted the report entries, but left all files uncommitted.
 - Staged explicitly by filename and committed.
