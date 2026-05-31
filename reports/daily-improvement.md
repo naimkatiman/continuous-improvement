@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-05-31
 
+## 2026-06-01 — Merge PR #159 and prune stale remote-tracking ref
+- PR #159 (`hourly/2026-05-31-delete-stale-merged-branches`) was open with all checks green (lint-transcript + test matrix on Node 18/20/22). It contained two commits: the second sweep of stale merged remote branches (8 branches deleted) and the build-script fix to persist execute permissions on `scripts/*.mjs` and `synthetic-checks/*.mjs`.
+- Merged it via squash-merge with `gh pr merge 159 --squash --delete-branch`. After the merge, the local remote-tracking ref `remotes/origin/hourly/2026-05-31-delete-stale-merged-branches` remained until pruned with `git remote prune origin`.
+- Verified with `git branch -r --merged main` (no stale remote branches remain), `git branch -a` (no stale `origin/*` branches remain), and `npm run verify:all`; the full repo gate stayed green (all 11 content invariants + typecheck pass). Working tree remains clean.
+
 ## 2026-05-31 — Protect `scripts/` and `synthetic-checks/` execute permissions in build script
 - On 2026-05-30, execute permissions were manually fixed on `scripts/*.mjs` and `synthetic-checks/*.mjs`, but the `build` script in `package.json` only looped over `bin/`, `hooks/`, `lib/`, and `plugins/continuous-improvement/` subdirectories. This meant a fresh `npm run clean && npm run build` (or any future build after permission loss) would leave the five `.mjs` files in `scripts/` and `synthetic-checks/` at mode `100644` despite their `#!/usr/bin/env node` shebangs.
 - Added two `fs.readdirSync` loops to the `build` script: one for `scripts/` and one for `synthetic-checks/`, mirroring the treatment already applied to the other six directories. Every `.mjs` file in both directories now gets `fs.chmodSync(..., 0o755)` after every build.
