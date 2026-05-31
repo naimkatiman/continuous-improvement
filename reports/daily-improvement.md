@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-05-31
 
+## 2026-05-31 — Delete stale merged remote branches (second sweep)
+- Eight feature branches still existed on the remote even though their PRs were merged weeks or months ago: `extract-resolve-home-dir` (PR #42, merged 2026-04-29), `feat/agent-agnostic-skills-sweep` (PR #40, merged 2026-04-28), `feat/companions-readme-section-v2` (PR #73, merged 2026-05-06), `feat/node-observer-rich-schema` (PR #52, merged 2026-05-05), `feat/proceed-skill-agent-agnostic` (PR #38, merged 2026-04-28), `feat/wild-risa-proactive-surfacing` (PR #51, merged 2026-05-05), `fix/routing-targets-mts-sources` (PR #74, merged 2026-05-06), and `harden-skills` (PR #41, merged 2026-04-29). These predate the `--delete-branch` default or were created before the squash-merge workflow consistently cleaned up remotes.
+- Deleted them from the remote with `git push origin --delete ...`.
+- Verified with `git branch -r --merged main` (no stale remote branches remain) and `npm run verify:all`; the full repo gate stayed green (all 11 content invariants + typecheck pass). Working tree remains clean.
+
 ## 2026-05-31 — Merge PR #157 and delete stale merged remote branches
 - PR #157 (`hourly/2026-05-31-delete-stale-branch-156`) was open with all four required checks green. Merged it via squash-merge with `gh pr merge 157 --squash --delete-branch`. After the merge, the local remote-tracking ref `remotes/origin/hourly/2026-05-31-delete-stale-branch-156` remained until pruned with `git remote prune origin`.
 - Additionally, three old feature branches still existed on the remote even though their PRs were merged weeks ago: `chore/gitattributes-eol-lf` (PR #75, merged 2026-05-06), `feat/wild-risa-no-escape-valve` (PR #47, merged 2026-05-03), and `third-party/oh-my-claudecode` (PR #45, merged 2026-05-03). These predate the `--delete-branch` default, so they were never cleaned up. Deleted them from the remote with `git push origin --delete ...`.
