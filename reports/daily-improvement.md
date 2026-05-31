@@ -1,5 +1,15 @@
 # Daily Improvement Report — 2026-05-31
 
+## 2026-05-31 — Clean up merged local branch
+- The feature branch `hourly/2026-05-31-commit-residue` for PR #155 was still present locally after its squash-merge to `main`. Squash merges create a new commit, so `git branch --merged` does not detect them, leaving stale branches behind.
+- Deleted the local branch with `git branch -d hourly/2026-05-31-commit-residue` after confirming PR #155 state is `MERGED` via `gh pr view`.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 11 content invariants + typecheck pass). Working tree remains clean.
+
+## 2026-05-31 — Prune stale remote-tracking refs
+- After deleting the local branch `hourly/2026-05-31-commit-residue`, `git branch -a` still showed `remotes/origin/hourly/2026-05-31-commit-residue` because the remote-tracking ref had not been pruned. In addition, eight other merged feature branches still had stale remote-tracking refs locally (`chore/past-mistakes-pr151`, `feat/extract-deploy-target-scripts`, `feat/extract-git-state-snapshot`, `feat/extract-resolve-verify-ladder`, `feat/extract-route-recommendation`, `feat/extract-scan-past-mistakes`, `feat/scripts-run-synthetic`, `feat/skills-visibility-sweep`).
+- Ran `git remote prune origin` to remove all stale remote-tracking refs at once. This only affects local remote-tracking branches; the remote branches were already deleted by the squash-merge `--delete-branch` default.
+- Verified with `git branch -a` (no stale `origin/*` branches remain) and `npm run verify:all`; the full repo gate stayed green (all 11 content invariants + typecheck pass). Working tree remains clean.
+
 ## 2026-05-31 — Commit prior verified RELEASING.md fix and report entry
 - The prior hourly cycle updated `docs/RELEASING.md` (10 → 11 invariants) and drafted the report entry, but left both files uncommitted on `main`.
 - Staged explicitly by filename and committed via branch `hourly/2026-05-31-commit-residue` + PR, per the repo's "no direct push to main" rule.
