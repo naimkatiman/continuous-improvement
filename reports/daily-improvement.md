@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-05-31
 
+## 2026-05-31 — Merge PR #157 and delete stale merged remote branches
+- PR #157 (`hourly/2026-05-31-delete-stale-branch-156`) was open with all four required checks green. Merged it via squash-merge with `gh pr merge 157 --squash --delete-branch`. After the merge, the local remote-tracking ref `remotes/origin/hourly/2026-05-31-delete-stale-branch-156` remained until pruned with `git remote prune origin`.
+- Additionally, three old feature branches still existed on the remote even though their PRs were merged weeks ago: `chore/gitattributes-eol-lf` (PR #75, merged 2026-05-06), `feat/wild-risa-no-escape-valve` (PR #47, merged 2026-05-03), and `third-party/oh-my-claudecode` (PR #45, merged 2026-05-03). These predate the `--delete-branch` default, so they were never cleaned up. Deleted them from the remote with `git push origin --delete ...`.
+- Verified with `git branch -r --merged main` (no stale remote branches remain) and `npm run verify:all`; the full repo gate stayed green (all 11 content invariants + typecheck pass). Working tree remains clean.
+
 ## 2026-05-31 — Clean up merged local branch
 - The feature branch `hourly/2026-05-31-commit-residue` for PR #155 was still present locally after its squash-merge to `main`. Squash merges create a new commit, so `git branch --merged` does not detect them, leaving stale branches behind.
 - Deleted the local branch with `git branch -d hourly/2026-05-31-commit-residue` after confirming PR #155 state is `MERGED` via `gh pr view`.
