@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-01
 
+## 2026-06-01 — Close stale superseded open PR #153
+- PR #153 (`fix/llms-skill-count-drift`) was opened on 2026-05-24 with a fix to include `llms.txt` in the skill-count drift lint and update the stale "13 enforcement skills" count. The same fix was later merged to `main` independently via commit `518b04a` (lint fix + tests) and `ad11e4c` (llms.txt count 13→20). The branch had diverged from `main` and was missing subsequent TypeScript source migrations.
+- Closed PR #153 with a superseded comment and deleted the remote branch with `git push origin --delete fix/llms-skill-count-drift`.
+- Verified with `git branch -r` (branch no longer listed), `gh pr list --state open` (only PR #154 remains open), and `npm run verify:all` (all 11 content invariants + typecheck pass). Working tree remains clean.
+
 ## 2026-06-01 — Delete stale remote branch for closed PR #131
 - The branch `docs/readme-skill-count-20` still existed on the remote even though PR #131 was closed without merge. Its single commit (`b5fdaf6`) was a README skill-table sync (17 → 20 skills, agents trio surfacing) that was superseded by PR #130 (`a4f72e9 docs(readme): backfill 3 orphan tier-2 skills in the skill table`), which shipped the same update via a different branch.
 - Deleted the branch from the remote with `git push origin --delete docs/readme-skill-count-20`.
