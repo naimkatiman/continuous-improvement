@@ -1,4 +1,9 @@
-# Daily Improvement Report — 2026-06-01
+# Daily Improvement Report — 2026-06-02
+
+## 2026-06-02 — Update stale report dates to June 2
+- The HTML summary card at `reports/assets/update-card.html` still showed "June 1, 2026" / "2026-06-01" in the `<title>` and visible date line, and the daily report header was still "2026-06-01". With the date boundary crossed, these assets needed to reflect the current reporting period.
+- Updated both the `<title>` and the visible date line to "June 2, 2026" / "2026-06-02" so the card matches the current reporting period. Updated the report header from "2026-06-01" to "2026-06-02".
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 11 content invariants + typecheck pass, 661 pass / 0 fail). Working tree remains clean.
 
 ## 2026-06-01 — Remove dead orphan machinery from `npm run clean`
 - The `clean` script in `package.json` declared `const orphans=new Set([])` and checked `!orphans.has(p)` before deleting every `.mjs` file in `bin/`, `hooks/`, `test/`, and `lib/`. This machinery was originally added to protect hand-authored orphan `.mjs` files that had no corresponding `.mts` source under `src/`. Over the course of the day, all three known orphans were resolved: `hooks/three-section-close.mjs` gained `src/hooks/three-section-close.mts` (PR #162), `test/check-everything-mirror.test.mjs` gained `src/test/check-everything-mirror.test.mts` (PR #164), and `bin/refresh-third-party.mjs` regained `src/bin/refresh-third-party.mts` (PR #165).
