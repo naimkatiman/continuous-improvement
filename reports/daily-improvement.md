@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-01
 
+## 2026-06-01 — Delete stale local branch for merged PR #167
+- PR #167 (`hourly/2026-06-01-close-stale-pr-153`) was squash-merged to `main` at commit `fbd70df`, but the local feature branch `hourly/2026-06-01-close-stale-pr-153` was still present. Squash merges create a new commit, so `git branch --merged` does not detect them, leaving stale branches behind.
+- Deleted the local branch with `git branch -D hourly/2026-06-01-close-stale-pr-153`. The remote branch had already been deleted by the squash-merge `--delete-branch` default, so `git push origin --delete` was not needed; only the local remote-tracking ref remained, which was pruned with `git remote prune origin`.
+- Verified with `git branch -a` (no stale `hourly/*` branches remain), `git branch -r` (no stale remote-tracking refs remain), and `npm run verify:all` (all 11 content invariants + typecheck pass). Working tree remains clean.
+
 ## 2026-06-01 — Close stale superseded open PR #153
 - PR #153 (`fix/llms-skill-count-drift`) was opened on 2026-05-24 with a fix to include `llms.txt` in the skill-count drift lint and update the stale "13 enforcement skills" count. The same fix was later merged to `main` independently via commit `518b04a` (lint fix + tests) and `ad11e4c` (llms.txt count 13→20). The branch had diverged from `main` and was missing subsequent TypeScript source migrations.
 - Closed PR #153 with a superseded comment and deleted the remote branch with `git push origin --delete fix/llms-skill-count-drift`.
