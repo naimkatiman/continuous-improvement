@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-01
 
+## 2026-06-01 — Remove dead orphan machinery from `npm run clean`
+- The `clean` script in `package.json` declared `const orphans=new Set([])` and checked `!orphans.has(p)` before deleting every `.mjs` file in `bin/`, `hooks/`, `test/`, and `lib/`. This machinery was originally added to protect hand-authored orphan `.mjs` files that had no corresponding `.mts` source under `src/`. Over the course of the day, all three known orphans were resolved: `hooks/three-section-close.mjs` gained `src/hooks/three-section-close.mts` (PR #162), `test/check-everything-mirror.test.mjs` gained `src/test/check-everything-mirror.test.mts` (PR #164), and `bin/refresh-third-party.mjs` regained `src/bin/refresh-third-party.mts` (PR #165).
+- With zero orphans remaining, the empty Set and the `has()` guard are dead code. Simplified the script to a plain nested loop that deletes every `.mjs` in the four generated directories, matching the pre-orphan shape but keeping the current four-directory coverage (`bin`, `hooks`, `test`, `lib`).
+- Verified with `npm run clean` (all `.mjs` files deleted, no exceptions needed), `npm run build` (all `.mjs` files regenerated from `.mts` sources, manifests refreshed), and `npm run verify:all` (all 11 content invariants + typecheck pass, 661 pass / 0 fail). Working tree remains clean.
+
 ## 2026-06-01 — Delete stale local branch for merged PR #167
 - PR #167 (`hourly/2026-06-01-close-stale-pr-153`) was squash-merged to `main` at commit `fbd70df`, but the local feature branch `hourly/2026-06-01-close-stale-pr-153` was still present. Squash merges create a new commit, so `git branch --merged` does not detect them, leaving stale branches behind.
 - Deleted the local branch with `git branch -D hourly/2026-06-01-close-stale-pr-153`. The remote branch had already been deleted by the squash-merge `--delete-branch` default, so `git push origin --delete` was not needed; only the local remote-tracking ref remained, which was pruned with `git remote prune origin`.
