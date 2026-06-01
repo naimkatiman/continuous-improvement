@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-01
 
+## 2026-06-01 — Delete stale remote branch for closed PR #131
+- The branch `docs/readme-skill-count-20` still existed on the remote even though PR #131 was closed without merge. Its single commit (`b5fdaf6`) was a README skill-table sync (17 → 20 skills, agents trio surfacing) that was superseded by PR #130 (`a4f72e9 docs(readme): backfill 3 orphan tier-2 skills in the skill table`), which shipped the same update via a different branch.
+- Deleted the branch from the remote with `git push origin --delete docs/readme-skill-count-20`.
+- Verified with `git branch -r` (branch no longer listed), `git branch -r --merged main` (no stale remote branches remain), and `npm run verify:all` (all 11 content invariants + typecheck pass). Working tree remains clean.
+
 ## 2026-06-01 — TypeScript source for `test/check-everything-mirror.test.mjs`
 - `test/check-everything-mirror.test.mjs` was one of two known orphan `.mjs` files with no corresponding `.mts` source under `src/`. CLAUDE.md documents this as "deferred follow-up #1". The file was hand-authored JavaScript and protected from `npm run clean` via an explicit orphan set in `package.json`.
 - Created `src/test/check-everything-mirror.test.mts` with identical runtime logic and added strict TypeScript types (`setupRepo`, `writePair`, and the `err` catch-block cast). The compiled output is byte-identical in behavior to the original orphan.
