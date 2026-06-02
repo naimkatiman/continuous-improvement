@@ -1,4 +1,9 @@
-# Daily Improvement Report — 2026-06-02
+# Daily Improvement Report — 2026-06-03
+
+## 2026-06-03 — Update stale report dates to June 3
+- The HTML summary card at `reports/assets/update-card.html` still showed "June 2, 2026" / "2026-06-02" in the `<title>` and visible date line, and the daily report header was still "2026-06-02". With the date boundary crossed to June 3, these assets needed to reflect the current reporting period.
+- Updated both the `<title>` and the visible date line to "June 3, 2026" / "2026-06-03" so the card matches the current reporting period. Updated the report header from "2026-06-02" to "2026-06-03".
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 11 content invariants + typecheck pass, 661 pass / 0 fail). Working tree remains clean.
 
 ## 2026-06-02 — Add missing `hooks/*.mjs` to CONTRIBUTING.md generated-artifact lists
 - `CONTRIBUTING.md` documented the generated artifact list in five places (bundle regen rule, source-of-truth callout, directory layout, do-not-edit warning, and command cheat-sheet) but omitted `hooks/*.mjs` in every one. PR #173 added `hooks/` to the CI `verify:generated` gate and the `npm run build` pipeline, yet the contributor-facing docs still pretended hooks were not generated.
