@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-02
 
+## 2026-06-02 — Add missing `hooks/*.mjs` to CONTRIBUTING.md generated-artifact lists
+- `CONTRIBUTING.md` documented the generated artifact list in five places (bundle regen rule, source-of-truth callout, directory layout, do-not-edit warning, and command cheat-sheet) but omitted `hooks/*.mjs` in every one. PR #173 added `hooks/` to the CI `verify:generated` gate and the `npm run build` pipeline, yet the contributor-facing docs still pretended hooks were not generated.
+- Updated all five locations to include `hooks/*.mjs` alongside `bin/*.mjs`, `lib/*.mjs`, `test/*.test.mjs`, and `plugins/*.json`, and added a descriptive line for `hooks/*.mjs` in the directory-layout code block.
+- Verified with `npm run verify:all` (all 11 content invariants + typecheck pass, 661 pass / 0 fail). No build regen was needed because `CONTRIBUTING.md` is not a TypeScript source.
+
 ## 2026-06-02 — Delete stale local branch for merged PR #172 and fast-forward main
 - PR #172 (`hourly/2026-06-02-remove-stale-orphan-from-test-imports-check`) was squash-merged to `main` at commit `f079c8d`, but the local feature branch `hourly/2026-06-02-remove-stale-orphan-from-test-imports-check` was still present and checked out. Squash merges create a new commit, so `git branch --merged` does not detect them, leaving stale branches behind. Additionally, the local `main` branch had not been fast-forwarded to include the merge.
 - Checked out `main`, fast-forwarded to `origin/main` (commit `f079c8d`), and deleted the local feature branch with `git branch -D hourly/2026-06-02-remove-stale-orphan-from-test-imports-check`. The remote branch was already deleted by the squash-merge `--delete-branch` default, so `git push origin --delete` was not needed; only the local remote-tracking ref remained, which was pruned with `git remote prune origin`.
