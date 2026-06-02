@@ -224,7 +224,7 @@ describe("scoreObservations — out-of-range window (item 3)", () => {
     it("honors a valid positive integer window", () => {
         assert.equal(scoreObservations(one, goal, { window: 5 }).total, 1);
     });
-    for (const bad of [0, -5, 2.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    for (const bad of [0, -5, 2.5, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
         it(`rejects an explicit out-of-range window (${bad}) instead of silently defaulting`, () => {
             assert.throws(() => scoreObservations(one, goal, { window: bad }), /window/i, `window=${bad} must be rejected, not coerced to the default`);
         });
