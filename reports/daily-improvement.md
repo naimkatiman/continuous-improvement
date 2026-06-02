@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-03
 
+## 2026-06-03 — Contract-pin overlapping n-gram occurrence counting (audit #10)
+- Added a regression test in `src/test/skill-distill.test.mts` that proves `findCandidates` counts every matching n-gram window within a trajectory toward `occurrences`, not just distinct runs. The test uses a 9-observation successful trajectory (`[Read, Edit, Bash] × 3`) and asserts the 3-gram occurs 3 times even from a single session when thresholds are lowered.
+- This closes deferred audit item #10 from `docs/audits/2026-06-03-new-feature-audit.md`: occurrences counts windows, not distinct runs; `minSessions` is the real guard against single-session false positives. The test ensures a future refactor cannot accidentally change this behavior without breaking the build.
+- Verified with `npm run build`, `node --test test/skill-distill.test.mjs` (15 pass / 0 fail), and `npm run verify:all` (all 11 content invariants + typecheck pass).
+
 ## 2026-06-03 — Push rebased local main to origin
 - Local `main` was 2 commits ahead of `origin/main` (`821139d` docs(contributing) and `c9eac5d` docs(report)), but `origin/main` had also moved forward with 3 new commits from merged PRs #154, #175, and #176. A direct push was rejected (non-fast-forward).
 - Fetched remote state, rebased the 2 local docs commits onto the new `origin/main`, and pushed the result. The rebase applied cleanly because the local changes (`CONTRIBUTING.md` and `reports/daily-improvement.md`) did not overlap with the upstream changes (new skills, hooks, and tests under `src/` and `skills/`).
