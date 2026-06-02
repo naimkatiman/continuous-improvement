@@ -94,6 +94,15 @@ describe("extractKeywordsFromProse", () => {
     assert.ok(kws.includes("системы"), "longer Cyrillic token must survive tokenization");
     assert.ok(kws.includes("認証画面"), "CJK token at the length floor must survive tokenization");
   });
+
+  it("drops pure non-ASCII numeral runs, not just ASCII digits (item 4 follow-up)", () => {
+    // The unicode splitter now lets Arabic-Indic ١٢٣٤٥ (5 digits) survive and
+    // clear the 4-char floor; the digit-drop filter must catch it like "12345".
+    const kws = extractKeywordsFromProse("deploy version ١٢٣٤٥ login");
+    assert.ok(kws.includes("deploy"));
+    assert.ok(kws.includes("login"));
+    assert.ok(!kws.includes("١٢٣٤٥"), "a pure non-ASCII numeral run must be dropped, not kept as a keyword");
+  });
 });
 
 describe("parseGoalFromPlan", () => {

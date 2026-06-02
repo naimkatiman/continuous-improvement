@@ -21,6 +21,10 @@ const STOPWORDS = new Set<string>([
   "task", "goal", "plan", "work", "working", "build", "building", "code",
 ]);
 
+// 4 suits Latin/Cyrillic prose, but it silently drops most Korean/Thai words
+// (typically 2 chars) even though the Unicode splitter now keeps them — so the
+// goal-state half of the tokenizer fix is only partial for those scripts. A
+// script-aware floor is a logged follow-up (see CLAUDE.md Deferred).
 const KEYWORD_MIN_LENGTH = 4;
 const KEYWORD_CAP = 20;
 const DEFAULT_WINDOW = 30;
@@ -97,7 +101,7 @@ export function extractKeywordsFromProse(prose: string): string[] {
   for (const raw of prose.toLowerCase().split(/[^\p{L}\p{N}]+/u)) {
     const word = raw.trim();
     if (word.length < KEYWORD_MIN_LENGTH) continue;
-    if (/^\d+$/.test(word)) continue;
+    if (/^\p{N}+$/u.test(word)) continue;
     if (STOPWORDS.has(word)) continue;
     if (seen.has(word)) continue;
     seen.add(word);
