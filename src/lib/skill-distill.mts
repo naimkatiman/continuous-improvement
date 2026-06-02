@@ -149,6 +149,19 @@ function toolSequence(trajectory: Trajectory): string[] {
     .filter((tool) => tool.length > 0 && !NOISE_TOOL.test(tool));
 }
 
+// Tool names are external data (observations.jsonl). The candidate id is later
+// joined into a draft file path, so it must be slugified to [a-z0-9-] to keep a
+// hostile tool name (`../`, `/`, `\`) from escaping the drafts directory.
+function slugifyNgram(ngram: string[]): string {
+  const slug = ngram
+    .join("-")
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug.length > 0 ? slug : "sequence";
+}
+
 interface Aggregate {
   ngram: string[];
   occurrences: number;
@@ -196,7 +209,7 @@ export function findCandidates(
     if (aggregate.occurrences < minOccurrences) continue;
     if (aggregate.sessions.size < minSessions) continue;
     candidates.push({
-      id: `draft-${aggregate.ngram.join("-").toLowerCase()}`,
+      id: `draft-${slugifyNgram(aggregate.ngram)}`,
       ngram: aggregate.ngram,
       occurrences: aggregate.occurrences,
       sessions: [...aggregate.sessions],

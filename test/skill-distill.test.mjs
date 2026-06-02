@@ -129,3 +129,29 @@ describe("formatCandidates", () => {
         assert.match(out, /ci_distill_promote/);
     });
 });
+describe("findCandidates — id path-safety (audit #7)", () => {
+    function trajectoryWith(tools, sessionId) {
+        return {
+            observations: tools.map((tool) => ({
+                tool,
+                session: sessionId,
+                ts: "2026-05-28T08:00:00Z",
+                input_summary: "",
+                output_summary: "",
+            })),
+            session: sessionId,
+            startTs: "2026-05-28T08:00:00Z",
+            endTs: "2026-05-28T08:05:00Z",
+            succeeded: true,
+            successReason: "verify-exit-0",
+        };
+    }
+    it("emits a filesystem-safe id even when tool names contain path-traversal characters", () => {
+        const tools = ["../../etc", "Edit", "Bash"];
+        const candidates = findCandidates([trajectoryWith(tools, "a"), trajectoryWith(tools, "b"), trajectoryWith(tools, "c")], { minOccurrences: 1, minSessions: 2 });
+        assert.ok(candidates.length > 0, "expected a mined candidate");
+        for (const candidate of candidates) {
+            assert.doesNotMatch(candidate.id, /[\\/]|\.\./, `candidate id must not contain path separators or traversal: ${candidate.id}`);
+        }
+    });
+});
