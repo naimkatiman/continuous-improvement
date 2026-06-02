@@ -5,7 +5,7 @@ description: "Law activator for the 7 Laws of AI Agent Discipline. Unified four-
 origin: https://github.com/obra/superpowers
 ---
 
-# Superpowers — Mandatory Agent Workflows (Five-Source Dispatcher)
+# Superpowers — Mandatory Agent Workflows (Four-Source Dispatcher)
 
 Superpowers enforces a structured development workflow. Skills activate automatically when their trigger conditions are met. This is not optional guidance — it is mandatory workflow.
 

@@ -133,7 +133,7 @@ if [[ -f "$OBS_FILE" ]]; then
   LINE_COUNT="$(wc -l < "$OBS_FILE")"
   if (( LINE_COUNT >= 10000 )); then
     mv "$OBS_FILE" "${PROJECT_DIR}/observations.$(date -u +"%Y-%m-%d-%H%M%S").jsonl"
-    
+
     # Clean up old archives - keep only 10 most recent
     ls -t "${PROJECT_DIR}"/observations.*.jsonl 2>/dev/null | tail -n +11 | xargs -r rm -f
   fi

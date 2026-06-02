@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>continuous-improvement — A seatbelt for Claude Code</title>
+  <meta name="description" content="Runtime discipline framework for Claude Code. Research first. Edit safely. Verify before done. Remember what worked.">
+  <meta property="og:title" content="continuous-improvement — A seatbelt for Claude Code">
+  <meta property="og:description" content="The 7 Laws of AI Agent Discipline. Runtime hooks, enforcement skills, and project memory for Claude Code.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://naimkatiman.github.io/continuous-improvement">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="continuous-improvement — A seatbelt for Claude Code">
+  <meta name="twitter:description" content="The 7 Laws of AI Agent Discipline. Runtime hooks, enforcement skills, and project memory for Claude Code.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🛡%3C/text%3E%3C/svg%3E">
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #13131a;
+      --border: #1e1e2e;
+      --text: #e2e2e8;
+      --muted: #7a7a8a;
+      --accent: #a78bfa;
+      --accent-2: #34d399;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "SF Mono", Monaco, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    .container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+    header {
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; background: rgba(10,10,15,0.8);
+      backdrop-filter: blur(12px); z-index: 100;
+    }
+    nav { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+    .logo { font-weight: 700; font-size: 18px; display: flex; align-items: center; gap: 8px; }
+    .logo span { color: var(--accent); }
+    .nav-links { display: flex; gap: 28px; align-items: center; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 500; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 10px 18px; border-radius: 8px; font-size: 14px; font-weight: 600;
+      text-decoration: none; transition: all 0.2s; cursor: pointer; border: none;
+    }
+    .btn-primary { background: var(--accent); color: #0a0a0f; }
+    .btn-primary:hover { background: #c4b5fd; }
+    .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { border-color: var(--muted); }
+    .hero { padding: 120px 0 80px; text-align: center; }
+    .hero h1 { font-size: 56px; line-height: 1.05; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 20px; }
+    .hero h1 em { font-style: normal; color: var(--accent); }
+    .hero p { font-size: 20px; color: var(--muted); max-width: 560px; margin: 0 auto 36px; }
+    .hero-badges { display: flex; gap: 12px; justify-content: center; margin-bottom: 40px; flex-wrap: wrap; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; font-size: 13px; color: var(--muted); }
+    .hero-cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .install-box {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 16px 20px; font-family: var(--font-mono); font-size: 14px;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      max-width: 480px; margin: 48px auto 0;
+    }
+    .install-box code { color: var(--accent-2); }
+    .copy-btn { background: none; border: none; color: var(--muted); cursor: pointer; padding: 4px; }
+    .copy-btn:hover { color: var(--text); }
+    section { padding: 80px 0; border-top: 1px solid var(--border); }
+    section h2 { font-size: 32px; font-weight: 700; margin-bottom: 16px; text-align: center; }
+    section .subtitle { text-align: center; color: var(--muted); max-width: 520px; margin: 0 auto 56px; }
+    .laws { display: grid; gap: 16px; }
+    .law {
+      display: flex; gap: 20px; padding: 24px; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 12px; transition: border-color 0.2s;
+    }
+    .law:hover { border-color: var(--accent); }
+    .law-num {
+      width: 40px; height: 40px; border-radius: 10px; background: rgba(167,139,250,0.12);
+      color: var(--accent); display: grid; place-items: center; font-weight: 700; flex-shrink: 0;
+    }
+    .law h3 { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+    .law p { font-size: 14px; color: var(--muted); }
+    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
+    .feature { padding: 28px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+    .feature h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+    .feature p { font-size: 14px; color: var(--muted); }
+    .cta-section { text-align: center; }
+    .cta-section h2 { margin-bottom: 12px; }
+    .cta-section p { color: var(--muted); margin-bottom: 28px; }
+    footer { padding: 40px 0; text-align: center; color: var(--muted); font-size: 14px; border-top: 1px solid var(--border); }
+    footer a { color: var(--muted); text-decoration: none; }
+    footer a:hover { color: var(--text); }
+    @media (max-width: 640px) {
+      .hero h1 { font-size: 36px; }
+      .hero p { font-size: 17px; }
+      .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <nav class="container">
+      <div class="logo">🛡 <span>continuous-improvement</span></div>
+      <div class="nav-links">
+        <a href="#laws">7 Laws</a>
+        <a href="#features">Features</a>
+        <a href="https://github.com/naimkatiman/continuous-improvement">GitHub</a>
+        <a href="https://www.npmjs.com/package/continuous-improvement" class="btn btn-primary">Get Started</a>
+      </div>
+    </nav>
+  </header>
+
+  <section class="hero">
+    <div class="container">
+      <h1>A seatbelt for <em>Claude Code</em></h1>
+      <p>Research first. Edit safely. Verify before done. Remember what worked. The 7 Laws of AI Agent Discipline — runtime hooks, enforcement skills, and project memory.</p>
+      <div class="hero-badges">
+        <span class="badge">⚡ Zero runtime deps</span>
+        <span class="badge">🔒 MIT License</span>
+      </div>
+      <div class="hero-cta">
+        <a href="https://www.npmjs.com/package/continuous-improvement" class="btn btn-primary">Install from npm</a>
+        <a href="https://github.com/naimkatiman/continuous-improvement" class="btn btn-secondary">View on GitHub</a>
+      </div>
+      <div class="install-box">
+        <code>npx continuous-improvement install</code>
+        <button class="copy-btn" onclick="navigator.clipboard.writeText('npx continuous-improvement install')" title="Copy">📋</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="laws">
+    <div class="container">
+      <h2>The 7 Laws</h2>
+      <p class="subtitle">Runtime discipline that stops agents from editing before understanding.</p>
+      <div class="laws">
+        <div class="law">
+          <div class="law-num">1</div>
+          <div>
+            <h3>Pre-flight before every flight</h3>
+            <p>Investigate the codebase, read the spec, and list facts before touching a single file.</p>
+          </div>
+        </div>
+        <div class="law">
+          <div class="law-num">2</div>
+          <div>
+            <h3>One concern per change</h3>
+            <p>Each commit addresses exactly one thing. No drive-by refactors mixed with bug fixes.</p>
+          </div>
+        </div>
+        <div class="law">
+          <div class="law-num">3</div>
+          <div>
+            <h3>Plan before execution</h3>
+            <p>Write the plan, get alignment, then code. Never code your way to understanding.</p>
+          </div>
+        </div>
+        <div class="law">
+          <div class="law-num">4</div>
+          <div>
+            <h3>Verify before "done"</h3>
+            <p>Run tests, typecheck, and lint before declaring completion. Proof beats promise.</p>
+          </div>
+        </div>
+        <div class="law">
+          <div class="law-num">5</div>
+          <div>
+            <h3>Reflect after every session</h3>
+            <p>What worked? What failed? Capture lessons so the next agent starts smarter.</p>
+          </div>
+        </div>
+        <div class="law">
+          <div class="law-num">6</div>
+          <div>
+            <h3>Iterate, never batch</h3>
+            <p>One change → verify → next. Never carry a failure forward into the next task.</p>
+          </div>
+        </div>
+        <div class="law">
+          <div class="law-num">7</div>
+          <div>
+            <h3>Remember what worked</h3>
+            <p>Store instincts, patterns, and decisions in project memory. Yesterday's lesson is today's shortcut.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="features">
+    <div class="container">
+      <h2>What You Get</h2>
+      <p class="subtitle">Three layers of enforcement that physically block bad behavior.</p>
+      <div class="features">
+        <div class="feature">
+          <h3>🚧 Gateguard Hook</h3>
+          <p>A PreToolUse hook that blocks Edit / Write / Bash until the agent presents a fact-list investigation. No more editing before reading.</p>
+        </div>
+        <div class="feature">
+          <h3>✅ Verification Loop</h3>
+          <p>Six-phase verification ladder — typecheck, test, build, lint, e2e, healthcheck — before any task is marked done.</p>
+        </div>
+        <div class="feature">
+          <h3>🧠 Mulahazah Engine</h3>
+          <p>Instinct packs capture lessons across sessions. The same mistake never repeats twice.</p>
+        </div>
+        <div class="feature">
+          <h3>🤖 Ralph Loop</h3>
+          <p>Autonomous agent execution that converts PRDs to executable JSON and runs until all stories pass.</p>
+        </div>
+        <div class="feature">
+          <h3>📋 /ship Command</h3>
+          <p>Fan-out to code-reviewer + security-auditor + test-engineer in parallel, then synthesize a go/no-go decision.</p>
+        </div>
+        <div class="feature">
+          <h3>⚙️ CI Linter</h3>
+          <p>GitHub Action that lints agent transcripts for discipline violations before merge.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-section">
+    <div class="container">
+      <h2>Ready to enforce discipline?</h2>
+      <p>Install in 30 seconds. No Node setup required — just two slash commands inside Claude Code.</p>
+      <div class="hero-cta">
+        <a href="https://www.npmjs.com/package/continuous-improvement" class="btn btn-primary">Install Now</a>
+        <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/QUICKSTART.md" class="btn btn-secondary">Read Quickstart</a>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="container">
+      <p>MIT License · <a href="https://github.com/naimkatiman/continuous-improvement">GitHub</a> · <a href="https://www.npmjs.com/package/continuous-improvement">npm</a></p>
+    </div>
+  </footer>
+</body>
+</html>

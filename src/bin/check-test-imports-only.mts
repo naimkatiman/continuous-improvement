@@ -13,8 +13,7 @@
  *   - reach-through into `hooks/`, `scripts/`, `src/`, or deeper paths under
  *     `bin/` or `lib/`
  *
- * Baseline: all 44 `src/test/*.test.mts` files plus the one orphan
- * handwritten `test/check-everything-mirror.test.mjs` pass today.
+ * Baseline: all 50 `src/test/*.test.mts` files pass today.
  *
  * Usage:
  *   node bin/check-test-imports-only.mjs              # Check the current repo
@@ -30,9 +29,7 @@ import { join, posix, sep } from "node:path";
 import { argv, cwd, exit } from "node:process";
 
 const TEST_SOURCE_DIR = "src/test";
-const ORPHAN_TESTS: ReadonlyArray<string> = [
-  "test/check-everything-mirror.test.mjs",
-];
+const ORPHAN_TESTS: ReadonlyArray<string> = [];
 const ALLOWED_PRODUCTION_PATH = /^\.\.\/(bin|lib)\/[A-Za-z0-9._-]+\.mjs$/;
 
 interface Violation {

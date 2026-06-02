@@ -22,6 +22,7 @@ function setupRepo(skillNames, descriptions) {
     writeFileSync(join(root, ".claude-plugin", "marketplace.json"), JSON.stringify({ description: descriptions.marketplace ?? "" }));
     writeFileSync(join(root, "plugins", "continuous-improvement", ".claude-plugin", "plugin.json"), JSON.stringify({ description: descriptions.plugin ?? "" }));
     writeFileSync(join(root, "package.json"), JSON.stringify({ description: descriptions.package ?? "" }));
+    writeFileSync(join(root, "llms.txt"), descriptions.llms ?? "");
     return root;
 }
 describe("check-skill-count — unit", () => {
@@ -37,16 +38,17 @@ describe("check-skill-count — unit", () => {
     });
 });
 describe("check-skill-count — integration", () => {
-    it("CLI exits 0 when all three descriptions state the correct count", () => {
+    it("CLI exits 0 when all four descriptions state the correct count", () => {
         const phrase = "2 bundled skills";
         const root = setupRepo(["alpha", "beta"], {
             marketplace: `The 7 Laws — ${phrase}, gating hooks.`,
             plugin: `The 7 Laws — ${phrase}, gating hooks.`,
             package: `The 7 Laws — ${phrase}, gating hooks.`,
+            llms: `The 7 Laws — ${phrase}, gating hooks.`,
         });
         try {
             const out = execFileSync("node", [CHECKER, root], { encoding: "utf8" });
-            assert.match(out, /OK skill-count: all 3 description string\(s\) state "2 bundled skills"/);
+            assert.match(out, /OK skill-count: all 4 description string\(s\) state "2 bundled skills"/);
         }
         finally {
             rmSync(root, { recursive: true, force: true });
@@ -57,6 +59,7 @@ describe("check-skill-count — integration", () => {
             marketplace: "The 7 Laws — 3 bundled skills, gating hooks.",
             plugin: "The 7 Laws — 13 bundled skills, gating hooks.",
             package: "The 7 Laws — 3 bundled skills, gating hooks.",
+            llms: "The 7 Laws — 3 bundled skills, gating hooks.",
         });
         try {
             let exited = false;

@@ -8,6 +8,7 @@ The release pipeline is **tag-triggered**. Pushing a `v*` tag publishes the npm 
 |---|---|---|
 | **Plugin marketplace** (`/plugin install`) | Merge to `main` | Claude Code clients fetch `.claude-plugin/marketplace.json` from `main` on demand. Consumers refresh with `/plugin update continuous-improvement`. |
 | **npm package** (`npm install -g continuous-improvement`) | Tag push (`v*`) | `.github/workflows/release.yml` runs `npm publish` and creates a GitHub Release. |
+| **GitHub Action Marketplace** | Manual (one-time setup + per-release) | Publish `action.yml` via the GitHub Release UI. See [Publishing to Marketplace](#publishing-to-github-marketplace) below. |
 
 ## Cutting a release
 
@@ -53,7 +54,7 @@ git push origin vX.Y.Z
 
 1. `npm ci` + `npm run build`
 2. `git diff --exit-code` to ensure generated artifacts are committed
-3. `npm run verify:all` (7 invariants + typecheck)
+3. `npm run verify:all` (11 invariants + typecheck)
 4. `node --test test/*.test.mjs`
 5. Asserts `package.json` version equals the tag
 6. `npm publish --access public`
@@ -86,6 +87,25 @@ npm deprecate continuous-improvement@X.Y.Z "Use X.Y.W instead — see <issue lin
 ```
 
 Then cut a new patch release that supersedes the bad version.
+
+## Publishing to GitHub Marketplace
+
+The GitHub Action (`action.yml`) is **not** auto-published to the Marketplace by CI. After the `release.yml` workflow creates a GitHub Release, you must manually publish the Action:
+
+1. Go to **Releases** → the newly created release (e.g. `v3.9.2`).
+2. Click **"Publish this Action to the GitHub Marketplace"**.
+3. Confirm the `action.yml` metadata (name, description, inputs, outputs) is correct.
+4. Click **"Publish release"**.
+
+Once published, the Action appears at:
+`https://github.com/marketplace/actions/ai-agent-discipline-linter`
+
+Consumers install it in their workflow with:
+```yaml
+- uses: naimkatiman/continuous-improvement@v3
+```
+
+> **Note:** The `release.yml` workflow automatically updates the major-version tag (e.g. `v3`) to point at the latest release. No manual step is needed.
 
 ## Optional upgrades
 

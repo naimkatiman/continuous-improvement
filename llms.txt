@@ -1,6 +1,6 @@
 # continuous-improvement
 
-> Stops Claude Code from skipping research, claiming 'done' without verifying, and repeating yesterday's mistakes. The 7 Laws of AI Agent Discipline — 13 enforcement skills, gating hooks, and the Mulahazah auto-leveling instinct engine.
+> Stops Claude Code from skipping research, claiming 'done' without verifying, and repeating yesterday's mistakes. The 7 Laws of AI Agent Discipline — 23 bundled skills, gating hooks, the Mulahazah auto-leveling instinct engine, and a GitHub Action transcript linter.
 
 ## What This Is
 

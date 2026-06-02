@@ -7,9 +7,9 @@ description: "Law activator and dispatcher — route the task to the right Law-a
 
 `/superpowers` is **the dispatcher**, not a peer skill. It does not do work itself; it routes each user task to the correct Law-aligned specialist so the right discipline fires automatically instead of the agent skipping a step.
 
-The 7 Laws define *what* discipline must be applied. `/superpowers` decides *which specialist* enforces it for this specific task, across five sources installed from this marketplace.
+The 7 Laws define *what* discipline must be applied. `/superpowers` decides *which specialist* enforces it for this specific task, across four sources installed from this marketplace.
 
-## Routing surface (five sources)
+## Routing surface (four sources)
 
 | Source | Where it lives | Examples of what it routes to |
 |---|---|---|

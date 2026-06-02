@@ -17,12 +17,13 @@
 <p align="center">
   <a href="https://www.npmjs.com/package/continuous-improvement"><img src="https://img.shields.io/npm/v/continuous-improvement" alt="npm"></a>
   <a href="https://docs.anthropic.com/en/docs/claude-code"><img src="https://img.shields.io/badge/Claude%20Code-skill-blueviolet" alt="Claude Code"></a>
+  <a href="https://github.com/marketplace/actions/ai-agent-discipline-linter"><img src="https://img.shields.io/badge/GitHub%20Action-marketplace-blue" alt="GitHub Action"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="license"></a>
   <a href="test/"><img src="https://img.shields.io/badge/tests-passing-brightgreen" alt="tests"></a>
 </p>
 
 <p align="center">
-  <b>New here?</b> → <a href="QUICKSTART.md">QUICKSTART.md</a> (2 minutes)
+  <b>New here?</b> → <a href="QUICKSTART.md">QUICKSTART.md</a> (2 minutes) · <a href="https://naimkatiman.github.io/continuous-improvement">Landing page</a>
 </p>
 
 > **What this is *not*:** a prompt template, a `CLAUDE.md`, or a vibes-based reminder. It is a runtime hook (`hooks/gateguard.mjs`) plus a bundled skill set that physically blocks `Edit` / `Write` / destructive `Bash` until the agent has done the work.
@@ -284,7 +285,7 @@ Every skill description leads with `Enforces Law N (...)` so the discipline tag 
 
 Workflows from this repo, applied to real open-source contributions:
 
-### pm-skills (product-on-purpose, 189 stars, Apache 2.0)
+### pm-skills (product-on-purpose, Apache 2.0)
 
 [F-07 discover-market-sizing](https://github.com/product-on-purpose/pm-skills/pull/141) - new domain skill in the Discover phase covering TAM/SAM/SOM market sizing for the [pm-skills](https://github.com/product-on-purpose/pm-skills) library.
 
