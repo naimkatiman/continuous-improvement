@@ -461,3 +461,9 @@ None. All 661 tests pass / 0 fail as of this cycle.
 - Added `hooks` to the path list in all three locations: `package.json` (`verify:generated` script), `.github/workflows/ci.yml` ("Verify generated artifacts are committed" step), and `.github/workflows/release.yml` (same step name).
 - Verified with `npm run verify:generated` (passes, zero diff) and `npm run verify:all` (all 11 content invariants + typecheck pass). `npm test` confirms 661 pass / 0 fail.
 - Branch: `hourly/2026-06-02-add-hooks-to-verify-generated`.
+
+## 2026-06-02 — Merge PR #173 and delete stale merged branch
+- PR #173 (`hourly/2026-06-02-add-hooks-to-verify-generated`) was open with all four required checks green (lint-transcript + test matrix on Node 18/20/22). It added `hooks/` to the generated-artifact diff path in `verify:generated`, CI, and release workflows.
+- Merged it via squash-merge with `gh pr merge 173 --squash --delete-branch`. After the merge, the local remote-tracking ref was pruned with `git remote prune origin`.
+- Fast-forwarded local `main` to `origin/main` (commit `d1e8fb8`) and deleted the local feature branch with `git branch -D hourly/2026-06-02-add-hooks-to-verify-generated`.
+- Verified with `git branch -a` (no stale `hourly/*` branches remain), `git branch -r` (no stale remote-tracking refs remain), and `npm run verify:all` (all 11 content invariants + typecheck pass). Working tree remains clean.
