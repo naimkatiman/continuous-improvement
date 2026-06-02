@@ -142,9 +142,12 @@ export function parseGoalFromPlan(planMarkdown: string): GoalSpec | null {
 
   const keywordsSection = getSection(planMarkdown, "Goal Keywords");
   const scopeSection = getSection(planMarkdown, "Goal Scope");
-  const keywords = keywordsSection
-    ? parseKeywordList(keywordsSection)
-    : extractKeywordsFromProse(prose);
+  const parsedKeywords = keywordsSection ? parseKeywordList(keywordsSection) : [];
+  // An empty/malformed Goal Keywords section (blank bullets, commas-only) must
+  // degrade to prose extraction, exactly like an absent section — otherwise the
+  // scorer runs with zero keywords and reports all on-goal work as drift.
+  const keywords =
+    parsedKeywords.length > 0 ? parsedKeywords : extractKeywordsFromProse(prose);
 
   return {
     prose,
