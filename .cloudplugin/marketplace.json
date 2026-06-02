@@ -1,7 +1,7 @@
 {
   "name": "continuous-improvement",
-  "version": "3.9.2",
-  "description": "Stops Claude Code from skipping research, claiming 'done' without verifying, and repeating yesterday's mistakes. The 7 Laws of AI Agent Discipline — 20 bundled skills, gating hooks, the Mulahazah auto-leveling instinct engine, and a GitHub Action transcript linter.",
+  "version": "3.10.0",
+  "description": "Stops Claude Code from skipping research, claiming 'done' without verifying, and repeating yesterday's mistakes. The 7 Laws of AI Agent Discipline — 25 bundled skills, gating hooks, the Mulahazah auto-leveling instinct engine, and a GitHub Action transcript linter.",
   "author": "naimkatiman",
   "license": "MIT",
   "repository": "https://github.com/naimkatiman/continuous-improvement",
