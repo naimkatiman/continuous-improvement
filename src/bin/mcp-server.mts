@@ -882,6 +882,11 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
       }
 
       const limit = getNumber(params.limit, 30);
+      if (!Number.isInteger(limit) || limit <= 0) {
+        return error(
+          `limit must be a positive integer; got ${limit}. Omit it to score the default 30 most recent observations.`,
+        );
+      }
       const explicit = getString(params.goal_file).trim();
       const workspaceRoot = getWorkspaceRoot();
       const candidates = explicit

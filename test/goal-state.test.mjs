@@ -200,6 +200,21 @@ describe("parseGoalFromPlan — empty Goal Keywords section (audit #1)", () => {
         assert.ok(report.matching > 0, "prose-derived keywords should match the on-goal observations");
     });
 });
+describe("scoreObservations — out-of-range window (item 3)", () => {
+    const goal = { prose: "", keywords: ["login"], paths: [], forbidden: [] };
+    const one = [obs({ tool: "Edit", input_summary: "src/auth/login.ts" })];
+    it("defaults to the standard window when window is undefined", () => {
+        assert.equal(scoreObservations(one, goal).total, 1);
+    });
+    it("honors a valid positive integer window", () => {
+        assert.equal(scoreObservations(one, goal, { window: 5 }).total, 1);
+    });
+    for (const bad of [0, -5, 2.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+        it(`rejects an explicit out-of-range window (${bad}) instead of silently defaulting`, () => {
+            assert.throws(() => scoreObservations(one, goal, { window: bad }), /window/i, `window=${bad} must be rejected, not coerced to the default`);
+        });
+    }
+});
 describe("scoreObservations — non-finite threshold (audit #2)", () => {
     it("falls back to the default threshold instead of corrupting the report on NaN", () => {
         const goal = { prose: "", keywords: ["login"], paths: [], forbidden: [] };

@@ -206,7 +206,15 @@ export function scoreObservations(
   goal: GoalSpec,
   opts: { window?: number; threshold?: number } = {},
 ): DriftReport {
-  const window = opts.window && opts.window > 0 ? opts.window : DEFAULT_WINDOW;
+  // Reject an explicitly-provided out-of-range window instead of silently
+  // coercing it to the default — an operator typo (window=0, -5, 2.5) must not
+  // read as "unset". An absent window legitimately means "use the default".
+  if (opts.window !== undefined && (!Number.isInteger(opts.window) || opts.window <= 0)) {
+    throw new RangeError(
+      `window must be a positive integer; got ${opts.window}. Omit it to use the default of ${DEFAULT_WINDOW}.`,
+    );
+  }
+  const window = opts.window ?? DEFAULT_WINDOW;
   const threshold =
     typeof opts.threshold === "number" && Number.isFinite(opts.threshold)
       ? opts.threshold
