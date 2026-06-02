@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-03
 
+## 2026-06-03 — Push rebased local main to origin
+- Local `main` was 2 commits ahead of `origin/main` (`821139d` docs(contributing) and `c9eac5d` docs(report)), but `origin/main` had also moved forward with 3 new commits from merged PRs #154, #175, and #176. A direct push was rejected (non-fast-forward).
+- Fetched remote state, rebased the 2 local docs commits onto the new `origin/main`, and pushed the result. The rebase applied cleanly because the local changes (`CONTRIBUTING.md` and `reports/daily-improvement.md`) did not overlap with the upstream changes (new skills, hooks, and tests under `src/` and `skills/`).
+- Verified with `git status` (working tree clean, branch up to date with `origin/main`), `npm run verify:all` (all 11 content invariants + typecheck pass), and `npm test` (726 pass / 0 fail, reflecting the new upstream tests). No stale local or remote branches remain.
+
 ## 2026-06-03 — Update stale report dates to June 3
 - The HTML summary card at `reports/assets/update-card.html` still showed "June 2, 2026" / "2026-06-02" in the `<title>` and visible date line, and the daily report header was still "2026-06-02". With the date boundary crossed to June 3, these assets needed to reflect the current reporting period.
 - Updated both the `<title>` and the visible date line to "June 3, 2026" / "2026-06-03" so the card matches the current reporting period. Updated the report header from "2026-06-02" to "2026-06-03".
