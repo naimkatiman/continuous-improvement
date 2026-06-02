@@ -207,7 +207,10 @@ export function scoreObservations(
   opts: { window?: number; threshold?: number } = {},
 ): DriftReport {
   const window = opts.window && opts.window > 0 ? opts.window : DEFAULT_WINDOW;
-  const threshold = typeof opts.threshold === "number" ? opts.threshold : DEFAULT_THRESHOLD;
+  const threshold =
+    typeof opts.threshold === "number" && Number.isFinite(opts.threshold)
+      ? opts.threshold
+      : DEFAULT_THRESHOLD;
   const recent = observations.slice(-window);
   const total = recent.length;
 

@@ -252,3 +252,17 @@ describe("parseGoalFromPlan — empty Goal Keywords section (audit #1)", () => {
     assert.ok(report.matching > 0, "prose-derived keywords should match the on-goal observations");
   });
 });
+
+describe("scoreObservations — non-finite threshold (audit #2)", () => {
+  it("falls back to the default threshold instead of corrupting the report on NaN", () => {
+    const goal: GoalSpec = { prose: "", keywords: ["login"], paths: [], forbidden: [] };
+    const report = scoreObservations(
+      [obs({ tool: "Edit", input_summary: "src/auth/login.ts" })],
+      goal,
+      { threshold: Number.NaN },
+    );
+    assert.ok(Number.isFinite(report.threshold), "threshold must be finite, not NaN");
+    assert.doesNotMatch(formatDriftReport(report), /NaN/);
+    assert.notEqual(report.status, "drift", "a 100%-matching observation must not be forced to drift");
+  });
+});
