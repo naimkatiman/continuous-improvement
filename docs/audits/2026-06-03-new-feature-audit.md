@@ -53,13 +53,13 @@ surgical fix — left to the PR #154 owner.
 | # | Sev | Area | Why deferred |
 |---|---|---|---|
 | 2 | LOW | goal-state | NaN threshold passes the `typeof` guard; unreachable from `ci_goal_check`. Use `Number.isFinite`. |
-| 3 | MED | goal-state | `window:0`/negative collapses to default 30. Defensible as invalid→default; decide clamp vs reject. |
+| 3 | MED | goal-state | `window:0`/negative collapses to default 30. Defensible as invalid→default; decide clamp vs reject. **CLOSED `6207648`.** |
 | 4 | LOW | goal-state | `.includes` keyword match hits `test` inside `latest`. Intentional fuzzy heuristic. |
-| 6 | MED | recall-index | `tokenize` is ASCII-only (drops CJK/Cyrillic/accents). Broad i18n change; same pattern in goal-state. |
+| 6 | MED | recall-index | `tokenize` is ASCII-only (drops CJK/Cyrillic/accents). Broad i18n change; same pattern in goal-state. **CLOSED `d2001ac`.** |
 | 8 | MED | skill-distill | NaN timestamps suppress the time-gap trajectory split. Degrades draft mining only. |
 | 9 | MED | skill-distill | Empty verify output counts as success. NOT a clean fix — silent-success commands (`tsc --noEmit`) legitimately emit nothing; needs a data-model decision. |
 | 10 | LOW | skill-distill | `occurrences` counts overlapping windows, not distinct runs; `minSessions` is the real guard. Add a contract-pinning test. |
-| 13 | LOW | mcp | `getRecentObservations(_, 0)` does `slice(-0)` = full read; output stays bounded downstream. Clamp `limit<=0`. |
+| 13 | LOW | mcp | `getRecentObservations(_, 0)` does `slice(-0)` = full read; output stays bounded downstream. Clamp `limit<=0`. **CLOSED `08cdbae`.** |
 | 14 | MED | manifest-gen | Skill-discovery glob is stricter than every guardrail, so a future non-compliant skill name would vanish from the bundle with `verify:all` still green. No live bug (3 new skills are compliant). |
 
 ## Lesson
@@ -73,8 +73,22 @@ must fail closed on time and identity boundaries.
 
 - **#2 (NaN threshold) closed** (commit `4ef2e83`): `scoreObservations` now guards the
   threshold with `Number.isFinite`, with a regression test. Moves from Deferred to Fixed.
-- **#13 (limit:0) stays deferred, blocker confirmed**: `mcp-server.mts` has no
-  `import.meta` main guard, so `getRecentObservations` cannot be imported for a unit
-  test without starting the server. Closing it cleanly needs an entry-point refactor
-  (main guard + export) or handler-level seeding — out of scope for a one-line fix.
-- The remaining seven deferrals are unchanged.
+
+### Second `/proceed` pass on branch `fix/goal-monitor-boundary-edges` (2026-06-03)
+
+- **#3 (window:0/negative) closed** (commit `6207648`): `scoreObservations` now throws
+  `RangeError` on a non-positive-integer window (reject chosen over clamp); the
+  `ci_goal_check` handler pre-validates `limit` and returns a clean `error()`. Regression
+  tests cover 0/-5/2.5/NaN/±Infinity.
+- **#6 (tokenize ASCII-only) closed** (commit `d2001ac`): both `goal-state` and
+  `recall-index` now split on `/[^\p{L}\p{N}]+/u`; the goal-state pure-digit filter was
+  hardened to `/^\p{N}+$/u` in `0161b80` to match. Regression tests cover accented Latin,
+  Cyrillic, and CJK.
+- **#13 (limit:0) closed** (commits `08cdbae` + `6207648`): the earlier blocker is
+  sidestepped — rather than import the internal fn, the clamp lives inside
+  `getRecentObservations` itself (covers `ci_observations` and every caller), and an
+  integration test (`cc265e8`) drives the **spawned** server through `tools/call` with
+  `limit` 0/-5/2.5 and asserts `isError`. No entry-point refactor needed.
+- The remaining four PR-#154 deferrals (#4, #8, #9, #10, #14) are unchanged. Two new
+  follow-ups surfaced by the completeness sweep (`KEYWORD_MIN_LENGTH=4` drops short-word
+  scripts; Thai combining-mark fragmentation in recall) are logged in CLAUDE.md → Deferred.
