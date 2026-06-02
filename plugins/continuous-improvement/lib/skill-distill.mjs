@@ -93,6 +93,18 @@ function toolSequence(trajectory) {
         .map((obs) => (obs.tool ?? "").toString())
         .filter((tool) => tool.length > 0 && !NOISE_TOOL.test(tool));
 }
+// Tool names are external data (observations.jsonl). The candidate id is later
+// joined into a draft file path, so it must be slugified to [a-z0-9-] to keep a
+// hostile tool name (`../`, `/`, `\`) from escaping the drafts directory.
+function slugifyNgram(ngram) {
+    const slug = ngram
+        .join("-")
+        .toLowerCase()
+        .replace(/[^a-z0-9-]+/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-+|-+$/g, "");
+    return slug.length > 0 ? slug : "sequence";
+}
 /**
  * Mine repeated tool-sequence n-grams from SUCCESSFUL trajectories. A candidate
  * must occur at least `minOccurrences` times across at least `minSessions`
@@ -130,7 +142,7 @@ export function findCandidates(trajectories, opts = {}) {
         if (aggregate.sessions.size < minSessions)
             continue;
         candidates.push({
-            id: `draft-${aggregate.ngram.join("-").toLowerCase()}`,
+            id: `draft-${slugifyNgram(aggregate.ngram)}`,
             ngram: aggregate.ngram,
             occurrences: aggregate.occurrences,
             sessions: [...aggregate.sessions],

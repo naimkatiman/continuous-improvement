@@ -221,3 +221,48 @@ describe("formatDriftReport", () => {
     assert.match(out, /off-goal activity/);
   });
 });
+
+describe("parseGoalFromPlan — empty Goal Keywords section (audit #1)", () => {
+  it("falls back to prose keywords when the section parses empty, not permanent drift", () => {
+    const plan = [
+      "## Goal",
+      "Implement OAuth login with JWT session tokens for the auth service.",
+      "",
+      "## Goal Keywords",
+      "- ",
+      "- ",
+      "",
+      "## Status",
+      "x",
+    ].join("\n");
+    const goal = parseGoalFromPlan(plan);
+    assert.ok(goal);
+    assert.ok(
+      goal.keywords.length > 0,
+      "an empty keyword section must fall back to prose keywords, not yield []",
+    );
+    const report = scoreObservations(
+      [
+        obs({ tool: "Edit", input_summary: "src/auth/oauth-login.ts", output_summary: "jwt session" }),
+        obs({ tool: "Edit", input_summary: "src/auth/session.ts", output_summary: "login" }),
+      ],
+      goal,
+    );
+    assert.notEqual(report.status, "drift", "on-goal work must not be reported as drift");
+    assert.ok(report.matching > 0, "prose-derived keywords should match the on-goal observations");
+  });
+});
+
+describe("scoreObservations — non-finite threshold (audit #2)", () => {
+  it("falls back to the default threshold instead of corrupting the report on NaN", () => {
+    const goal: GoalSpec = { prose: "", keywords: ["login"], paths: [], forbidden: [] };
+    const report = scoreObservations(
+      [obs({ tool: "Edit", input_summary: "src/auth/login.ts" })],
+      goal,
+      { threshold: Number.NaN },
+    );
+    assert.ok(Number.isFinite(report.threshold), "threshold must be finite, not NaN");
+    assert.doesNotMatch(formatDriftReport(report), /NaN/);
+    assert.notEqual(report.status, "drift", "a 100%-matching observation must not be forced to drift");
+  });
+});

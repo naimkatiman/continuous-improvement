@@ -189,9 +189,11 @@ export function query(index: RecallIndex, queryString: string, opts: RecallOpts 
   const hits: RecallHit[] = [];
   for (const doc of index.docs) {
     const ts = (doc.obs.ts ?? "").toString();
-    if (cutoff !== null && ts) {
-      const tsMs = Date.parse(ts);
-      if (!Number.isNaN(tsMs) && tsMs < cutoff) continue;
+    if (cutoff !== null) {
+      // Fail closed: a row with no ts or an unparseable ts has unknown age, so
+      // it must not leak through a time-bounded query.
+      const tsMs = ts ? Date.parse(ts) : Number.NaN;
+      if (Number.isNaN(tsMs) || tsMs < cutoff) continue;
     }
 
     const score = scoreDoc(index, doc, queryTerms);

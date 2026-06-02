@@ -36,6 +36,7 @@ import {
 import {
   buildIndex,
   formatRecallHits,
+  parseSince,
   query as queryRecall,
   type RecallObservation,
 } from "../lib/recall-index.mjs";
@@ -119,6 +120,13 @@ function getString(value: unknown, fallback = ""): string {
 
 function getNumber(value: unknown, fallback = 0): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+// Draft ids are derived from slugified tool n-grams (src/lib/skill-distill.mts)
+// and are joined into a filesystem path, so a caller-supplied id must match the
+// safe shape before it is used to read/write/delete a draft file.
+function isSafeDraftId(id: string): boolean {
+  return /^draft-[a-z0-9-]+$/.test(id);
 }
 
 function getBoolean(value: unknown, fallback = false): boolean {
@@ -935,6 +943,11 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
       }
       const k = getNumber(params.k, 5);
       const since = getString(params.since).trim();
+      if (since && parseSince(since, Date.now()) === null) {
+        return error(
+          `Could not parse since="${since}". Use an ISO timestamp (e.g. 2026-05-01) or a relative window like 7d, 24h, or 30m.`,
+        );
+      }
 
       // Recall searches the full history, not just the recent window.
       const recallObservations: RecallObservation[] = getRecentObservations(project.hash, 100000).map(
@@ -974,6 +987,9 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
       if (!id) {
         return error("id is required — run ci_distill_candidates to list current candidate ids");
       }
+      if (!isSafeDraftId(id)) {
+        return error(`Invalid draft id "${id}". Draft ids look like draft-<slug> (lowercase letters, digits, hyphens).`);
+      }
 
       const distillObservations = readDistillObservations(project.hash);
       const candidate = findCandidates(extractTrajectories(distillObservations)).find((entry) => entry.id === id);
@@ -1009,6 +1025,9 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
       const id = getString(params.id).trim();
       if (!id) {
         return error("id is required");
+      }
+      if (!isSafeDraftId(id)) {
+        return error(`Invalid draft id "${id}". Draft ids look like draft-<slug> (lowercase letters, digits, hyphens).`);
       }
 
       const draftPath = join(INSTINCTS_DIR, project.hash, "drafts", `${id}.yaml`);

@@ -105,9 +105,11 @@ export function parseGoalFromPlan(planMarkdown) {
         return null;
     const keywordsSection = getSection(planMarkdown, "Goal Keywords");
     const scopeSection = getSection(planMarkdown, "Goal Scope");
-    const keywords = keywordsSection
-        ? parseKeywordList(keywordsSection)
-        : extractKeywordsFromProse(prose);
+    const parsedKeywords = keywordsSection ? parseKeywordList(keywordsSection) : [];
+    // An empty/malformed Goal Keywords section (blank bullets, commas-only) must
+    // degrade to prose extraction, exactly like an absent section — otherwise the
+    // scorer runs with zero keywords and reports all on-goal work as drift.
+    const keywords = parsedKeywords.length > 0 ? parsedKeywords : extractKeywordsFromProse(prose);
     return {
         prose,
         keywords,
@@ -164,7 +166,9 @@ export function pathMatchesGlob(rawPath, glob) {
  */
 export function scoreObservations(observations, goal, opts = {}) {
     const window = opts.window && opts.window > 0 ? opts.window : DEFAULT_WINDOW;
-    const threshold = typeof opts.threshold === "number" ? opts.threshold : DEFAULT_THRESHOLD;
+    const threshold = typeof opts.threshold === "number" && Number.isFinite(opts.threshold)
+        ? opts.threshold
+        : DEFAULT_THRESHOLD;
     const recent = observations.slice(-window);
     const total = recent.length;
     if (total === 0) {
