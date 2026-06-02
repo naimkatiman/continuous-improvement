@@ -26,7 +26,7 @@ const KEYWORDS = [
     "transcript-linter",
 ];
 const CLAUDE_PLUGIN_CATEGORY = "productivity";
-const SHARED_PLUGIN_DESCRIPTION = "Stops Claude Code from skipping research, claiming 'done' without verifying, and repeating yesterday's mistakes. The 7 Laws of AI Agent Discipline — 20 bundled skills, gating hooks, the Mulahazah auto-leveling instinct engine, and a GitHub Action transcript linter.";
+const SHARED_PLUGIN_DESCRIPTION = "Stops Claude Code from skipping research, claiming 'done' without verifying, and repeating yesterday's mistakes. The 7 Laws of AI Agent Discipline — 23 bundled skills, gating hooks, the Mulahazah auto-leveling instinct engine, and a GitHub Action transcript linter.";
 // Four vendored upstream companions registered alongside the CI plugin.
 // Each entry points at a pinned-SHA snapshot under third-party/<name>/.
 // See third-party/MANIFEST.md for refresh recipes and per-snapshot
@@ -280,6 +280,77 @@ const EXPERT_TOOL_ENTRIES = [
                 pack: { type: "string", description: "Pack name: react, python, or go" },
             },
             required: ["pack"],
+        },
+    },
+    {
+        name: "ci_goal_check",
+        description: "Check whether recent tool activity still relates to the stated goal. Reads the '## Goal' section of task_plan.md (plus optional '## Goal Keywords' and '## Goal Scope' sections), scores the last N observations, and reports a drift score with the top off-goal tool calls.",
+        manifestWhat: "Detect when a session has drifted from its stated goal",
+        inputSchema: {
+            type: "object",
+            properties: {
+                limit: {
+                    type: "number",
+                    description: "How many recent observations to score (default: 30)",
+                    default: 30,
+                },
+                goal_file: {
+                    type: "string",
+                    description: "Path to a goal/plan markdown file. Defaults to task_plan.md in the project root, then ~/.claude/instincts/<hash>/goal.md",
+                },
+            },
+            required: [],
+        },
+    },
+    {
+        name: "ci_recall",
+        description: "Search past tool-call observations with BM25 ranking. Answers 'have I seen this before?' against ~/.claude/instincts/<hash>/observations.jsonl and returns the most relevant past activity with redacted snippets. Lexical, not semantic.",
+        manifestWhat: "Search past sessions for relevant prior activity (episodic recall)",
+        inputSchema: {
+            type: "object",
+            properties: {
+                query: { type: "string", description: "Search terms, e.g. an error message or a past task" },
+                k: {
+                    type: "number",
+                    description: "How many results to return (default: 5)",
+                    default: 5,
+                },
+                since: {
+                    type: "string",
+                    description: "Only search rows newer than this — ISO timestamp or relative window like '7d', '24h', '30m'",
+                },
+            },
+            required: ["query"],
+        },
+    },
+    {
+        name: "ci_distill_candidates",
+        description: "List distillation candidates: tool sequences that recurred across multiple successful sessions and could become reusable instincts. Read-only analysis — proposes nothing until you run ci_distill_propose.",
+        manifestWhat: "Find repeated successful tool sequences worth turning into skills",
+        inputSchema: { type: "object", properties: {}, required: [] },
+    },
+    {
+        name: "ci_distill_propose",
+        description: "Write a DRAFT instinct for a distillation candidate to ~/.claude/instincts/<hash>/drafts/. The draft has a placeholder body for you to edit; it does not affect behavior until promoted.",
+        manifestWhat: "Draft a reusable instinct from a repeated successful pattern",
+        inputSchema: {
+            type: "object",
+            properties: {
+                id: { type: "string", description: "Candidate id from ci_distill_candidates" },
+            },
+            required: ["id"],
+        },
+    },
+    {
+        name: "ci_distill_promote",
+        description: "Promote an edited draft into a live project instinct at 0.5 confidence (SUGGEST tier) and consume the draft. Run after editing the draft body produced by ci_distill_propose.",
+        manifestWhat: "Promote an edited draft into a live instinct",
+        inputSchema: {
+            type: "object",
+            properties: {
+                id: { type: "string", description: "Draft id to promote" },
+            },
+            required: ["id"],
         },
     },
 ];

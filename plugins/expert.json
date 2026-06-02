@@ -51,6 +51,26 @@
     {
       "name": "ci_load_pack",
       "what": "Load starter instinct packs (react, python, go) into the current project"
+    },
+    {
+      "name": "ci_goal_check",
+      "what": "Detect when a session has drifted from its stated goal"
+    },
+    {
+      "name": "ci_recall",
+      "what": "Search past sessions for relevant prior activity (episodic recall)"
+    },
+    {
+      "name": "ci_distill_candidates",
+      "what": "Find repeated successful tool sequences worth turning into skills"
+    },
+    {
+      "name": "ci_distill_propose",
+      "what": "Draft a reusable instinct from a repeated successful pattern"
+    },
+    {
+      "name": "ci_distill_promote",
+      "what": "Promote an edited draft into a live instinct"
     }
   ],
   "setup": {
