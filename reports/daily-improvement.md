@@ -455,3 +455,9 @@ None. All 661 tests pass / 0 fail as of this cycle.
 - Local `main` was 1 commit ahead of `origin/main` (`d9109f0 docs(report): record deletion of stale merged branch hourly/2026-06-02-remove-stale-orphan-from-test-imports-check (#172)`). The prior cycle produced the commit but did not push it, leaving the remote behind.
 - Pushed with `git push origin main`. Remote fast-forwarded from `f079c8d` to `d9109f0`.
 - Verified with `git status` (working tree clean, branch up to date with `origin/main`) and `git log --oneline origin/main..main` (empty). No stale branches remain.
+
+## 2026-06-02 — Add `hooks/` to generated-artifact verification
+- The `verify:generated` npm script and both CI workflows (`ci.yml`, `release.yml`) ran `git diff --exit-code -- .claude-plugin bin test lib plugins` to ensure all generated `.mjs` artifacts were committed. However, `hooks/*.mjs` files are also compiled from `src/hooks/*.mts` by `tsc`, just like `bin/`, `lib/`, and `test/`. A direct edit to a `.mjs` file in `hooks/` would survive CI undetected.
+- Added `hooks` to the path list in all three locations: `package.json` (`verify:generated` script), `.github/workflows/ci.yml` ("Verify generated artifacts are committed" step), and `.github/workflows/release.yml` (same step name).
+- Verified with `npm run verify:generated` (passes, zero diff) and `npm run verify:all` (all 11 content invariants + typecheck pass). `npm test` confirms 661 pass / 0 fail.
+- Branch: `hourly/2026-06-02-add-hooks-to-verify-generated`.
