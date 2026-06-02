@@ -65,6 +65,13 @@ describe("extractKeywordsFromProse", () => {
         const prose = Array.from({ length: 40 }, (_, i) => `keyword${i}aaaa`).join(" ");
         assert.equal(extractKeywordsFromProse(prose).length, 20);
     });
+    it("keeps accented Latin, Cyrillic, and CJK tokens (item 4)", () => {
+        const kws = extractKeywordsFromProse("Implement café authentication вход системы 認証画面");
+        assert.ok(kws.includes("café"), "accented Latin token must survive tokenization");
+        assert.ok(kws.includes("вход"), "Cyrillic token must survive tokenization");
+        assert.ok(kws.includes("системы"), "longer Cyrillic token must survive tokenization");
+        assert.ok(kws.includes("認証画面"), "CJK token at the length floor must survive tokenization");
+    });
 });
 describe("parseGoalFromPlan", () => {
     it("returns null when there is no Goal section", () => {

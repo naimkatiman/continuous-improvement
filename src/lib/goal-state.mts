@@ -85,7 +85,8 @@ export function getSection(markdown: string, heading: string): string {
 }
 
 /**
- * Tokenize prose into goal keywords: lowercase, split on non-alphanumeric, drop
+ * Tokenize prose into goal keywords: lowercase, split on any non-letter /
+ * non-number (Unicode-aware, so accented Latin / Cyrillic / CJK survive), drop
  * stopwords, pure-digit tokens, and tokens shorter than KEYWORD_MIN_LENGTH.
  * Deduped, capped at KEYWORD_CAP.
  */
@@ -93,7 +94,7 @@ export function extractKeywordsFromProse(prose: string): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
 
-  for (const raw of prose.toLowerCase().split(/[^a-z0-9]+/)) {
+  for (const raw of prose.toLowerCase().split(/[^\p{L}\p{N}]+/u)) {
     const word = raw.trim();
     if (word.length < KEYWORD_MIN_LENGTH) continue;
     if (/^\d+$/.test(word)) continue;
