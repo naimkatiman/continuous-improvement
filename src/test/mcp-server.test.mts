@@ -254,6 +254,111 @@ describe("MCP server — beginner mode", () => {
   });
 });
 
+describe("MCP server — new feature tool handlers (expert)", () => {
+  let client: McpTestClient;
+  let tempHome = "";
+  let tempWorkspace = "";
+
+  before(async () => {
+    tempHome = mkdtempSync(join(tmpdir(), "ci-mcp-newtools-"));
+    mkdirSync(join(tempHome, ".claude", "instincts", "global"), { recursive: true });
+    tempWorkspace = join(tempHome, "workspace");
+    mkdirSync(tempWorkspace, { recursive: true });
+
+    const proc = spawn("node", [MCP_SERVER, "--mode", "expert"], {
+      env: { ...process.env, HOME: tempHome },
+      cwd: tempWorkspace,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    client = new McpTestClient(proc);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  });
+
+  after(async () => {
+    client.destroy();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    try {
+      rmSync(tempHome, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    } catch {
+      // Windows can briefly keep stdio handles open after the child exits.
+    }
+  });
+
+  // audit #12 — ci_recall must fail fast on an unparseable since instead of
+  // silently dropping the filter and returning the full unfiltered history.
+  it("ci_recall rejects an unparseable since (audit #12)", async () => {
+    const r = await client.send({
+      jsonrpc: "2.0",
+      id: 60,
+      method: "tools/call",
+      params: { name: "ci_recall", arguments: { query: "build push", since: "last week" } },
+    });
+    assert.ok(r.result.isError, "an unparseable since must return an error envelope");
+    assert.match(r.result.content[0].text, /since/i);
+  });
+
+  it("ci_recall still requires a query", async () => {
+    const r = await client.send({
+      jsonrpc: "2.0",
+      id: 61,
+      method: "tools/call",
+      params: { name: "ci_recall", arguments: {} },
+    });
+    assert.ok(r.result.isError);
+    assert.match(r.result.content[0].text, /query is required/);
+  });
+
+  // audit #7 — ci_distill_promote must reject a path-traversal id before it is
+  // joined into a filesystem path (an arbitrary read + rmSync delete primitive).
+  it("ci_distill_promote rejects a path-traversal id (audit #7)", async () => {
+    const r = await client.send({
+      jsonrpc: "2.0",
+      id: 62,
+      method: "tools/call",
+      params: { name: "ci_distill_promote", arguments: { id: "../../../../etc/passwd" } },
+    });
+    assert.ok(r.result.isError, "a traversal id must be rejected, not joined into a path");
+    assert.doesNotMatch(
+      r.result.content[0].text,
+      /No draft at/,
+      "must reject the id before the existsSync path probe",
+    );
+  });
+
+  it("ci_distill_propose requires an id", async () => {
+    const r = await client.send({
+      jsonrpc: "2.0",
+      id: 63,
+      method: "tools/call",
+      params: { name: "ci_distill_propose", arguments: {} },
+    });
+    assert.ok(r.result.isError);
+    assert.match(r.result.content[0].text, /id is required/);
+  });
+
+  it("ci_distill_candidates returns the empty-state message on a fresh workspace", async () => {
+    const r = await client.send({
+      jsonrpc: "2.0",
+      id: 64,
+      method: "tools/call",
+      params: { name: "ci_distill_candidates", arguments: {} },
+    });
+    assert.ok(!r.result.isError);
+    assert.match(r.result.content[0].text, /No distillation candidates/);
+  });
+
+  it("ci_goal_check reports no goal source on a fresh workspace", async () => {
+    const r = await client.send({
+      jsonrpc: "2.0",
+      id: 65,
+      method: "tools/call",
+      params: { name: "ci_goal_check", arguments: {} },
+    });
+    assert.ok(!r.result.isError);
+    assert.match(r.result.content[0].text, /No goal source found/);
+  });
+});
+
 describe("MCP server — expert mode", () => {
   let client: McpTestClient;
   let tempHome = "";

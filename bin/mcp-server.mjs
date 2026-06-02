@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { PACKAGE_NAME, VERSION, getToolDefinitions, isPluginMode, } from "../lib/plugin-metadata.mjs";
 import { formatDriftReport, parseGoalFromPlan, scoreObservations, } from "../lib/goal-state.mjs";
-import { buildIndex, formatRecallHits, query as queryRecall, } from "../lib/recall-index.mjs";
+import { buildIndex, formatRecallHits, parseSince, query as queryRecall, } from "../lib/recall-index.mjs";
 import { draftFromCandidate, extractTrajectories, findCandidates, formatCandidates, serializeDraft, } from "../lib/skill-distill.mjs";
 function getHomeDir() {
     return process.env.HOME || process.env.USERPROFILE || homedir();
@@ -34,6 +34,12 @@ function getString(value, fallback = "") {
 }
 function getNumber(value, fallback = 0) {
     return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+// Draft ids are derived from slugified tool n-grams (src/lib/skill-distill.mts)
+// and are joined into a filesystem path, so a caller-supplied id must match the
+// safe shape before it is used to read/write/delete a draft file.
+function isSafeDraftId(id) {
+    return /^draft-[a-z0-9-]+$/.test(id);
 }
 function getBoolean(value, fallback = false) {
     return typeof value === "boolean" ? value : fallback;
@@ -732,6 +738,9 @@ function handleTool(name, params) {
             }
             const k = getNumber(params.k, 5);
             const since = getString(params.since).trim();
+            if (since && parseSince(since, Date.now()) === null) {
+                return error(`Could not parse since="${since}". Use an ISO timestamp (e.g. 2026-05-01) or a relative window like 7d, 24h, or 30m.`);
+            }
             // Recall searches the full history, not just the recent window.
             const recallObservations = getRecentObservations(project.hash, 100000).map((observation) => ({
                 ts: getString(observation.ts),
@@ -764,6 +773,9 @@ function handleTool(name, params) {
             if (!id) {
                 return error("id is required — run ci_distill_candidates to list current candidate ids");
             }
+            if (!isSafeDraftId(id)) {
+                return error(`Invalid draft id "${id}". Draft ids look like draft-<slug> (lowercase letters, digits, hyphens).`);
+            }
             const distillObservations = readDistillObservations(project.hash);
             const candidate = findCandidates(extractTrajectories(distillObservations)).find((entry) => entry.id === id);
             if (!candidate) {
@@ -795,6 +807,9 @@ function handleTool(name, params) {
             const id = getString(params.id).trim();
             if (!id) {
                 return error("id is required");
+            }
+            if (!isSafeDraftId(id)) {
+                return error(`Invalid draft id "${id}". Draft ids look like draft-<slug> (lowercase letters, digits, hyphens).`);
             }
             const draftPath = join(INSTINCTS_DIR, project.hash, "drafts", `${id}.yaml`);
             if (!existsSync(draftPath)) {
