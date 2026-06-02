@@ -88,6 +88,32 @@ describe("findCandidates", () => {
         const trajectories = extractTrajectories([...failingRun("a"), ...failingRun("bb"), ...failingRun("ccc")]);
         assert.deepEqual(findCandidates(trajectories), []);
     });
+    it("counts overlapping windows toward occurrences (contract-pinning for audit #10)", () => {
+        // A single successful trajectory where the same 3-gram repeats in non-overlapping
+        // windows: [Read, Edit, Bash, Read, Edit, Bash, Read, Edit, Bash].
+        // 3-gram [Read, Edit, Bash] appears at indices 0, 3, 6 = 3 occurrences.
+        // This pins the contract that occurrences counts every window, not distinct runs.
+        clock = Date.parse("2026-05-28T08:00:00Z");
+        const overlapping = [
+            obs("Read", { session: "s1" }),
+            obs("Edit", { session: "s1" }),
+            obs("Bash", { session: "s1", input_summary: "npm test", output_summary: "3 passing" }),
+            obs("Read", { session: "s1" }),
+            obs("Edit", { session: "s1" }),
+            obs("Bash", { session: "s1", input_summary: "npm test", output_summary: "3 passing" }),
+            obs("Read", { session: "s1" }),
+            obs("Edit", { session: "s1" }),
+            obs("Bash", { session: "s1", input_summary: "npm test", output_summary: "3 passing" }),
+        ];
+        const trajectories = extractTrajectories(overlapping);
+        assert.equal(trajectories.length, 1, "expected one trajectory");
+        assert.equal(trajectories[0].succeeded, true, "expected trajectory to succeed");
+        // Lower thresholds so the single-session pattern surfaces.
+        const candidates = findCandidates(trajectories, { minOccurrences: 3, minSessions: 1 });
+        const reb = candidates.find((c) => c.ngram.join(">") === "Read>Edit>Bash");
+        assert.ok(reb, "expected 3-gram Read>Edit>Bash to be mined");
+        assert.equal(reb.occurrences, 3, "every matching window within one trajectory increments occurrences");
+    });
 });
 describe("draftFromCandidate + serializeDraft", () => {
     const trajectories = extractTrajectories([
