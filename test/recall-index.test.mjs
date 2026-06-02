@@ -110,3 +110,19 @@ describe("formatRecallHits", () => {
         assert.match(out, /1\.23/);
     });
 });
+describe("query — since window with undated rows (audit #5)", () => {
+    it("excludes rows with missing or unparseable ts when a since window is active", () => {
+        const now = Date.parse("2026-05-28T12:00:00Z");
+        const index = buildIndex([
+            obs({ ts: "", input_summary: "permission denied missing timestamp" }),
+            obs({ ts: "not-a-real-date", input_summary: "permission denied garbage timestamp" }),
+        ]);
+        const hits = query(index, "permission denied", { since: "1d", now });
+        assert.equal(hits.length, 0, "undateable rows must fail closed under a time-bounded query");
+    });
+    it("still returns undated rows when no since window is set", () => {
+        const index = buildIndex([obs({ ts: "", input_summary: "permission denied no timestamp" })]);
+        const hits = query(index, "permission denied", {});
+        assert.equal(hits.length, 1, "undated rows are excluded only under an active since filter");
+    });
+});
