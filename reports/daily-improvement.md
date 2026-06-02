@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-03
 
+## 2026-06-03 — Contract-pin overlapping n-gram occurrence counting (audit #10)
+- Added a regression test in `src/test/skill-distill.test.mts` that proves `findCandidates` counts every matching n-gram window within a trajectory toward `occurrences`, not just distinct runs. The test uses a 9-observation successful trajectory (`[Read, Edit, Bash] × 3`) and asserts the 3-gram occurs 3 times even from a single session when thresholds are lowered.
+- This closes deferred audit item #10 from `docs/audits/2026-06-03-new-feature-audit.md`: occurrences counts windows, not distinct runs; `minSessions` is the real guard against single-session false positives. The test ensures a future refactor cannot accidentally change this behavior without breaking the build.
+- Verified with `npm run build`, `node --test test/skill-distill.test.mjs` (15 pass / 0 fail), and `npm run verify:all` (all 11 content invariants + typecheck pass).
+
 ## 2026-06-03 — Close superseded PR #179 in favor of PR #178
 - PR #179 (`hourly/2026-06-03-unicode-tokenize-audit-6`) was opened with the Unicode-aware regex fix for goal-state and recall-index (audit #6). While it was open, PR #178 (`fix/goal-monitor-boundary-edges`) was found to contain the same Unicode tokenizer fix (`d2001ac`) plus additional boundary hardening: window:0/negative rejection (`6207648`), limit:0 clamping (`08cdbae`), regression tests, and updated deferred documentation.
 - Closed PR #179 with a superseded comment to avoid merge conflicts on the same source lines; the broader fix set will reach `main` through #178. Deleted the local feature branch after switching back to `main`.
