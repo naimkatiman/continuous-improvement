@@ -68,3 +68,13 @@ Green gates (`verify:all` + a 715-test suite) did not prove boundary safety: all
 three HIGH defects were input-validation / fail-open gaps on empty, malformed, or
 undated input. New parser/scorer/index code needs explicit edge-case tests and
 must fail closed on time and identity boundaries.
+
+## Update — post-`/proceed` (2026-06-03)
+
+- **#2 (NaN threshold) closed** (commit `4ef2e83`): `scoreObservations` now guards the
+  threshold with `Number.isFinite`, with a regression test. Moves from Deferred to Fixed.
+- **#13 (limit:0) stays deferred, blocker confirmed**: `mcp-server.mts` has no
+  `import.meta` main guard, so `getRecentObservations` cannot be imported for a unit
+  test without starting the server. Closing it cleanly needs an entry-point refactor
+  (main guard + export) or handler-level seeding — out of scope for a one-line fix.
+- The remaining seven deferrals are unchanged.

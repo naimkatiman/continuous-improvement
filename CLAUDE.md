@@ -72,16 +72,15 @@ Dated entries. Roll older than 60 days into `docs/audits/archive-<quarter>.md`.
 
 ### 2026-06-03 — new-feature audit (`docs/audits/2026-06-03-new-feature-audit.md`)
 
-Nine verified-but-unfixed findings from the PR #154 feature audit, left to the feature owner — each is a design choice, a latent gap with no live bug, or broader than a surgical fix:
+Eight verified-but-unfixed findings from the PR #154 feature audit, left to the feature owner — each is a design choice, a latent gap with no live bug, or broader than a surgical fix. (NaN threshold #2 was closed 2026-06-03 via `/proceed`, commit `4ef2e83`.)
 
-- **goal-state NaN threshold (LOW):** `typeof === "number"` accepts NaN; unreachable from `ci_goal_check`. Later: `Number.isFinite`.
 - **goal-state window:0/negative → default 30 (MED):** treats an explicit out-of-range window as "unset". Defensible as invalid→default; decide clamp vs reject.
 - **goal-state keyword substring match (LOW):** `.includes` matches `test` inside `latest`. Intentional fuzzy heuristic (4-char min + stopwords).
 - **recall tokenize ASCII-only (MED):** `/[^a-z0-9]+/` drops CJK/Cyrillic/accents; same pattern in goal-state. Switch both to `/[^\p{L}\p{N}]+/u` together.
 - **skill-distill empty verify output = success (MED):** `output === ""` counts as a pass. NOT a clean fix — silent-success commands (`tsc --noEmit`) legitimately emit nothing; needs a data-model decision.
 - **skill-distill NaN-ts gap split (MED):** unparseable timestamps suppress the time-gap split, merging unrelated runs. Degrades draft mining only (drafts never auto-apply).
 - **skill-distill overlapping n-gram count (LOW):** `occurrences` counts windows, not distinct runs; `minSessions` is the real guard. Add a contract-pinning test.
-- **mcp getRecentObservations limit:0 (LOW):** `slice(-0)` reads the whole history; output stays bounded downstream. Clamp `limit<=0`. Internal fn — needs export or handler seeding to test.
+- **mcp getRecentObservations limit:0 (LOW):** `slice(-0)` reads the whole history; output stays bounded downstream. Clamp `limit<=0`. Confirmed not unit-testable as-is: `mcp-server.mts` has no `import.meta` main guard, so importing it to test the internal fn would start the server — needs an entry-point refactor (guard + export) or handler seeding first.
 - **manifest generator skill-discovery glob (MED):** `/^[a-z][a-z0-9-]*\.md$/` would silently drop a future skill with an uppercase/underscore/leading-digit name while `verify:all` stays green. No live bug (3 new skills compliant). Align with the tier-lint filter.
 
 Flaky (not a regression): `test/hook.test.mjs` "completes within 2000ms" is an environmental wall-clock flake on a loaded Windows host (2.5–4.2s under heavy concurrent load; passes at 725/725 when the host is quiet). Do not inflate the budget to mask it.
