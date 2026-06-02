@@ -65,6 +65,14 @@ describe("extractKeywordsFromProse", () => {
         const prose = Array.from({ length: 40 }, (_, i) => `keyword${i}aaaa`).join(" ");
         assert.equal(extractKeywordsFromProse(prose).length, 20);
     });
+    it("extracts Unicode keywords (audit #6)", () => {
+        const kws = extractKeywordsFromProse("Implement OAuth login for ユーザー and ログイン");
+        assert.ok(kws.includes("ユーザー"));
+        assert.ok(kws.includes("ログイン"));
+        assert.ok(kws.includes("oauth"));
+        assert.ok(kws.includes("login"));
+        assert.ok(!kws.includes("for"));
+    });
 });
 describe("parseGoalFromPlan", () => {
     it("returns null when there is no Goal section", () => {

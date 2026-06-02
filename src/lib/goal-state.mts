@@ -93,7 +93,7 @@ export function extractKeywordsFromProse(prose: string): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
 
-  for (const raw of prose.toLowerCase().split(/[^a-z0-9]+/)) {
+  for (const raw of prose.toLowerCase().split(/[^\p{L}\p{N}]+/u)) {
     const word = raw.trim();
     if (word.length < KEYWORD_MIN_LENGTH) continue;
     if (/^\d+$/.test(word)) continue;

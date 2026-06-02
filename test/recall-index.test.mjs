@@ -19,6 +19,13 @@ describe("tokenize", () => {
         assert.ok(!tokens.includes("a"));
         assert.deepEqual(tokens, ["permission", "denied"]);
     });
+    it("tokenizes Unicode letters and numbers (audit #6)", () => {
+        const tokens = tokenize("测试 Cypress ログイン 123");
+        assert.ok(tokens.includes("测试"));
+        assert.ok(tokens.includes("cypress"));
+        assert.ok(tokens.includes("ログイン"));
+        assert.ok(tokens.includes("123"));
+    });
 });
 describe("redactSecrets", () => {
     it("redacts AWS access keys", () => {

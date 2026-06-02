@@ -1,5 +1,16 @@
 # Daily Improvement Report — 2026-06-03
 
+## 2026-06-03 — Update stale Project Snapshot test count and commit Unicode tokenization fix
+- The Project Snapshot table at the bottom of `reports/daily-improvement.md` still listed "661 pass / 0 fail", but the Unicode tokenization fix from the prior cycle added 67 new regression tests (728 total). Updated the snapshot to "728 pass / 0 fail".
+- The prior cycle's Unicode-aware regex changes in `src/lib/goal-state.mts` and `src/lib/recall-index.mts` (audit #6) were verified but left uncommitted. Created feature branch `hourly/2026-06-03-unicode-tokenize-audit-6`, staged all changes explicitly by filename, committed, pushed, and opened a PR.
+- Verified with `npm run verify:all` (all 11 content invariants + typecheck pass, 728 pass / 0 fail) and `npm test` (728 pass / 0 fail).
+
+## 2026-06-03 — Fix ASCII-only tokenization in recall-index and goal-state (audit #6)
+- Deferred audit finding #6 noted that `recall-index` and `goal-state` tokenization used `/[^a-z0-9]+/`, which silently drops CJK/Cyrillic/accents. The audit recommended switching both to `/[^\p{L}\p{N}]+/u` together.
+- Updated `src/lib/recall-index.mts` and `src/lib/goal-state.mts` to use the Unicode-aware regex. This preserves existing ASCII behavior while allowing Unicode letters and numbers to be tokenized correctly.
+- Added regression tests in `src/test/recall-index.test.mts` and `src/test/goal-state.test.mts` covering Japanese katakana, hiragana, and Chinese hanzi tokens.
+- Verified with `npm run build` (compiles cleanly, manifests regenerated) and `npm run verify:all` (all 11 content invariants + typecheck pass, 728 pass / 0 fail). Working tree has uncommitted changes.
+
 ## 2026-06-03 — Push rebased local main to origin
 - Local `main` was 2 commits ahead of `origin/main` (`821139d` docs(contributing) and `c9eac5d` docs(report)), but `origin/main` had also moved forward with 3 new commits from merged PRs #154, #175, and #176. A direct push was rejected (non-fast-forward).
 - Fetched remote state, rebased the 2 local docs commits onto the new `origin/main`, and pushed the result. The rebase applied cleanly because the local changes (`CONTRIBUTING.md` and `reports/daily-improvement.md`) did not overlap with the upstream changes (new skills, hooks, and tests under `src/` and `skills/`).
@@ -433,7 +444,7 @@
 | Project | continuous-improvement v3.9.2 |
 | Stack | Node.js (ESM), MCP server, GitHub Action, CLI tools |
 | Stage | Published npm package, active development |
-| Tests (current) | 661 pass / 0 fail |
+| Tests (current) | 728 pass / 0 fail |
 
 ## Changes Implemented
 
