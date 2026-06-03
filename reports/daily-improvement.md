@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-03
 
+## 2026-06-03 — Merge PR #186 and delete stale merged branch
+- PR #186 (`hourly/2026-06-03-align-manifest-skill-discovery`) contained the manifest generator skill-discovery alignment fix and its report entry. It was squash-merged to `main` at commit `2fde059` via `gh pr merge 186 --squash --delete-branch`. The remote branch was deleted automatically; the local remote-tracking ref was pruned with `git remote prune origin`.
+- Local `main` was already up to date after the fast-forward merge, so no additional branch cleanup was needed.
+- Verified with `git branch -a` (no stale `hourly/*` branches remain), `git branch -r` (no stale remote-tracking refs remain), and `npm run verify:all` (all 11 content invariants + typecheck pass, 750 pass / 0 fail). Working tree remains clean.
+
 ## 2026-06-03 — Align manifest generator skill-discovery filter with tier-lint
 - `src/bin/generate-plugin-manifests.mts` used `/^[a-z][a-z0-9-]*\.md$/` to discover companion skills for the plugin bundle, while `check-skill-tiers` (and its mirror `check-skill-law-tag`) accepted any `.md` file except `README.md`. This meant a future skill with an uppercase, underscore, or leading-digit name would pass `verify:all` but be silently omitted from the generated bundle.
 - Replaced the strict regex with the same loose filter `file.endsWith(".md") && file !== "README.md"` so the manifest generator aligns with the tier-lint discovery logic. The current repo has no non-kebab-case skill files, so the generated bundle is unchanged.
