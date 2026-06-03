@@ -426,6 +426,21 @@ describe("MCP server — expert mode", () => {
         assert.match(text, /## task_plan\.md/);
         assert.match(text, /# Task Plan/);
     });
+    it("ci_goal_check rejects an out-of-range limit through tools/call (item 3 boundary)", async () => {
+        // The in-handler guard is the actual safety gate (it shields both
+        // getRecentObservations and scoreObservations). It fires before goal-source
+        // resolution, so a bad limit errors even with a task_plan.md present.
+        for (const [callId, bad] of [[80, 0], [81, -5], [82, 2.5]]) {
+            const response = await client.send({
+                jsonrpc: "2.0",
+                id: callId,
+                method: "tools/call",
+                params: { name: "ci_goal_check", arguments: { limit: bad } },
+            });
+            assert.ok(response.result.isError, `limit=${bad} must be rejected with isError`);
+            assert.match(response.result.content[0].text, /limit must be a positive integer/, `limit=${bad} must return the positive-integer guard message`);
+        }
+    });
     it("returns error for unknown method", async () => {
         const response = await client.send({ jsonrpc: "2.0", id: 18, method: "nonexistent/method", params: {} });
         assert.ok(response.error, "Should return error for unknown method");

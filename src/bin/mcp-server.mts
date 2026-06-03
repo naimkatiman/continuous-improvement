@@ -289,6 +289,12 @@ function countObservations(projectHash: string): number {
 }
 
 function getRecentObservations(projectHash: string, limit = 50): Observation[] {
+  // Clamp a non-positive or non-integer limit to the default. slice(-0) would
+  // otherwise return the ENTIRE history (the limit:0 boundary), and a negative
+  // limit would drop rows from the front instead of taking the tail. ci_goal_check
+  // pre-rejects bad limits with a clear error(); this guards ci_observations and
+  // any other caller that passes a user-supplied limit straight through.
+  const cappedLimit = Number.isInteger(limit) && limit > 0 ? limit : 50;
   const observationsFile = join(INSTINCTS_DIR, projectHash, "observations.jsonl");
   if (!existsSync(observationsFile)) {
     return [];
@@ -299,7 +305,7 @@ function getRecentObservations(projectHash: string, limit = 50): Observation[] {
       .split("\n")
       .filter((line) => line.trim().length > 0);
 
-    return lines.slice(-limit).flatMap((line) => {
+    return lines.slice(-cappedLimit).flatMap((line) => {
       try {
         return [JSON.parse(line) as Observation];
       } catch {
@@ -882,6 +888,11 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
       }
 
       const limit = getNumber(params.limit, 30);
+      if (!Number.isInteger(limit) || limit <= 0) {
+        return error(
+          `limit must be a positive integer; got ${limit}. Omit it to score the default 30 most recent observations.`,
+        );
+      }
       const explicit = getString(params.goal_file).trim();
       const workspaceRoot = getWorkspaceRoot();
       const candidates = explicit

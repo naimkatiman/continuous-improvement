@@ -21,6 +21,10 @@ const STOPWORDS = new Set<string>([
   "task", "goal", "plan", "work", "working", "build", "building", "code",
 ]);
 
+// 4 suits Latin/Cyrillic prose, but it silently drops most Korean/Thai words
+// (typically 2 chars) even though the Unicode splitter now keeps them — so the
+// goal-state half of the tokenizer fix is only partial for those scripts. A
+// script-aware floor is a logged follow-up (see CLAUDE.md Deferred).
 const KEYWORD_MIN_LENGTH = 4;
 const KEYWORD_CAP = 20;
 const DEFAULT_WINDOW = 30;
@@ -85,7 +89,8 @@ export function getSection(markdown: string, heading: string): string {
 }
 
 /**
- * Tokenize prose into goal keywords: lowercase, split on non-alphanumeric, drop
+ * Tokenize prose into goal keywords: lowercase, split on any non-letter /
+ * non-number (Unicode-aware, so accented Latin / Cyrillic / CJK survive), drop
  * stopwords, pure-digit tokens, and tokens shorter than KEYWORD_MIN_LENGTH.
  * Deduped, capped at KEYWORD_CAP.
  */
@@ -93,10 +98,10 @@ export function extractKeywordsFromProse(prose: string): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
 
-  for (const raw of prose.toLowerCase().split(/[^a-z0-9]+/)) {
+  for (const raw of prose.toLowerCase().split(/[^\p{L}\p{N}]+/u)) {
     const word = raw.trim();
     if (word.length < KEYWORD_MIN_LENGTH) continue;
-    if (/^\d+$/.test(word)) continue;
+    if (/^\p{N}+$/u.test(word)) continue;
     if (STOPWORDS.has(word)) continue;
     if (seen.has(word)) continue;
     seen.add(word);
@@ -206,7 +211,15 @@ export function scoreObservations(
   goal: GoalSpec,
   opts: { window?: number; threshold?: number } = {},
 ): DriftReport {
-  const window = opts.window && opts.window > 0 ? opts.window : DEFAULT_WINDOW;
+  // Reject an explicitly-provided out-of-range window instead of silently
+  // coercing it to the default — an operator typo (window=0, -5, 2.5) must not
+  // read as "unset". An absent window legitimately means "use the default".
+  if (opts.window !== undefined && (!Number.isInteger(opts.window) || opts.window <= 0)) {
+    throw new RangeError(
+      `window must be a positive integer; got ${opts.window}. Omit it to use the default of ${DEFAULT_WINDOW}.`,
+    );
+  }
+  const window = opts.window ?? DEFAULT_WINDOW;
   const threshold =
     typeof opts.threshold === "number" && Number.isFinite(opts.threshold)
       ? opts.threshold

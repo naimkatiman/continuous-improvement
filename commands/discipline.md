@@ -33,6 +33,20 @@ The Laws above are the *how*. These five principles are the *why*: code ships fr
 
 Code is a liability, not an asset. Speed without these five turns into someone else's incident at 3am — except the someone is you.
 
+## Goal-Driven Execution maps onto the Laws
+
+"Goal-Driven Execution" is the operator's global principle #4 — tie every change to a stated goal, refuse scope creep, stop when the goal is met. It is not a separate Law here; it is the spine of four existing Laws:
+
+| Sub-rule of Goal-Driven Execution | Lives in |
+|---|---|
+| Tie work to a stated goal; if none, ask | Law 2 — the `## Goal` in `task_plan.md` is the single source of truth |
+| Catch drift away from that goal mid-session | Law 2 — the `goal-monitor` skill / `/goal-check` scores recent activity against the goal |
+| Finish one thing; refuse "while I'm here" scope creep | Law 3 |
+| Commit messages lead with the outcome, not the mechanism | Law 4 — "done" is an observed outcome |
+| Iterate one change at a time toward the goal | Law 6 |
+
+The `goal-monitor` primitive (`/goal-check`, `ci_goal_check`) is the measurable arm of this principle: it reads the `## Goal` section and reports ON GOAL / DRIFT / NO DATA. Run it at phase boundaries to confirm the work and the plan still agree.
+
 ## The Loop
 
 ```
