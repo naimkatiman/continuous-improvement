@@ -610,6 +610,11 @@ export function getPluginHooksConfig(): PluginHooksConfig {
     command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/three-section-close.mjs\"",
     timeout: 5,
   };
+  const goalDriftStopCommand = {
+    type: "command" as const,
+    command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/goal-drift-stop.mjs\"",
+    timeout: 5,
+  };
   const routePromptCommand = {
     type: "command" as const,
     command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/route-prompt.mjs\"",
@@ -618,7 +623,7 @@ export function getPluginHooksConfig(): PluginHooksConfig {
 
   return {
     description:
-      "Gateguard fact-forcing PreToolUse, companion-preference enforcement, observation, session lifecycle, 3-section-close discipline, and UserPromptSubmit lazy-routing hooks for continuous-improvement.",
+      "Gateguard fact-forcing PreToolUse, companion-preference enforcement, observation, session lifecycle, 3-section-close discipline, goal-drift Stop gate, and UserPromptSubmit lazy-routing hooks for continuous-improvement.",
     hooks: {
       // gateguard runs FIRST on PreToolUse so its block decision short-circuits
       // before companion-preference sees the call. companion-preference runs
@@ -636,7 +641,7 @@ export function getPluginHooksConfig(): PluginHooksConfig {
       UserPromptSubmit: [{ hooks: [routePromptCommand] }],
       SessionStart: [{ hooks: [sessionCommand] }],
       SessionEnd: [{ hooks: [sessionCommand] }],
-      Stop: [{ hooks: [threeSectionCloseCommand] }],
+      Stop: [{ hooks: [threeSectionCloseCommand, goalDriftStopCommand] }],
     },
   };
 }
