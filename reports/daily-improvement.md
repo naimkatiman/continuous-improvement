@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-03
 
+## 2026-06-03 — Fast-forward main and delete stale merged branch
+- PR #182 (`hourly/2026-06-03-changelog-3-10-0-entry`) was squash-merged to `main` at commit `afe9718`, but the local feature branch `hourly/2026-06-03-changelog-3-10-0-entry` was still present and checked out. Squash merges create a new commit, so `git branch --merged` does not detect them, leaving stale branches behind. Additionally, `origin/main` had moved forward with three more merged PRs (#178 goal-monitor boundary fixes, #183 goal-drift Stop hook, #184 README goal-drift docs), so local `main` was behind the remote.
+- Checked out `main`, fast-forwarded to `origin/main` (commit `5cf4f83`), and deleted the local feature branch with `git branch -D hourly/2026-06-03-changelog-3-10-0-entry`. The remote branch was already deleted by the squash-merge `--delete-branch` default, so `git push origin --delete` was not needed; the local remote-tracking ref was pruned with `git remote prune origin`.
+- Verified with `git branch -a` (no stale `hourly/*` branches remain), `git branch -r` (no stale remote-tracking refs remain), and `npm run verify:all` (all 11 content invariants + typecheck pass, 750 pass / 0 fail). Working tree remains clean.
+
 ## 2026-06-03 — Cut CHANGELOG [3.10.0] section from stale [Unreleased] header
 - `CHANGELOG.md` still carried three fixed items under `[Unreleased]` even though the v3.10.0 release was cut on 2026-06-03 (commit `a28855f`, PR #177). The fixes (installer cleanup-only hook filtering, per-bucket hook entry cloning, GateGuard MultiEdit docs sync) all landed on `main` between 2026-05-17 and 2026-05-19 and were therefore included in the release.
 - Replaced the `[Unreleased]` header with `[3.10.0] — 2026-06-03`, restored an empty `[Unreleased]` section above it per keep-a-changelog convention, and committed via branch `hourly/2026-06-03-changelog-3-10-0-entry` + PR #182.
@@ -479,7 +484,7 @@
 | Project | continuous-improvement v3.10.0 |
 | Stack | Node.js (ESM), MCP server, GitHub Action, CLI tools |
 | Stage | Published npm package, active development |
-| Tests (current) | 727 pass / 0 fail |
+| Tests (current) | 750 pass / 0 fail |
 
 ## Changes Implemented
 
@@ -499,7 +504,7 @@
 
 ## Remaining Failures
 
-None. All 727 tests pass / 0 fail as of this cycle.
+None. All 750 tests pass / 0 fail as of this cycle.
 
 ## Deferred Items
 
