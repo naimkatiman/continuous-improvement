@@ -96,5 +96,6 @@ Flaky (not a regression): `test/hook.test.mjs` "completes within 2000ms" is an e
 | Build pipeline | `bin/check-everything-mirror.mjs` + `verify:generated` script |
 | 7 Laws routing | [proceed-with-the-recommendation](skills/proceed-with-the-recommendation.md) — walks recommendation lists under all 7 Laws |
 | Recommendation shape | [wild-risa-balance](skills/wild-risa-balance.md) — 5+2 floor + R-I-S-A filter |
+| Goal-Driven Execution | [goal-monitor](skills/goal-monitor.md) + `hooks/goal-drift-stop.mjs` — Stop-boundary drift gate (warn by default; `CLAUDE_GOAL_DRIFT_GATE=block` enforces) |
 
 CLAUDE.md text tells humans the rule. Skills make the agent obey it. Keep both layers.
