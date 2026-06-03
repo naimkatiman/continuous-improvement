@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-03
 
+## 2026-06-03 — Align manifest generator skill-discovery filter with tier-lint
+- `src/bin/generate-plugin-manifests.mts` used `/^[a-z][a-z0-9-]*\.md$/` to discover companion skills for the plugin bundle, while `check-skill-tiers` (and its mirror `check-skill-law-tag`) accepted any `.md` file except `README.md`. This meant a future skill with an uppercase, underscore, or leading-digit name would pass `verify:all` but be silently omitted from the generated bundle.
+- Replaced the strict regex with the same loose filter `file.endsWith(".md") && file !== "README.md"` so the manifest generator aligns with the tier-lint discovery logic. The current repo has no non-kebab-case skill files, so the generated bundle is unchanged.
+- Verified with `npm run build` (manifests regenerated cleanly), `npm test` (750 pass / 0 fail), and `npm run verify:all` (all 11 content invariants + typecheck pass). Commit `c09bc10` on branch `hourly/2026-06-03-align-manifest-skill-discovery`.
+
 ## 2026-06-03 — Fast-forward main and delete stale merged branch
 - PR #182 (`hourly/2026-06-03-changelog-3-10-0-entry`) was squash-merged to `main` at commit `afe9718`, but the local feature branch `hourly/2026-06-03-changelog-3-10-0-entry` was still present and checked out. Squash merges create a new commit, so `git branch --merged` does not detect them, leaving stale branches behind. Additionally, `origin/main` had moved forward with three more merged PRs (#178 goal-monitor boundary fixes, #183 goal-drift Stop hook, #184 README goal-drift docs), so local `main` was behind the remote.
 - Checked out `main`, fast-forwarded to `origin/main` (commit `5cf4f83`), and deleted the local feature branch with `git branch -D hourly/2026-06-03-changelog-3-10-0-entry`. The remote branch was already deleted by the squash-merge `--delete-branch` default, so `git push origin --delete` was not needed; the local remote-tracking ref was pruned with `git remote prune origin`.
