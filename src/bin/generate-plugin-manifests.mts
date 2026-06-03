@@ -223,6 +223,10 @@ async function writePluginBundle(): Promise<void> {
       join(PLUGIN_BUNDLE_DIR, "lib", "goal-state.mjs"),
     ),
     copyFileTo(
+      join(REPO_ROOT, "lib", "goal-drift-gate.mjs"),
+      join(PLUGIN_BUNDLE_DIR, "lib", "goal-drift-gate.mjs"),
+    ),
+    copyFileTo(
       join(REPO_ROOT, "lib", "recall-index.mjs"),
       join(PLUGIN_BUNDLE_DIR, "lib", "recall-index.mjs"),
     ),
