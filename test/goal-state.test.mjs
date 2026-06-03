@@ -65,6 +65,21 @@ describe("extractKeywordsFromProse", () => {
         const prose = Array.from({ length: 40 }, (_, i) => `keyword${i}aaaa`).join(" ");
         assert.equal(extractKeywordsFromProse(prose).length, 20);
     });
+    it("keeps accented Latin, Cyrillic, and CJK tokens (item 4)", () => {
+        const kws = extractKeywordsFromProse("Implement café authentication вход системы 認証画面");
+        assert.ok(kws.includes("café"), "accented Latin token must survive tokenization");
+        assert.ok(kws.includes("вход"), "Cyrillic token must survive tokenization");
+        assert.ok(kws.includes("системы"), "longer Cyrillic token must survive tokenization");
+        assert.ok(kws.includes("認証画面"), "CJK token at the length floor must survive tokenization");
+    });
+    it("drops pure non-ASCII numeral runs, not just ASCII digits (item 4 follow-up)", () => {
+        // The unicode splitter now lets Arabic-Indic ١٢٣٤٥ (5 digits) survive and
+        // clear the 4-char floor; the digit-drop filter must catch it like "12345".
+        const kws = extractKeywordsFromProse("deploy version ١٢٣٤٥ login");
+        assert.ok(kws.includes("deploy"));
+        assert.ok(kws.includes("login"));
+        assert.ok(!kws.includes("١٢٣٤٥"), "a pure non-ASCII numeral run must be dropped, not kept as a keyword");
+    });
 });
 describe("parseGoalFromPlan", () => {
     it("returns null when there is no Goal section", () => {
@@ -199,6 +214,21 @@ describe("parseGoalFromPlan — empty Goal Keywords section (audit #1)", () => {
         assert.notEqual(report.status, "drift", "on-goal work must not be reported as drift");
         assert.ok(report.matching > 0, "prose-derived keywords should match the on-goal observations");
     });
+});
+describe("scoreObservations — out-of-range window (item 3)", () => {
+    const goal = { prose: "", keywords: ["login"], paths: [], forbidden: [] };
+    const one = [obs({ tool: "Edit", input_summary: "src/auth/login.ts" })];
+    it("defaults to the standard window when window is undefined", () => {
+        assert.equal(scoreObservations(one, goal).total, 1);
+    });
+    it("honors a valid positive integer window", () => {
+        assert.equal(scoreObservations(one, goal, { window: 5 }).total, 1);
+    });
+    for (const bad of [0, -5, 2.5, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+        it(`rejects an explicit out-of-range window (${bad}) instead of silently defaulting`, () => {
+            assert.throws(() => scoreObservations(one, goal, { window: bad }), /window/i, `window=${bad} must be rejected, not coerced to the default`);
+        });
+    }
 });
 describe("scoreObservations — non-finite threshold (audit #2)", () => {
     it("falls back to the default threshold instead of corrupting the report on NaN", () => {

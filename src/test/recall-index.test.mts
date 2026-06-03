@@ -32,6 +32,13 @@ describe("tokenize", () => {
     assert.ok(!tokens.includes("a"));
     assert.deepEqual(tokens, ["permission", "denied"]);
   });
+
+  it("keeps accented, Cyrillic, and CJK tokens (item 4)", () => {
+    const tokens = tokenize("café вход 認証");
+    assert.ok(tokens.includes("café"), "accented Latin token must survive tokenization");
+    assert.ok(tokens.includes("вход"), "Cyrillic token must survive tokenization");
+    assert.ok(tokens.includes("認証"), "CJK token must survive tokenization");
+  });
 });
 
 describe("redactSecrets", () => {
