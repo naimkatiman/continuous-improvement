@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-03
 
+## 2026-06-03 — Close deferred audit item #10 (overlapping n-gram count) in docs
+- Commit `c19e9f3` already added the contract-pinning regression test for audit #10, but both `CLAUDE.md` and `docs/audits/2026-06-03-new-feature-audit.md` still listed it as an open deferred item needing action. The stale references could mislead a future reader into thinking the test still needed to be written.
+- Removed the `#10` row from the deferred table in the audit doc, added a closure note in the post-`/proceed` update section citing commit `c19e9f3`, updated the remaining-deferral count, and removed the overlapping-n-gram bullet from `CLAUDE.md`.
+- Verified with `npm run verify:all` (all 11 content invariants + typecheck pass, 727 pass / 0 fail). Working tree remains clean.
+
 ## 2026-06-03 — Update stale Project Snapshot in daily report
 - The embedded `Project Snapshot` table and `Remaining Failures` section in `reports/daily-improvement.md` still showed `v3.9.2` and `661 pass / 0 fail` even though the repo released `v3.10.0` and the test suite now runs `727 pass / 0 fail`. The `Deferred Items` summary also claimed no deferred items remained, but `CLAUDE.md` tracks the 2026-06-03 new-feature audit deferred list.
 - Updated the snapshot to `v3.10.0` and `727 pass / 0 fail`, refreshed the remaining-failures count, and pointed the deferred summary at `CLAUDE.md` so it does not drift out of sync again.
