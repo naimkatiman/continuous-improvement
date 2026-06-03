@@ -58,7 +58,7 @@ surgical fix — left to the PR #154 owner.
 | 6 | MED | recall-index | `tokenize` is ASCII-only (drops CJK/Cyrillic/accents). Broad i18n change; same pattern in goal-state. **CLOSED `d2001ac`.** |
 | 8 | MED | skill-distill | NaN timestamps suppress the time-gap trajectory split. Degrades draft mining only. |
 | 9 | MED | skill-distill | Empty verify output counts as success. NOT a clean fix — silent-success commands (`tsc --noEmit`) legitimately emit nothing; needs a data-model decision. |
-| 10 | LOW | skill-distill | `occurrences` counts overlapping windows, not distinct runs; `minSessions` is the real guard. Add a contract-pinning test. |
+| 10 | LOW | skill-distill | `occurrences` counts overlapping windows, not distinct runs; `minSessions` is the real guard. Add a contract-pinning test. **CLOSED `c19e9f3`.** |
 | 13 | LOW | mcp | `getRecentObservations(_, 0)` does `slice(-0)` = full read; output stays bounded downstream. Clamp `limit<=0`. **CLOSED `08cdbae`.** |
 | 14 | MED | manifest-gen | Skill-discovery glob is stricter than every guardrail, so a future non-compliant skill name would vanish from the bundle with `verify:all` still green. No live bug (3 new skills are compliant). |
 
@@ -73,6 +73,10 @@ must fail closed on time and identity boundaries.
 
 - **#2 (NaN threshold) closed** (commit `4ef2e83`): `scoreObservations` now guards the
   threshold with `Number.isFinite`, with a regression test. Moves from Deferred to Fixed.
+- **#10 (overlapping n-gram count) closed** (commit `c19e9f3`): regression test added in
+  `src/test/skill-distill.test.mts` proves that `occurrences` counts every matching window,
+  not distinct runs; `minSessions` remains the guard against single-session false positives.
+  Moves from Deferred to Fixed.
 
 ### Second `/proceed` pass on branch `fix/goal-monitor-boundary-edges` (2026-06-03)
 
@@ -89,6 +93,6 @@ must fail closed on time and identity boundaries.
   `getRecentObservations` itself (covers `ci_observations` and every caller), and an
   integration test (`cc265e8`) drives the **spawned** server through `tools/call` with
   `limit` 0/-5/2.5 and asserts `isError`. No entry-point refactor needed.
-- The remaining four PR-#154 deferrals (#4, #8, #9, #10, #14) are unchanged. Two new
+- The remaining four PR-#154 deferrals (#4, #8, #9, #14) are unchanged. Two new
   follow-ups surfaced by the completeness sweep (`KEYWORD_MIN_LENGTH=4` drops short-word
   scripts; Thai combining-mark fragmentation in recall) are logged in CLAUDE.md → Deferred.

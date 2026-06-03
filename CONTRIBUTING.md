@@ -42,7 +42,7 @@ Before opening a PR, verify:
 - [ ] **One concern.** The PR title fits the form `<type>(<scope>): <single observable outcome>` without "and" or commas. If you need a comma, split the PR.
 - [ ] **Size budget.** ≤15 hand-edited source files OR ≤500 LOC of hand-edited source. Generated artifacts (bundle regen, lockfiles, snapshots) don't count toward the budget but must ride with the source change that produced them — never separately, never alongside unrelated source.
 - [ ] **No drive-bys.** Edits unrelated to the stated concern get their own PR, even if they're small. "While I was here" is not a justification.
-- [ ] **Bundle regen rule.** If a source change requires `npm run build`, the regenerated `bin/*.mjs`, `lib/*.mjs`, `test/*.test.mjs`, and `plugins/*.json` ship in the same PR as the source. The CI gate `npm run verify:generated` enforces this, but you should verify locally before pushing.
+- [ ] **Bundle regen rule.** If a source change requires `npm run build`, the regenerated `bin/*.mjs`, `hooks/*.mjs`, `lib/*.mjs`, `test/*.test.mjs`, and `plugins/*.json` ship in the same PR as the source. The CI gate `npm run verify:generated` enforces this, but you should verify locally before pushing.
 - [ ] **Skill mirror rule.** If you edit `plugins/continuous-improvement/skills/<name>/SKILL.md`, mirror the same change to `skills/<name>.md` (or vice versa) in the same PR. The two distribution copies must not drift across PR boundaries — installs from `~/.claude/skills/` (curl path) and from the plugin bundle must produce identical skill content.
 - [ ] **Test/docs sync rule.** Tests that assert on prose content (`assert.match` against a `*.md` file like `README.md`, `CHANGELOG.md`, or any skill markdown) must ship in the same PR as the docs change adding the asserted substring. Wholesale rewrites of a docs file (README rewrites, CHANGELOG restructures) must verify every existing prose-substring assertion in `src/test/*.mts` still matches before merging — the rewrite PR is responsible for either preserving the asserted strings or updating the tests, not the next contributor's PR.
 
@@ -84,7 +84,7 @@ Add translations to `docs/` following the pattern `README.<lang-code>.md`.
 
 ## Architecture
 
-> **Source of truth: `src/`.** Edit `src/bin/*.mts`, `src/lib/*.mts`, `src/test/*.test.mts` only. The committed `bin/*.mjs`, `lib/*.mjs`, `test/*.test.mjs`, and `plugins/*.json` are `tsc` and generator output — they are wiped and rewritten on every `npm run build` and any direct edit silently disappears. Full edit-then-build workflow in [Editing the CLI / MCP server / linter](#editing-the-cli--mcp-server--linter) below.
+> **Source of truth: `src/`.** Edit `src/bin/*.mts`, `src/lib/*.mts`, `src/test/*.test.mts` only. The committed `bin/*.mjs`, `hooks/*.mjs`, `lib/*.mjs`, `test/*.test.mjs`, and `plugins/*.json` are `tsc` and generator output — they are wiped and rewritten on every `npm run build` and any direct edit silently disappears. Full edit-then-build workflow in [Editing the CLI / MCP server / linter](#editing-the-cli--mcp-server--linter) below.
 
 ```
 SKILL.md                    → The rules (any LLM can follow these)
@@ -95,6 +95,7 @@ src/lib/*.mts               → TypeScript source for runtime modules and shared
 src/test/*.mts              → TypeScript source for the test suite
 bin/*.mjs                   → Committed runtime artifacts used by npm/action entrypoints
                               (generated from src/bin/*.mts by `npm run build`)
+hooks/*.mjs                 → Committed hook artifacts (generated from src/hooks/*.mts by `npm run build`)
 lib/*.mjs                   → Committed runtime modules generated from src/lib/*.mts
 test/*.test.mjs             → Committed test artifacts (generated from src/test/*.mts)
 plugins/*.json              → Generated plugin manifests from shared MCP/plugin metadata
@@ -102,7 +103,7 @@ plugins/*.json              → Generated plugin manifests from shared MCP/plugi
 
 ### Editing the CLI / MCP server / linter
 
-**Do not edit `bin/*.mjs`, `lib/*.mjs`, `test/*.test.mjs`, or `plugins/*.json` directly.**
+**Do not edit `bin/*.mjs`, `hooks/*.mjs`, `lib/*.mjs`, `test/*.test.mjs`, or `plugins/*.json` directly.**
 They are generated from `src/`. The CI step `npm run verify:generated` will fail
 any PR where committed build artifacts drift from the source.
 
@@ -181,7 +182,7 @@ A new skill is a fit if it provably enforces (or is a routed activator for) at l
 ### What is *not* automated (the honest limits)
 
 - The [Law Coverage Matrix](#law-coverage-matrix) below is hand-maintained — add your new skill to the right Law row when you ship it.
-- The "20 skills" count appears in both [README.md](README.md) and [docs/skills.md](docs/skills.md) — bump both when N changes.
+- The "25 skills" count appears in both [README.md](README.md) and [docs/skills.md](docs/skills.md) — bump both when N changes.
 - Promotion between tiers (e.g. `2` → `1` after it proves itself) is a manual edit to the frontmatter `tier:` field, by design — the maintainer should make that call deliberately.
 
 ## Testing
@@ -216,7 +217,7 @@ when you remove a new transient/output directory.
 ### Commands
 
 ```bash
-npm run build                       # Regenerate bin/*.mjs, lib/*.mjs, test/*.test.mjs, plugins/*.json
+npm run build                       # Regenerate bin/*.mjs, hooks/*.mjs, lib/*.mjs, test/*.test.mjs, plugins/*.json
 npm test                            # Build + run all tests
 node --test test/hook.test.mjs      # Run a single test file
 npm run verify:generated            # Confirm source and generated artifacts are in sync (CI gate)
