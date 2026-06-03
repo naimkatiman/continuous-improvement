@@ -6,6 +6,10 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+---
+
+## [3.10.0] — 2026-06-03
+
 ### Fixed
 
 - **Installer now persists cleanup-only hook filtering** — `src/bin/install.mts` now writes `settings.json` when it strips broken legacy observe/session hooks even if the clean installer hook was already present, so coexistence cases no longer leave stale legacy commands behind. Regression coverage now seeds a clean observe hook alongside a broken legacy one and verifies the broken entry disappears while the clean one remains once.

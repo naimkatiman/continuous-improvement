@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-03
 
+## 2026-06-03 — Cut CHANGELOG [3.10.0] section from stale [Unreleased] header
+- `CHANGELOG.md` still carried three fixed items under `[Unreleased]` even though the v3.10.0 release was cut on 2026-06-03 (commit `a28855f`, PR #177). The fixes (installer cleanup-only hook filtering, per-bucket hook entry cloning, GateGuard MultiEdit docs sync) all landed on `main` between 2026-05-17 and 2026-05-19 and were therefore included in the release.
+- Replaced the `[Unreleased]` header with `[3.10.0] — 2026-06-03`, restored an empty `[Unreleased]` section above it per keep-a-changelog convention, and committed via branch `hourly/2026-06-03-changelog-3-10-0-entry` + PR #182.
+- Verified with `npm run verify:all` (all 11 content invariants + typecheck pass, 727 pass / 0 fail).
+
 ## 2026-06-03 — Push local main to origin
 - Local `main` was 5 commits ahead of `origin/main` after the June 3 docs sync wave (cloudplugin metadata sync, stale reference fixes, Project Snapshot update, and audit #10 closure). These were all doc-only or report-only changes that passed `verify:all` and `npm test` locally but had not been published to the remote.
 - Pushed with `git push origin main`. Remote fast-forwarded cleanly from `c19e9f3` to `3dca6f0`.
