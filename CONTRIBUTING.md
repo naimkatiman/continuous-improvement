@@ -182,7 +182,7 @@ A new skill is a fit if it provably enforces (or is a routed activator for) at l
 ### What is *not* automated (the honest limits)
 
 - The [Law Coverage Matrix](#law-coverage-matrix) below is hand-maintained — add your new skill to the right Law row when you ship it.
-- The "20 skills" count appears in both [README.md](README.md) and [docs/skills.md](docs/skills.md) — bump both when N changes.
+- The "25 skills" count appears in both [README.md](README.md) and [docs/skills.md](docs/skills.md) — bump both when N changes.
 - Promotion between tiers (e.g. `2` → `1` after it proves itself) is a manual edit to the frontmatter `tier:` field, by design — the maintainer should make that call deliberately.
 
 ## Testing
