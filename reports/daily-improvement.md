@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-03
 
+## 2026-06-03 — Push local main to origin
+- Local `main` was 5 commits ahead of `origin/main` after the June 3 docs sync wave (cloudplugin metadata sync, stale reference fixes, Project Snapshot update, and audit #10 closure). These were all doc-only or report-only changes that passed `verify:all` and `npm test` locally but had not been published to the remote.
+- Pushed with `git push origin main`. Remote fast-forwarded cleanly from `c19e9f3` to `3dca6f0`.
+- Verified with `git status` (working tree clean, branch up to date with `origin/main`), `git log --oneline origin/main..main` (empty), and `npm run verify:all` (all 11 content invariants + typecheck pass, 727 pass / 0 fail). No stale local or remote branches remain.
+
 ## 2026-06-03 — Close deferred audit item #10 (overlapping n-gram count) in docs
 - Commit `c19e9f3` already added the contract-pinning regression test for audit #10, but both `CLAUDE.md` and `docs/audits/2026-06-03-new-feature-audit.md` still listed it as an open deferred item needing action. The stale references could mislead a future reader into thinking the test still needed to be written.
 - Removed the `#10` row from the deferred table in the audit doc, added a closure note in the post-`/proceed` update section citing commit `c19e9f3`, updated the remaining-deferral count, and removed the overlapping-n-gram bullet from `CLAUDE.md`.
