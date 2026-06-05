@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-03
 
+## 2026-06-03 — Close deferred manifest generator skill-discovery glob in CLAUDE.md
+- The deferred item "manifest generator skill-discovery glob (MED)" was fixed in commit `2fde059` (PR #186) but remained listed as open in `CLAUDE.md` § Deferred. Updated the entry to mark it **CLOSED** with the commit reference and a brief description of the fix (generator now uses the same loose filter as tier-lint discovery).
+- No code changes; this is a documentation-only alignment between the deferred audit log and the actual repo state.
+- Verified with `npm run verify:all` (all 11 content invariants + typecheck pass) and `npm test` (750 pass / 0 fail).
+
 ## 2026-06-03 — Merge PR #186 and delete stale merged branch
 - PR #186 (`hourly/2026-06-03-align-manifest-skill-discovery`) contained the manifest generator skill-discovery alignment fix and its report entry. It was squash-merged to `main` at commit `2fde059` via `gh pr merge 186 --squash --delete-branch`. The remote branch was deleted automatically; the local remote-tracking ref was pruned with `git remote prune origin`.
 - Local `main` was already up to date after the fast-forward merge, so no additional branch cleanup was needed.
