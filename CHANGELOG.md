@@ -6,6 +6,10 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- **Landing page rebuilt as a Blueprint spec-sheet on the `continuous-improvement.dev` domain** — `docs/landing/index.html` is now a warm-paper editorial spec-sheet (OKLCH palette, one safety-vermilion accent, Space Grotesk + JetBrains Mono, asymmetric hero, the 7 Laws rendered as numbered clauses, enforcement zig-zag), replacing the previous dark/purple/emoji page. The 7-Law copy is pulled verbatim from `commands/discipline.md`. A `docs/landing/CNAME` plus updated `homepage`, canonical URL, and README link point the GitHub Pages site at the `continuous-improvement.dev` custom domain.
+
 ---
 
 ## [3.10.0] — 2026-06-03
