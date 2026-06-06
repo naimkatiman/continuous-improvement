@@ -57,6 +57,51 @@ describe("extractTrajectories", () => {
         ];
         assert.equal(extractTrajectories(failing)[0].succeeded, false);
     });
+    it("splits on unparseable timestamps (fail-closed for audit #8)", () => {
+        clock = Date.parse("2026-05-28T08:00:00Z");
+        const first = [
+            obs("Read", { session: "s1" }),
+            obs("Edit", { session: "s1" }),
+            obs("Bash", { session: "s1", input_summary: "npm test", output_summary: "3 passing" }),
+            obs("Edit", { session: "s1" }),
+        ];
+        // Next block has unparseable timestamps → must start a new trajectory.
+        const badTs = [
+            obs("Read", { session: "s1", ts: "not-a-timestamp" }),
+            obs("Edit", { session: "s1", ts: "not-a-timestamp" }),
+            obs("Bash", { session: "s1", ts: "not-a-timestamp", input_summary: "npm test", output_summary: "3 passing" }),
+            obs("Edit", { session: "s1", ts: "not-a-timestamp" }),
+        ];
+        // Third valid run after the gap.
+        clock += 60 * 60 * 1000; // +1h
+        const third = [
+            obs("Read", { session: "s1" }),
+            obs("Edit", { session: "s1" }),
+            obs("Bash", { session: "s1", input_summary: "npm test", output_summary: "3 passing" }),
+            obs("Edit", { session: "s1" }),
+        ];
+        const trajectories = extractTrajectories([...first, ...badTs, ...third]);
+        assert.equal(trajectories.length, 3, "valid block, invalid block, and post-gap block should each be their own trajectory");
+        assert.equal(trajectories[0].session, "s1");
+        assert.equal(trajectories[0].observations.length, 4);
+        assert.equal(trajectories[1].observations.length, 4);
+        assert.equal(trajectories[2].observations.length, 4);
+    });
+    it("splits when either side of a pair has an unparseable timestamp", () => {
+        clock = Date.parse("2026-05-28T08:00:00Z");
+        const validThenInvalid = [
+            obs("Read", { session: "s1" }),
+            obs("Edit", { session: "s1" }),
+            obs("Bash", { session: "s1", input_summary: "npm test", output_summary: "3 passing" }),
+            obs("Edit", { session: "s1" }),
+            obs("Read", { session: "s1", ts: "invalid" }),
+            obs("Edit", { session: "s1", ts: "invalid" }),
+            obs("Bash", { session: "s1", ts: "invalid", input_summary: "npm test", output_summary: "3 passing" }),
+            obs("Edit", { session: "s1", ts: "invalid" }),
+        ];
+        const trajectories = extractTrajectories(validThenInvalid);
+        assert.equal(trajectories.length, 2);
+    });
 });
 describe("findCandidates", () => {
     it("requires occurrences across multiple distinct sessions", () => {

@@ -1,5 +1,11 @@
 # Daily Improvement Report — 2026-06-06
 
+## 2026-06-06 — Close deferred audit item #8 (skill-distill NaN-ts gap split)
+- `src/lib/skill-distill.mts` `extractTrajectories` silently merged unrelated observation runs when a timestamp was unparseable, because the gap-detection logic only split when *both* adjacent timestamps were valid (`!Number.isNaN(prevMs) && !Number.isNaN(curMs) && curMs - prevMs > GAP_MS`). This meant a block of malformed timestamps between two valid sessions would fuse all three into a single incoherent trajectory, degrading draft-skill mining.
+- Changed the boundary predicate to `(prevValid && curValid && gap > GAP_MS) || (prevValid !== curValid)`. This fails closed: any transition from a valid timestamp to an invalid one (or vice versa) forces a trajectory split, while consecutive invalid timestamps stay together so a single bad block does not shatter into unusable 1-observation fragments.
+- Added two regression tests in `src/test/skill-distill.test.mts`: (1) a valid block → invalid block → post-gap valid block produces three separate trajectories, and (2) a valid block immediately followed by an invalid block produces two trajectories.
+- Verified with `npm run build` (`.mjs` artifacts regenerated cleanly), `node --test test/skill-distill.test.mjs` (17 pass / 0 fail), and `npm run verify:all` (all 11 content invariants + typecheck pass). Updated `CLAUDE.md` § Deferred and `docs/audits/2026-06-03-new-feature-audit.md` to mark #8 closed.
+
 ## 2026-06-06 — Sync update-card test counts to current 750-test suite
 - The HTML summary card at `reports/assets/update-card.html` still showed `727` in the "Tests Passing", "Total Tests", and badge stats even though the test suite grew to `750 pass / 0 fail` after the goal-monitor boundary-fix merge (PRs #178, #183, #184). The card was last synced on 2026-06-03 when the count was 727.
 - Updated all three occurrences from `727` to `750` so the card reflects the current test-suite reality.
