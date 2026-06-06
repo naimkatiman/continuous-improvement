@@ -531,6 +531,11 @@
 
 None. All 750 tests pass / 0 fail as of this cycle.
 
+## 2026-06-06 — Fix audit doc deferrals lost in PR #187 squash-merge
+- Commit `32b443c` (marking deferred findings #2 and #14 as CLOSED in the audit log) was authored on the local branch `hourly/2026-06-06-update-card-test-count-750` but never pushed to the remote before PR #187 was created and squash-merged. The resulting `main` commit `0f40d55` only contained the first two commits of the branch, leaving the audit doc stale: row #2 lacked its `CLOSED` annotation, row #14 still appeared open, and the post-`/proceed` summary incorrectly claimed "four" remaining deferrals instead of three.
+- Created branch `hourly/2026-06-06-fix-audit-doc-deferrals`, applied the exact missing diff (3 insertions, 3 deletions), and merged it via PR #188 (`gh pr merge 188 --squash --delete-branch --admin`).
+- Verified with `npm run verify:all` (all 11 content invariants + typecheck pass, 750 pass / 0 fail). Working tree is clean; no stale hourly branches remain.
+
 ## Deferred Items
 
 - No orphan `.mjs` files remain (all are generated from `.mts` sources). See `CLAUDE.md` § Deferred for the current audit-deferred item list.
