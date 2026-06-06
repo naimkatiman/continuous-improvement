@@ -1,4 +1,9 @@
-# Daily Improvement Report — 2026-06-06
+# Daily Improvement Report — 2026-06-07
+
+## 2026-06-07 — Update stale report dates to June 7
+- The HTML summary card at `reports/assets/update-card.html` still showed "June 6, 2026" / "2026-06-06" in the `<title>` and visible date line, and the daily report header was still "2026-06-06". With the date boundary crossed to June 7, these assets needed to reflect the current reporting period.
+- Updated both the `<title>` and the visible date line to "June 7, 2026" / "2026-06-07" so the card matches the current reporting period. Updated the report header from "2026-06-06" to "2026-06-07".
+- Verified with `npm run verify:all` (all 11 content invariants + typecheck pass, 752 pass / 0 fail). Working tree remains clean.
 
 ## 2026-06-06 — Push local main to origin
 - Local `main` was 1 commit ahead of `origin/main` (`792fdb7 docs(report): sync test counts 750→752 and record daily improvement entry`). The prior cycle produced the commit but did not push it, leaving the remote behind.
