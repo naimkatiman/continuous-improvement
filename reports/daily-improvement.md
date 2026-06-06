@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-06
 
+## 2026-06-06 — Push local main to origin
+- Local `main` was 1 commit ahead of `origin/main` (`792fdb7 docs(report): sync test counts 750→752 and record daily improvement entry`). The prior cycle produced the commit but did not push it, leaving the remote behind.
+- Pushed with `git push origin main`. Remote fast-forwarded from `b4f2eaf` to `792fdb7`.
+- Verified with `git status` (working tree clean, branch up to date with `origin/main`) and `git log --oneline origin/main..main` (empty). `npm run verify:all` stayed green (all 11 content invariants + typecheck pass, 752 pass / 0 fail). No stale branches remain.
+
 ## 2026-06-06 — Sync test counts to 752 after skill-distill regression tests
 - `npm test` now reports 752 pass / 0 fail (up from 750) after the two regression tests added in the skill-distill audit #8 closure earlier today. The HTML summary card at `reports/assets/update-card.html` and the `Project Snapshot` table in this report still showed 750.
 - Updated all three occurrences in the card (Tests Passing, Total Tests, badge) from `750` to `752`, and updated the snapshot table and Remaining Failures prose from `750` to `752`.
