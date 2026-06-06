@@ -1,4 +1,9 @@
-# Daily Improvement Report — 2026-06-03
+# Daily Improvement Report — 2026-06-06
+
+## 2026-06-06 — Update stale report dates to June 6
+- The HTML summary card at `reports/assets/update-card.html` still showed "June 3, 2026" / "2026-06-03" in the `<title>` and visible date line, and the daily report header was still "2026-06-03". With the date boundary crossed to June 6, these assets needed to reflect the current reporting period.
+- Updated both the `<title>` and the visible date line to "June 6, 2026" / "2026-06-06" so the card matches the current reporting period. Updated the report header from "2026-06-03" to "2026-06-06".
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 11 content invariants + typecheck pass, 750 pass / 0 fail). Working tree remains clean.
 
 ## 2026-06-03 — Close deferred manifest generator skill-discovery glob in CLAUDE.md
 - The deferred item "manifest generator skill-discovery glob (MED)" was fixed in commit `2fde059` (PR #186) but remained listed as open in `CLAUDE.md` § Deferred. Updated the entry to mark it **CLOSED** with the commit reference and a brief description of the fix (generator now uses the same loose filter as tier-lint discovery).
