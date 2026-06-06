@@ -1,246 +1,485 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="no-js">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>continuous-improvement — A seatbelt for Claude Code</title>
-  <meta name="description" content="Runtime discipline framework for Claude Code. Research first. Edit safely. Verify before done. Remember what worked.">
-  <meta property="og:title" content="continuous-improvement — A seatbelt for Claude Code">
+  <meta name="color-scheme" content="light">
+  <title>continuous-improvement · A seatbelt for Claude Code</title>
+  <meta name="description" content="A behavioral standard for AI coding agents. The 7 Laws of AI Agent Discipline, enforced at the tool boundary by runtime hooks.">
+  <meta property="og:title" content="continuous-improvement · A seatbelt for Claude Code">
   <meta property="og:description" content="The 7 Laws of AI Agent Discipline. Runtime hooks, enforcement skills, and project memory for Claude Code.">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://naimkatiman.github.io/continuous-improvement">
+  <link rel="canonical" href="https://continuous-improvement.dev/">
+  <meta property="og:url" content="https://continuous-improvement.dev/">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="continuous-improvement — A seatbelt for Claude Code">
-  <meta name="twitter:description" content="The 7 Laws of AI Agent Discipline. Runtime hooks, enforcement skills, and project memory for Claude Code.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🛡%3C/text%3E%3C/svg%3E">
+  <meta name="twitter:title" content="continuous-improvement · A seatbelt for Claude Code">
+  <meta name="twitter:description" content="The 7 Laws of AI Agent Discipline. Enforced at the tool boundary, not suggested in a doc.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2.5' y='2.5' width='27' height='27' rx='6' fill='%23faf7f0' stroke='%23231f17' stroke-width='2'/%3E%3Cpath d='M8 24 L24 8' stroke='%23d24a2e' stroke-width='4' stroke-linecap='round'/%3E%3Crect x='13' y='13' width='6' height='6' rx='1.5' fill='%23231f17'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0a0a0f;
-      --surface: #13131a;
-      --border: #1e1e2e;
-      --text: #e2e2e8;
-      --muted: #7a7a8a;
-      --accent: #a78bfa;
-      --accent-2: #34d399;
-      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      --font-mono: "SF Mono", Monaco, monospace;
+      --paper: oklch(0.985 0.006 85);
+      --paper-2: oklch(0.968 0.008 84);
+      --ink: oklch(0.205 0.012 55);
+      --ink-soft: oklch(0.34 0.012 58);
+      --muted: oklch(0.52 0.012 60);
+      --line: oklch(0.90 0.006 80);
+      --line-strong: oklch(0.83 0.008 78);
+      --signal: oklch(0.56 0.18 33);
+      --signal-bright: oklch(0.62 0.19 34);
+      --signal-deep: oklch(0.47 0.155 33);
+      --signal-wash: oklch(0.62 0.19 34 / 0.08);
+      --font-sans: "Space Grotesk", system-ui, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+      --maxw: 1180px;
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scroll-behavior: smooth; }
+    html { -webkit-text-size-adjust: 100%; }
+    @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
     body {
       font-family: var(--font-sans);
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.6;
+      background: var(--paper);
+      color: var(--ink);
+      line-height: 1.55;
+      font-size: 16px;
       -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
     }
-    .container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
-    header {
-      border-bottom: 1px solid var(--border);
-      position: sticky; top: 0; background: rgba(10,10,15,0.8);
-      backdrop-filter: blur(12px); z-index: 100;
+    a { color: inherit; }
+    ::selection { background: var(--signal-wash); }
+    :focus-visible { outline: 2px solid var(--signal); outline-offset: 3px; border-radius: 2px; }
+    .container { max-width: var(--maxw); margin: 0 auto; padding: 0 28px; }
+    .kicker {
+      font-family: var(--font-mono); font-size: 12px; font-weight: 500;
+      letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted);
     }
-    nav { display: flex; align-items: center; justify-content: space-between; height: 64px; }
-    .logo { font-weight: 700; font-size: 18px; display: flex; align-items: center; gap: 8px; }
-    .logo span { color: var(--accent); }
-    .nav-links { display: flex; gap: 28px; align-items: center; }
-    .nav-links a { color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 500; transition: color 0.2s; }
-    .nav-links a:hover { color: var(--text); }
+    .kicker b { color: var(--signal-deep); font-weight: 600; }
+    header { position: sticky; top: 0; z-index: 50; background: var(--paper); border-bottom: 1px solid var(--line); }
+    nav { display: flex; align-items: center; justify-content: space-between; height: 62px; gap: 24px; }
+    .brand { display: flex; align-items: center; gap: 11px; text-decoration: none; flex-shrink: 0; }
+    .brand svg { width: 26px; height: 26px; display: block; }
+    .brand .name { font-weight: 600; font-size: 15.5px; letter-spacing: -0.01em; }
+    .brand .ver { font-family: var(--font-mono); font-size: 11px; color: var(--muted); padding: 2px 6px; border: 1px solid var(--line); border-radius: 5px; }
+    .nav-links { display: flex; align-items: center; gap: 26px; }
+    .nav-links a { text-decoration: none; font-size: 14px; font-weight: 500; color: var(--muted); transition: color 0.18s var(--ease); }
+    .nav-links a:hover { color: var(--ink); }
     .btn {
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 10px 18px; border-radius: 8px; font-size: 14px; font-weight: 600;
-      text-decoration: none; transition: all 0.2s; cursor: pointer; border: none;
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      font-family: var(--font-sans); font-size: 14px; font-weight: 600;
+      padding: 10px 18px; border-radius: 9px; text-decoration: none; cursor: pointer;
+      border: 1px solid transparent; transition: transform 0.12s var(--ease), background 0.18s var(--ease), border-color 0.18s var(--ease);
+      white-space: nowrap;
     }
-    .btn-primary { background: var(--accent); color: #0a0a0f; }
-    .btn-primary:hover { background: #c4b5fd; }
-    .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
-    .btn-secondary:hover { border-color: var(--muted); }
-    .hero { padding: 120px 0 80px; text-align: center; }
-    .hero h1 { font-size: 56px; line-height: 1.05; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 20px; }
-    .hero h1 em { font-style: normal; color: var(--accent); }
-    .hero p { font-size: 20px; color: var(--muted); max-width: 560px; margin: 0 auto 36px; }
-    .hero-badges { display: flex; gap: 12px; justify-content: center; margin-bottom: 40px; flex-wrap: wrap; }
-    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; font-size: 13px; color: var(--muted); }
-    .hero-cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-    .install-box {
-      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-      padding: 16px 20px; font-family: var(--font-mono); font-size: 14px;
-      display: flex; align-items: center; justify-content: space-between; gap: 16px;
-      max-width: 480px; margin: 48px auto 0;
+    .btn-primary { background: var(--signal); color: var(--paper); }
+    .btn-primary:hover { background: var(--signal-deep); }
+    .btn-primary:active { transform: translateY(1px) scale(0.99); }
+    .btn-ghost { background: transparent; color: var(--ink); border-color: var(--line-strong); }
+    .btn-ghost:hover { border-color: var(--ink-soft); background: var(--paper-2); }
+    .btn-ghost:active { transform: translateY(1px) scale(0.99); }
+    .hero { padding: clamp(56px, 9vw, 104px) 0 clamp(40px, 6vw, 72px); }
+    .hero-grid { display: grid; grid-template-columns: 1.32fr 1fr; gap: clamp(32px, 6vw, 80px); align-items: start; }
+    .hero-lead .kicker { margin-bottom: 22px; }
+    h1.display { font-size: clamp(2.6rem, 6vw, 4.4rem); font-weight: 600; line-height: 1.0; letter-spacing: -0.035em; margin-bottom: 26px; max-width: 13ch; }
+    h1.display .belt { position: relative; white-space: nowrap; }
+    h1.display .belt::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0.08em; height: 0.09em; background: var(--signal); transform: scaleX(0); transform-origin: left; }
+    .hero-sub { font-size: clamp(1.02rem, 1.6vw, 1.18rem); color: var(--ink-soft); max-width: 56ch; margin-bottom: 34px; }
+    .install { display: flex; align-items: stretch; border: 1px solid var(--line-strong); border-radius: 11px; overflow: hidden; max-width: 460px; background: var(--paper-2); }
+    .install .tag { display: flex; align-items: center; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.12em; color: var(--muted); padding: 0 14px; border-right: 1px solid var(--line); background: var(--paper); text-transform: uppercase; }
+    .install code { display: flex; align-items: center; flex: 1; font-family: var(--font-mono); font-size: 14px; color: var(--ink); padding: 14px 16px; }
+    .install code .dollar { color: var(--signal-deep); margin-right: 9px; user-select: none; }
+    .copy-btn { display: inline-flex; align-items: center; gap: 7px; font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--muted); background: var(--paper); border: none; border-left: 1px solid var(--line); padding: 0 16px; cursor: pointer; transition: color 0.18s var(--ease), background 0.18s var(--ease); }
+    .copy-btn:hover { color: var(--ink); background: var(--paper-2); }
+    .copy-btn svg { width: 14px; height: 14px; }
+    .copy-btn[data-state="copied"] { color: var(--signal-deep); }
+    .hero-meta { margin-top: 18px; font-size: 13.5px; color: var(--muted); }
+    .hero-meta a { color: var(--signal-deep); text-decoration: none; font-weight: 600; border-bottom: 1px solid var(--signal-wash); }
+    .hero-meta a:hover { border-bottom-color: var(--signal); }
+    .index { border-left: 1px solid var(--line); padding-left: clamp(20px, 3vw, 36px); }
+    .index-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; }
+    .index-head .lbl { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase; }
+    .index-list { list-style: none; }
+    .index-list li { border-top: 1px solid var(--line); }
+    .index-list li:last-child { border-bottom: 1px solid var(--line); }
+    .index-list a { display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: center; padding: 11px 4px; text-decoration: none; transition: transform 0.2s var(--ease), color 0.18s var(--ease); }
+    .index-list a:hover { transform: translateX(8px); }
+    .index-list .n { font-family: var(--font-mono); font-size: 12.5px; color: var(--signal-deep); font-weight: 600; }
+    .index-list .t { font-size: 14px; font-weight: 500; color: var(--ink-soft); transition: color 0.18s var(--ease); }
+    .index-list a:hover .t { color: var(--ink); }
+    .index-list li.active a { background: var(--signal-wash); }
+    .index-list li.active .t { color: var(--ink); font-weight: 600; }
+    .spec-strip { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--paper-2); }
+    .spec-strip ul { list-style: none; display: flex; flex-wrap: wrap; gap: 0; }
+    .spec-strip li { flex: 1 1 auto; min-width: 150px; padding: 18px 24px; font-family: var(--font-mono); border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 4px; }
+    .spec-strip li:last-child { border-right: none; }
+    .spec-strip .v { font-size: 22px; font-weight: 600; color: var(--ink); letter-spacing: -0.02em; }
+    .spec-strip .k { font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+    section { padding: clamp(64px, 9vw, 108px) 0; }
+    .sec-head { max-width: 60ch; margin-bottom: clamp(40px, 5vw, 60px); }
+    .sec-head .kicker { display: block; margin-bottom: 16px; }
+    .sec-head h2 { font-size: clamp(1.9rem, 3.6vw, 2.7rem); font-weight: 600; letter-spacing: -0.03em; line-height: 1.06; margin-bottom: 16px; }
+    .sec-head p { font-size: 1.05rem; color: var(--muted); max-width: 54ch; }
+    .clauses { border-top: 1px solid var(--line-strong); }
+    .clause { display: grid; grid-template-columns: 86px 1fr; gap: clamp(16px, 3vw, 40px); padding: clamp(22px, 3vw, 32px) 8px; border-bottom: 1px solid var(--line); transition: background 0.2s var(--ease); }
+    .clause:hover { background: var(--signal-wash); }
+    .clause .num { font-family: var(--font-mono); font-size: clamp(1.7rem, 3vw, 2.3rem); font-weight: 500; color: var(--muted); letter-spacing: -0.02em; transition: color 0.2s var(--ease); }
+    .clause:hover .num { color: var(--signal); }
+    .clause h3 { font-size: clamp(1.18rem, 2vw, 1.5rem); font-weight: 600; letter-spacing: -0.02em; margin-bottom: 12px; }
+    .clause .check { display: flex; gap: 12px; align-items: baseline; font-size: 1rem; color: var(--ink-soft); margin-bottom: 10px; max-width: 56ch; }
+    .clause .check .lbl, .clause .flag .lbl { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line-strong); border-radius: 4px; padding: 2px 6px; flex-shrink: 0; transform: translateY(-1px); }
+    .clause .flag { display: flex; gap: 12px; align-items: baseline; font-family: var(--font-mono); font-size: 13.5px; color: var(--muted); }
+    .clause .flag .lbl { color: var(--signal-deep); border-color: var(--signal-wash); }
+    .clause .flag q { color: var(--ink-soft); font-style: normal; }
+    .loop-band { background: var(--ink); color: var(--paper); }
+    .loop-band .container { padding-top: clamp(48px, 6vw, 72px); padding-bottom: clamp(48px, 6vw, 72px); }
+    .loop-band .kicker { color: oklch(0.7 0.01 70); margin-bottom: 22px; }
+    .loop-band .kicker b { color: var(--signal-bright); }
+    .loop-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 10px; }
+    .loop-node { font-family: var(--font-mono); font-size: clamp(0.95rem, 1.8vw, 1.25rem); font-weight: 500; letter-spacing: -0.01em; color: var(--paper); }
+    .loop-node:first-child { color: var(--signal-bright); }
+    .loop-arrow { color: oklch(0.55 0.02 60); font-family: var(--font-mono); font-size: 1.1rem; }
+    .loop-foot { margin-top: 26px; font-size: 14px; color: oklch(0.72 0.01 70); max-width: 60ch; }
+    .mechs { border-top: 1px solid var(--line-strong); }
+    .mech { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(20px, 4vw, 56px); padding: clamp(28px, 4vw, 44px) 8px; border-bottom: 1px solid var(--line); align-items: center; }
+    .mech .body h3 { font-size: clamp(1.2rem, 2vw, 1.5rem); font-weight: 600; letter-spacing: -0.02em; margin: 10px 0 12px; }
+    .mech .body p { color: var(--muted); max-width: 48ch; font-size: 1rem; }
+    .mech .id { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--signal-deep); }
+    .mech .spec { font-family: var(--font-mono); font-size: 13.5px; color: var(--ink-soft); background: var(--paper-2); border: 1px solid var(--line); border-radius: 11px; padding: 22px 24px; display: flex; flex-direction: column; gap: 10px; }
+    .mech .spec .row { display: flex; align-items: center; gap: 10px; }
+    .mech .spec .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--signal); flex-shrink: 0; }
+    .mech .spec .muted { color: var(--muted); }
+    .mech:nth-child(even) .body { order: 2; }
+    .cta-frame { position: relative; border: 1px solid var(--line-strong); border-radius: 4px; padding: clamp(40px, 6vw, 72px); display: grid; grid-template-columns: 1.2fr 1fr; gap: clamp(28px, 5vw, 64px); align-items: center; background: var(--paper-2); }
+    .cta-frame::before, .cta-frame::after { content: ""; position: absolute; width: 16px; height: 16px; border: 2px solid var(--signal); }
+    .cta-frame::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; }
+    .cta-frame::after { bottom: -1px; right: -1px; border-left: 0; border-top: 0; }
+    .cta h2 { font-size: clamp(1.9rem, 3.4vw, 2.6rem); font-weight: 600; letter-spacing: -0.03em; line-height: 1.05; margin-bottom: 14px; }
+    .cta p { color: var(--muted); max-width: 42ch; }
+    .cta-actions { display: flex; flex-direction: column; gap: 16px; }
+    .cta-actions .install { max-width: none; }
+    .cta-buttons { display: flex; gap: 12px; flex-wrap: wrap; }
+    footer { border-top: 1px solid var(--line); padding: 40px 0; }
+    .foot-grid { display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+    .foot-doc { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; color: var(--muted); }
+    .foot-links { display: flex; gap: 22px; }
+    .foot-links a { font-size: 13.5px; color: var(--muted); text-decoration: none; transition: color 0.18s var(--ease); }
+    .foot-links a:hover { color: var(--ink); }
+    .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    .skip-link { position: absolute; left: 12px; top: -60px; z-index: 100; background: var(--ink); color: var(--paper); font-size: 13px; font-weight: 600; padding: 9px 16px; border-radius: 9px; text-decoration: none; transition: top 0.18s var(--ease); }
+    .skip-link:focus { top: 12px; }
+    @media (prefers-reduced-motion: no-preference) {
+      .js .reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.7s var(--ease), transform 0.7s var(--ease); transition-delay: calc(var(--i, 0) * 55ms); }
+      .js .reveal.in { opacity: 1; transform: none; }
+      .js .belt.draw::after { transition: transform 0.9s var(--ease) 0.35s; transform: scaleX(1); }
     }
-    .install-box code { color: var(--accent-2); }
-    .copy-btn { background: none; border: none; color: var(--muted); cursor: pointer; padding: 4px; }
-    .copy-btn:hover { color: var(--text); }
-    section { padding: 80px 0; border-top: 1px solid var(--border); }
-    section h2 { font-size: 32px; font-weight: 700; margin-bottom: 16px; text-align: center; }
-    section .subtitle { text-align: center; color: var(--muted); max-width: 520px; margin: 0 auto 56px; }
-    .laws { display: grid; gap: 16px; }
-    .law {
-      display: flex; gap: 20px; padding: 24px; background: var(--surface);
-      border: 1px solid var(--border); border-radius: 12px; transition: border-color 0.2s;
+    @media (prefers-reduced-motion: reduce) { .belt::after { transform: scaleX(1); } }
+    @media (max-width: 880px) {
+      .hero-grid { grid-template-columns: 1fr; gap: 44px; }
+      .index { border-left: 0; border-top: 1px solid var(--line); padding-left: 0; padding-top: 28px; }
+      .mech { grid-template-columns: 1fr; gap: 22px; }
+      .mech:nth-child(even) .body { order: 0; }
+      .cta-frame { grid-template-columns: 1fr; }
     }
-    .law:hover { border-color: var(--accent); }
-    .law-num {
-      width: 40px; height: 40px; border-radius: 10px; background: rgba(167,139,250,0.12);
-      color: var(--accent); display: grid; place-items: center; font-weight: 700; flex-shrink: 0;
-    }
-    .law h3 { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
-    .law p { font-size: 14px; color: var(--muted); }
-    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
-    .feature { padding: 28px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
-    .feature h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
-    .feature p { font-size: 14px; color: var(--muted); }
-    .cta-section { text-align: center; }
-    .cta-section h2 { margin-bottom: 12px; }
-    .cta-section p { color: var(--muted); margin-bottom: 28px; }
-    footer { padding: 40px 0; text-align: center; color: var(--muted); font-size: 14px; border-top: 1px solid var(--border); }
-    footer a { color: var(--muted); text-decoration: none; }
-    footer a:hover { color: var(--text); }
-    @media (max-width: 640px) {
-      .hero h1 { font-size: 36px; }
-      .hero p { font-size: 17px; }
-      .nav-links { display: none; }
+    @media (max-width: 620px) {
+      .nav-links a:not(.btn) { display: none; }
+      .brand .ver { display: none; }
+      .clause { grid-template-columns: 54px 1fr; gap: 14px; }
+      .install { flex-wrap: wrap; }
+      .install .tag { display: none; }
+      .spec-strip li { min-width: 50%; border-bottom: 1px solid var(--line); }
     }
   </style>
 </head>
 <body>
+  <a class="skip-link" href="#laws">Skip to the 7 Laws</a>
   <header>
-    <nav class="container">
-      <div class="logo">🛡 <span>continuous-improvement</span></div>
+    <nav class="container" aria-label="Primary">
+      <a class="brand" href="#top" aria-label="continuous-improvement home">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <rect x="2.5" y="2.5" width="27" height="27" rx="6" fill="none" stroke="currentColor" stroke-width="2"/>
+          <path d="M8 24 L24 8" stroke="var(--signal)" stroke-width="4" stroke-linecap="round"/>
+          <rect x="13" y="13" width="6" height="6" rx="1.5" fill="currentColor"/>
+        </svg>
+        <span class="name">continuous-improvement</span>
+        <span class="ver">v3.10.0</span>
+      </a>
       <div class="nav-links">
-        <a href="#laws">7 Laws</a>
-        <a href="#features">Features</a>
+        <a href="#laws">The 7 Laws</a>
+        <a href="#enforcement">Enforcement</a>
         <a href="https://github.com/naimkatiman/continuous-improvement">GitHub</a>
-        <a href="https://www.npmjs.com/package/continuous-improvement" class="btn btn-primary">Get Started</a>
+        <a href="https://www.npmjs.com/package/continuous-improvement" class="btn btn-primary">Install</a>
       </div>
     </nav>
   </header>
 
-  <section class="hero">
-    <div class="container">
-      <h1>A seatbelt for <em>Claude Code</em></h1>
-      <p>Research first. Edit safely. Verify before done. Remember what worked. The 7 Laws of AI Agent Discipline — runtime hooks, enforcement skills, and project memory.</p>
-      <div class="hero-badges">
-        <span class="badge">⚡ Zero runtime deps</span>
-        <span class="badge">🔒 MIT License</span>
+  <main id="top">
+    <section class="hero">
+      <div class="container hero-grid">
+        <div class="hero-lead">
+          <span class="kicker reveal">SPEC <b>/</b> AI AGENT DISCIPLINE <b>/</b> REV 3.10.0</span>
+          <h1 class="display reveal" style="--i:1">A seatbelt for <span class="belt draw">Claude Code</span></h1>
+          <p class="hero-sub reveal" style="--i:2">continuous-improvement is a behavioral standard for AI coding agents. Seven laws, enforced at the tool boundary by runtime hooks, so the agent researches before it edits, verifies before it reports done, and keeps what worked.</p>
+          <div class="install reveal" style="--i:3">
+            <span class="tag">install</span>
+            <code><span class="dollar" aria-hidden="true">$</span>npx continuous-improvement install</code>
+            <button class="copy-btn" type="button" aria-label="Copy install command" data-copy="npx continuous-improvement install">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+              <span class="copy-label">Copy</span>
+            </button>
+          </div>
+          <p class="hero-meta reveal" style="--i:4">No Node setup, zero runtime dependencies. <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/QUICKSTART.md">Read the quickstart</a></p>
+        </div>
+        <div class="index reveal" style="--i:2" aria-label="The seven laws index">
+          <div class="index-head">
+            <span class="lbl">The standard</span>
+            <span class="lbl">7 clauses</span>
+          </div>
+          <ol class="index-list">
+            <li class="active"><a href="#law-1" aria-current="true"><span class="n">01</span><span class="t">Research Before Executing</span></a></li>
+            <li><a href="#law-2"><span class="n">02</span><span class="t">Plan Is Sacred</span></a></li>
+            <li><a href="#law-3"><span class="n">03</span><span class="t">One Thing at a Time</span></a></li>
+            <li><a href="#law-4"><span class="n">04</span><span class="t">Verify Before Reporting</span></a></li>
+            <li><a href="#law-5"><span class="n">05</span><span class="t">Reflect After Sessions</span></a></li>
+            <li><a href="#law-6"><span class="n">06</span><span class="t">Iterate One Change</span></a></li>
+            <li><a href="#law-7"><span class="n">07</span><span class="t">Learn From Every Session</span></a></li>
+          </ol>
+        </div>
       </div>
-      <div class="hero-cta">
-        <a href="https://www.npmjs.com/package/continuous-improvement" class="btn btn-primary">Install from npm</a>
-        <a href="https://github.com/naimkatiman/continuous-improvement" class="btn btn-secondary">View on GitHub</a>
-      </div>
-      <div class="install-box">
-        <code>npx continuous-improvement install</code>
-        <button class="copy-btn" onclick="navigator.clipboard.writeText('npx continuous-improvement install')" title="Copy">📋</button>
-      </div>
-    </div>
-  </section>
+    </section>
 
-  <section id="laws">
-    <div class="container">
-      <h2>The 7 Laws</h2>
-      <p class="subtitle">Runtime discipline that stops agents from editing before understanding.</p>
-      <div class="laws">
-        <div class="law">
-          <div class="law-num">1</div>
-          <div>
-            <h3>Pre-flight before every flight</h3>
-            <p>Investigate the codebase, read the spec, and list facts before touching a single file.</p>
-          </div>
-        </div>
-        <div class="law">
-          <div class="law-num">2</div>
-          <div>
-            <h3>One concern per change</h3>
-            <p>Each commit addresses exactly one thing. No drive-by refactors mixed with bug fixes.</p>
-          </div>
-        </div>
-        <div class="law">
-          <div class="law-num">3</div>
-          <div>
-            <h3>Plan before execution</h3>
-            <p>Write the plan, get alignment, then code. Never code your way to understanding.</p>
-          </div>
-        </div>
-        <div class="law">
-          <div class="law-num">4</div>
-          <div>
-            <h3>Verify before "done"</h3>
-            <p>Run tests, typecheck, and lint before declaring completion. Proof beats promise.</p>
-          </div>
-        </div>
-        <div class="law">
-          <div class="law-num">5</div>
-          <div>
-            <h3>Reflect after every session</h3>
-            <p>What worked? What failed? Capture lessons so the next agent starts smarter.</p>
-          </div>
-        </div>
-        <div class="law">
-          <div class="law-num">6</div>
-          <div>
-            <h3>Iterate, never batch</h3>
-            <p>One change → verify → next. Never carry a failure forward into the next task.</p>
-          </div>
-        </div>
-        <div class="law">
-          <div class="law-num">7</div>
-          <div>
-            <h3>Remember what worked</h3>
-            <p>Store instincts, patterns, and decisions in project memory. Yesterday's lesson is today's shortcut.</p>
-          </div>
-        </div>
-      </div>
+    <div class="spec-strip">
+      <ul class="container">
+        <li><span class="v">25</span><span class="k">Bundled skills</span></li>
+        <li><span class="v">7</span><span class="k">Laws in force</span></li>
+        <li><span class="v">0</span><span class="k">Runtime deps</span></li>
+        <li><span class="v">MIT</span><span class="k">License</span></li>
+        <li><span class="v">v3.10.0</span><span class="k">Current rev</span></li>
+      </ul>
     </div>
-  </section>
 
-  <section id="features">
-    <div class="container">
-      <h2>What You Get</h2>
-      <p class="subtitle">Three layers of enforcement that physically block bad behavior.</p>
-      <div class="features">
-        <div class="feature">
-          <h3>🚧 Gateguard Hook</h3>
-          <p>A PreToolUse hook that blocks Edit / Write / Bash until the agent presents a fact-list investigation. No more editing before reading.</p>
+    <section id="laws">
+      <div class="container">
+        <div class="sec-head">
+          <span class="kicker"><b>01</b> · The seven laws</span>
+          <h2>Discipline, written as clauses.</h2>
+          <p>Each law has one check to pass and one red flag that means stop. The runtime holds you to them, so you do not have to remember.</p>
         </div>
-        <div class="feature">
-          <h3>✅ Verification Loop</h3>
-          <p>Six-phase verification ladder — typecheck, test, build, lint, e2e, healthcheck — before any task is marked done.</p>
-        </div>
-        <div class="feature">
-          <h3>🧠 Mulahazah Engine</h3>
-          <p>Instinct packs capture lessons across sessions. The same mistake never repeats twice.</p>
-        </div>
-        <div class="feature">
-          <h3>🤖 Ralph Loop</h3>
-          <p>Autonomous agent execution that converts PRDs to executable JSON and runs until all stories pass.</p>
-        </div>
-        <div class="feature">
-          <h3>📋 /ship Command</h3>
-          <p>Fan-out to code-reviewer + security-auditor + test-engineer in parallel, then synthesize a go/no-go decision.</p>
-        </div>
-        <div class="feature">
-          <h3>⚙️ CI Linter</h3>
-          <p>GitHub Action that lints agent transcripts for discipline violations before merge.</p>
+        <div class="clauses">
+          <article class="clause reveal" id="law-1">
+            <div class="num">01</div>
+            <div>
+              <h3>Research Before Executing</h3>
+              <div class="check"><span class="lbl">Check</span><span>Did I search for existing solutions before writing anything new?</span></div>
+              <div class="flag"><span class="lbl">Red flag</span><q>I'll just quickly...</q></div>
+            </div>
+          </article>
+          <article class="clause reveal" id="law-2">
+            <div class="num">02</div>
+            <div>
+              <h3>Plan Is Sacred</h3>
+              <div class="check"><span class="lbl">Check</span><span>Did I state WILL, WILL NOT, and VERIFY before touching code?</span></div>
+              <div class="flag"><span class="lbl">Red flag</span><q>Let me also add...</q></div>
+            </div>
+          </article>
+          <article class="clause reveal" id="law-3">
+            <div class="num">03</div>
+            <div>
+              <h3>One Thing at a Time</h3>
+              <div class="check"><span class="lbl">Check</span><span>Am I finishing the current change before starting the next one?</span></div>
+              <div class="flag"><span class="lbl">Red flag</span><q>While I'm here...</q></div>
+            </div>
+          </article>
+          <article class="clause reveal" id="law-4">
+            <div class="num">04</div>
+            <div>
+              <h3>Verify Before Reporting</h3>
+              <div class="check"><span class="lbl">Check</span><span>Did I check the actual output, not the output I assumed?</span></div>
+              <div class="flag"><span class="lbl">Red flag</span><q>This should work...</q></div>
+            </div>
+          </article>
+          <article class="clause reveal" id="law-5">
+            <div class="num">05</div>
+            <div>
+              <h3>Reflect After Sessions</h3>
+              <div class="check"><span class="lbl">Check</span><span>Did I note what worked and what failed before moving on?</span></div>
+              <div class="flag"><span class="lbl">Red flag</span><q>I'll remember...</q></div>
+            </div>
+          </article>
+          <article class="clause reveal" id="law-6">
+            <div class="num">06</div>
+            <div>
+              <h3>Iterate One Change</h3>
+              <div class="check"><span class="lbl">Check</span><span>Am I changing one thing at a time and verifying each step?</span></div>
+              <div class="flag"><span class="lbl">Red flag</span><q>And also...</q></div>
+            </div>
+          </article>
+          <article class="clause reveal" id="law-7">
+            <div class="num">07</div>
+            <div>
+              <h3>Learn From Every Session</h3>
+              <div class="check"><span class="lbl">Check</span><span>Did I capture this lesson as an instinct the next session can use?</span></div>
+              <div class="flag"><span class="lbl">Red flag</span><q>Next time I'll...</q></div>
+            </div>
+          </article>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <section class="cta-section">
-    <div class="container">
-      <h2>Ready to enforce discipline?</h2>
-      <p>Install in 30 seconds. No Node setup required — just two slash commands inside Claude Code.</p>
-      <div class="hero-cta">
-        <a href="https://www.npmjs.com/package/continuous-improvement" class="btn btn-primary">Install Now</a>
-        <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/QUICKSTART.md" class="btn btn-secondary">Read Quickstart</a>
+    <div class="loop-band">
+      <div class="container">
+        <span class="kicker">The loop <b>/</b> one pass, every change</span>
+        <div class="loop-flow" role="list" aria-label="The discipline loop">
+          <span class="loop-node" role="listitem">Research</span><span class="loop-arrow" aria-hidden="true">&#8594;</span>
+          <span class="loop-node" role="listitem">Plan</span><span class="loop-arrow" aria-hidden="true">&#8594;</span>
+          <span class="loop-node" role="listitem">Execute</span><span class="loop-arrow" aria-hidden="true">&#8594;</span>
+          <span class="loop-node" role="listitem">Verify</span><span class="loop-arrow" aria-hidden="true">&#8594;</span>
+          <span class="loop-node" role="listitem">Reflect</span><span class="loop-arrow" aria-hidden="true">&#8594;</span>
+          <span class="loop-node" role="listitem">Learn</span><span class="loop-arrow" aria-hidden="true">&#8594;</span>
+          <span class="loop-node" role="listitem">Iterate</span>
+        </div>
+        <p class="loop-foot">Execute moves one thing at a time. A failure never carries forward into the next task: it loops back to research.</p>
       </div>
     </div>
-  </section>
+
+    <section id="enforcement">
+      <div class="container">
+        <div class="sec-head">
+          <span class="kicker"><b>02</b> · Enforcement</span>
+          <h2>Enforced at the boundary, not suggested in a doc.</h2>
+          <p>Hooks sit between the agent and your files. They block the action, not just warn about it.</p>
+        </div>
+        <div class="mechs">
+          <article class="mech reveal">
+            <div class="body">
+              <span class="id">Hook · PreToolUse</span>
+              <h3>Gateguard</h3>
+              <p>Blocks Edit, Write, and destructive Bash until the agent presents a fact-list investigation. No mutating a file before naming what imports it.</p>
+            </div>
+            <div class="spec" aria-hidden="true">
+              <div class="row"><span class="dot"></span><span>tool: Write &#8594; <span class="muted">blocked</span></span></div>
+              <div class="row"><span class="muted">reason: list imports, surface, instruction</span></div>
+              <div class="row"><span class="dot"></span><span>facts presented &#8594; allow</span></div>
+            </div>
+          </article>
+          <article class="mech reveal">
+            <div class="body">
+              <span class="id">Ladder · pre-done</span>
+              <h3>Verification Loop</h3>
+              <p>A per-project ladder of checks. Nothing is marked done until the rungs pass on the actual output.</p>
+            </div>
+            <div class="spec" aria-hidden="true">
+              <div class="row"><span class="dot"></span><span>typecheck</span></div>
+              <div class="row"><span class="dot"></span><span>test</span></div>
+              <div class="row"><span class="dot"></span><span>build<span class="muted"> &#8594; done</span></span></div>
+            </div>
+          </article>
+          <article class="mech reveal">
+            <div class="body">
+              <span class="id">Hook · Stop</span>
+              <h3>Goal-Drift Gate</h3>
+              <p>Fires a goal check when the agent tries to stop, and refuses a "Done" that has drifted from the stated goal.</p>
+            </div>
+            <div class="spec" aria-hidden="true">
+              <div class="row"><span class="dot"></span><span>goal-check &#8594; <span class="muted">ON GOAL</span></span></div>
+              <div class="row"><span>status: DRIFT &#8594; <span class="muted">refuse done</span></span></div>
+              <div class="row"><span>status: NO DATA &#8594; <span class="muted">ask</span></span></div>
+            </div>
+          </article>
+          <article class="mech reveal">
+            <div class="body">
+              <span class="id">Memory · cross-session</span>
+              <h3>Mulahazah Instinct Engine</h3>
+              <p>Captures what worked and what failed as instincts. The same mistake does not return next session.</p>
+            </div>
+            <div class="spec" aria-hidden="true">
+              <div class="row"><span class="dot"></span><span>observe</span></div>
+              <div class="row"><span class="dot"></span><span>instinct &#8594; <span class="muted">confidence++</span></span></div>
+              <div class="row"><span class="dot"></span><span>reinforce</span></div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta">
+      <div class="container">
+        <div class="cta-frame">
+          <div>
+            <h2>Put a seatbelt on your agent.</h2>
+            <p>Install in under a minute. Two slash commands inside Claude Code, no setup.</p>
+          </div>
+          <div class="cta-actions">
+            <div class="install">
+              <span class="tag">install</span>
+              <code><span class="dollar" aria-hidden="true">$</span>npx continuous-improvement install</code>
+              <button class="copy-btn" type="button" aria-label="Copy install command" data-copy="npx continuous-improvement install">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+                <span class="copy-label">Copy</span>
+              </button>
+            </div>
+            <div class="cta-buttons">
+              <a class="btn btn-primary" href="https://www.npmjs.com/package/continuous-improvement">Install from npm</a>
+              <a class="btn btn-ghost" href="https://github.com/naimkatiman/continuous-improvement/blob/main/QUICKSTART.md">Read the quickstart</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
 
   <footer>
-    <div class="container">
-      <p>MIT License · <a href="https://github.com/naimkatiman/continuous-improvement">GitHub</a> · <a href="https://www.npmjs.com/package/continuous-improvement">npm</a></p>
+    <div class="container foot-grid">
+      <span class="foot-doc">DOC. CI-7L &middot; REV 3.10.0 &middot; MIT LICENSE</span>
+      <div class="foot-links">
+        <a href="https://github.com/naimkatiman/continuous-improvement">GitHub</a>
+        <a href="https://www.npmjs.com/package/continuous-improvement">npm</a>
+        <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/QUICKSTART.md">Quickstart</a>
+      </div>
     </div>
   </footer>
+
+  <div class="visually-hidden" role="status" aria-live="polite" id="copy-status"></div>
+
+  <script>
+    document.documentElement.classList.remove("no-js");
+    document.documentElement.classList.add("js");
+
+    var status = document.getElementById("copy-status");
+    document.querySelectorAll(".copy-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var text = btn.getAttribute("data-copy");
+        var label = btn.querySelector(".copy-label");
+        var done = function () {
+          btn.setAttribute("data-state", "copied");
+          label.textContent = "Copied";
+          status.textContent = "Install command copied to clipboard";
+          window.setTimeout(function () {
+            btn.removeAttribute("data-state");
+            label.textContent = "Copy";
+          }, 2000);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done).catch(function () { done(); });
+        } else {
+          done();
+        }
+      });
+    });
+
+    var motionOk = window.matchMedia("(prefers-reduced-motion: no-preference)").matches;
+    var revealables = document.querySelectorAll(".reveal");
+    if (motionOk && "IntersectionObserver" in window) {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) { entry.target.classList.add("in"); io.unobserve(entry.target); }
+        });
+      }, { rootMargin: "0px 0px -8% 0px", threshold: 0.08 });
+      revealables.forEach(function (el) { io.observe(el); });
+    } else {
+      revealables.forEach(function (el) { el.classList.add("in"); });
+    }
+  </script>
 </body>
 </html>
