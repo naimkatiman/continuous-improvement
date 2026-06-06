@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-06
 
+## 2026-06-06 — Sync test counts to 752 after skill-distill regression tests
+- `npm test` now reports 752 pass / 0 fail (up from 750) after the two regression tests added in the skill-distill audit #8 closure earlier today. The HTML summary card at `reports/assets/update-card.html` and the `Project Snapshot` table in this report still showed 750.
+- Updated all three occurrences in the card (Tests Passing, Total Tests, badge) from `750` to `752`, and updated the snapshot table and Remaining Failures prose from `750` to `752`.
+- Verified with `npm test` (752 pass / 0 fail) and `npm run verify:all` (all 11 content invariants + typecheck pass). Working tree remains clean.
+
 ## 2026-06-06 — Close deferred audit item #8 (skill-distill NaN-ts gap split)
 - `src/lib/skill-distill.mts` `extractTrajectories` silently merged unrelated observation runs when a timestamp was unparseable, because the gap-detection logic only split when *both* adjacent timestamps were valid (`!Number.isNaN(prevMs) && !Number.isNaN(curMs) && curMs - prevMs > GAP_MS`). This meant a block of malformed timestamps between two valid sessions would fuse all three into a single incoherent trajectory, degrading draft-skill mining.
 - Changed the boundary predicate to `(prevValid && curValid && gap > GAP_MS) || (prevValid !== curValid)`. This fails closed: any transition from a valid timestamp to an invalid one (or vice versa) forces a trajectory split, while consecutive invalid timestamps stay together so a single bad block does not shatter into unusable 1-observation fragments.
@@ -515,7 +520,7 @@
 | Project | continuous-improvement v3.10.0 |
 | Stack | Node.js (ESM), MCP server, GitHub Action, CLI tools |
 | Stage | Published npm package, active development |
-| Tests (current) | 750 pass / 0 fail |
+| Tests (current) | 752 pass / 0 fail |
 
 ## Changes Implemented
 
@@ -535,7 +540,7 @@
 
 ## Remaining Failures
 
-None. All 750 tests pass / 0 fail as of this cycle.
+None. All 752 tests pass / 0 fail as of this cycle.
 
 ## 2026-06-06 — Fix audit doc deferrals lost in PR #187 squash-merge
 - Commit `32b443c` (marking deferred findings #2 and #14 as CLOSED in the audit log) was authored on the local branch `hourly/2026-06-06-update-card-test-count-750` but never pushed to the remote before PR #187 was created and squash-merged. The resulting `main` commit `0f40d55` only contained the first two commits of the branch, leaving the audit doc stale: row #2 lacked its `CLOSED` annotation, row #14 still appeared open, and the post-`/proceed` summary incorrectly claimed "four" remaining deferrals instead of three.
