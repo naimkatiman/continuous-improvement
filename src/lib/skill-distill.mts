@@ -131,7 +131,10 @@ export function extractTrajectories(observations: DistillObservation[]): Traject
     const sessionChanged = session(obs) !== session(prev);
     const prevMs = Date.parse((prev.ts ?? "").toString());
     const curMs = Date.parse((obs.ts ?? "").toString());
-    const gapTooBig = !Number.isNaN(prevMs) && !Number.isNaN(curMs) && curMs - prevMs > GAP_MS;
+    const prevValid = !Number.isNaN(prevMs);
+    const curValid = !Number.isNaN(curMs);
+    const gapTooBig =
+      (prevValid && curValid && curMs - prevMs > GAP_MS) || (prevValid !== curValid);
 
     if (sessionChanged || gapTooBig) {
       flush();
