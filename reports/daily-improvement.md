@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-06
 
+## 2026-06-06 — Sync update-card test counts to current 750-test suite
+- The HTML summary card at `reports/assets/update-card.html` still showed `727` in the "Tests Passing", "Total Tests", and badge stats even though the test suite grew to `750 pass / 0 fail` after the goal-monitor boundary-fix merge (PRs #178, #183, #184). The card was last synced on 2026-06-03 when the count was 727.
+- Updated all three occurrences from `727` to `750` so the card reflects the current test-suite reality.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 11 content invariants + typecheck pass, 750 pass / 0 fail). Working tree remains clean.
+
 ## 2026-06-06 — Update stale report dates to June 6
 - The HTML summary card at `reports/assets/update-card.html` still showed "June 3, 2026" / "2026-06-03" in the `<title>` and visible date line, and the daily report header was still "2026-06-03". With the date boundary crossed to June 6, these assets needed to reflect the current reporting period.
 - Updated both the `<title>` and the visible date line to "June 6, 2026" / "2026-06-06" so the card matches the current reporting period. Updated the report header from "2026-06-03" to "2026-06-06".
