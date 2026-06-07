@@ -127,6 +127,26 @@ const BEGINNER_TOOL_ENTRIES = [
             required: ["summary"],
         },
     },
+    {
+        name: "ci_gateguard_clear",
+        description: "Clear the GateGuard gate for one or more files after presenting the required facts (importers, affected APIs, data schema, the user's instruction). Records canonical per-file clearance in the session state the hook reads, so the next Edit/Write to those paths is allowed. Clearance matches regardless of drive-letter case or path separator. Available in beginner mode because the gate fires for every install.",
+        manifestWhat: "Clear the GateGuard gate for files after presenting facts",
+        inputSchema: {
+            type: "object",
+            properties: {
+                file_paths: {
+                    type: "array",
+                    description: "File paths to clear — the paths named in the GateGuard block reason",
+                    items: { type: "string" },
+                },
+                file_path: {
+                    type: "string",
+                    description: "A single file path to clear (alternative to file_paths)",
+                },
+            },
+            required: [],
+        },
+    },
 ];
 const EXPERT_TOOL_ENTRIES = [
     {

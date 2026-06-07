@@ -21,6 +21,7 @@ import { PACKAGE_NAME, VERSION, getToolDefinitions, isPluginMode, } from "../lib
 import { formatDriftReport, parseGoalFromPlan, scoreObservations, } from "../lib/goal-state.mjs";
 import { buildIndex, formatRecallHits, parseSince, query as queryRecall, } from "../lib/recall-index.mjs";
 import { draftFromCandidate, extractTrajectories, findCandidates, formatCandidates, serializeDraft, } from "../lib/skill-distill.mjs";
+import { MAX_CLEARED_FILES, clearFiles, resolveSessionDir, } from "../lib/gateguard-state.mjs";
 function getHomeDir() {
     return process.env.HOME || process.env.USERPROFILE || homedir();
 }
@@ -504,6 +505,33 @@ function handleTool(name, params) {
                 "  (or just `1. None — goal met, stop.` if the original goal is fully resolved)",
             ].join("\n");
             return text(reflection);
+        }
+        case "ci_gateguard_clear": {
+            // Beginner-available on purpose: the GateGuard hook fires for every
+            // install, so the clearance action must too. Resolves the session dir via
+            // gateguard-state (canonical), the same way the hook does, so the marker
+            // lands where the hook looks regardless of how each process spelled the
+            // project root.
+            const rawList = Array.isArray(params.file_paths) ? params.file_paths : [];
+            const listPaths = rawList.filter((value) => typeof value === "string" && value.length > 0);
+            const single = getString(params.file_path).trim();
+            const paths = single ? [...listPaths, single] : listPaths;
+            if (paths.length === 0) {
+                return error("file_paths is required — pass the file path(s) named in the GateGuard block reason, e.g. { file_paths: [\"src/x.ts\"] }.");
+            }
+            const sessionDir = resolveSessionDir();
+            const { cleared, skippedForCap } = clearFiles(sessionDir, paths);
+            const lines = [
+                "## GateGuard clearance",
+                "",
+                `**State file:** ${join(sessionDir, "gateguard-session.json")}`,
+                `**Cleared (${cleared.length}):** ${cleared.length > 0 ? cleared.join(", ") : "(none — already cleared)"}`,
+            ];
+            if (skippedForCap.length > 0) {
+                lines.push(`**Skipped — session cap of ${MAX_CLEARED_FILES} reached (${skippedForCap.length}):** ${skippedForCap.join(", ")}`, "Start a new session to reset the gate.");
+            }
+            lines.push("", "Retry the Edit/Write now — it will pass.");
+            return text(lines.join("\n"));
         }
         case "ci_reinforce": {
             if (MODE !== "expert") {

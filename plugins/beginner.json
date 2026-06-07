@@ -15,6 +15,10 @@
     {
       "name": "ci_reflect",
       "what": "Reflect on what you did this session"
+    },
+    {
+      "name": "ci_gateguard_clear",
+      "what": "Clear the GateGuard gate for files after presenting facts"
     }
   ],
   "setup": {
