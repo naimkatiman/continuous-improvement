@@ -1,4 +1,65 @@
-# Daily Improvement Report — 2026-06-03
+# Daily Improvement Report — 2026-06-07
+
+## 2026-06-07 — Update stale report dates to June 7
+- The HTML summary card at `reports/assets/update-card.html` still showed "June 6, 2026" / "2026-06-06" in the `<title>` and visible date line, and the daily report header was still "2026-06-06". With the date boundary crossed to June 7, these assets needed to reflect the current reporting period.
+- Updated both the `<title>` and the visible date line to "June 7, 2026" / "2026-06-07" so the card matches the current reporting period. Updated the report header from "2026-06-06" to "2026-06-07".
+- Verified with `npm run verify:all` (all 11 content invariants + typecheck pass, 752 pass / 0 fail). Working tree remains clean.
+
+## 2026-06-07 — Reorganize misplaced report entries into chronological order
+- Five daily-improvement entries were accidentally appended after the "Project Snapshot" / "Remaining Failures" sections instead of being inserted in reverse-chronological order: the June 6 PR #188 audit-doc deferral fix, the June 1 `bin/refresh-third-party.mjs` TypeScript source migration, and three June 2 entries (push local main, add `hooks/` to generated-artifact verification, merge PR #173). This broke the report's reverse-chronological flow and placed newer June entries after older May entries.
+- Moved the June 6 entry to join the other June 6 entries before the June 3 block; moved the three June 2 entries to join the other June 2 entries before the June 1 block; moved the June 1 entry to join the other June 1 entries before the May block. Added a missing blank line between the last June 2 entry and the first June 1 entry.
+- Verified with `npm run verify:all` (all 11 content invariants + typecheck pass, 752 pass / 0 fail). Working tree has a single doc-only diff.
+
+## 2026-06-06 — Push local main to origin
+- Local `main` was 1 commit ahead of `origin/main` (`792fdb7 docs(report): sync test counts 750→752 and record daily improvement entry`). The prior cycle produced the commit but did not push it, leaving the remote behind.
+- Pushed with `git push origin main`. Remote fast-forwarded from `b4f2eaf` to `792fdb7`.
+- Verified with `git status` (working tree clean, branch up to date with `origin/main`) and `git log --oneline origin/main..main` (empty). `npm run verify:all` stayed green (all 11 content invariants + typecheck pass, 752 pass / 0 fail). No stale branches remain.
+
+## 2026-06-06 — Sync test counts to 752 after skill-distill regression tests
+- `npm test` now reports 752 pass / 0 fail (up from 750) after the two regression tests added in the skill-distill audit #8 closure earlier today. The HTML summary card at `reports/assets/update-card.html` and the `Project Snapshot` table in this report still showed 750.
+- Updated all three occurrences in the card (Tests Passing, Total Tests, badge) from `750` to `752`, and updated the snapshot table and Remaining Failures prose from `750` to `752`.
+- Verified with `npm test` (752 pass / 0 fail) and `npm run verify:all` (all 11 content invariants + typecheck pass). Working tree remains clean.
+
+## 2026-06-06 — Close deferred audit item #8 (skill-distill NaN-ts gap split)
+- `src/lib/skill-distill.mts` `extractTrajectories` silently merged unrelated observation runs when a timestamp was unparseable, because the gap-detection logic only split when *both* adjacent timestamps were valid (`!Number.isNaN(prevMs) && !Number.isNaN(curMs) && curMs - prevMs > GAP_MS`). This meant a block of malformed timestamps between two valid sessions would fuse all three into a single incoherent trajectory, degrading draft-skill mining.
+- Changed the boundary predicate to `(prevValid && curValid && gap > GAP_MS) || (prevValid !== curValid)`. This fails closed: any transition from a valid timestamp to an invalid one (or vice versa) forces a trajectory split, while consecutive invalid timestamps stay together so a single bad block does not shatter into unusable 1-observation fragments.
+- Added two regression tests in `src/test/skill-distill.test.mts`: (1) a valid block → invalid block → post-gap valid block produces three separate trajectories, and (2) a valid block immediately followed by an invalid block produces two trajectories.
+- Verified with `npm run build` (`.mjs` artifacts regenerated cleanly), `node --test test/skill-distill.test.mjs` (17 pass / 0 fail), and `npm run verify:all` (all 11 content invariants + typecheck pass). Updated `CLAUDE.md` § Deferred and `docs/audits/2026-06-03-new-feature-audit.md` to mark #8 closed.
+
+## 2026-06-06 — Sync update-card test counts to current 750-test suite
+- The HTML summary card at `reports/assets/update-card.html` still showed `727` in the "Tests Passing", "Total Tests", and badge stats even though the test suite grew to `750 pass / 0 fail` after the goal-monitor boundary-fix merge (PRs #178, #183, #184). The card was last synced on 2026-06-03 when the count was 727.
+- Updated all three occurrences from `727` to `750` so the card reflects the current test-suite reality.
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 11 content invariants + typecheck pass, 750 pass / 0 fail). Working tree remains clean.
+
+## 2026-06-06 — Update stale report dates to June 6
+- The HTML summary card at `reports/assets/update-card.html` still showed "June 3, 2026" / "2026-06-03" in the `<title>` and visible date line, and the daily report header was still "2026-06-03". With the date boundary crossed to June 6, these assets needed to reflect the current reporting period.
+- Updated both the `<title>` and the visible date line to "June 6, 2026" / "2026-06-06" so the card matches the current reporting period. Updated the report header from "2026-06-03" to "2026-06-06".
+- Verified with `npm run verify:all`; the full repo gate stayed green (all 11 content invariants + typecheck pass, 750 pass / 0 fail). Working tree remains clean.
+
+## 2026-06-06 — Fix audit doc deferrals lost in PR #187 squash-merge
+- Commit `32b443c` (marking deferred findings #2 and #14 as CLOSED in the audit log) was authored on the local branch `hourly/2026-06-06-update-card-test-count-750` but never pushed to the remote before PR #187 was created and squash-merged. The resulting `main` commit `0f40d55` only contained the first two commits of the branch, leaving the audit doc stale: row #2 lacked its `CLOSED` annotation, row #14 still appeared open, and the post-`/proceed` summary incorrectly claimed "four" remaining deferrals instead of three.
+- Created branch `hourly/2026-06-06-fix-audit-doc-deferrals`, applied the exact missing diff (3 insertions, 3 deletions), and merged it via PR #188 (`gh pr merge 188 --squash --delete-branch --admin`).
+- Verified with `npm run verify:all` (all 11 content invariants + typecheck pass, 750 pass / 0 fail). Working tree is clean; no stale hourly branches remain.
+
+## 2026-06-03 — Close deferred manifest generator skill-discovery glob in CLAUDE.md
+- The deferred item "manifest generator skill-discovery glob (MED)" was fixed in commit `2fde059` (PR #186) but remained listed as open in `CLAUDE.md` § Deferred. Updated the entry to mark it **CLOSED** with the commit reference and a brief description of the fix (generator now uses the same loose filter as tier-lint discovery).
+- No code changes; this is a documentation-only alignment between the deferred audit log and the actual repo state.
+- Verified with `npm run verify:all` (all 11 content invariants + typecheck pass) and `npm test` (750 pass / 0 fail).
+
+## 2026-06-03 — Merge PR #186 and delete stale merged branch
+- PR #186 (`hourly/2026-06-03-align-manifest-skill-discovery`) contained the manifest generator skill-discovery alignment fix and its report entry. It was squash-merged to `main` at commit `2fde059` via `gh pr merge 186 --squash --delete-branch`. The remote branch was deleted automatically; the local remote-tracking ref was pruned with `git remote prune origin`.
+- Local `main` was already up to date after the fast-forward merge, so no additional branch cleanup was needed.
+- Verified with `git branch -a` (no stale `hourly/*` branches remain), `git branch -r` (no stale remote-tracking refs remain), and `npm run verify:all` (all 11 content invariants + typecheck pass, 750 pass / 0 fail). Working tree remains clean.
+
+## 2026-06-03 — Align manifest generator skill-discovery filter with tier-lint
+- `src/bin/generate-plugin-manifests.mts` used `/^[a-z][a-z0-9-]*\.md$/` to discover companion skills for the plugin bundle, while `check-skill-tiers` (and its mirror `check-skill-law-tag`) accepted any `.md` file except `README.md`. This meant a future skill with an uppercase, underscore, or leading-digit name would pass `verify:all` but be silently omitted from the generated bundle.
+- Replaced the strict regex with the same loose filter `file.endsWith(".md") && file !== "README.md"` so the manifest generator aligns with the tier-lint discovery logic. The current repo has no non-kebab-case skill files, so the generated bundle is unchanged.
+- Verified with `npm run build` (manifests regenerated cleanly), `npm test` (750 pass / 0 fail), and `npm run verify:all` (all 11 content invariants + typecheck pass). Commit `c09bc10` on branch `hourly/2026-06-03-align-manifest-skill-discovery`.
+
+## 2026-06-03 — Fast-forward main and delete stale merged branch
+- PR #182 (`hourly/2026-06-03-changelog-3-10-0-entry`) was squash-merged to `main` at commit `afe9718`, but the local feature branch `hourly/2026-06-03-changelog-3-10-0-entry` was still present and checked out. Squash merges create a new commit, so `git branch --merged` does not detect them, leaving stale branches behind. Additionally, `origin/main` had moved forward with three more merged PRs (#178 goal-monitor boundary fixes, #183 goal-drift Stop hook, #184 README goal-drift docs), so local `main` was behind the remote.
+- Checked out `main`, fast-forwarded to `origin/main` (commit `5cf4f83`), and deleted the local feature branch with `git branch -D hourly/2026-06-03-changelog-3-10-0-entry`. The remote branch was already deleted by the squash-merge `--delete-branch` default, so `git push origin --delete` was not needed; the local remote-tracking ref was pruned with `git remote prune origin`.
+- Verified with `git branch -a` (no stale `hourly/*` branches remain), `git branch -r` (no stale remote-tracking refs remain), and `npm run verify:all` (all 11 content invariants + typecheck pass, 750 pass / 0 fail). Working tree remains clean.
 
 ## 2026-06-03 — Cut CHANGELOG [3.10.0] section from stale [Unreleased] header
 - `CHANGELOG.md` still carried three fixed items under `[Unreleased]` even though the v3.10.0 release was cut on 2026-06-03 (commit `a28855f`, PR #177). The fixes (installer cleanup-only hook filtering, per-bucket hook entry cloning, GateGuard MultiEdit docs sync) all landed on `main` between 2026-05-17 and 2026-05-19 and were therefore included in the release.
@@ -82,6 +143,23 @@
 - Updated both the `<title>` and the visible date line to "June 2, 2026" / "2026-06-02" so the card matches the current reporting period. Updated the report header from "2026-06-01" to "2026-06-02".
 - Verified with `npm run verify:all`; the full repo gate stayed green (all 11 content invariants + typecheck pass, 661 pass / 0 fail). Working tree remains clean.
 
+## 2026-06-02 — Push local main to origin
+- Local `main` was 1 commit ahead of `origin/main` (`d9109f0 docs(report): record deletion of stale merged branch hourly/2026-06-02-remove-stale-orphan-from-test-imports-check (#172)`). The prior cycle produced the commit but did not push it, leaving the remote behind.
+- Pushed with `git push origin main`. Remote fast-forwarded from `f079c8d` to `d9109f0`.
+- Verified with `git status` (working tree clean, branch up to date with `origin/main`) and `git log --oneline origin/main..main` (empty). No stale branches remain.
+
+## 2026-06-02 — Add `hooks/` to generated-artifact verification
+- The `verify:generated` npm script and both CI workflows (`ci.yml`, `release.yml`) ran `git diff --exit-code -- .claude-plugin bin test lib plugins` to ensure all generated `.mjs` artifacts were committed. However, `hooks/*.mjs` files are also compiled from `src/hooks/*.mts` by `tsc`, just like `bin/`, `lib/`, and `test/`. A direct edit to a `.mjs` file in `hooks/` would survive CI undetected.
+- Added `hooks` to the path list in all three locations: `package.json` (`verify:generated` script), `.github/workflows/ci.yml` ("Verify generated artifacts are committed" step), and `.github/workflows/release.yml` (same step name).
+- Verified with `npm run verify:generated` (passes, zero diff) and `npm run verify:all` (all 11 content invariants + typecheck pass). `npm test` confirms 661 pass / 0 fail.
+- Branch: `hourly/2026-06-02-add-hooks-to-verify-generated`.
+
+## 2026-06-02 — Merge PR #173 and delete stale merged branch
+- PR #173 (`hourly/2026-06-02-add-hooks-to-verify-generated`) was open with all four required checks green (lint-transcript + test matrix on Node 18/20/22). It added `hooks/` to the generated-artifact diff path in `verify:generated`, CI, and release workflows.
+- Merged it via squash-merge with `gh pr merge 173 --squash --delete-branch`. After the merge, the local remote-tracking ref was pruned with `git remote prune origin`.
+- Fast-forwarded local `main` to `origin/main` (commit `d1e8fb8`) and deleted the local feature branch with `git branch -D hourly/2026-06-02-add-hooks-to-verify-generated`.
+- Verified with `git branch -a` (no stale `hourly/*` branches remain), `git branch -r` (no stale remote-tracking refs remain), and `npm run verify:all` (all 11 content invariants + typecheck pass). Working tree remains clean.
+
 ## 2026-06-01 — Remove dead orphan machinery from `npm run clean`
 - The `clean` script in `package.json` declared `const orphans=new Set([])` and checked `!orphans.has(p)` before deleting every `.mjs` file in `bin/`, `hooks/`, `test/`, and `lib/`. This machinery was originally added to protect hand-authored orphan `.mjs` files that had no corresponding `.mts` source under `src/`. Over the course of the day, all three known orphans were resolved: `hooks/three-section-close.mjs` gained `src/hooks/three-section-close.mts` (PR #162), `test/check-everything-mirror.test.mjs` gained `src/test/check-everything-mirror.test.mts` (PR #164), and `bin/refresh-third-party.mjs` regained `src/bin/refresh-third-party.mts` (PR #165).
 - With zero orphans remaining, the empty Set and the `has()` guard are dead code. Simplified the script to a plain nested loop that deletes every `.mjs` in the four generated directories, matching the pre-orphan shape but keeping the current four-directory coverage (`bin`, `hooks`, `test`, `lib`).
@@ -134,6 +212,13 @@
 - PR #159 (`hourly/2026-05-31-delete-stale-merged-branches`) was open with all checks green (lint-transcript + test matrix on Node 18/20/22). It contained two commits: the second sweep of stale merged remote branches (8 branches deleted) and the build-script fix to persist execute permissions on `scripts/*.mjs` and `synthetic-checks/*.mjs`.
 - Merged it via squash-merge with `gh pr merge 159 --squash --delete-branch`. After the merge, the local remote-tracking ref `remotes/origin/hourly/2026-05-31-delete-stale-merged-branches` remained until pruned with `git remote prune origin`.
 - Verified with `git branch -r --merged main` (no stale remote branches remain), `git branch -a` (no stale `origin/*` branches remain), and `npm run verify:all`; the full repo gate stayed green (all 11 content invariants + typecheck pass). Working tree remains clean.
+
+## 2026-06-01 — TypeScript source for `bin/refresh-third-party.mjs`
+- `bin/refresh-third-party.mjs` was the last known orphan `.mjs` file without a corresponding `.mts` source under `src/`. CLAUDE.md documented this as "deferred follow-up #1". The file was hand-authored JavaScript and protected from `npm run clean` via an explicit orphan set in `package.json`.
+- Created `src/bin/refresh-third-party.mts` with identical runtime logic and added strict TypeScript types (`Snapshot`, `PostCopyJsonKeyDelete`, `SpawnSyncOptions`, parameter and return types for all functions). The compiled output preserves the `#!/usr/bin/env node` shebang and all runtime behavior.
+- Removed `bin/refresh-third-party.mjs` from the `clean` script's orphan set in `package.json` since it is now generated by `tsc` like the other bin files.
+- Updated CLAUDE.md to remove the "one known orphan" note; all `.mjs` files in `bin/`, `hooks/`, `lib/`, and `test/` are now generated from `.mts` sources.
+- Verified with `npm run build` (compiles cleanly, manifests regenerated), `npm run clean` followed by `npm run build` (file is removed then regenerated correctly), `node bin/refresh-third-party.mjs --list` (lists both snapshots), and `npm run verify:all` (all 11 content invariants + typecheck pass).
 
 ## 2026-05-31 — Protect `scripts/` and `synthetic-checks/` execute permissions in build script
 - On 2026-05-30, execute permissions were manually fixed on `scripts/*.mjs` and `synthetic-checks/*.mjs`, but the `build` script in `package.json` only looped over `bin/`, `hooks/`, `lib/`, and `plugins/continuous-improvement/` subdirectories. This meant a fresh `npm run clean && npm run build` (or any future build after permission loss) would leave the five `.mjs` files in `scripts/` and `synthetic-checks/` at mode `100644` despite their `#!/usr/bin/env node` shebangs.
@@ -479,7 +564,7 @@
 | Project | continuous-improvement v3.10.0 |
 | Stack | Node.js (ESM), MCP server, GitHub Action, CLI tools |
 | Stage | Published npm package, active development |
-| Tests (current) | 727 pass / 0 fail |
+| Tests (current) | 752 pass / 0 fail |
 
 ## Changes Implemented
 
@@ -499,32 +584,14 @@
 
 ## Remaining Failures
 
-None. All 727 tests pass / 0 fail as of this cycle.
+None. All 752 tests pass / 0 fail as of this cycle.
+
+## 2026-06-06 — Fix audit doc deferrals lost in PR #187 squash-merge
+- Commit `32b443c` (marking deferred findings #2 and #14 as CLOSED in the audit log) was authored on the local branch `hourly/2026-06-06-update-card-test-count-750` but never pushed to the remote before PR #187 was created and squash-merged. The resulting `main` commit `0f40d55` only contained the first two commits of the branch, leaving the audit doc stale: row #2 lacked its `CLOSED` annotation, row #14 still appeared open, and the post-`/proceed` summary incorrectly claimed "four" remaining deferrals instead of three.
+- Created branch `hourly/2026-06-06-fix-audit-doc-deferrals`, applied the exact missing diff (3 insertions, 3 deletions), and merged it via PR #188 (`gh pr merge 188 --squash --delete-branch --admin`).
+- Verified with `npm run verify:all` (all 11 content invariants + typecheck pass, 750 pass / 0 fail). Working tree is clean; no stale hourly branches remain.
 
 ## Deferred Items
 
 - No orphan `.mjs` files remain (all are generated from `.mts` sources). See `CLAUDE.md` § Deferred for the current audit-deferred item list.
 
-## 2026-06-01 — TypeScript source for `bin/refresh-third-party.mjs`
-- `bin/refresh-third-party.mjs` was the last known orphan `.mjs` file without a corresponding `.mts` source under `src/`. CLAUDE.md documented this as "deferred follow-up #1". The file was hand-authored JavaScript and protected from `npm run clean` via an explicit orphan set in `package.json`.
-- Created `src/bin/refresh-third-party.mts` with identical runtime logic and added strict TypeScript types (`Snapshot`, `PostCopyJsonKeyDelete`, `SpawnSyncOptions`, parameter and return types for all functions). The compiled output preserves the `#!/usr/bin/env node` shebang and all runtime behavior.
-- Removed `bin/refresh-third-party.mjs` from the `clean` script's orphan set in `package.json` since it is now generated by `tsc` like the other bin files.
-- Updated CLAUDE.md to remove the "one known orphan" note; all `.mjs` files in `bin/`, `hooks/`, `lib/`, and `test/` are now generated from `.mts` sources.
-- Verified with `npm run build` (compiles cleanly, manifests regenerated), `npm run clean` followed by `npm run build` (file is removed then regenerated correctly), `node bin/refresh-third-party.mjs --list` (lists both snapshots), and `npm run verify:all` (all 11 content invariants + typecheck pass).
-
-## 2026-06-02 — Push local main to origin
-- Local `main` was 1 commit ahead of `origin/main` (`d9109f0 docs(report): record deletion of stale merged branch hourly/2026-06-02-remove-stale-orphan-from-test-imports-check (#172)`). The prior cycle produced the commit but did not push it, leaving the remote behind.
-- Pushed with `git push origin main`. Remote fast-forwarded from `f079c8d` to `d9109f0`.
-- Verified with `git status` (working tree clean, branch up to date with `origin/main`) and `git log --oneline origin/main..main` (empty). No stale branches remain.
-
-## 2026-06-02 — Add `hooks/` to generated-artifact verification
-- The `verify:generated` npm script and both CI workflows (`ci.yml`, `release.yml`) ran `git diff --exit-code -- .claude-plugin bin test lib plugins` to ensure all generated `.mjs` artifacts were committed. However, `hooks/*.mjs` files are also compiled from `src/hooks/*.mts` by `tsc`, just like `bin/`, `lib/`, and `test/`. A direct edit to a `.mjs` file in `hooks/` would survive CI undetected.
-- Added `hooks` to the path list in all three locations: `package.json` (`verify:generated` script), `.github/workflows/ci.yml` ("Verify generated artifacts are committed" step), and `.github/workflows/release.yml` (same step name).
-- Verified with `npm run verify:generated` (passes, zero diff) and `npm run verify:all` (all 11 content invariants + typecheck pass). `npm test` confirms 661 pass / 0 fail.
-- Branch: `hourly/2026-06-02-add-hooks-to-verify-generated`.
-
-## 2026-06-02 — Merge PR #173 and delete stale merged branch
-- PR #173 (`hourly/2026-06-02-add-hooks-to-verify-generated`) was open with all four required checks green (lint-transcript + test matrix on Node 18/20/22). It added `hooks/` to the generated-artifact diff path in `verify:generated`, CI, and release workflows.
-- Merged it via squash-merge with `gh pr merge 173 --squash --delete-branch`. After the merge, the local remote-tracking ref was pruned with `git remote prune origin`.
-- Fast-forwarded local `main` to `origin/main` (commit `d1e8fb8`) and deleted the local feature branch with `git branch -D hourly/2026-06-02-add-hooks-to-verify-generated`.
-- Verified with `git branch -a` (no stale `hourly/*` branches remain), `git branch -r` (no stale remote-tracking refs remain), and `npm run verify:all` (all 11 content invariants + typecheck pass). Working tree remains clean.

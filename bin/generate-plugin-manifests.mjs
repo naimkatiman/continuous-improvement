@@ -35,7 +35,7 @@ async function writeBundledSkills() {
     const sourceSkillsDir = join(REPO_ROOT, "skills");
     const targetSkillsDir = join(PLUGIN_BUNDLE_DIR, "skills");
     const companionSkills = (await readdir(sourceSkillsDir))
-        .filter((file) => /^[a-z][a-z0-9-]*\.md$/.test(file))
+        .filter((file) => file.endsWith(".md") && file !== "README.md")
         .sort();
     await mkdir(targetSkillsDir, { recursive: true });
     await copyFileTo(join(REPO_ROOT, "SKILL.md"), join(targetSkillsDir, PACKAGE_NAME, "SKILL.md"));
