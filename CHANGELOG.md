@@ -10,6 +10,10 @@ All notable changes to this skill are documented here.
 
 - **Landing page rebuilt as a Blueprint spec-sheet on the `continuous-improvement.dev` domain** — `docs/landing/index.html` is now a warm-paper editorial spec-sheet (OKLCH palette, one safety-vermilion accent, Space Grotesk + JetBrains Mono, asymmetric hero, the 7 Laws rendered as numbered clauses, enforcement zig-zag), replacing the previous dark/purple/emoji page. The 7-Law copy is pulled verbatim from `commands/discipline.md`. A `docs/landing/CNAME` plus updated `homepage`, canonical URL, and README link point the GitHub Pages site at the `continuous-improvement.dev` custom domain.
 
+### Fixed
+
+- **GateGuard block reason now points at a clearance path that works on Claude Code** — the runtime hook told the agent to retry with `_gateguard_facts_presented: true`, but Claude Code's strict tool schema (`additionalProperties: false`) rejects that extra param with `InputValidationError` before the hook runs, leaving the first Edit/Write per file unclearable through the file tools. The block reason and the skill's "Honor system" note now lead with the portable route — record clearance in the session state file via a non-destructive Bash write — and keep the inline flag as a secondary path for harnesses that forward unknown tool params. No behavior change to the gate itself.
+
 ---
 
 ## [3.10.0] — 2026-06-03
