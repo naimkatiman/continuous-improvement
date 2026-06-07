@@ -142,7 +142,7 @@ Smoke-test the runtime gate after install: ask Claude to write a throwaway file 
 
 ### V1 honest limitations (not mitigated, documented)
 
-- **Honor system.** Once the agent flips `_gateguard_facts_presented: true` in `tool_input`, the hook can't verify the investigation actually happened. The 50-file cap bounds damage from stuck loops or rogue agents.
+- **Honor system.** Clearance is recorded either by retrying with `_gateguard_facts_presented: true` in `tool_input` (only on harnesses that forward unknown tool params) or by appending the file path to `cleared_files` in the session state file with a non-destructive Bash write. Claude Code's strict tool schema (`additionalProperties: false`) rejects the inline flag with `InputValidationError`, so on Claude Code the state-file path is the working route. Either way the hook can't verify the investigation actually happened; the 50-file cap bounds damage from stuck loops or rogue agents.
 - **State-file deletion.** `rm`-ing the session state resets every gate. Acceptable because the session itself is the trust boundary.
 - **Parallel-hook race.** Two simultaneous hook invocations can race the read+write of the state file. Acceptable trade-off vs Windows atomic-rename complexity.
 

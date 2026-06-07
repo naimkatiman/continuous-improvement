@@ -6,6 +6,10 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+### Fixed
+
+- **GateGuard block reason now points at a clearance path that works on Claude Code** — the runtime hook told the agent to retry with `_gateguard_facts_presented: true`, but Claude Code's strict tool schema (`additionalProperties: false`) rejects that extra param with `InputValidationError` before the hook runs, leaving the first Edit/Write per file unclearable through the file tools. The block reason and the skill's "Honor system" note now lead with the portable route — record clearance in the session state file via a non-destructive Bash write — and keep the inline flag as a secondary path for harnesses that forward unknown tool params. No behavior change to the gate itself.
+
 ---
 
 ## [3.10.0] — 2026-06-03

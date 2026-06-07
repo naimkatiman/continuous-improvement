@@ -9,8 +9,10 @@
  * Three-stage gate per skills/gateguard.md:
  * - DENY  : first mutating tool call per file, with fact-list reason
  * - FORCE : agent presents facts (model-side; out of band)
- * - ALLOW : retry once `_gateguard_facts_presented: true` is set or the
- *           per-file marker is recorded in session state
+ * - ALLOW : retry once the per-file marker is recorded in session state
+ *           (harness-portable, written out of band via Bash), or
+ *           `_gateguard_facts_presented: true` is set where the harness
+ *           forwards unknown tool params
  *
  * Read-only and exploratory tools (Read, Grep, Glob, routine Bash) bypass
  * unconditionally. Destructive Bash gates EVERY call, not just first.
@@ -25,6 +27,7 @@
  * path.
  */
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { MAX_CLEARED_FILES, isCapReached, loadState, markFileCleared, resolveSessionDir, saveState, } from "../lib/gateguard-state.mjs";
 const TOOL_ROUTE = {
     Read: "allow",
@@ -105,7 +108,7 @@ function formatFileTarget(filePaths) {
         return nonEmpty[0];
     return `${nonEmpty.length} files (${nonEmpty.join(", ")})`;
 }
-function buildMutatingFileReason(toolName, filePaths) {
+function buildMutatingFileReason(toolName, filePaths, stateFilePath) {
     const target = formatFileTarget(filePaths);
     return [
         `Before ${toolName === "Write" ? "creating" : "editing"} ${target}, present these facts:`,
@@ -115,8 +118,13 @@ function buildMutatingFileReason(toolName, filePaths) {
         "  3. If this file reads/writes data files, show field names, structure, and date format",
         "  4. Quote the user's current instruction verbatim",
         "",
-        "After presenting the facts, retry with `_gateguard_facts_presented: true` in tool_input,",
-        "or with the same file_path after a previous clearance has been recorded for this session.",
+        "Then clear the gate and retry the same call. Two clearance paths:",
+        `  A. Portable (works on every harness): append each path above to "cleared_files" in`,
+        `     ${stateFilePath} with a non-destructive Bash write, then retry. Bash is not gated`,
+        "     unless the command itself is destructive.",
+        "  B. Inline: retry with `_gateguard_facts_presented: true` in tool_input. This only works",
+        "     where the harness forwards unknown tool params; Claude Code's strict tool schema",
+        "     rejects it with InputValidationError, so use path A on Claude Code.",
     ].join("\n");
 }
 function buildDestructiveBashReason(command) {
@@ -172,6 +180,7 @@ function main() {
     }
     // mutating-file
     const sessionDir = resolveSessionDir();
+    const stateFilePath = join(sessionDir, "gateguard-session.json");
     const state = loadState(sessionDir);
     const filePaths = extractFilePaths(toolInput);
     const filePath = firstUnclearedFilePath(toolInput, state.cleared_files);
@@ -179,7 +188,7 @@ function main() {
     const alreadyCleared = filePaths.length > 0 && filePaths.every((path) => path in state.cleared_files);
     const newFileCount = countDistinctNewFilePaths(filePaths, state.cleared_files);
     if (!factsFlagged && !alreadyCleared) {
-        emit({ decision: "block", reason: buildMutatingFileReason(toolName, filePaths.length > 0 ? filePaths : [filePath]) });
+        emit({ decision: "block", reason: buildMutatingFileReason(toolName, filePaths.length > 0 ? filePaths : [filePath], stateFilePath) });
         return;
     }
     if (factsFlagged && !alreadyCleared) {
