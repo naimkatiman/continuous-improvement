@@ -6,6 +6,8 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+## [3.11.0] — 2026-06-07
+
 ### Added
 
 - **In-harness GateGuard clearance: `ci_gateguard_clear` + `bin/gateguard-clear.mjs`** — after presenting the facts, clear the gate with the `ci_gateguard_clear` MCP tool (available in beginner *and* expert mode, since the gate fires for every install) or the `gateguard-clear.mjs` CLI over the hook-allowed Bash route, instead of hand-writing the session-state JSON. Both take one or more file paths and record clearance through the shared canonical writer; the CLI accepts `--state <gateguard-session.json>` to target the exact file the block reason prints.
