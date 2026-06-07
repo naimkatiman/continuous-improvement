@@ -213,5 +213,20 @@ describe("hooks/gateguard.mjs (runtime PreToolUse hook — issue #106)", () => {
                 rmSync(dir, { recursive: true, force: true });
             }
         });
+        it("block reason CLI command uses a resolved path, not the literal ${CLAUDE_PLUGIN_ROOT}", () => {
+            const dir = mkdtempSync(join(tmpdir(), "gateguard-resolved-"));
+            try {
+                const decision = runHook("Write", { file_path: "fresh-resolved.ts", content: "x" }, dir);
+                assert.equal(decision.decision, "block");
+                const reason = decision.reason ?? "";
+                assert.doesNotMatch(reason, /\$\{CLAUDE_PLUGIN_ROOT\}/, "block reason must not print the unexpanded ${CLAUDE_PLUGIN_ROOT} — it is empty in the agent shell");
+                const cliLine = reason.split("\n").find((line) => line.includes("gateguard-clear.mjs")) ?? "";
+                assert.match(cliLine, /bin\/gateguard-clear\.mjs/, "CLI path must resolve to the bin script");
+                assert.match(cliLine, /--state/, "CLI command must pass --state for resolution-proof clearance");
+            }
+            finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
+        });
     });
 });
