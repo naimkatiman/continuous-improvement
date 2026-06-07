@@ -5,6 +5,16 @@
 - Updated both the `<title>` and the visible date line to "June 7, 2026" / "2026-06-07" so the card matches the current reporting period. Updated the report header from "2026-06-06" to "2026-06-07".
 - Verified with `npm run verify:all` (all 11 content invariants + typecheck pass, 752 pass / 0 fail). Working tree remains clean.
 
+## 2026-06-07 — Anchor audit #8 closure to commit hash in audit doc
+- `docs/audits/2026-06-03-new-feature-audit.md` row #8 still read **CLOSED in working tree** even though the fix was committed two days ago as `b4f2eaf` and is now in `main`. This left the audit trail ambiguous compared to other closed rows that cite exact commit hashes.
+- Replaced **CLOSED in working tree** with **CLOSED `b4f2eaf`** so the audit log matches the canonical commit reference pattern used by every other closed item.
+- Verified with `npm run verify:all` (all 11 content invariants + typecheck pass, 752 pass / 0 fail). Working tree has a single doc-only diff.
+
+## 2026-06-07 — Merge PR #194 and delete stale branch
+- PR #194 (`hourly/2026-06-07-anchor-audit-8-closure`) contained the doc-only audit #8 closure alignment. It was squash-merged to `main` at commit `b3e02c1` via `gh pr merge 194 --squash --delete-branch`. The remote branch was deleted automatically; the local remote-tracking ref was pruned with `git remote prune origin`.
+- Fast-forwarded local `main` to `origin/main` (commit `b3e02c1`) and deleted the local feature branch with `git branch -D hourly/2026-06-07-anchor-audit-8-closure`.
+- Verified with `git branch -a` (no stale `hourly/*` branches remain), `git branch -r` (no stale remote-tracking refs remain), and `npm run verify:all` (all 11 content invariants + typecheck pass, 752 pass / 0 fail). Working tree remains clean.
+
 ## 2026-06-07 — Reorganize misplaced report entries into chronological order
 - Five daily-improvement entries were accidentally appended after the "Project Snapshot" / "Remaining Failures" sections instead of being inserted in reverse-chronological order: the June 6 PR #188 audit-doc deferral fix, the June 1 `bin/refresh-third-party.mjs` TypeScript source migration, and three June 2 entries (push local main, add `hooks/` to generated-artifact verification, merge PR #173). This broke the report's reverse-chronological flow and placed newer June entries after older May entries.
 - Moved the June 6 entry to join the other June 6 entries before the June 3 block; moved the three June 2 entries to join the other June 2 entries before the June 1 block; moved the June 1 entry to join the other June 1 entries before the May block. Added a missing blank line between the last June 2 entry and the first June 1 entry.
