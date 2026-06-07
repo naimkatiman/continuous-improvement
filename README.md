@@ -23,7 +23,7 @@
 </p>
 
 <p align="center">
-  <b>New here?</b> → <a href="QUICKSTART.md">QUICKSTART.md</a> (2 minutes) · <a href="https://naimkatiman.github.io/continuous-improvement">Landing page</a>
+  <b>New here?</b> → <a href="QUICKSTART.md">QUICKSTART.md</a> (2 minutes) · <a href="https://continuous-improvement.dev">continuous-improvement.dev</a>
 </p>
 
 > **What this is *not*:** a prompt template, a `CLAUDE.md`, or a vibes-based reminder. It is a runtime hook (`hooks/gateguard.mjs`) plus a bundled skill set that physically blocks `Edit` / `Write` / destructive `Bash` until the agent has done the work.
