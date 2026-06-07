@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-07
 
+## 2026-06-07 — Sync stale v3.10.0 references in landing-page blueprint plan
+- `docs/plans/2026-06-07-landing-page-blueprint-rebuild.md` (dated today) still advertised `v3.10.0` / `REV 3.10.0` on its spec-sheet summary line and footer example even though the project released `v3.11.0` on 2026-06-07 and advanced to `v3.12.0` later the same day. A plan document referencing an outdated version risks being executed with stale expectations.
+- Updated both occurrences from `v3.10.0` / `REV 3.10.0` to `v3.12.0` / `REV 3.12.0` so the blueprint spec-sheet is internally consistent with the current release.
+- Verified with `npm run verify:all` (all 12 content invariants + typecheck pass, including `verify:tool-count`) and `npm test` (801 pass / 0 fail). No generated drift.
+
 ## 2026-06-07 — Sync stale v3.11.0 version references to v3.12.0
 - PR #197 bumped the release to v3.11.0 and PR #204/#210 advanced to v3.12.0, but three user-facing surfaces still advertised v3.11.0: `.cloudplugin/marketplace.json` (version and old loss-framing description), `docs/landing/index.html` (four occurrences: hero version badge, kicker REV line, current-rev list item, footer REV line), and `reports/assets/update-card.html` (visible date line).
 - Updated all six stale references from `v3.11.0` / `REV 3.11.0` to `v3.12.0` / `REV 3.12.0`. Also updated `.cloudplugin/marketplace.json` description from the old loss-framing "Stops Claude Code from…" to the v3.12.0 intelligence-amplifier reframe so it matches `.claude-plugin/marketplace.json` and the generated plugin manifests.
