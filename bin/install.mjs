@@ -14,6 +14,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
+import { getToolNames } from "../lib/plugin-metadata.mjs";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const SKILL_SOURCE = join(__dirname, "..", "SKILL.md");
@@ -556,7 +557,7 @@ console.log("Installing to Claude Code...\n");
 const installed = installSkill() ? 1 : 0;
 const modeInfo = {
     beginner: "Hooks are capturing silently. System auto-levels as you use it.",
-    expert: "Full plugin active: hooks + MCP server + session hooks. 18 tools available.",
+    expert: `Full plugin active: hooks + MCP server + session hooks. ${getToolNames("expert").length} tools available.`,
 };
 const packIndex = rawArgs.indexOf("--pack");
 if (packIndex !== -1 && rawArgs[packIndex + 1]) {
@@ -617,6 +618,6 @@ Next steps:
   3. If a task needs persistent planning, run: /planning-with-files
   4. After your first task, run: /continuous-improvement
   5. Try: /discipline for quick reference, /dashboard for instinct health
-${INSTALL_MODE === "expert" ? "\nMCP tools available: ci_status, ci_instincts, ci_reflect, ci_reinforce,\n  ci_create_instinct, ci_observations, ci_export, ci_import, ci_plan_init,\n  ci_plan_status, ci_dashboard, ci_load_pack" : ""}
+${INSTALL_MODE === "expert" ? `\nMCP tools available (${getToolNames("expert").length}): ${getToolNames("expert").join(", ")}` : ""}
 Available instinct packs: npx continuous-improvement install --pack react|python|go|meta
 `);
