@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-07
 
+## 2026-06-07 — Create PR #200 for missed version-reference sync and enable auto-merge
+- The branch `hourly/2026-06-07-sync-stale-version-refs-missed-in-197` (commit `736b487`) had the landing-page and CloudPlugin version fixes but was not yet merged to `main`.
+- Created PR #200 (`docs: sync missed 3.10.0 → 3.11.0 version references from PR #197`) and enabled squash auto-merge with `gh pr merge 200 --squash --delete-branch --auto`. CI checks (lint-transcript + Node 18/20/22 test matrix) are running; merge will complete once they pass.
+- Verified with `npm run verify:all` locally (all 11 content invariants + typecheck pass, 752 pass / 0 fail). Working tree is clean.
+
 ## 2026-06-07 — Sync missed 3.10.0 → 3.11.0 version references from PR #197
 - PR #197's post-merge sync claimed to update `docs/landing/index.html` version badge from `v3.10.0` → `v3.11.0`, but two occurrences of `REV 3.10.0` were missed: the hero kicker line (`<span class="kicker reveal">`) and the footer copyright line (`<span class="foot-doc">`). Additionally, `.cloudplugin/marketplace.json` was never updated and still advertised `"version": "3.10.0"`.
 - Updated both missed `REV 3.10.0` references in `docs/landing/index.html` to `REV 3.11.0` so the landing page is internally consistent. Updated `.cloudplugin/marketplace.json` `"version"` from `3.10.0` to `3.11.0` so the CloudPlugin marketplace listing matches the current release.
