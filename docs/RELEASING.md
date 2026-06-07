@@ -55,7 +55,7 @@ git push origin vX.Y.Z
 1. `npm install -g npm@latest` (trusted publishing needs npm ≥ 11.5.1)
 2. `npm ci` + `npm run build`
 3. `git diff --exit-code` to ensure generated artifacts are committed
-4. `npm run verify:all` (11 invariants + typecheck)
+4. `npm run verify:all` (12 invariants + typecheck)
 5. `node --test test/*.test.mjs`
 6. Asserts `package.json` version equals the tag
 7. `npm publish --access public --provenance` via OIDC trusted publishing (no token)
