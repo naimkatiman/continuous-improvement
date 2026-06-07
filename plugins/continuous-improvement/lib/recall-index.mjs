@@ -19,10 +19,10 @@ const BM25_K1 = 1.5;
 const BM25_B = 0.75;
 const DEFAULT_K = 5;
 const SNIPPET_RADIUS = 60;
-/** Lowercase, split on any non-letter / non-number (Unicode-aware), drop stopwords and tokens shorter than TOKEN_MIN_LENGTH. */
+/** Lowercase, split on any non-letter / non-number / non-mark (Unicode-aware), drop stopwords and tokens shorter than TOKEN_MIN_LENGTH. */
 export function tokenize(text) {
     const out = [];
-    for (const raw of text.toLowerCase().split(/[^\p{L}\p{N}]+/u)) {
+    for (const raw of text.toLowerCase().split(/[^\p{L}\p{N}\p{M}]+/u)) {
         if (raw.length < TOKEN_MIN_LENGTH)
             continue;
         if (STOPWORDS.has(raw))

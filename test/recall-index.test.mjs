@@ -25,6 +25,11 @@ describe("tokenize", () => {
         assert.ok(tokens.includes("вход"), "Cyrillic token must survive tokenization");
         assert.ok(tokens.includes("認証"), "CJK token must survive tokenization");
     });
+    it("keeps Thai words with combining marks intact (Thai follow-up)", () => {
+        const tokens = tokenize("ม้านั่ง กระโดด");
+        assert.ok(tokens.includes("ม้านั่ง"), "Thai word with tone mark must survive tokenization");
+        assert.ok(tokens.includes("กระโดด"), "Thai word with vowel mark must survive tokenization");
+    });
 });
 describe("redactSecrets", () => {
     it("redacts AWS access keys", () => {

@@ -1,5 +1,12 @@
 # Daily Improvement Report — 2026-06-07
 
+## 2026-06-07 — Close deferred Thai combining-mark tokenization follow-up
+- `CLAUDE.md` § Deferred logged a LOW follow-up from the 2026-06-03 completeness sweep: the Unicode tokenizer in `src/lib/recall-index.mts` and `src/lib/goal-state.mts` used `/[^\p{L}\p{N}]+/u`, which treats Thai combining marks (`\p{M}`) as delimiters and fractures Thai words into garbled 2–3 character fragments. For recall this produced sub-percent BM25 noise; for goal-state the 4-char keyword floor dropped the fragments entirely.
+- Updated both tokenizers to split on `/[^\p{L}\p{N}\p{M}]+/u` so Thai tone marks and vowel signs stay attached to their base letters. Updated the `goal-state.mts` floor comment to note that Thai now survives at length ≥4, while the Korean short-word script issue remains open.
+- Added regression tests in `src/test/recall-index.test.mts` and `src/test/goal-state.test.mts` that pin Thai words with combining marks (e.g. `ม้านั่ง`, `กระโดด`) through the tokenizers.
+- Marked the follow-up **CLOSED in working tree** in `CLAUDE.md` § Deferred.
+- Verified with `npm run build` (mirrors regenerated), `npm run verify:all` (all 11 content invariants + typecheck pass), and `npm test` (795 pass / 0 fail, up from 793 due to the 2 new regression tests). No generated drift.
+
 ## 2026-06-07 — Post-merge audit: fix doc/count drift vs the latest implementation
 - Audited the whole repo after merging everything to `main` (HEAD `017eadf`, v3.11.0). `verify:all` + `verify:generated` green; suite 793/793 (the `hook.test.mjs` wall-clock timing failure is the documented environmental flake, not a regression).
 - Fixed prose/count drift that no invariant covers: the expert MCP surface is **18 tools** (was stated as 12) in `docs/skills.md` and the `install.mts` expert message; the `CONTRIBUTING.md` release checklist still described a manual `npm publish` / `gh release create` / float-tag force-push that `release.yml` now does automatically via OIDC trusted publishing (rewrote it to defer to `docs/RELEASING.md`); `agents/README.md` pointed three times at a non-existent `references/orchestration-patterns.md` (repointed at the in-file Decision matrix); the `oh-my-claudecode` companion was advertised as 39 skills (the vendored snapshot ships 38); `harvest` named a non-existent `hooks/bin/observe.mjs` path; `CLAUDE.md` anchored the skill-distill NaN-ts closure to `b4f2eaf` instead of "in working tree".
@@ -597,7 +604,7 @@
 | Project | continuous-improvement v3.11.0 |
 | Stack | Node.js (ESM), MCP server, GitHub Action, CLI tools |
 | Stage | Published npm package, active development |
-| Tests (current) | 793 pass / 0 fail |
+| Tests (current) | 795 pass / 0 fail |
 
 ## Changes Implemented
 
@@ -617,7 +624,7 @@
 
 ## Remaining Failures
 
-None. All 793 tests pass / 0 fail as of this cycle.
+None. All 795 tests pass / 0 fail as of this cycle.
 
 ## Deferred Items
 
