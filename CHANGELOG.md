@@ -11,6 +11,7 @@ All notable changes to this skill are documented here.
 ### Added
 
 - **Proactive recall-briefing hook (opt-in episodic memory)** — `hooks/recall-briefing.mjs` runs on `UserPromptSubmit`, queries the BM25 observation index in-process, and surfaces the most relevant prior corrections as a briefing before the agent acts. First capability increment of the intelligence-amplifier reframe: a lesson learned once is recalled automatically on the next related prompt instead of being re-taught. Opt-in — disabled unless wired into the hook config.
+- **`verify:tool-count` content invariant (12th in `verify:all`)** — `bin/check-tool-count.mjs` pins MCP tool-count claims in docs and source to the generated `plugins/{expert,beginner}.json` `tools[].length`, so a count can't drift when a tool is added — the gap that let "12 tools" pass `verify:all` green in the 2026-06-07 audit. Pins four claims across `docs/skills.md`, `README.md`, `QUICKSTART.md`, and the `mcp-server` banner. Follow-up to #203 (PR #204).
 
 ### Changed
 
