@@ -31,6 +31,10 @@ function main() {
             files.push(arg);
         }
     }
+    if (argv.includes("--state") && stateFile === "") {
+        process.stderr.write("--state requires a <gateguard-session.json> path argument\n");
+        process.exit(2);
+    }
     if (files.length === 0) {
         process.stderr.write("usage: gateguard-clear <file_path> [<file_path>...] [--state <gateguard-session.json>]\n");
         process.exit(2);

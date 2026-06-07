@@ -280,5 +280,18 @@ describe("hooks/gateguard.mjs (runtime PreToolUse hook — issue #106)", () => {
         rmSync(dir, { recursive: true, force: true });
       }
     });
+
+    it("block reason CLI args are JSON-escaped, not bare-quoted", () => {
+      const dir = mkdtempSync(join(tmpdir(), "gateguard-esc-"));
+      try {
+        const decision = runHook("Write", { file_path: 'a"b.ts', content: "x" }, dir);
+        assert.equal(decision.decision, "block");
+        const cliLine = (decision.reason ?? "").split("\n").find((line) => line.includes("gateguard-clear.mjs")) ?? "";
+        assert.match(cliLine, /a\\"b\.ts/, "CLI arg must be JSON-escaped");
+        assert.doesNotMatch(cliLine, /"a"b\.ts"/, "CLI arg must not contain a bare unescaped quote");
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
   });
 });

@@ -58,6 +58,12 @@ describe("bin/gateguard-clear.mjs", () => {
     assert.match(result.stderr, /usage/i);
   });
 
+  it("errors when --state is given without a path argument", () => {
+    const result = run(["file.ts", "--state"]);
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /--state requires/i);
+  });
+
   it("falls back to the resolved session dir when --state is omitted", () => {
     const sess = mkdtempSync(join(tmpdir(), "ggclear-resolved-"));
     try {

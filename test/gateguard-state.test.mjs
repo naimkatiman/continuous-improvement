@@ -23,6 +23,10 @@ describe("canonicalizeProjectRoot", () => {
     it("strips a trailing slash", () => {
         assert.equal(canonicalizeProjectRoot("d:/Ai/x/"), "d:/Ai/x");
     });
+    it("collapses multiple trailing slashes", () => {
+        assert.equal(canonicalizeProjectRoot("d:/proj//"), "d:/proj");
+        assert.equal(canonicalizeFileKey("d:/Ai/x///"), "d:/Ai/x");
+    });
     it("leaves a POSIX path unchanged", () => {
         assert.equal(canonicalizeProjectRoot("/home/u/x"), "/home/u/x");
     });

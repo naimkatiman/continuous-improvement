@@ -121,12 +121,10 @@ function extractFilePaths(toolInput: ToolInput): string[] {
   return [];
 }
 
+// The call site only reads this inside the block branch, where at least one
+// path is uncleared; an all-cleared batch returns "" and is never consumed.
 function firstUnclearedFilePath(toolInput: ToolInput, state: GateguardState): string {
-  const filePaths = extractFilePaths(toolInput);
-  const uncleared = filePaths.find((path) => !isFileCleared(state, path));
-  if (uncleared) return uncleared;
-  if (filePaths.length > 0) return filePaths[0]!;
-  return "";
+  return extractFilePaths(toolInput).find((path) => !isFileCleared(state, path)) ?? "";
 }
 
 function countDistinctNewFilePaths(filePaths: string[], state: GateguardState): number {
@@ -146,7 +144,7 @@ function buildMutatingFileReason(toolName: string, filePaths: string[], stateFil
   const target = formatFileTarget(filePaths);
   const pathList = filePaths.filter((p) => p !== "");
   const jsonArray = (pathList.length > 0 ? pathList : [target]).map((p) => JSON.stringify(p)).join(", ");
-  const cliArgs = (pathList.length > 0 ? pathList : [target]).map((p) => `"${p}"`).join(" ");
+  const cliArgs = (pathList.length > 0 ? pathList : [target]).map((p) => JSON.stringify(p)).join(" ");
   return [
     `Before ${toolName === "Write" ? "creating" : "editing"} ${target}, present these facts:`,
     "",
