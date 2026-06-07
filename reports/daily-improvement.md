@@ -5,7 +5,7 @@
 - Updated both tokenizers to split on `/[^\p{L}\p{N}\p{M}]+/u` so Thai tone marks and vowel signs stay attached to their base letters. Updated the `goal-state.mts` floor comment to note that Thai now survives at length ≥4, while the Korean short-word script issue remains open.
 - Added regression tests in `src/test/recall-index.test.mts` and `src/test/goal-state.test.mts` that pin Thai words with combining marks (e.g. `ม้านั่ง`, `กระโดด`) through the tokenizers.
 - Marked the follow-up **CLOSED `747451a`** in `CLAUDE.md` § Deferred. Opened PR #209 (`fix(recall,goal-state): keep Thai combining marks in Unicode tokenizer`) for merge review.
-- Verified with `npm run build` (mirrors regenerated), `npm run verify:all` (all 11 content invariants + typecheck pass), and `npm test` (795 pass / 0 fail, up from 793 due to the 2 new regression tests). No generated drift.
+- Verified with `npm run build` (mirrors regenerated), `npm run verify:all` after merging latest `origin/main` (all 12 content invariants + typecheck pass, now including `verify:tool-count`), and `npm test` (801 pass / 0 fail, up from 793 pre-merge due to the 2 new regression tests plus 6 new tool-count invariant tests on `main`). No generated drift.
 
 ## 2026-06-07 — Post-merge audit: fix doc/count drift vs the latest implementation
 - Audited the whole repo after merging everything to `main` (HEAD `017eadf`, v3.11.0). `verify:all` + `verify:generated` green; suite 793/793 (the `hook.test.mjs` wall-clock timing failure is the documented environmental flake, not a regression).
@@ -604,7 +604,7 @@
 | Project | continuous-improvement v3.11.0 |
 | Stack | Node.js (ESM), MCP server, GitHub Action, CLI tools |
 | Stage | Published npm package, active development |
-| Tests (current) | 795 pass / 0 fail |
+| Tests (current) | 801 pass / 0 fail |
 
 ## Changes Implemented
 
@@ -624,7 +624,7 @@
 
 ## Remaining Failures
 
-None. All 795 tests pass / 0 fail as of this cycle.
+None. All 801 tests pass / 0 fail as of this cycle.
 
 ## Deferred Items
 
