@@ -95,6 +95,12 @@ describe("extractKeywordsFromProse", () => {
     assert.ok(kws.includes("認証画面"), "CJK token at the length floor must survive tokenization");
   });
 
+  it("keeps Thai words with combining marks at the length floor (Thai follow-up)", () => {
+    const kws = extractKeywordsFromProse("Implement ม้านั่ง กระโดด");
+    assert.ok(kws.includes("ม้านั่ง"), "Thai keyword with tone mark must survive tokenization");
+    assert.ok(kws.includes("กระโดด"), "Thai keyword with vowel mark must survive tokenization");
+  });
+
   it("drops pure non-ASCII numeral runs, not just ASCII digits (item 4 follow-up)", () => {
     // The unicode splitter now lets Arabic-Indic ١٢٣٤٥ (5 digits) survive and
     // clear the 4-char floor; the digit-drop filter must catch it like "12345".

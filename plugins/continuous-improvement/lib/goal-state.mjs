@@ -19,10 +19,10 @@ const STOPWORDS = new Set([
     "make", "made", "adds", "new", "get", "got", "set", "also", "only", "each",
     "task", "goal", "plan", "work", "working", "build", "building", "code",
 ]);
-// 4 suits Latin/Cyrillic prose, but it silently drops most Korean/Thai words
-// (typically 2 chars) even though the Unicode splitter now keeps them — so the
-// goal-state half of the tokenizer fix is only partial for those scripts. A
-// script-aware floor is a logged follow-up (see CLAUDE.md Deferred).
+// 4 suits Latin/Cyrillic/Thai prose (Thai combining marks are now kept; see
+// extractKeywordsFromProse regex), but it silently drops most Korean words
+// (typically 2 chars). A script-aware floor for Korean is a logged follow-up
+// (see CLAUDE.md Deferred).
 const KEYWORD_MIN_LENGTH = 4;
 const KEYWORD_CAP = 20;
 const DEFAULT_WINDOW = 30;
@@ -52,14 +52,14 @@ export function getSection(markdown, heading) {
 }
 /**
  * Tokenize prose into goal keywords: lowercase, split on any non-letter /
- * non-number (Unicode-aware, so accented Latin / Cyrillic / CJK survive), drop
- * stopwords, pure-digit tokens, and tokens shorter than KEYWORD_MIN_LENGTH.
- * Deduped, capped at KEYWORD_CAP.
+ * non-number / non-mark (Unicode-aware, so accented Latin / Cyrillic / CJK /
+ * Thai survive), drop stopwords, pure-digit tokens, and tokens shorter than
+ * KEYWORD_MIN_LENGTH. Deduped, capped at KEYWORD_CAP.
  */
 export function extractKeywordsFromProse(prose) {
     const seen = new Set();
     const out = [];
-    for (const raw of prose.toLowerCase().split(/[^\p{L}\p{N}]+/u)) {
+    for (const raw of prose.toLowerCase().split(/[^\p{L}\p{N}\p{M}]+/u)) {
         const word = raw.trim();
         if (word.length < KEYWORD_MIN_LENGTH)
             continue;
