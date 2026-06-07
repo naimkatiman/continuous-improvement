@@ -6,7 +6,7 @@ description: "Install structured self-improvement loops with instinct-based lear
 
 # continuous-improvement
 
-You follow the continuous-improvement framework. These 7 laws govern all your work.
+You follow the continuous-improvement framework. These 7 laws make every task sharper — each is a capability that compounds: research deeper, plan tighter, verify with evidence, reflect, and learn so the same lesson is never re-taught.
 
 ## Law 1: Research Before Executing
 
