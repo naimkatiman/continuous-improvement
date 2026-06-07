@@ -6,6 +6,22 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+## [3.12.0] — 2026-06-07
+
+### Added
+
+- **Proactive recall-briefing hook (opt-in episodic memory)** — `hooks/recall-briefing.mjs` runs on `UserPromptSubmit`, queries the BM25 observation index in-process, and surfaces the most relevant prior corrections as a briefing before the agent acts. First capability increment of the intelligence-amplifier reframe: a lesson learned once is recalled automatically on the next related prompt instead of being re-taught. Opt-in — disabled unless wired into the hook config.
+- **`verify:tool-count` content invariant (12th in `verify:all`)** — `bin/check-tool-count.mjs` pins MCP tool-count claims in docs and source to the generated `plugins/{expert,beginner}.json` `tools[].length`, so a count can't drift when a tool is added — the gap that let "12 tools" pass `verify:all` green in the 2026-06-07 audit. Pins four claims across `docs/skills.md`, `README.md`, `QUICKSTART.md`, and the `mcp-server` banner. Follow-up to #203 (PR #204).
+
+### Changed
+
+- **Positioning reframed from "seatbelt" to intelligence amplifier across every user-facing surface** — the 7 Laws of AI Agent Discipline keep their names but each is reframed from a restriction into a capability the agent gains. README h1 "A seatbelt for Claude Code" → "Claude Code that gets sharper every session"; landing page title/hero/CTA, `SHARED_PLUGIN_DESCRIPTION` (the source of truth that propagates to `package.json` + all generated manifests + `llms.txt`), SKILL.md, and CONTRIBUTING.md all reframed from "Stops Claude Code from…" loss-framing to capability-led copy. Honesty held: recall stays lexical/BM25, instincts decay, GateGuard still blocks (framed as forced grounding) — no over-claiming. Plan: `docs/plans/2026-06-07-intelligence-amplifier-reframe.md`.
+- **npm release now publishes via OIDC trusted publishing instead of `NPM_TOKEN`** — the account enforces 2FA-on-writes, which makes long-lived granular tokens hit EOTP in CI. `release.yml` upgrades npm to ≥ 11.5.1 and publishes with `npm publish --access public --provenance` (signed provenance from the OIDC claims); the `NPM_TOKEN` secret dependency is gone. See `docs/RELEASING.md` for the one-time trusted-publisher setup.
+
+### Fixed
+
+- **Doc/count drift surfaced by a post-merge audit** — corrected prose/count claims that drifted from the v3.11.0 implementation and that no `verify:all` invariant covers: MCP expert surface is 18 tools (not 12); the CONTRIBUTING release checklist now defers to `docs/RELEASING.md` instead of describing the retired manual publish flow; `agents/README.md` repointed off a non-existent reference doc; the oh-my-claudecode vendored snapshot count corrected to 38 skills; `harvest` observe-path corrected to `instincts/bin/observe.mjs`; and reports/update-card test counts synced to 793.
+
 ## [3.11.0] — 2026-06-07
 
 ### Added

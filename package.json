@@ -1,6 +1,6 @@
 {
   "name": "continuous-improvement",
-  "version": "3.11.0",
+  "version": "3.12.0",
   "description": "Makes Claude Code reason harder, recall past corrections, and learn from every session so its competence compounds run over run. The Mulahazah engine turns each fix into a reusable instinct, so a lesson learned once is applied automatically next time — no re-teaching. Built on the 7 Laws of AI Agent Discipline (research, plan, verify, reflect, learn) and shipped as 25 bundled skills, instinct-aware hooks, an MCP toolset for recall and reflection, and a GitHub Action transcript linter that feeds real work history back into sharper instincts. Beginner: one /plugin install command. Expert: adds MCP tools and session hooks.",
   "keywords": [
     "claude-code",
@@ -50,7 +50,8 @@
     "verify:test-imports-only": "node bin/check-test-imports-only.mjs",
     "verify:scripts-citation-drift": "node bin/check-scripts-citation-drift.mjs",
     "verify:third-party-shape": "node bin/check-third-party-shape.mjs",
-    "verify:all": "npm run verify:skill-mirror && npm run verify:skill-tiers && npm run verify:skill-law-tag && npm run verify:skill-count && npm run verify:docs-substrings && npm run verify:everything-mirror && npm run verify:routing-targets && npm run verify:doc-runtime-claims && npm run verify:test-imports-only && npm run verify:scripts-citation-drift && npm run verify:third-party-shape && npm run typecheck"
+    "verify:tool-count": "node bin/check-tool-count.mjs",
+    "verify:all": "npm run verify:skill-mirror && npm run verify:skill-tiers && npm run verify:skill-law-tag && npm run verify:skill-count && npm run verify:docs-substrings && npm run verify:everything-mirror && npm run verify:routing-targets && npm run verify:doc-runtime-claims && npm run verify:test-imports-only && npm run verify:scripts-citation-drift && npm run verify:third-party-shape && npm run verify:tool-count && npm run typecheck"
   },
   "files": [
     ".claude-plugin/",
