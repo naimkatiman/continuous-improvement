@@ -641,10 +641,15 @@ export function getPluginHooksConfig(): PluginHooksConfig {
     command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/route-prompt.mjs\"",
     timeout: 5,
   };
+  const recallBriefingCommand = {
+    type: "command" as const,
+    command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/recall-briefing.mjs\"",
+    timeout: 5,
+  };
 
   return {
     description:
-      "Gateguard fact-forcing PreToolUse, companion-preference enforcement, observation, session lifecycle, 3-section-close discipline, goal-drift Stop gate, and UserPromptSubmit lazy-routing hooks for continuous-improvement.",
+      "Gateguard fact-forcing PreToolUse, companion-preference enforcement, observation, session lifecycle, 3-section-close discipline, goal-drift Stop gate, and UserPromptSubmit lazy-routing plus opt-in proactive recall-briefing hooks for continuous-improvement.",
     hooks: {
       // gateguard runs FIRST on PreToolUse so its block decision short-circuits
       // before companion-preference sees the call. companion-preference runs
@@ -659,7 +664,7 @@ export function getPluginHooksConfig(): PluginHooksConfig {
         { hooks: [gateguardCommand, companionPreferenceCommand] },
       ],
       PostToolUse: [{ hooks: [observeCommand] }],
-      UserPromptSubmit: [{ hooks: [routePromptCommand] }],
+      UserPromptSubmit: [{ hooks: [routePromptCommand, recallBriefingCommand] }],
       SessionStart: [{ hooks: [sessionCommand] }],
       SessionEnd: [{ hooks: [sessionCommand] }],
       Stop: [{ hooks: [threeSectionCloseCommand, goalDriftStopCommand] }],
