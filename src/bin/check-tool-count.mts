@@ -59,6 +59,18 @@ const ASSERTIONS: ReadonlyArray<ToolCountAssertion> = [
     label: "expert MCP tool count",
   },
   {
+    file: "README.md",
+    pattern: /MCP tools \((\d+) of them/,
+    mode: "expert",
+    label: "expert MCP tool count (README)",
+  },
+  {
+    file: "QUICKSTART.md",
+    pattern: /MCP tools \((\d+) of them/,
+    mode: "expert",
+    label: "expert MCP tool count (QUICKSTART)",
+  },
+  {
     file: "src/bin/mcp-server.mts",
     pattern: /beginner \((\d+) tools\)/,
     mode: "beginner",
