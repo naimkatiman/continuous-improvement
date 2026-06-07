@@ -3,7 +3,7 @@
  * continuous-improvement MCP Server
  *
  * Exposes instincts, observations, and reflection as MCP tools + resources.
- * Two modes: beginner (3 tools) and expert (all tools).
+ * Two modes: beginner (4 tools) and expert (all tools).
  *
  * Usage:
  *   node bin/mcp-server.mjs                  # default: beginner mode
