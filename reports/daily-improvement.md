@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-07
 
+## 2026-06-07 — Sync stale v3.11.0 version references to v3.12.0
+- PR #197 bumped the release to v3.11.0 and PR #204/#210 advanced to v3.12.0, but three user-facing surfaces still advertised v3.11.0: `.cloudplugin/marketplace.json` (version and old loss-framing description), `docs/landing/index.html` (four occurrences: hero version badge, kicker REV line, current-rev list item, footer REV line), and `reports/assets/update-card.html` (visible date line).
+- Updated all six stale references from `v3.11.0` / `REV 3.11.0` to `v3.12.0` / `REV 3.12.0`. Also updated `.cloudplugin/marketplace.json` description from the old loss-framing "Stops Claude Code from…" to the v3.12.0 intelligence-amplifier reframe so it matches `.claude-plugin/marketplace.json` and the generated plugin manifests.
+- Verified with `npm run verify:all` (all 12 content invariants + typecheck pass, including the new `verify:tool-count`) and `npm test` (801 pass / 0 fail). No generated drift.
+
 ## 2026-06-07 — Close deferred Thai combining-mark tokenization follow-up
 - `CLAUDE.md` § Deferred logged a LOW follow-up from the 2026-06-03 completeness sweep: the Unicode tokenizer in `src/lib/recall-index.mts` and `src/lib/goal-state.mts` used `/[^\p{L}\p{N}]+/u`, which treats Thai combining marks (`\p{M}`) as delimiters and fractures Thai words into garbled 2–3 character fragments. For recall this produced sub-percent BM25 noise; for goal-state the 4-char keyword floor dropped the fragments entirely.
 - Updated both tokenizers to split on `/[^\p{L}\p{N}\p{M}]+/u` so Thai tone marks and vowel signs stay attached to their base letters. Updated the `goal-state.mts` floor comment to note that Thai now survives at length ≥4, while the Korean short-word script issue remains open.
@@ -601,7 +606,7 @@
 
 | Field | Value |
 |-------|-------|
-| Project | continuous-improvement v3.11.0 |
+| Project | continuous-improvement v3.12.0 |
 | Stack | Node.js (ESM), MCP server, GitHub Action, CLI tools |
 | Stage | Published npm package, active development |
 | Tests (current) | 801 pass / 0 fail |
