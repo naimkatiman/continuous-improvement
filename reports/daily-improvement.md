@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-07
 
+## 2026-06-07 — Sync test counts 752→779 after recent regression tests
+- `npm test` now reports 779 pass / 0 fail (up from 752) after the test suite grew with new regression coverage (e.g., gateguard MultiEdit parity, empty-path fallback, installer coexistence, MCP temp-home flake fix, and lint-transcript Windows pipe compatibility). The `Project Snapshot` table and `Remaining Failures` prose in this report, plus the HTML summary card at `reports/assets/update-card.html`, still showed the stale `752` count.
+- Updated all three occurrences in the card (Tests Passing, Total Tests, badge) from `752` to `779`, and updated the snapshot table and Remaining Failures prose from `752` to `779`.
+- Verified with `npm test` (779 pass / 0 fail) and `npm run verify:all` (all 11 content invariants + typecheck pass). Working tree has a single doc-only diff.
+
 ## 2026-06-07 — Create PR #200 for missed version-reference sync and enable auto-merge
 - The branch `hourly/2026-06-07-sync-stale-version-refs-missed-in-197` (commit `736b487`) had the landing-page and CloudPlugin version fixes but was not yet merged to `main`.
 - Created PR #200 (`docs: sync missed 3.10.0 → 3.11.0 version references from PR #197`) and enabled squash auto-merge with `gh pr merge 200 --squash --delete-branch --auto`. CI checks (lint-transcript + Node 18/20/22 test matrix) are running; merge will complete once they pass.
@@ -591,7 +596,7 @@
 | Project | continuous-improvement v3.11.0 |
 | Stack | Node.js (ESM), MCP server, GitHub Action, CLI tools |
 | Stage | Published npm package, active development |
-| Tests (current) | 752 pass / 0 fail |
+| Tests (current) | 779 pass / 0 fail |
 
 ## Changes Implemented
 
@@ -611,7 +616,7 @@
 
 ## Remaining Failures
 
-None. All 752 tests pass / 0 fail as of this cycle.
+None. All 779 tests pass / 0 fail as of this cycle.
 
 ## Deferred Items
 
