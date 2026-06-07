@@ -1,5 +1,5 @@
 {
-  "description": "Gateguard fact-forcing PreToolUse, companion-preference enforcement, observation, session lifecycle, 3-section-close discipline, goal-drift Stop gate, and UserPromptSubmit lazy-routing hooks for continuous-improvement.",
+  "description": "Gateguard fact-forcing PreToolUse, companion-preference enforcement, observation, session lifecycle, 3-section-close discipline, goal-drift Stop gate, and UserPromptSubmit lazy-routing plus opt-in proactive recall-briefing hooks for continuous-improvement.",
   "hooks": {
     "PreToolUse": [
       {
@@ -34,6 +34,11 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/route-prompt.mjs\"",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/recall-briefing.mjs\"",
             "timeout": 5
           }
         ]
