@@ -4,7 +4,7 @@
 - `CLAUDE.md` § Deferred logged a LOW follow-up from the 2026-06-03 completeness sweep: the Unicode tokenizer in `src/lib/recall-index.mts` and `src/lib/goal-state.mts` used `/[^\p{L}\p{N}]+/u`, which treats Thai combining marks (`\p{M}`) as delimiters and fractures Thai words into garbled 2–3 character fragments. For recall this produced sub-percent BM25 noise; for goal-state the 4-char keyword floor dropped the fragments entirely.
 - Updated both tokenizers to split on `/[^\p{L}\p{N}\p{M}]+/u` so Thai tone marks and vowel signs stay attached to their base letters. Updated the `goal-state.mts` floor comment to note that Thai now survives at length ≥4, while the Korean short-word script issue remains open.
 - Added regression tests in `src/test/recall-index.test.mts` and `src/test/goal-state.test.mts` that pin Thai words with combining marks (e.g. `ม้านั่ง`, `กระโดด`) through the tokenizers.
-- Marked the follow-up **CLOSED in working tree** in `CLAUDE.md` § Deferred.
+- Marked the follow-up **CLOSED `747451a`** in `CLAUDE.md` § Deferred. Opened PR #209 (`fix(recall,goal-state): keep Thai combining marks in Unicode tokenizer`) for merge review.
 - Verified with `npm run build` (mirrors regenerated), `npm run verify:all` (all 11 content invariants + typecheck pass), and `npm test` (795 pass / 0 fail, up from 793 due to the 2 new regression tests). No generated drift.
 
 ## 2026-06-07 — Post-merge audit: fix doc/count drift vs the latest implementation
