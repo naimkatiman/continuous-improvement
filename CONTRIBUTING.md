@@ -248,30 +248,21 @@ The lint `verify:skill-law-tag` (run by `verify:all`) blocks any new skill whose
 
 ## Release
 
-### Float-tag policy (`v3`, `v4`, ...)
-
-The `v3` lightweight tag is a floating major-version pointer used by GitHub Action consumers (`naimkatiman/continuous-improvement@v3`). It must be retargeted to the latest published `v3.x.y` tag on every minor or patch release.
-
-```bash
-# After tagging and publishing the GitHub Release for v3.X.Y:
-git tag -f v3 v3.X.Y
-git push origin v3 --force
-```
-
-The force-push is intentional and only applies to the floating tag — never to `vX.Y.Z` pinned tags or to branches. Consumers using `@v3.6.0` are unaffected; only `@v3` consumers see the new code on their next `actions/checkout`. This matches the actions/checkout, actions/setup-node, etc. ecosystem convention.
-
-If you cut a new major version (e.g. `v4.0.0`), create a fresh `v4` floating tag rather than retargeting `v3` — the float tag tracks the *current* major, never the *latest* across majors. This preserves the SemVer guarantee that `@v3` stays breaking-change-safe for as long as the v3 line is supported.
+Releases are **tag-triggered**. [docs/RELEASING.md](docs/RELEASING.md) is the authoritative guide — what follows is the short version. Do **not** run `npm publish`, `gh release create`, or the float-tag force-push by hand: the [`release.yml`](.github/workflows/release.yml) workflow owns all three, and a local `npm publish` cannot authenticate under OIDC trusted publishing (there is no `NPM_TOKEN`).
 
 ### Release checklist
 
-1. Bump version in `package.json`, `plugins/continuous-improvement/.claude-plugin/plugin.json`, and `.claude-plugin/marketplace.json` + `plugins/continuous-improvement/.claude-plugin/marketplace.json`.
+1. On a release branch, bump the version with `npm version X.Y.Z --no-git-tag-version`, then `npm run build`. `src/lib/plugin-metadata.mts` derives `VERSION` from `package.json`, so the build propagates the bump into all 5 generated manifests — you never hand-edit a manifest version.
 2. Add the new section to `CHANGELOG.md`.
 3. Run `npm run verify:all` and `npm test`.
-4. Commit on a release branch, open PR, merge to `main`.
-5. Tag the merge commit: `git tag vX.Y.Z` and `git push origin vX.Y.Z`.
-6. Publish the GitHub Release with `gh release create vX.Y.Z --notes-file <changelog-section>` (or via the web UI).
-7. **Retarget the float tag** per the policy above.
-8. `npm publish` once the GitHub Release is live.
+4. Stage the changed files by explicit name, commit `chore(release): cut vX.Y.Z`, open a PR, squash-merge to `main`.
+5. Tag the merge commit and push: `git switch main && git pull --ff-only origin main && git tag vX.Y.Z && git push origin vX.Y.Z`.
+
+On the tag push, `release.yml` builds, runs `verify:all` + tests, asserts the tag equals the `package.json` version, publishes to npm via OIDC trusted publishing (`npm publish --provenance`, no token), creates the GitHub Release with generated notes, and retargets the float tag — all automatically.
+
+### Float-tag policy (`v3`, `v4`, ...)
+
+The `v3` lightweight tag is a floating major-version pointer for GitHub Action consumers (`naimkatiman/continuous-improvement@v3`). The release workflow retargets it to the latest `v3.x.y` automatically on every release — there is no manual force-push step. Consumers using `@v3.6.0` are unaffected; only `@v3` consumers see new code on their next `actions/checkout`. If you cut a new major version (e.g. `v4.0.0`), the float tag tracks the *current* major, never the *latest* across majors, preserving the SemVer guarantee that `@v3` stays breaking-change-safe for as long as the v3 line is supported.
 
 ## License
 

@@ -14,7 +14,7 @@ Our annotations on the vendored snapshot. Authored by us, not copied from upstre
 
 This snapshot is **registered in `.claude-plugin/marketplace.json`** as of PR A of the unified-dispatcher train. Users can install OMC with `/plugin install oh-my-claudecode@continuous-improvement`. Users who already have it from upstream via `/plugin marketplace add Yeachan-Heo/oh-my-claudecode` should keep that — our copy is a frozen pinned-SHA snapshot, theirs auto-updates.
 
-The snapshot is **not loaded** into `plugins/continuous-improvement/` itself. Marketplace registration alone makes the 39 skills + 19 agents installable on demand; per-skill verbatim ports into the CI bundle remain single-concern PRs gated on user-pain triggers per the integration-candidates matrix below.
+The snapshot is **not loaded** into `plugins/continuous-improvement/` itself. Marketplace registration alone makes the 38 skills + 19 agents installable on demand; per-skill verbatim ports into the CI bundle remain single-concern PRs gated on user-pain triggers per the integration-candidates matrix below.
 
 Activating the plugin installs OMC's agents and skills only — `hooks/` is intentionally stripped from this snapshot (see item 2 below). Be aware of the heavy overlap with `/ralph` and `/superpowers` called out in the matrix below — when both are installed, the unified `/superpowers` dispatcher (PR B) prefers the CI-bundled implementation for the autonomous-loop entry point and surfaces OMC's variants as alternatives in the routing table only.
 

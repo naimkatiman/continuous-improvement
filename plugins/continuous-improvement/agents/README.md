@@ -40,7 +40,7 @@ Pick this only when **independent** investigations can run in parallel and produ
 
 - `/ship` → fans out to `code-reviewer` + `security-auditor` + `test-engineer` in parallel, then synthesizes their reports into a go/no-go decision
 
-This is the only orchestration pattern this repo endorses. See `references/orchestration-patterns.md` for the full pattern catalog and anti-patterns.
+This is the only orchestration pattern this repo endorses. See the **Decision matrix** below for when to fan out versus invoke a single persona.
 
 ## Decision matrix
 
@@ -107,7 +107,7 @@ The personas in this repo are designed to work as Claude Code subagents and as A
 - **As subagents:** auto-discovered when this plugin is enabled (no path config needed). Use the Agent tool with `subagent_type: code-reviewer` (or `security-auditor`, `test-engineer`). `/ship` is the canonical example.
 - **As Agent Teams teammates** (experimental, requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`): reference the same persona name when spawning a teammate. The persona's body is **appended to** the teammate's system prompt as additional instructions (not a replacement), so your persona text sits on top of the team-coordination instructions the lead installs (SendMessage, task-list tools, etc.).
 
-Subagents only report results back to the main agent. Agent Teams let teammates message each other directly. Use subagents when reports are enough; use Agent Teams when sub-agents need to challenge each other's findings (e.g. competing-hypothesis debugging). See `references/orchestration-patterns.md` for the full mapping.
+Subagents only report results back to the main agent. Agent Teams let teammates message each other directly. Use subagents when reports are enough; use Agent Teams when sub-agents need to challenge each other's findings (e.g. competing-hypothesis debugging).
 
 Plugin agents do not support `hooks`, `mcpServers`, or `permissionMode` frontmatter — those fields are silently ignored. Avoid relying on them when authoring new personas here.
 
@@ -117,4 +117,4 @@ Plugin agents do not support `hooks`, `mcpServers`, or `permissionMode` frontmat
 2. Define the role, scope, output format, and rules.
 3. Add a **Composition** block at the bottom (Invoke directly when / Invoke via / Do not invoke from another persona).
 4. Add the persona to the table at the top of this file.
-5. If the persona enables a new orchestration pattern, document it in `references/orchestration-patterns.md` rather than inventing the pattern in the persona file itself.
+5. If the persona enables a new orchestration pattern, document it in the **Decision matrix** above rather than inventing the pattern in the persona file itself.

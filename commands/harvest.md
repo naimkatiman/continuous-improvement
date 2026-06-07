@@ -65,7 +65,7 @@ Appended 12 instinct(s) to /Users/.../instincts/0af156594b39/instincts.jsonl
 If `tool_complete rows: 0`, the bash-fallback hook is active (no jq AND the Node observer is not on PATH) and only emits `tool_start` events. Two remediation paths:
 
 - **Install jq** — `winget install jqlang.jq` (Windows), `brew install jq` (macOS), `apt install jq` (Linux).
-- **Wire the Node observer** — ensure `hooks/bin/observe.mjs` is reachable from the active hook script.
+- **Wire the Node observer** — ensure the installed observer shim `instincts/bin/observe.mjs` (copied from `bin/observe.mjs`) sits beside the active hook script.
 
 Both are documented in the WARNING the classifier prints on a thin-schema host.
 
