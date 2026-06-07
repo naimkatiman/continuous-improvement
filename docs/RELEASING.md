@@ -7,7 +7,7 @@ The release pipeline is **tag-triggered**. Pushing a `v*` tag publishes the npm 
 | Surface | Trigger | Mechanism |
 |---|---|---|
 | **Plugin marketplace** (`/plugin install`) | Merge to `main` | Claude Code clients fetch `.claude-plugin/marketplace.json` from `main` on demand. Consumers refresh with `/plugin update continuous-improvement`. |
-| **npm package** (`npm install -g continuous-improvement`) | Tag push (`v*`) | `.github/workflows/release.yml` runs `npm publish` and creates a GitHub Release. |
+| **npm package** (`npm install -g continuous-improvement`) | Tag push (`v*`) | `.github/workflows/release.yml` publishes via OIDC trusted publishing (no token) and creates a GitHub Release. |
 | **GitHub Action Marketplace** | Manual (one-time setup + per-release) | Publish `action.yml` via the GitHub Release UI. See [Publishing to Marketplace](#publishing-to-github-marketplace) below. |
 
 ## Cutting a release
@@ -52,23 +52,28 @@ git push origin vX.Y.Z
 
 `release.yml` runs on the tag push:
 
-1. `npm ci` + `npm run build`
-2. `git diff --exit-code` to ensure generated artifacts are committed
-3. `npm run verify:all` (11 invariants + typecheck)
-4. `node --test test/*.test.mjs`
-5. Asserts `package.json` version equals the tag
-6. `npm publish --access public`
-7. `gh release create --generate-notes`
+1. `npm install -g npm@latest` (trusted publishing needs npm ≥ 11.5.1)
+2. `npm ci` + `npm run build`
+3. `git diff --exit-code` to ensure generated artifacts are committed
+4. `npm run verify:all` (11 invariants + typecheck)
+5. `node --test test/*.test.mjs`
+6. Asserts `package.json` version equals the tag
+7. `npm publish --access public --provenance` via OIDC trusted publishing (no token)
+8. `gh release create --generate-notes`
 
 If any step fails the publish does not happen and the tag remains unpublished. Fix forward with a new patch tag.
 
-## Required GitHub secrets
+## Publishing auth: OIDC trusted publishing (no token)
 
-| Secret | Source | Purpose |
-|---|---|---|
-| `NPM_TOKEN` | npmjs.com → Access Tokens → Granular automation token with publish access to `continuous-improvement` | Authenticates `npm publish` |
+The workflow authenticates to npm via **OIDC trusted publishing** — there is **no `NPM_TOKEN` secret**. This sidesteps npm's 2FA-on-writes requirement (which makes long-lived CI tokens hit `EOTP`) and produces signed provenance for free.
 
-Set under **Settings → Secrets and variables → Actions → New repository secret**.
+One-time setup on npmjs.com (per package):
+
+1. npmjs.com → the `continuous-improvement` package → **Settings** → **Trusted Publisher**.
+2. Add a **GitHub Actions** publisher: organization/owner `naimkatiman`, repository `continuous-improvement`, workflow filename `release.yml`. Leave the environment field blank (the workflow uses none).
+3. Save. The next tag push publishes with no token.
+
+The workflow already grants `permissions: id-token: write`, and bumps npm to ≥ 11.5.1 (trusted publishing minimum) before publishing. If the trusted publisher is **not** configured, `npm publish` fails — configure it before tagging.
 
 ## Verifying a release shipped
 
@@ -109,5 +114,4 @@ Consumers install it in their workflow with:
 
 ## Optional upgrades
 
-- **npm provenance** — once npm trusted publisher is configured for this repo, change the publish step to `npm publish --provenance --access public`. The workflow already sets `id-token: write`.
 - **Tag protection** — under Settings → Tags → New rule, require admin role to create `v*` tags. Stops accidental tag pushes from triggering a publish.
