@@ -19,7 +19,7 @@ Pinned snapshots. Read-only. Refresh by bumping the SHA and re-running the docum
 **Selective scope (verbatim from upstream):**
 
 - `agents/` — 19 agent definitions
-- `skills/` — 39 skills
+- `skills/` — 38 skills
 - `missions/` — task templates
 - `templates/` — scaffold files
 - `examples/` — usage examples

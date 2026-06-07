@@ -556,7 +556,7 @@ console.log("Installing to Claude Code...\n");
 const installed = installSkill() ? 1 : 0;
 const modeInfo = {
     beginner: "Hooks are capturing silently. System auto-levels as you use it.",
-    expert: "Full plugin active: hooks + MCP server + session hooks. 12 tools available.",
+    expert: "Full plugin active: hooks + MCP server + session hooks. 18 tools available.",
 };
 const packIndex = rawArgs.indexOf("--pack");
 if (packIndex !== -1 && rawArgs[packIndex + 1]) {

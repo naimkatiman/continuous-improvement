@@ -307,7 +307,7 @@ function main(): void {
     console.log("  the Node observer is not on PATH — never tool_complete with output_summary,");
     console.log("  which is what the classifier needs.");
     console.log("  Install jq (winget install jqlang.jq | brew install jq | apt install jq)");
-    console.log("  OR ensure hooks/bin/observe.mjs is reachable from the hook script.");
+    console.log("  OR ensure instincts/bin/observe.mjs is reachable from the hook script.");
   } else if (result.thinSchemaRows > 0 && result.classifiedRows === 0) {
     console.log("");
     console.log("WARNING: tool_complete rows found but lack output_summary fields.");

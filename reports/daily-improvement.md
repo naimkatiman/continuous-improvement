@@ -1,5 +1,11 @@
 # Daily Improvement Report — 2026-06-07
 
+## 2026-06-07 — Post-merge audit: fix doc/count drift vs the latest implementation
+- Audited the whole repo after merging everything to `main` (HEAD `017eadf`, v3.11.0). `verify:all` + `verify:generated` green; suite 793/793 (the `hook.test.mjs` wall-clock timing failure is the documented environmental flake, not a regression).
+- Fixed prose/count drift that no invariant covers: the expert MCP surface is **18 tools** (was stated as 12) in `docs/skills.md` and the `install.mts` expert message; the `CONTRIBUTING.md` release checklist still described a manual `npm publish` / `gh release create` / float-tag force-push that `release.yml` now does automatically via OIDC trusted publishing (rewrote it to defer to `docs/RELEASING.md`); `agents/README.md` pointed three times at a non-existent `references/orchestration-patterns.md` (repointed at the in-file Decision matrix); the `oh-my-claudecode` companion was advertised as 39 skills (the vendored snapshot ships 38); `harvest` named a non-existent `hooks/bin/observe.mjs` path; `CLAUDE.md` anchored the skill-distill NaN-ts closure to `b4f2eaf` instead of "in working tree".
+- Synced this report's live-state test count (and `reports/assets/update-card.html`) from 752 → 793. The dated narrative entries below are point-in-time and left unchanged.
+- Verified with `npm run build` (mirrors regenerated), `npm run verify:all`, and `npm run verify:generated` (no generated drift).
+
 ## 2026-06-07 — Create PR #200 for missed version-reference sync and enable auto-merge
 - The branch `hourly/2026-06-07-sync-stale-version-refs-missed-in-197` (commit `736b487`) had the landing-page and CloudPlugin version fixes but was not yet merged to `main`.
 - Created PR #200 (`docs: sync missed 3.10.0 → 3.11.0 version references from PR #197`) and enabled squash auto-merge with `gh pr merge 200 --squash --delete-branch --auto`. CI checks (lint-transcript + Node 18/20/22 test matrix) are running; merge will complete once they pass.
@@ -591,7 +597,7 @@
 | Project | continuous-improvement v3.11.0 |
 | Stack | Node.js (ESM), MCP server, GitHub Action, CLI tools |
 | Stage | Published npm package, active development |
-| Tests (current) | 752 pass / 0 fail |
+| Tests (current) | 793 pass / 0 fail |
 
 ## Changes Implemented
 
@@ -611,7 +617,7 @@
 
 ## Remaining Failures
 
-None. All 752 tests pass / 0 fail as of this cycle.
+None. All 793 tests pass / 0 fail as of this cycle.
 
 ## Deferred Items
 

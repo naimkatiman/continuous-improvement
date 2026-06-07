@@ -53,7 +53,7 @@
     },
     {
       "name": "oh-my-claudecode",
-      "description": "Multi-agent orchestration system for Claude Code — 39 skills + 19 agents covering audit, plan, build, verify, ship, release, retrospective, and ops. Includes ralph (autonomous PRD loop), release, ultrawork, ultraqa, team, trace, visual-verdict, debug, deep-dive, deep-interview, autopilot, autoresearch. Vendored snapshot at third-party/oh-my-claudecode/ pinned to upstream SHA aacde3e (v4.13.6). Heavy overlap with continuous-improvement /ralph and /superpowers — pick per task.",
+      "description": "Multi-agent orchestration system for Claude Code — 38 skills + 19 agents covering audit, plan, build, verify, ship, release, retrospective, and ops. Includes ralph (autonomous PRD loop), release, ultrawork, ultraqa, team, trace, visual-verdict, debug, deep-dive, deep-interview, autopilot, autoresearch. Vendored snapshot at third-party/oh-my-claudecode/ pinned to upstream SHA aacde3e (v4.13.6). Heavy overlap with continuous-improvement /ralph and /superpowers — pick per task.",
       "version": "4.13.6",
       "source": "./third-party/oh-my-claudecode",
       "author": {

@@ -21,7 +21,7 @@ The dispatcher now routes across **four registered marketplaces** instead of rel
 /plugin install superpowers@continuous-improvement       # Obra's 14 workflow skills
 /plugin install agent-skills@continuous-improvement      # Addy's 21 SDLC skills
 /plugin install ruflo-swarm@continuous-improvement       # Agent swarm + Monitor stream
-/plugin install oh-my-claudecode@continuous-improvement  # 39 skills + 19 agents
+/plugin install oh-my-claudecode@continuous-improvement  # 38 skills + 19 agents
 ```
 
 The CI plugin (this dispatcher + `tdd-workflow`, `verification-loop`, `gateguard`, `ralph`, `deploy-receipt`, etc.) installs by default. The four companions are opt-in — install only what you need.

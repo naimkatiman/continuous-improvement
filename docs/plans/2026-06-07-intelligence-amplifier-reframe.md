@@ -97,6 +97,8 @@ Generated (via `npm run build`, committed): `lib/plugin-metadata.mjs`, the three
   auto-runs `ci_recall` on the first prompt and injects the top-3 prior hits, making episodic
   memory proactive. Real behavior change -> RED-GREEN-REFACTOR, own PR.
 
+  > **Shipped (PR #199) — superseded shape:** PR2 landed as a **UserPromptSubmit** hook that queries the BM25 recall index **in-process** on the first substantive prompt — not a `SessionStart` hook, and not by spawning `ci_recall`. Opt-in via `CLAUDE_RECALL_BRIEFING=1` (default off). See `docs/plans/2026-06-07-recall-briefing-hook.md`.
+
 ## Capability roadmap (ranked, for follow-up PRs)
 
 1. SessionStart recall briefing (PR2 — recommended increment).
