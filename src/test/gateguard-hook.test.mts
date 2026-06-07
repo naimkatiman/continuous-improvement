@@ -253,4 +253,32 @@ describe("hooks/gateguard.mjs (runtime PreToolUse hook — issue #106)", () => {
       assert.equal(retry.decision, "allow", "retry is allowed after all files are cleared");
     });
   });
+
+  describe("canonical clearance + block-reason clearance action", () => {
+    it("recognizes a clearance across drive-case and separator forms", () => {
+      const dir = mkdtempSync(join(tmpdir(), "gateguard-canon-"));
+      try {
+        seedClearedFiles(dir, ["d:/proj/file.ts"]);
+        const decision = runHook("Write", { file_path: "D:\\proj\\file.ts", content: "x" }, dir);
+        assert.equal(
+          decision.decision,
+          "allow",
+          "a file cleared as d:/proj/file.ts must be allowed when received as D:\\proj\\file.ts",
+        );
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it("block reason names the in-harness clearance action", () => {
+      const dir = mkdtempSync(join(tmpdir(), "gateguard-reason-"));
+      try {
+        const decision = runHook("Write", { file_path: "fresh-file.ts", content: "x" }, dir);
+        assert.equal(decision.decision, "block");
+        assert.match(decision.reason ?? "", /ci_gateguard_clear|gateguard-clear\.mjs/);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+  });
 });
