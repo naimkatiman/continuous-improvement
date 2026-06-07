@@ -28,7 +28,7 @@
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { MAX_CLEARED_FILES, isCapReached, loadState, markFileCleared, resolveSessionDir, saveState, } from "../lib/gateguard-state.mjs";
+import { MAX_CLEARED_FILES, canonicalizeFileKey, isCapReached, isFileCleared, loadState, markFileCleared, resolveSessionDir, saveState, } from "../lib/gateguard-state.mjs";
 const TOOL_ROUTE = {
     Read: "allow",
     Grep: "allow",
@@ -88,17 +88,13 @@ function extractFilePaths(toolInput) {
         return [toolInput.command];
     return [];
 }
-function firstUnclearedFilePath(toolInput, clearedFiles) {
-    const filePaths = extractFilePaths(toolInput);
-    const uncleared = filePaths.find((path) => !(path in clearedFiles));
-    if (uncleared)
-        return uncleared;
-    if (filePaths.length > 0)
-        return filePaths[0];
-    return "";
+// The call site only reads this inside the block branch, where at least one
+// path is uncleared; an all-cleared batch returns "" and is never consumed.
+function firstUnclearedFilePath(toolInput, state) {
+    return extractFilePaths(toolInput).find((path) => !isFileCleared(state, path)) ?? "";
 }
-function countDistinctNewFilePaths(filePaths, clearedFiles) {
-    return new Set(filePaths.filter((path) => !(path in clearedFiles))).size;
+function countDistinctNewFilePaths(filePaths, state) {
+    return new Set(filePaths.filter((path) => !isFileCleared(state, path)).map((path) => canonicalizeFileKey(path))).size;
 }
 function formatFileTarget(filePaths) {
     const nonEmpty = filePaths.filter((path) => path !== "");
@@ -110,6 +106,9 @@ function formatFileTarget(filePaths) {
 }
 function buildMutatingFileReason(toolName, filePaths, stateFilePath) {
     const target = formatFileTarget(filePaths);
+    const pathList = filePaths.filter((p) => p !== "");
+    const jsonArray = (pathList.length > 0 ? pathList : [target]).map((p) => JSON.stringify(p)).join(", ");
+    const cliArgs = (pathList.length > 0 ? pathList : [target]).map((p) => JSON.stringify(p)).join(" ");
     return [
         `Before ${toolName === "Write" ? "creating" : "editing"} ${target}, present these facts:`,
         "",
@@ -118,13 +117,13 @@ function buildMutatingFileReason(toolName, filePaths, stateFilePath) {
         "  3. If this file reads/writes data files, show field names, structure, and date format",
         "  4. Quote the user's current instruction verbatim",
         "",
-        "Then clear the gate and retry the same call. Two clearance paths:",
-        `  A. Portable (works on every harness): append each path above to "cleared_files" in`,
-        `     ${stateFilePath} with a non-destructive Bash write, then retry. Bash is not gated`,
-        "     unless the command itself is destructive.",
-        "  B. Inline: retry with `_gateguard_facts_presented: true` in tool_input. This only works",
-        "     where the harness forwards unknown tool params; Claude Code's strict tool schema",
-        "     rejects it with InputValidationError, so use path A on Claude Code.",
+        "Then clear the gate and retry the same call. Any one of:",
+        `  A. MCP tool:  ci_gateguard_clear  {file_paths: [${jsonArray}]}`,
+        `  B. CLI (Bash, never gated): node "\${CLAUDE_PLUGIN_ROOT}/bin/gateguard-clear.mjs" ${cliArgs}`,
+        `  C. Manual: append each path to "cleared_files" in ${stateFilePath} via a non-destructive Bash write.`,
+        "  Clearance matches regardless of drive-letter case or path separator.",
+        "  (On harnesses that forward unknown tool params you may instead retry with",
+        "  `_gateguard_facts_presented: true`; Claude Code's strict schema rejects that, so use A/B/C.)",
     ].join("\n");
 }
 function buildDestructiveBashReason(command) {
@@ -183,10 +182,10 @@ function main() {
     const stateFilePath = join(sessionDir, "gateguard-session.json");
     const state = loadState(sessionDir);
     const filePaths = extractFilePaths(toolInput);
-    const filePath = firstUnclearedFilePath(toolInput, state.cleared_files);
+    const filePath = firstUnclearedFilePath(toolInput, state);
     const factsFlagged = toolInput._gateguard_facts_presented === true;
-    const alreadyCleared = filePaths.length > 0 && filePaths.every((path) => path in state.cleared_files);
-    const newFileCount = countDistinctNewFilePaths(filePaths, state.cleared_files);
+    const alreadyCleared = filePaths.length > 0 && filePaths.every((path) => isFileCleared(state, path));
+    const newFileCount = countDistinctNewFilePaths(filePaths, state);
     if (!factsFlagged && !alreadyCleared) {
         emit({ decision: "block", reason: buildMutatingFileReason(toolName, filePaths.length > 0 ? filePaths : [filePath], stateFilePath) });
         return;

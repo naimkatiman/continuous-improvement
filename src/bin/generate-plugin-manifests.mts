@@ -207,6 +207,14 @@ async function writePluginBundle(): Promise<void> {
     copyFileTo(join(REPO_ROOT, "bin", "observe.mjs"), join(PLUGIN_BUNDLE_DIR, "bin", "observe.mjs")),
     copyFileTo(join(REPO_ROOT, "bin", "backfill.mjs"), join(PLUGIN_BUNDLE_DIR, "bin", "backfill.mjs")),
     copyFileTo(
+      join(REPO_ROOT, "bin", "gateguard-clear.mjs"),
+      join(PLUGIN_BUNDLE_DIR, "bin", "gateguard-clear.mjs"),
+    ),
+    copyFileTo(
+      join(REPO_ROOT, "lib", "gateguard-state.mjs"),
+      join(PLUGIN_BUNDLE_DIR, "lib", "gateguard-state.mjs"),
+    ),
+    copyFileTo(
       join(REPO_ROOT, "lib", "plugin-metadata.mjs"),
       join(PLUGIN_BUNDLE_DIR, "lib", "plugin-metadata.mjs"),
     ),

@@ -138,11 +138,34 @@ describe("MCP server — beginner mode", () => {
         assert.equal(response.result.serverInfo.name, PACKAGE_NAME);
         assert.equal(response.result.serverInfo.version, VERSION);
     });
-    it("lists beginner tools only (3 tools)", async () => {
+    it("lists beginner tools only (4 tools)", async () => {
         const response = await client.send({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
         const names = response.result.tools.map((tool) => tool.name);
         assert.deepEqual(names, getToolNames("beginner"));
         assert.ok(!names.includes("ci_reinforce"), "Should NOT include expert tools");
+    });
+    it("ci_gateguard_clear is available in beginner mode and clears the gate canonically", async () => {
+        const list = await client.send({ jsonrpc: "2.0", id: 40, method: "tools/list", params: {} });
+        const names = list.result.tools.map((tool) => tool.name);
+        assert.ok(names.includes("ci_gateguard_clear"), "ci_gateguard_clear must be in beginner tools/list");
+        const response = await client.send({
+            jsonrpc: "2.0",
+            id: 41,
+            method: "tools/call",
+            params: { name: "ci_gateguard_clear", arguments: { file_paths: ["D:\\proj\\x.ts"] } },
+        });
+        assert.ok(!response.result.isError, "ci_gateguard_clear should succeed");
+        assert.match(response.result.content[0].text, /d:\/proj\/x\.ts/, "reports the canonical cleared key");
+    });
+    it("ci_gateguard_clear requires at least one path", async () => {
+        const response = await client.send({
+            jsonrpc: "2.0",
+            id: 42,
+            method: "tools/call",
+            params: { name: "ci_gateguard_clear", arguments: {} },
+        });
+        assert.ok(response.result.isError, "empty clear request must error");
+        assert.match(response.result.content[0].text, /file_paths/);
     });
     it("ci_status returns project info", async () => {
         const response = await client.send({
@@ -312,7 +335,7 @@ describe("MCP server — expert mode", () => {
             // Windows can briefly keep stdio handles open after the child exits.
         }
     });
-    it("lists all 12 tools in expert mode", async () => {
+    it("lists all expert tools (18) in expert mode", async () => {
         await client.send({ jsonrpc: "2.0", id: 10, method: "initialize", params: {} });
         const response = await client.send({ jsonrpc: "2.0", id: 11, method: "tools/list", params: {} });
         const names = response.result.tools.map((tool) => tool.name);
