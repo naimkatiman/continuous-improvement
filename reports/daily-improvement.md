@@ -1,5 +1,12 @@
 # Daily Improvement Report — 2026-06-07
 
+## 2026-06-07 — Merge PR #197 (release v3.11.0) and sync stale version references
+- PR #197 (`release/v3.11.0`) was open with all four required checks green (lint-transcript + test matrix on Node 18/20/22). It cut the v3.11.0 release to supersede the unpublished v3.10.0 milestone (its release workflow failed at npm publish on an expired token). The PR bumped `package.json` and `package-lock.json` to `3.11.0`, regenerated the four derived plugin manifests, and rolled `CHANGELOG.md` `[Unreleased]` → `[3.11.0] — 2026-06-07`.
+- Merged it via squash-merge with `gh pr merge 197 --squash --delete-branch`.
+- Fast-forwarded local `main` to `origin/main` (commit `874cb85`) and deleted the local feature branch with `git branch -D release/v3.11.0`.
+- Synced stale version references that still pointed at `v3.9.2` or `v3.10.0`: `docs/RELEASING.md` example release (`v3.9.2` → `v3.11.0`), `reports/assets/update-card.html` visible version (`v3.10.0` → `v3.11.0`), and `docs/landing/index.html` version badge (`v3.10.0` → `v3.11.0`).
+- Verified with `npm run verify:all` (all 11 content invariants + typecheck pass, 752 pass / 0 fail). Working tree is clean; no stale release branches remain.
+
 ## 2026-06-07 — Update stale report dates to June 7
 - The HTML summary card at `reports/assets/update-card.html` still showed "June 6, 2026" / "2026-06-06" in the `<title>` and visible date line, and the daily report header was still "2026-06-06". With the date boundary crossed to June 7, these assets needed to reflect the current reporting period.
 - Updated both the `<title>` and the visible date line to "June 7, 2026" / "2026-06-07" so the card matches the current reporting period. Updated the report header from "2026-06-06" to "2026-06-07".
@@ -571,7 +578,7 @@
 
 | Field | Value |
 |-------|-------|
-| Project | continuous-improvement v3.10.0 |
+| Project | continuous-improvement v3.11.0 |
 | Stack | Node.js (ESM), MCP server, GitHub Action, CLI tools |
 | Stage | Published npm package, active development |
 | Tests (current) | 752 pass / 0 fail |
@@ -595,11 +602,6 @@
 ## Remaining Failures
 
 None. All 752 tests pass / 0 fail as of this cycle.
-
-## 2026-06-06 — Fix audit doc deferrals lost in PR #187 squash-merge
-- Commit `32b443c` (marking deferred findings #2 and #14 as CLOSED in the audit log) was authored on the local branch `hourly/2026-06-06-update-card-test-count-750` but never pushed to the remote before PR #187 was created and squash-merged. The resulting `main` commit `0f40d55` only contained the first two commits of the branch, leaving the audit doc stale: row #2 lacked its `CLOSED` annotation, row #14 still appeared open, and the post-`/proceed` summary incorrectly claimed "four" remaining deferrals instead of three.
-- Created branch `hourly/2026-06-06-fix-audit-doc-deferrals`, applied the exact missing diff (3 insertions, 3 deletions), and merged it via PR #188 (`gh pr merge 188 --squash --delete-branch --admin`).
-- Verified with `npm run verify:all` (all 11 content invariants + typecheck pass, 750 pass / 0 fail). Working tree is clean; no stale hourly branches remain.
 
 ## Deferred Items
 

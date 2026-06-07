@@ -92,7 +92,7 @@ Then cut a new patch release that supersedes the bad version.
 
 The GitHub Action (`action.yml`) is **not** auto-published to the Marketplace by CI. After the `release.yml` workflow creates a GitHub Release, you must manually publish the Action:
 
-1. Go to **Releases** → the newly created release (e.g. `v3.9.2`).
+1. Go to **Releases** → the newly created release (e.g. `v3.11.0`).
 2. Click **"Publish this Action to the GitHub Marketplace"**.
 3. Confirm the `action.yml` metadata (name, description, inputs, outputs) is correct.
 4. Click **"Publish release"**.
