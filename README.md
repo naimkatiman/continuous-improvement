@@ -4,14 +4,14 @@
   <img src="assets/combined.gif" alt="Before vs After — The 7 Laws of AI Agent Discipline" width="700" />
 </p>
 
-<h1 align="center">A seatbelt for Claude Code</h1>
+<h1 align="center">Claude Code that gets sharper every session</h1>
 
 <p align="center">
-  <b>Research first. Edit safely. Verify before done. Remember what worked.</b>
+  <b>Reasons deeper. Recalls what it already solved. Verifies before "done". Keeps every lesson.</b>
 </p>
 
 <p align="center">
-  <i>The 7 Laws of AI Agent Discipline — runtime hooks, enforcement skills, and project memory.</i>
+  <i>The 7 Laws of AI Agent Discipline — runtime hooks, instinct memory, and skills that compound what it learns.</i>
 </p>
 
 <p align="center">
@@ -26,13 +26,13 @@
   <b>New here?</b> → <a href="QUICKSTART.md">QUICKSTART.md</a> (2 minutes) · <a href="https://continuous-improvement.dev">continuous-improvement.dev</a>
 </p>
 
-> **What this is *not*:** a prompt template, a `CLAUDE.md`, or a vibes-based reminder. It is a runtime hook (`hooks/gateguard.mjs`) plus a bundled skill set that physically blocks `Edit` / `Write` / destructive `Bash` until the agent has done the work.
+> **What this is *not*:** a prompt template, a `CLAUDE.md`, or a vibes-based reminder. It is a runtime hook (`hooks/gateguard.mjs`) plus a bundled skill set that makes the agent ground every change in real facts — it physically blocks `Edit` / `Write` / destructive `Bash` until the investigation is done, so edits land on understanding instead of guesses.
 
 ---
 
 ## What this does
 
-Claude Code is powerful but skips the boring discipline: it edits before reading, guesses instead of checking, stacks five concerns into one commit, and says "done" without running tests. Continuous Improvement adds three layers that stop that:
+Claude Code is powerful but leaves intelligence on the table: it edits before reading, guesses instead of checking, stacks five concerns into one commit, and says "done" without running tests. Continuous Improvement adds three layers that make it sharper:
 
 1. **Before an edit** — [`gateguard`](skills/gateguard.md) ships as a `PreToolUse` hook (`hooks/gateguard.mjs`) that physically blocks `Edit` / `Write` / `MultiEdit` and destructive `Bash` until the agent presents a fact-list investigation.
 2. **During work** — bundled skills enforce planning, one-thing-at-a-time execution, TDD ([`tdd-workflow`](skills/tdd-workflow.md)), and a six-phase verification ladder ([`verification-loop`](skills/verification-loop.md)) before "done".
@@ -52,7 +52,7 @@ With Continuous Improvement, the same prompt is forced through the gate:
 
 > `gateguard` blocks the first `Edit` until Claude presents a fact list. Claude reads `useAuth.ts`, finds the existing `redirectAfterLogin` helper, traces *why* the redirect loops (a stale `from` query param), and edits one line in one file. `verification-loop` runs the tests. The reply names the file, the line, the cause.
 
-Same agent. Same model. Different discipline.
+Same agent. Same model. Different intelligence.
 
 ---
 
@@ -176,15 +176,15 @@ The framework has documented operator-level modes that change hook behavior with
 
 ## The 7 Laws
 
-| # | Law | Without it, agents... |
+| # | Law | What it gives the agent |
 |---|-----|----------------------|
-| 1 | **Research Before Executing** | reinvent what already exists |
-| 2 | **Plan Is Sacred** | scope-creep and overbuild |
-| 3 | **One Thing at a Time** | stack untested changes |
-| 4 | **Verify Before Reporting** | lie about being "done" |
-| 5 | **Reflect After Sessions** | repeat the same failures |
-| 6 | **Iterate One Change** | debug 5 changes at once |
-| 7 | **Learn From Every Session** | lose knowledge when context ends |
+| 1 | **Research Before Executing** | builds on what already exists instead of reinventing it |
+| 2 | **Plan Is Sacred** | lands effort on the goal with success defined up front |
+| 3 | **One Thing at a Time** | ships each change on a known-good base |
+| 4 | **Verify Before Reporting** | backs every "done" with evidence you can trust |
+| 5 | **Reflect After Sessions** | turns each session into a captured lesson |
+| 6 | **Iterate One Change** | keeps debugging isolated and the signal clean |
+| 7 | **Learn From Every Session** | compounds knowledge so next week's agent is sharper |
 
 ```
 Research -> Plan -> Execute (one thing) -> Verify -> Reflect -> Learn -> Iterate
