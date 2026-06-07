@@ -28,7 +28,8 @@
  */
 
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   MAX_CLEARED_FILES,
   canonicalizeFileKey,
@@ -140,11 +141,25 @@ function formatFileTarget(filePaths: string[]): string {
   return `${nonEmpty.length} files (${nonEmpty.join(", ")})`;
 }
 
+// Resolved from the hook's own location at load time. The block reason must
+// print a command the agent can run in its OWN shell, where ${CLAUDE_PLUGIN_ROOT}
+// is empty — that variable is only populated while this hook itself executes.
+// bin/ is a sibling of hooks/ in both the repo layout and the plugin-bundle
+// mirror, so this resolves correctly from either.
+const CLEAR_CLI_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "bin", "gateguard-clear.mjs");
+
+// Quote a path for the printed clearance command. Forward slashes (node accepts
+// them on every platform and they survive a Bash double-quote without escaping)
+// inside JSON quotes — JSON.stringify still escapes any embedded quote, so a
+// path like a"b.ts stays safe rather than collapsing into a bare-quoted token.
+function quotePath(p: string): string {
+  return JSON.stringify(p.replace(/\\/g, "/"));
+}
+
 function buildMutatingFileReason(toolName: string, filePaths: string[], stateFilePath: string): string {
   const target = formatFileTarget(filePaths);
   const pathList = filePaths.filter((p) => p !== "");
-  const jsonArray = (pathList.length > 0 ? pathList : [target]).map((p) => JSON.stringify(p)).join(", ");
-  const cliArgs = (pathList.length > 0 ? pathList : [target]).map((p) => JSON.stringify(p)).join(" ");
+  const quoted = (pathList.length > 0 ? pathList : [target]).map((p) => quotePath(p));
   return [
     `Before ${toolName === "Write" ? "creating" : "editing"} ${target}, present these facts:`,
     "",
@@ -153,13 +168,12 @@ function buildMutatingFileReason(toolName: string, filePaths: string[], stateFil
     "  3. If this file reads/writes data files, show field names, structure, and date format",
     "  4. Quote the user's current instruction verbatim",
     "",
-    "Then clear the gate and retry the same call. Any one of:",
-    `  A. MCP tool:  ci_gateguard_clear  {file_paths: [${jsonArray}]}`,
-    `  B. CLI (Bash, never gated): node "\${CLAUDE_PLUGIN_ROOT}/bin/gateguard-clear.mjs" ${cliArgs}`,
-    `  C. Manual: append each path to "cleared_files" in ${stateFilePath} via a non-destructive Bash write.`,
-    "  Clearance matches regardless of drive-letter case or path separator.",
-    "  (On harnesses that forward unknown tool params you may instead retry with",
-    "  `_gateguard_facts_presented: true`; Claude Code's strict schema rejects that, so use A/B/C.)",
+    "Then clear the gate and retry the same call. Either route works:",
+    `  A. Bash (always works — run verbatim): node ${quotePath(CLEAR_CLI_PATH)} --state ${quotePath(stateFilePath)} ${quoted.join(" ")}`,
+    `  B. MCP tool (when the continuous-improvement server is connected): ci_gateguard_clear  {file_paths: [${quoted.join(", ")}]}`,
+    "  Both canonicalize paths — drive-letter case and separators don't matter.",
+    "  (Harnesses that forward unknown tool params may instead retry the call with",
+    "  `_gateguard_facts_presented: true`; Claude Code's strict schema rejects that, so use A or B.)",
   ].join("\n");
 }
 
