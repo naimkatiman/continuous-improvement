@@ -140,9 +140,19 @@ This gate is what catches the squash-merge / ahead-of-origin trap recorded in th
 
 Smoke-test the runtime gate after install: ask Claude to write a throwaway file with no research first. The hook should return a `block` decision with a fact-list reason; Claude should pause rather than write.
 
+### Clearing the gate (after presenting the facts)
+
+The block reason prints the exact `gateguard-session.json` path and the clearance commands. Clearance matches a file regardless of drive-letter case or path separator (`d:\x` and `D:/x` resolve to the same key), so it no longer matters whether the hook and the helper spelled the project root differently. Any one of these allows the retry:
+
+- **MCP tool** (beginner + expert): `ci_gateguard_clear` with `file_paths: ["<path>", …]`.
+- **CLI** (Bash, never gated): `node "${CLAUDE_PLUGIN_ROOT}/bin/gateguard-clear.mjs" "<path>"`; add `--state <gateguard-session.json>` to write the exact file the block reason printed.
+- **Manual**: append each path to `cleared_files` in the printed `gateguard-session.json` via a non-destructive Bash write.
+
+The inline `_gateguard_facts_presented: true` retry still works on harnesses that forward unknown tool params, but Claude Code's strict tool schema (`additionalProperties: false`) rejects it with `InputValidationError` — use one of the above on Claude Code.
+
 ### V1 honest limitations (not mitigated, documented)
 
-- **Honor system.** Clearance is recorded either by retrying with `_gateguard_facts_presented: true` in `tool_input` (only on harnesses that forward unknown tool params) or by appending the file path to `cleared_files` in the session state file with a non-destructive Bash write. Claude Code's strict tool schema (`additionalProperties: false`) rejects the inline flag with `InputValidationError`, so on Claude Code the state-file path is the working route. Either way the hook can't verify the investigation actually happened; the 50-file cap bounds damage from stuck loops or rogue agents.
+- **Honor system.** Clearance is recorded by `ci_gateguard_clear`, the `gateguard-clear.mjs` CLI, a manual state-file write, or the inline `_gateguard_facts_presented` flag where the harness allows it (see "Clearing the gate" above). The hook can't verify the investigation actually happened; the 50-file cap bounds damage from stuck loops or rogue agents.
 - **State-file deletion.** `rm`-ing the session state resets every gate. Acceptable because the session itself is the trust boundary.
 - **Parallel-hook race.** Two simultaneous hook invocations can race the read+write of the state file. Acceptable trade-off vs Windows atomic-rename complexity.
 
