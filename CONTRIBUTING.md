@@ -1,6 +1,6 @@
 # Contributing to continuous-improvement
 
-Thanks for your interest in making AI agents more disciplined! Here's how to contribute.
+Thanks for your interest in making AI agents sharper and more effective! Here's how to contribute.
 
 ## Quick Start
 

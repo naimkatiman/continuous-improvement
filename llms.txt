@@ -1,10 +1,10 @@
 # continuous-improvement
 
-> Stops Claude Code from skipping research, claiming 'done' without verifying, and repeating yesterday's mistakes. The 7 Laws of AI Agent Discipline — 25 bundled skills, gating hooks, the Mulahazah auto-leveling instinct engine, and a GitHub Action transcript linter.
+> Makes Claude Code reason harder, recall past corrections, and learn from every session so its competence compounds run over run. The Mulahazah engine turns each fix into a reusable instinct, so a lesson learned once is applied automatically next time — no re-teaching. Built on the 7 Laws of AI Agent Discipline (research, plan, verify, reflect, learn) and shipped as 25 bundled skills, instinct-aware hooks, an MCP toolset for recall and reflection, and a GitHub Action transcript linter that feeds real work history back into sharper instincts.
 
 ## What This Is
 
-A discipline framework for AI coding agents. It enforces seven laws — research, plan, execute one thing at a time, verify, reflect, iterate, learn — and builds behavioral instincts over time via the Mulahazah learning system, so the same correction does not have to be given twice.
+An intelligence amplifier for AI coding agents. It makes Claude reason at a higher level on every task, recall the corrections it has already received, and learn from each session so its competence compounds over time — research, plan, execute one thing at a time, verify, reflect, iterate, learn — building behavioral instincts via the Mulahazah learning system, so the same correction never has to be given twice and each run starts smarter than the last.
 
 ## Install
 
