@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-07
 
+## 2026-06-07 — Sync missed 3.10.0 → 3.11.0 version references from PR #197
+- PR #197's post-merge sync claimed to update `docs/landing/index.html` version badge from `v3.10.0` → `v3.11.0`, but two occurrences of `REV 3.10.0` were missed: the hero kicker line (`<span class="kicker reveal">`) and the footer copyright line (`<span class="foot-doc">`). Additionally, `.cloudplugin/marketplace.json` was never updated and still advertised `"version": "3.10.0"`.
+- Updated both missed `REV 3.10.0` references in `docs/landing/index.html` to `REV 3.11.0` so the landing page is internally consistent. Updated `.cloudplugin/marketplace.json` `"version"` from `3.10.0` to `3.11.0` so the CloudPlugin marketplace listing matches the current release.
+- Verified with `npm run verify:all` (all 11 content invariants + typecheck pass, 752 pass / 0 fail). Committed to branch `hourly/2026-06-07-sync-stale-version-refs-missed-in-197`.
+
 ## 2026-06-07 — Merge PR #197 (release v3.11.0) and sync stale version references
 - PR #197 (`release/v3.11.0`) was open with all four required checks green (lint-transcript + test matrix on Node 18/20/22). It cut the v3.11.0 release to supersede the unpublished v3.10.0 milestone (its release workflow failed at npm publish on an expired token). The PR bumped `package.json` and `package-lock.json` to `3.11.0`, regenerated the four derived plugin manifests, and rolled `CHANGELOG.md` `[Unreleased]` → `[3.11.0] — 2026-06-07`.
 - Merged it via squash-merge with `gh pr merge 197 --squash --delete-branch`.
