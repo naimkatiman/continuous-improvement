@@ -17,13 +17,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Do NOT set registry-url here: setup-node would write an .npmrc with
-      # `_authToken=${NODE_AUTH_TOKEN}` and a dummy placeholder token, which npm
-      # uses for the publish PUT instead of OIDC — causing E404. OIDC trusted
-      # publishing needs no token-bearing .npmrc. (Fix for the v3.12.0 publish.)
+      # registry-url is required for OIDC trusted publishing (it's in npm's
+      # documented example): it points npm at registry.npmjs.org for the OIDC
+      # token exchange. On Node >= 22.14 + npm >= 11.5.1 with a configured
+      # trusted publisher, npm mints and uses the OIDC token, overriding the
+      # placeholder _authToken setup-node writes. Do NOT add a NODE_AUTH_TOKEN
+      # env to the publish step — that reintroduced a real (dummy) token and
+      # caused E404 on Node 20.
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          registry-url: 'https://registry.npmjs.org'
 
       # Trusted publishing (OIDC) requires npm >= 11.5.1 AND Node >= 22.14.0.
       # Node 22 ships npm 10.x, so still upgrade npm to the trusted-publishing
