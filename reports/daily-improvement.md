@@ -1,5 +1,11 @@
 # Daily Improvement Report — 2026-06-08
 
+## 2026-06-08 — Push verified Korean Hangul fix to origin/main and delete stale branch
+- Local `main` was 1 commit ahead of `origin/main` with the verified Korean Hangul keyword-floor fix (`9770875`). The source branch `fix/goal-state-hangul-floor` still existed both locally and remotely even though its changes were already on `main`.
+- Pushed `main` to `origin/main`; remote fast-forwarded cleanly from `41a0137` to `9770875`.
+- Deleted the stale branch from the remote with `git push origin --delete fix/goal-state-hangul-floor` and from local with `git branch -D fix/goal-state-hangul-floor`.
+- Verified with `git status` (working tree clean, branch up to date with `origin/main`), `git branch -a` (no stale `fix/goal-state-hangul-floor` branches remain), and `npm run verify:all` (all 12 content invariants + typecheck pass, 761 pass / 0 fail).
+
 ## 2026-06-08 — Fast-forward local main to origin/main (4 new commits) and push rebased report sync
 - `origin/main` had advanced 4 commits ahead of local `main` since the last fetch: PR #222 (Cloudflare Pages deploy docs + drop broken CI workflows), PR #223 (daily landing drift check), PR #224 (drift-check fallback to `*.pages.dev`), and PR #225 (positioning reframe as persistent-memory + discipline layer). Local `main` was 1 commit ahead (`fb6aec5`, test-count sync) based on the old `origin/main` (`73baabf`), creating a diverged state.
 - Checked out `main`, ran `git fetch origin`, and rebased the local test-count sync onto current `origin/main` (`937290a`). Rebase applied cleanly because the 4 upstream commits touch `.github/workflows/` and `docs/landing/` while the local commit only touches `reports/`.
