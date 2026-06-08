@@ -36,7 +36,7 @@ Claude Code is powerful but leaves intelligence on the table: it edits before re
 
 1. **Before an edit** — [`gateguard`](skills/gateguard.md) ships as a `PreToolUse` hook (`hooks/gateguard.mjs`) that physically blocks `Edit` / `Write` / `MultiEdit` and destructive `Bash` until the agent presents a fact-list investigation.
 2. **During work** — bundled skills enforce planning, one-thing-at-a-time execution, TDD ([`tdd-workflow`](skills/tdd-workflow.md)), and a six-phase verification ladder ([`verification-loop`](skills/verification-loop.md)) before "done".
-3. **After work** — `/seven-laws` reflection plus the Mulahazah instinct engine capture lessons so the same mistake does not repeat next session.
+3. **After work** — `/seven-laws` reflection plus the Mulahazah instinct engine capture lessons, and the opt-in [`recall-briefing`](hooks/recall-briefing.mjs) hook resurfaces the most relevant past fix on the next related prompt, so the same mistake does not repeat next session.
 
 Beginner install is two slash commands inside Claude Code (no Node, no bash). Expert install adds MCP tools, observation hooks, instinct packs, and a GitHub Action transcript linter for CI.
 

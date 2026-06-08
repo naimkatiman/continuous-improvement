@@ -203,7 +203,7 @@
           <rect x="13" y="13" width="6" height="6" rx="1.5" fill="currentColor"/>
         </svg>
         <span class="name">continuous-improvement</span>
-        <span class="ver">v3.12.0</span>
+        <span class="ver">v3.12.3</span>
       </a>
       <div class="nav-links">
         <a href="#laws">The 7 Laws</a>
@@ -218,7 +218,7 @@
     <section class="hero">
       <div class="container hero-grid">
         <div class="hero-lead">
-          <span class="kicker reveal">SPEC <b>/</b> AI AGENT DISCIPLINE <b>/</b> REV 3.12.0</span>
+          <span class="kicker reveal">SPEC <b>/</b> AI AGENT DISCIPLINE <b>/</b> REV 3.12.3</span>
           <h1 class="display reveal" style="--i:1">Claude Code that gets <span class="belt draw">sharper every session</span></h1>
           <p class="hero-sub reveal" style="--i:2">continuous-improvement makes the agent research before it edits, prove every completion before it reports done, and turn each fix into an instinct it reuses next time. Seven laws run the loop; the Mulahazah engine compounds what it learns.</p>
           <div class="install reveal" style="--i:3">
@@ -255,7 +255,7 @@
         <li><span class="v">7</span><span class="k">Laws in force</span></li>
         <li><span class="v">0</span><span class="k">Runtime deps</span></li>
         <li><span class="v">MIT</span><span class="k">License</span></li>
-        <li><span class="v">v3.12.0</span><span class="k">Current rev</span></li>
+        <li><span class="v">v3.12.3</span><span class="k">Current rev</span></li>
       </ul>
     </div>
 
@@ -399,6 +399,18 @@
               <div class="row"><span class="dot"></span><span>reinforce</span></div>
             </div>
           </article>
+          <article class="mech reveal">
+            <div class="body">
+              <span class="id">Hook · UserPromptSubmit</span>
+              <h3>Recall Briefing</h3>
+              <p>On the first prompt of a session it searches this project's past work and surfaces the most relevant prior fix &mdash; so the agent reuses it instead of re-deriving it. Opt-in; an amplifier, never a gate.</p>
+            </div>
+            <div class="spec" aria-hidden="true">
+              <div class="row"><span class="dot"></span><span>prompt &#8594; <span class="muted">BM25 recall</span></span></div>
+              <div class="row"><span class="dot"></span><span>inject: prior fix</span></div>
+              <div class="row"><span>opt-in &#8594; <span class="muted">amplify, never block</span></span></div>
+            </div>
+          </article>
         </div>
       </div>
     </section>
@@ -431,7 +443,7 @@
 
   <footer>
     <div class="container foot-grid">
-      <span class="foot-doc">DOC. CI-7L &middot; REV 3.12.0 &middot; MIT LICENSE</span>
+      <span class="foot-doc">DOC. CI-7L &middot; REV 3.12.3 &middot; MIT LICENSE</span>
       <div class="foot-links">
         <a href="https://github.com/naimkatiman/continuous-improvement">GitHub</a>
         <a href="https://www.npmjs.com/package/continuous-improvement">npm</a>
