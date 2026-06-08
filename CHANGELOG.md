@@ -6,6 +6,12 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+## [3.12.1] — 2026-06-08
+
+### Fixed
+
+- **npm release pipeline now authenticates via OIDC instead of a dummy token** — the `v3.12.0` tag publish failed with `E404` on the registry PUT: `actions/setup-node` with `registry-url` wrote an `.npmrc` carrying `_authToken=${NODE_AUTH_TOKEN}` set to its placeholder value, so npm used that dummy token for the publish instead of OIDC trusted publishing (provenance still signed, since the sigstore OIDC token is separate). Dropping `registry-url` from `release.yml` lets `npm publish --provenance` fall back to OIDC as intended. **3.12.1 is the first npm artifact to carry the 3.12.0 changes** (intelligence-amplifier positioning #198, recall-briefing hook #199, OIDC pipeline #202, doc-drift fixes #203, `verify:tool-count` invariant #204); the `3.12.0` version was never published to npm. (#211)
+
 ## [3.12.0] — 2026-06-07
 
 ### Added
