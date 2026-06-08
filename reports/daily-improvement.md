@@ -632,7 +632,7 @@
 | Project | continuous-improvement v3.12.3 |
 | Stack | Node.js (ESM), MCP server, GitHub Action, CLI tools |
 | Stage | Published npm package, active development |
-| Tests (current) | 760 pass / 0 fail |
+| Tests (current) | 761 pass / 0 fail |
 
 ## Changes Implemented
 
@@ -652,9 +652,25 @@
 
 ## Remaining Failures
 
-None. All 760 tests pass / 0 fail as of this cycle.
+None. All 761 tests pass / 0 fail as of this cycle.
 
 ## Deferred Items
 
 - No orphan `.mjs` files remain (all are generated from `.mts` sources). See `CLAUDE.md` § Deferred for the current audit-deferred item list.
 
+
+## 2026-06-08 — Korean Hangul keyword floor fix
+
+**What changed:** `src/lib/goal-state.mts` (`extractKeywordsFromProse`) now uses a script-aware minimum token length: tokens containing Korean Hangul syllables (`\p{Script=Hangul}`) clear a 2-char floor instead of the global 4-char floor. This prevents Korean goals from extracting zero keywords and falsely scoring all observations as drift.
+
+**Files:** `src/lib/goal-state.mts`, `src/test/goal-state.test.mts` (regression test)
+**Lines changed:** ~19 (+12 source, +7 test)
+
+**Verification:**
+- `npm run build` — clean
+- `npm test` — 761 pass / 0 fail (+1 new regression test)
+- `npm run verify:all` — all 12 invariants green (skill-mirror, skill-tiers, skill-law-tag, skill-count, docs-substrings, everything-mirror, routing-targets, doc-runtime-claims, test-imports-only, scripts-citation-drift, third-party-shape, tool-count, typecheck)
+
+**Status:** Merged into main by hourly loop. Branch `fix/goal-state-hangul-floor` can be deleted.
+
+**Blockers / next step:** None.

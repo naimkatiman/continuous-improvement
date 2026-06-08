@@ -20,10 +20,14 @@ const STOPWORDS = new Set([
     "task", "goal", "plan", "work", "working", "build", "building", "code",
 ]);
 // 4 suits Latin/Cyrillic/Thai prose (Thai combining marks are now kept; see
-// extractKeywordsFromProse regex), but it silently drops most Korean words
-// (typically 2 chars). A script-aware floor for Korean is a logged follow-up
-// (see CLAUDE.md Deferred).
+// extractKeywordsFromProse regex). Korean Hangul words are typically 2-3 chars
+// but represent full concepts, so they get a script-aware floor of 2.
 const KEYWORD_MIN_LENGTH = 4;
+function keywordMinLengthFor(word) {
+    if (/\p{Script=Hangul}/u.test(word))
+        return 2;
+    return KEYWORD_MIN_LENGTH;
+}
 const KEYWORD_CAP = 20;
 const DEFAULT_WINDOW = 30;
 const DEFAULT_THRESHOLD = 0.3;
@@ -61,7 +65,7 @@ export function extractKeywordsFromProse(prose) {
     const out = [];
     for (const raw of prose.toLowerCase().split(/[^\p{L}\p{N}\p{M}]+/u)) {
         const word = raw.trim();
-        if (word.length < KEYWORD_MIN_LENGTH)
+        if (word.length < keywordMinLengthFor(word))
             continue;
         if (/^\p{N}+$/u.test(word))
             continue;

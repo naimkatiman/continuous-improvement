@@ -85,6 +85,12 @@ describe("extractKeywordsFromProse", () => {
         assert.ok(kws.includes("login"));
         assert.ok(!kws.includes("١٢٣٤٥"), "a pure non-ASCII numeral run must be dropped, not kept as a keyword");
     });
+    it("keeps Korean Hangul words at 2-3 chars (script-aware floor)", () => {
+        const kws = extractKeywordsFromProse("Implement 로그인 인증 시스템");
+        assert.ok(kws.includes("로그인"), "2-char Hangul keyword must survive tokenization");
+        assert.ok(kws.includes("인증"), "2-char Hangul keyword must survive tokenization");
+        assert.ok(kws.includes("시스템"), "3-char Hangul keyword must survive tokenization");
+    });
 });
 describe("parseGoalFromPlan", () => {
     it("returns null when there is no Goal section", () => {
