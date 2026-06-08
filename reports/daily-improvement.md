@@ -1,5 +1,11 @@
 # Daily Improvement Report — 2026-06-08
 
+## 2026-06-08 — Fast-forward local main to origin/main (4 new commits) and push rebased report sync
+- `origin/main` had advanced 4 commits ahead of local `main` since the last fetch: PR #222 (Cloudflare Pages deploy docs + drop broken CI workflows), PR #223 (daily landing drift check), PR #224 (drift-check fallback to `*.pages.dev`), and PR #225 (positioning reframe as persistent-memory + discipline layer). Local `main` was 1 commit ahead (`fb6aec5`, test-count sync) based on the old `origin/main` (`73baabf`), creating a diverged state.
+- Checked out `main`, ran `git fetch origin`, and rebased the local test-count sync onto current `origin/main` (`937290a`). Rebase applied cleanly because the 4 upstream commits touch `.github/workflows/` and `docs/landing/` while the local commit only touches `reports/`.
+- Verified with `npm run verify:all` (all 12 content invariants + typecheck pass) and `npm test` (760 pass / 0 fail).
+- Pushed `main` to `origin/main` so the branch is no longer diverged.
+
 ## 2026-06-08 — Sync test counts to 760 after CI slim refactor
 - PR #220 (`refactor(ci): slim the ci CLI to CLI-Anything; remove Compound Engineering + PM-Skills`) deleted three large test suites (`compound-engineering`, `pm-skills`, `unified-plugin`) and their generated `.mjs` artifacts, reducing the total test count from 801 to 760. The Project Snapshot table, Remaining Failures prose, and HTML summary card at `reports/assets/update-card.html` still showed `801`.
 - Updated the Project Snapshot and Remaining Failures sections from `801 pass / 0 fail` to `760 pass / 0 fail`, and synced the update-card badge, stat values, and footer line from `801` to `760` so all hand-maintained test counts reflect the post-refactor reality.
