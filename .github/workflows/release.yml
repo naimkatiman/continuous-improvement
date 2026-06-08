@@ -66,8 +66,16 @@ jobs:
       # Prerequisite: a trusted publisher must be configured on npmjs.com for this
       # repo + workflow file (see docs/RELEASING.md). Provenance attestations are
       # generated automatically from the OIDC claims.
+      #
+      # Run the publish through `npx npm@latest` to GUARANTEE npm >= 11.5.1 in this
+      # step: the v3.12.0-v3.12.3 OIDC publishes failed because the global
+      # `npm install -g npm@latest` above didn't reach the publish step (npm signed
+      # provenance but never minted a trusted-publishing token — the signature of
+      # npm < 11.5.1). The version echo proves which npm actually runs the publish.
       - name: Publish to npm
-        run: npm publish --access public --provenance
+        run: |
+          echo "node $(node -v) / global npm $(npm -v)"
+          npx -y npm@latest publish --access public --provenance
 
       - name: Create GitHub Release
         env:
