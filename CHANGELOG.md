@@ -6,6 +6,12 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+## [3.12.2] — 2026-06-08
+
+### Fixed
+
+- **Release workflow now runs on Node 22 so OIDC trusted publishing actually authenticates** — npm trusted publishing requires npm ≥ 11.5.1 **and Node ≥ 22.14.0** ([docs.npmjs.com/trusted-publishers](https://docs.npmjs.com/trusted-publishers)). `release.yml` ran on Node 20, below the floor, so the OIDC token exchange never engaged: the `v3.12.0` publish fell back to setup-node's dummy `.npmrc` token (`E404`) and `v3.12.1` had no auth at all (`ENEEDAUTH`). Bumping `setup-node` to Node 22 (plus #211 dropping the token-bearing `.npmrc`) completes the OIDC pipeline. **3.12.2 is the first npm artifact to carry the 3.12.0 changes** (#198 positioning, #199 recall hook, #202 OIDC pipeline, #203 doc-drift, #204 tool-count invariant); `3.12.0` and `3.12.1` were never published to npm. (#211, #213)
+
 ## [3.12.1] — 2026-06-08
 
 ### Fixed
