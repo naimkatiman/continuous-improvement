@@ -7,7 +7,7 @@
 <h1 align="center">Claude Code that gets sharper every session</h1>
 
 <p align="center">
-  <b>Reasons deeper. Recalls what it already solved. Verifies before "done". Keeps every lesson.</b>
+  <b>Remembers what it already solved. Grounds every edit in facts. Verifies before "done". Carries every lesson into the next session.</b>
 </p>
 
 <p align="center">
