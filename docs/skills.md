@@ -44,7 +44,7 @@ Tier 1 + featured + companion. Auto-installed when you run the plugin install co
 
 ## Expert gets — additionally
 
-Tier 2 (`safety-guard`, `strategic-compact`, `token-budget-advisor`, `wild-risa-balance`), the MCP server (18 tools), session-observation hooks for Mulahazah, and `/learn-eval` for capturing session patterns into new skills.
+Tier 2 (`safety-guard`, `strategic-compact`, `token-budget-advisor`, `wild-risa-balance`), the MCP server (19 tools), session-observation hooks for Mulahazah, and `/learn-eval` for capturing session patterns into new skills.
 
 ## Drop-in single-file install
 

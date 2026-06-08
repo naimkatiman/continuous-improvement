@@ -9,12 +9,15 @@ import { describe, it } from "node:test";
 
 import {
   draftFromCandidate,
+  draftFromWorkflowRun,
   extractTrajectories,
   findCandidates,
   formatCandidates,
   serializeDraft,
+  workflowRunFromObservations,
   type DistillObservation,
   type Trajectory,
+  type WorkflowRun,
 } from "../lib/skill-distill.mjs";
 
 let clock = Date.parse("2026-05-28T12:00:00Z");
@@ -262,5 +265,87 @@ describe("findCandidates — id path-safety (audit #7)", () => {
         `candidate id must not contain path separators or traversal: ${candidate.id}`,
       );
     }
+  });
+});
+
+describe("workflowRunFromObservations + draftFromWorkflowRun (workflow bridge)", () => {
+  const goodScript = [
+    "export const meta = {",
+    "  name: 'fix-flaky-tests',",
+    "  description: 'Find flaky tests and propose fixes',",
+    "  phases: [{ title: 'Scan' }, { title: 'Fix' }],",
+    "}",
+    "phase('Scan')",
+    "const x = await agent('do it')",
+  ].join("\n");
+
+  // input_summary on a real Workflow row is the script wrapped as {"script":"..."}.
+  function wfRow(script: string): DistillObservation {
+    return obs("Workflow", { input_summary: JSON.stringify({ script }) });
+  }
+  function verifyRow(): DistillObservation {
+    return obs("Bash", { input_summary: "npm run verify:all", output_summary: "OK all passing" });
+  }
+
+  it("returns null when there is no Workflow row", () => {
+    assert.equal(workflowRunFromObservations([obs("Read"), obs("Edit"), verifyRow()]), null);
+  });
+
+  it("returns null when the Workflow row has an empty input_summary", () => {
+    assert.equal(
+      workflowRunFromObservations([obs("Workflow", { input_summary: "" }), verifyRow()]),
+      null,
+    );
+  });
+
+  it("returns null for a launched workflow with no following verify (async_launched is not success)", () => {
+    assert.equal(workflowRunFromObservations([obs("Read"), wfRow(goodScript), obs("Read")]), null);
+  });
+
+  it("returns the run when a Workflow row is followed by a passing verify", () => {
+    const run = workflowRunFromObservations([obs("Read"), wfRow(goodScript), verifyRow()]);
+    assert.ok(run, "expected a workflow run");
+    assert.equal(run!.name, "fix-flaky-tests");
+    assert.equal(run!.description, "Find flaky tests and propose fixes");
+    assert.deepEqual(run!.phases, ["Scan", "Fix"]);
+    assert.match(run!.verifyCommand, /verify:all/);
+  });
+
+  it("fails closed on a truncated script whose meta name was cut off", () => {
+    assert.equal(workflowRunFromObservations([wfRow("export const meta = {\n  "), verifyRow()]), null);
+  });
+
+  it("parses meta when the script is truncated after the phases (real feed shape)", () => {
+    const truncated = goodScript.slice(0, goodScript.indexOf("phase('Scan')") + 5);
+    const run = workflowRunFromObservations([wfRow(truncated), verifyRow()]);
+    assert.ok(run);
+    assert.equal(run!.name, "fix-flaky-tests");
+    assert.deepEqual(run!.phases, ["Scan", "Fix"]);
+  });
+
+  it("draftFromWorkflowRun emits a filesystem-safe id and a low-confidence non-empty body", () => {
+    const draft = draftFromWorkflowRun({
+      name: "../../etc/passwd",
+      description: "hostile",
+      phases: ["A", "B"],
+      verifyCommand: "npm test",
+    });
+    assert.doesNotMatch(draft.id, /[\\/]|\.\./, `id must be path-safe: ${draft.id}`);
+    assert.equal(draft.confidence, 0.4);
+    assert.ok(draft.body.length > 0);
+  });
+
+  it("serializeDraft round-trips a workflow draft to instinct YAML with a body", () => {
+    const run: WorkflowRun = {
+      name: "ship-release",
+      description: "cut a release",
+      phases: ["Plan", "Build", "Verify"],
+      verifyCommand: "npm run verify:all",
+    };
+    const yaml = serializeDraft(draftFromWorkflowRun(run));
+    assert.match(yaml, /^id: draft-workflow-ship-release/m);
+    assert.match(yaml, /status: draft/);
+    assert.match(yaml, /\n---\n/);
+    assert.match(yaml, /Plan → Build → Verify/);
   });
 });

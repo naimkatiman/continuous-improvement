@@ -373,6 +373,12 @@ const EXPERT_TOOL_ENTRIES = [
             required: ["id"],
         },
     },
+    {
+        name: "ci_distill_from_workflow",
+        description: "Draft a reusable instinct from the most recent completed-and-verified native Workflow run in this project's observation feed. A Workflow script is an authored recipe, so a single run whose output passed verification is enough — unlike ci_distill_candidates, which needs a pattern repeated across sessions. Writes a DRAFT to drafts/ (a skeleton you edit); it changes no behavior until promoted with ci_distill_promote. Returns a message when no verified workflow run is found.",
+        manifestWhat: "Draft a reusable instinct from a verified Workflow run",
+        inputSchema: { type: "object", properties: {}, required: [] },
+    },
 ];
 const MODE_METADATA = {
     beginner: {

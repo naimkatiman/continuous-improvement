@@ -138,7 +138,7 @@ V1 honest limitations: the runtime gate is honor-system once the agent flips `_g
 
 ### Expert — adds MCP server, observation hooks, and instinct packs
 
-Pick this if you want the MCP tools (18 of them, including `ci_plan_init` / `ci_plan_status` for `task_plan.md`-style planning), the session hooks that feed Mulahazah, and starter packs.
+Pick this if you want the MCP tools (19 of them, including `ci_plan_init` / `ci_plan_status` for `task_plan.md`-style planning), the session hooks that feed Mulahazah, and starter packs.
 
 Preconditions: Node 18 / 20 / 22, plus bash on Windows (Git Bash or WSL — `hooks/observe.sh` is a bash script and silently no-ops without it). **`jq` is no longer required**: as of v3.6.0, `observe.sh` prefers the Node observer (`bin/observe.mjs`) which writes the rich event schema natively without external dependencies. The bash thin-schema path is kept as a two-phase shim, so legacy installs that have not re-run `npx continuous-improvement install` since v3.5.x will still degrade silently without `jq` (`winget install jqlang.jq` on Windows, `brew install jq` on macOS, `apt install jq` on Debian/Ubuntu) — re-running the installer is the cleaner fix and removes the dependency entirely. See [CHANGELOG.md](CHANGELOG.md) `[3.6.0]` for the migration details.
 

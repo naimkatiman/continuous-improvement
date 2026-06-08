@@ -42,10 +42,12 @@ import {
 } from "../lib/recall-index.mjs";
 import {
   draftFromCandidate,
+  draftFromWorkflowRun,
   extractTrajectories,
   findCandidates,
   formatCandidates,
   serializeDraft,
+  workflowRunFromObservations,
   type DistillObservation,
 } from "../lib/skill-distill.mjs";
 import {
@@ -1061,6 +1063,41 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
         "Edit the body to capture the real recipe (preconditions, concrete steps, gotchas), then promote with:",
         "",
         `  ci_distill_promote id=${id}`,
+        "",
+        "```yaml",
+        draft.trimEnd(),
+        "```",
+      ].join("\n"));
+    }
+
+    case "ci_distill_from_workflow": {
+      if (MODE !== "expert") {
+        return error("ci_distill_from_workflow requires expert mode");
+      }
+      const run = workflowRunFromObservations(readDistillObservations(project.hash));
+      if (!run) {
+        return text(
+          "No completed-and-verified Workflow run found in this project's observations. " +
+            "A run qualifies when a `Workflow` tool call is followed by a passing verify/test/build in the same feed. " +
+            "Run a workflow, verify its output, then try `ci_distill_from_workflow` again.",
+        );
+      }
+      const draftInstinct = draftFromWorkflowRun(run);
+      const draft = serializeDraft(draftInstinct);
+      const draftsDir = join(INSTINCTS_DIR, project.hash, "drafts");
+      mkdirSync(draftsDir, { recursive: true });
+      const draftPath = join(draftsDir, `${draftInstinct.id}.yaml`);
+      writeFileSync(draftPath, draft);
+
+      return text([
+        "## Draft written from a verified workflow run",
+        "",
+        `**Workflow:** ${run.name}`,
+        `**Path:** ${draftPath}`,
+        "",
+        "Edit the body to capture the real recipe (preconditions, concrete steps, gotchas), then promote with:",
+        "",
+        `  ci_distill_promote id=${draftInstinct.id}`,
         "",
         "```yaml",
         draft.trimEnd(),

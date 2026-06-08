@@ -130,7 +130,7 @@ Corrections drop instinct confidence. Unused instincts decay. The system self-co
 
 ## Expert (npx) — only if you want MCP, hooks, or instinct packs
 
-The Beginner path above is enough for most users. Pick this only if you want the MCP tools (18 of them, including `ci_plan_init` / `ci_plan_status` for `task_plan.md`-style planning), the session hooks that feed Mulahazah, or the starter instinct packs.
+The Beginner path above is enough for most users. Pick this only if you want the MCP tools (19 of them, including `ci_plan_init` / `ci_plan_status` for `task_plan.md`-style planning), the session hooks that feed Mulahazah, or the starter instinct packs.
 
 Do not run both paths against the same `~/.claude/` — that produces duplicated state. Pick one and stick with it.
 

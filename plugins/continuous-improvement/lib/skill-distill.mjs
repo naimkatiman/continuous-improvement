@@ -220,3 +220,126 @@ export function formatCandidates(candidates, limit = 10) {
     }
     return lines.join("\n");
 }
+// ── Workflow-run → instinct bridge ───────────────────────────────────────────
+// A native Workflow run (Opus 4.8 orchestration / ultracode) is recorded in the
+// observation feed as a `tool: "Workflow"` row whose input_summary holds
+// {"script":"..."} — truncated (~500 chars), but meta.name/description/phases sit
+// at the head of the script and survive. The output_summary holds
+// {"status","runId",...} with status "async_launched": the feed captures the
+// LAUNCH, not the result. So a workflow's success is never read from the Workflow
+// row itself — it is inferred from a following verify-exit-0 in the same feed.
+//
+// Unlike findCandidates (which needs a pattern recurring across >=2 sessions to
+// reject coincidence), a Workflow script is an AUTHORED recipe: one verified run
+// warrants a draft, so the session/occurrence thresholds do not apply here.
+const WORKFLOW_TOOL = "Workflow";
+// Pull meta.name / meta.description / meta.phases[].title out of a (possibly
+// truncated) workflow script embedded as JSON in the observation input_summary.
+// Fail-closed: returns null unless a name is recoverable — a recipe with no
+// identity is never fabricated.
+function parseWorkflowScript(inputSummary) {
+    if (!inputSummary)
+        return null;
+    let script = "";
+    try {
+        const parsed = JSON.parse(inputSummary);
+        if (typeof parsed.script === "string")
+            script = parsed.script;
+    }
+    catch {
+        // input_summary may itself be truncated mid-JSON; recover the script field loosely.
+        const m = inputSummary.match(/"script"\s*:\s*"((?:[^"\\]|\\.)*)/);
+        if (m) {
+            try {
+                script = JSON.parse(`"${m[1]}"`);
+            }
+            catch {
+                script = m[1].replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\'/g, "'");
+            }
+        }
+    }
+    if (!script)
+        return null;
+    const name = (script.match(/name\s*:\s*['"]([^'"]+)['"]/) ?? [])[1] ?? "";
+    if (!name)
+        return null; // fail closed: no recipe identity
+    const description = (script.match(/description\s*:\s*['"]([^'"]+)['"]/) ?? [])[1] ?? "";
+    const phases = [];
+    const phaseRe = /title\s*:\s*['"]([^'"]+)['"]/g;
+    let pm;
+    while ((pm = phaseRe.exec(script)) !== null)
+        phases.push(pm[1]);
+    return { name, description, phases };
+}
+// A single verify-exit-0 Bash row: a verify/test/build command whose output is not
+// failing. Mirrors classifyTrajectorySuccess's verify branch for one observation.
+function isVerifySuccessRow(observation) {
+    if ((observation.tool ?? "") !== "Bash")
+        return false;
+    const input = (observation.input_summary ?? "").toString();
+    const output = (observation.output_summary ?? "").toString();
+    return VERIFY_CMD.test(input) && !FAILURE_MARKER.test(output) && (output === "" || SUCCESS_MARKER.test(output));
+}
+/**
+ * Detect the most recent completed-and-verified Workflow run in an observation
+ * list. Returns null (fail closed) unless: a `tool: "Workflow"` row carries a
+ * parseable script with a name, AND a verify-exit-0 row follows it in the feed.
+ * The trailing verify is the only success signal — the Workflow row records the
+ * launch, never the result.
+ */
+export function workflowRunFromObservations(observations) {
+    let wfIndex = -1;
+    let meta = null;
+    for (let i = observations.length - 1; i >= 0; i -= 1) {
+        if ((observations[i].tool ?? "") !== WORKFLOW_TOOL)
+            continue;
+        const parsed = parseWorkflowScript((observations[i].input_summary ?? "").toString());
+        if (parsed) {
+            wfIndex = i;
+            meta = parsed;
+            break;
+        }
+    }
+    if (wfIndex === -1 || !meta)
+        return null;
+    let verifyCommand = "";
+    for (let i = wfIndex + 1; i < observations.length; i += 1) {
+        if (isVerifySuccessRow(observations[i])) {
+            verifyCommand = (observations[i].input_summary ?? "").toString();
+            break;
+        }
+    }
+    if (!verifyCommand)
+        return null; // fail closed: no evidence the run's output landed
+    return { name: meta.name, description: meta.description, phases: meta.phases, verifyCommand };
+}
+/**
+ * Turn a verified Workflow run into a DRAFT instinct. The script's phase outline is
+ * a real skeleton (not a placeholder n-gram), but the human still edits the body
+ * before promoting. Reuses serializeDraft and the drafts/ ladder; the
+ * `draft-workflow-` id prefix marks the source and stays filesystem-safe.
+ */
+export function draftFromWorkflowRun(run) {
+    const slug = slugifyNgram([run.name]);
+    const phaseLine = run.phases.length > 0 ? run.phases.join(" → ") : "(phases not captured)";
+    const lines = [
+        `When this situation recurs, the workflow "${run.name}" handled it end to end and its output passed verification.`,
+        "",
+    ];
+    if (run.description)
+        lines.push(`Intent: ${run.description}`);
+    lines.push(`Phases: ${phaseLine}`);
+    lines.push(`Verified by: ${run.verifyCommand}`);
+    lines.push("", "Replace this with the concrete steps, preconditions, and gotchas before promoting —", "the phase outline is the skeleton, not the full recipe.");
+    return {
+        id: `draft-workflow-${slug}`,
+        trigger: `Auto-detected from a verified workflow run: ${run.name}${run.description ? ` — ${run.description}` : ""}`,
+        body: lines.join("\n"),
+        confidence: DRAFT_CONFIDENCE,
+        domain: "workflow",
+        ngram: run.phases.length > 0 ? run.phases : [run.name],
+        occurrences: 1,
+        sessions: 1,
+        outcome: "workflow-verified",
+    };
+}
