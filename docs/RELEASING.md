@@ -75,6 +75,34 @@ One-time setup on npmjs.com (per package):
 
 The workflow already grants `permissions: id-token: write`, and bumps npm to ≥ 11.5.1 (trusted publishing minimum) before publishing. If the trusted publisher is **not** configured, `npm publish` fails — configure it before tagging.
 
+### Troubleshooting OIDC publish failures
+
+Trusted publishing has two hard requirements that the workflow must satisfy, plus a configured publisher on npmjs.com:
+
+- **Node ≥ 22.14.0 AND npm ≥ 11.5.1** in the publish step (per [docs.npmjs.com/trusted-publishers](https://docs.npmjs.com/trusted-publishers)). `setup-node` keeps `registry-url: 'https://registry.npmjs.org'` (it anchors the OIDC exchange), and the publish step runs through `npx -y npm@latest publish` so it uses ≥ 11.5.1 even if the global npm is older.
+- **The trusted publisher fields are case-sensitive.** owner `naimkatiman`, repo `continuous-improvement`, workflow `release.yml` (filename only), environment **blank**.
+
+Symptom decoder when `build`/`verify`/`tests` all pass but the publish step fails:
+
+| Error | Meaning | Fix |
+|---|---|---|
+| `E404 PUT .../continuous-improvement` | npm sent `setup-node`'s placeholder `_authToken` — OIDC did **not** mint a token | publish step is running npm < 11.5.1 (or Node < 22.14); force a fresh npm via `npx npm@latest publish` |
+| `ENEEDAUTH` "not logged in" | no token at all and OIDC did not engage | same root cause with `registry-url` absent, or the trusted publisher isn't configured/matching |
+| `npm notice Signed provenance statement` then `E404` | provenance (npm 10+) worked but the trusted-publishing token mint (npm 11.5.1+) didn't | confirms the publish step's npm is too old |
+
+**Manual-publish fallback** (gets the release out while the OIDC path is being fixed; the account enforces 2FA-on-writes, so an OTP is required):
+
+```bash
+git switch main && git pull --ff-only origin main   # at the release commit
+npm run build                                        # ensure the tarball is current
+npm login                                            # browser/web flow
+npm publish --access public                          # prompts for your 2FA OTP; omit --provenance (CI-only)
+npm view continuous-improvement version              # verify it landed
+gh release create vX.Y.Z --generate-notes            # the failed workflow never reached this step
+```
+
+A failed CI publish leaves npm untouched (no partial publish) and skips the "Create GitHub Release" + "Update `v3` tag" steps. A tag-triggered run uses the workflow **as of the tagged commit**, so fixing `release.yml` on `main` only helps the *next* tag — re-running an old tag replays the old workflow.
+
 ## Verifying a release shipped
 
 ```bash
