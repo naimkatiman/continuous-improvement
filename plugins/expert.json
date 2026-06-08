@@ -75,6 +75,10 @@
     {
       "name": "ci_distill_promote",
       "what": "Promote an edited draft into a live instinct"
+    },
+    {
+      "name": "ci_distill_from_workflow",
+      "what": "Draft a reusable instinct from a verified Workflow run"
     }
   ],
   "setup": {
