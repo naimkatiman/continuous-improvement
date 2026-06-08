@@ -8,7 +8,7 @@
     {
       "name": "continuous-improvement",
       "description": "Makes Claude Code reason harder, recall past corrections, and learn from every session so its competence compounds run over run. The Mulahazah engine turns each fix into a reusable instinct, so a lesson learned once is applied automatically next time — no re-teaching. Built on the 7 Laws of AI Agent Discipline (research, plan, verify, reflect, learn) and shipped as 25 bundled skills, instinct-aware hooks, an MCP toolset for recall and reflection, and a GitHub Action transcript linter that feeds real work history back into sharper instincts.",
-      "version": "3.12.2",
+      "version": "3.12.3",
       "source": "./",
       "author": {
         "name": "naimkatiman"

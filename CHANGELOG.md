@@ -6,6 +6,12 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+## [3.12.3] — 2026-06-08
+
+### Fixed
+
+- **Completed the OIDC trusted-publishing pipeline by restoring setup-node `registry-url`** — #211 had removed it to kill the dummy-token `.npmrc`, but that left npm with no registry anchor for the OIDC token exchange (`ENEEDAUTH` on 3.12.1/3.12.2). With `registry-url` back, Node 22 (#213), npm ≥ 11.5.1, and a configured trusted publisher, npm mints and uses the OIDC token. **3.12.3 is the first version actually published to npm** carrying the 3.12.0 changes (#198 positioning, #199 recall hook, #202 OIDC, #203 doc-drift, #204 tool-count); 3.12.0–3.12.2 were never published. (#215)
+
 ## [3.12.2] — 2026-06-08
 
 ### Fixed
