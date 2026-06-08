@@ -1,247 +1,71 @@
-# New Tools Integration Guide
+# CLI-Anything (`ci`)
 
-This document describes the three new tools implemented for the continuous-improvement project:
+`ci` turns a repository into an agent-native CLI wrapper that a language model can drive.
 
-## 1. CLI-Anything
+It is the one remaining tool from the former unified `ci` toolkit. The Compound
+Engineering and PM-Skills tools (and the `unified-plugin` orchestrator) were
+removed in 3.13.0: Compound Engineering overlapped the Mulahazah instinct
+engine, and PM-Skills overlapped the out-of-band `phuryn/pm-skills` marketplace
+install. See `CHANGELOG.md` `[3.13.0]`.
 
-**Purpose**: Turn any open-source software into an agent-native CLI, enabling language models to interact with tools automatically.
+## What it does
 
-### Features
-- **Repository Analysis**: Automatically detects project type (Node.js, React, Python, Docker, etc.)
-- **Command Extraction**: Extracts available commands from package.json scripts and existing CLI configurations
-- **CLI Generation**: Creates JavaScript CLI wrappers that can be executed by agents
-- **Template System**: Uses templates to generate consistent CLI interfaces
-- **Multi-Platform Support**: Works with various project structures and frameworks
+- **Repository analysis** — detects project type (Node.js, React, Python, Docker, and more).
+- **Command extraction** — pulls commands from `package.json` scripts and existing CLI configs.
+- **CLI generation** — emits an executable JavaScript CLI wrapper an agent can run.
+- **Template system** — consistent generated interfaces.
 
-### Usage
+## Usage
+
 ```bash
-# Generate CLI for a repository
-ci cli generate ./my-project
+# Generate an agent-native CLI for a repository
+ci generate ./my-project
 
-# List CLI generation capabilities
-ci cli list
+# Show CLI-Anything capabilities
+ci list
+
+# Configuration
+ci config show
+ci config set workspace ./out
 ```
 
-### API Usage
-```javascript
-import CLIAnything from './lib/cli-anything.mjs';
+Global options: `--workspace <dir>` (output directory, default `./ci-workspace`) and `--verbose`.
 
-const cliAnything = new CLIAnything({ outputDir: './generated-clis' });
-const result = await cliAnything.generateCLI('./my-repo');
+## API usage
+
+```javascript
+import CLIAnything from "./lib/cli-anything.mjs";
+
+const cliAnything = new CLIAnything({ outputDir: "./generated-clis" });
+const result = await cliAnything.generateCLI("./my-repo");
 console.log(`CLI generated: ${result.outputPath}`);
 ```
 
-### Output
-- Generates executable JavaScript files with CLI interfaces
-- Includes command descriptions, categories, and execution logic
-- Creates structured command groups for better organization
+## File structure
 
-## 2. Compound Engineering
-
-**Purpose**: Introduces an iterative process (brainstorming → planning → working → reviewing) and documents learnings to prevent repeating past mistakes.
-
-### Features
-- **Session Management**: Tracks engineering sessions with phases and artifacts
-- **Iterative Phases**:
-  - **Brainstorming**: Generate ideas, constraints, assumptions, risks, opportunities
-  - **Planning**: Create structured plans with steps, timelines, and success criteria
-  - **Working**: Execute plan steps with issue tracking and solution application
-  - **Reviewing**: Comprehensive review with insights and learning extraction
-- **Learning System**: Captures and reuses learnings across sessions
-- **Progress Tracking**: Monitors phase completion and metrics
-
-### Usage
-```bash
-# Start a new session
-ci compound session "MyProject" "Build user management system"
-
-# View learnings
-ci compound learnings
-
-# Search learnings
-ci learnings search "performance"
-```
-
-### API Usage
-```javascript
-import CompoundEngineering from './lib/compound-engineering.mjs';
-
-const ce = new CompoundEngineering({ workspace: './workspace' });
-
-// Start session
-const session = await ce.startSession('Project', 'Objective');
-
-// Run phases
-const brainstorm = await ce.brainstorm(context);
-const plan = await ce.plan(brainstorm);
-const work = await ce.work(plan);
-const review = await ce.review(work);
-```
-
-### Learning System
-- **Automatic Capture**: Extracts learnings from each session
-- **Confidence Scoring**: Rates learnings by confidence (0.0-0.9)
-- **Contextual Application**: Applies relevant learnings to new sessions
-- **Knowledge Growth**: Builds institutional memory over time
-
-## 3. PM-Skills Collection
-
-**Purpose**: Eight product management plugins that help developers define their "what" and "why," covering growth loops, market research, and GTM strategies.
-
-### Available Skills
-
-1. **Growth Loops** (`growthLoops`)
-   - Design sustainable growth loops (acquisition, activation, retention, referral, revenue)
-   - Identify viral mechanisms and network effects
-   - Define growth metrics and KPIs
-
-2. **Market Research** (`marketResearch`)
-   - Estimate market size (TAM, SAM, SOM)
-   - Identify market trends and competitor landscape
-   - Analyze customer needs and opportunities
-
-3. **GTM Strategy** (`gtmStrategy`)
-   - Develop positioning and messaging
-   - Create pricing strategies and channel plans
-   - Plan launch strategies and sales approaches
-
-4. **User Personas** (`userPersonas`)
-   - Create detailed user personas with demographics and behaviors
-   - Map user journeys and touchpoints
-   - Identify pain points and needs
-
-5. **Competitive Analysis** (`competitiveAnalysis`)
-   - Analyze direct and indirect competitors
-   - Assess competitive positioning and advantages
-   - Identify opportunities and threats
-
-6. **Value Proposition** (`valueProposition`)
-   - Define customer jobs, pains, and gains
-   - Create value proposition canvas
-   - Plan validation strategies
-
-7. **Product Roadmap** (`productRoadmap`)
-   - Create strategic roadmaps with initiatives and features
-   - Define timelines and dependencies
-   - Assess risks and success criteria
-
-8. **Metrics Definition** (`metricsDefinition`)
-   - Define comprehensive metrics (product, business, user, technical)
-   - Create reporting systems and dashboards
-   - Plan metrics implementation
-
-### Usage
-```bash
-# List available skills
-ci pm list
-
-# Execute specific skill
-ci pm skill growthLoops
-
-# Run comprehensive analysis
-ci pm analyze --industry "SaaS"
-```
-
-### API Usage
-```javascript
-import PMSkills from './lib/pm-skills.mjs';
-
-const pmSkills = new PMSkills({ workspace: './pm-workspace' });
-
-// Execute individual skill
-const growthResult = await pmSkills.executeSkill('growthLoops', input);
-
-// Run comprehensive analysis
-const analysis = await pmSkills.runProductAnalysis(productInfo);
-```
-
-### Output Structure
-Each skill generates structured output with:
-- **Analysis Results**: Domain-specific insights and data
-- **Insights**: Key takeaways and patterns
-- **Recommendations**: Actionable suggestions
-- **Timestamps**: For tracking and reference
-
-## Integration with Continuous-Improvement
-
-### Compatibility
-- All tools follow the 7 Laws of AI Agent Discipline
-- Results integrate with the existing instinct system
-- Learning from Compound Engineering feeds into continuous improvement
-- PM-Skills provide strategic context for technical decisions
-
-### Workflow Integration
-1. **Research Phase**: Use PM-Skills for market and user research
-2. **Planning Phase**: Apply Compound Engineering for structured planning
-3. **Execution Phase**: Use CLI-Anything to automate tool interactions
-4. **Review Phase**: Compound Engineering captures learnings
-5. **Learning Phase**: All tools contribute to institutional knowledge
-
-### File Structure
 ```
 src/
 ├── bin/
-│   └── unified-cli.mts       # Main CLI entrypoint
-├── lib/
-│   ├── cli-anything.mts      # CLI generation tool
-│   ├── compound-engineering.mts
-│   │                         # Iterative development framework
-│   └── pm-skills.mts         # Product management skills collection
+│   └── unified-cli.mts   # `ci` entrypoint (thin front-end over CLIAnything)
+└── lib/
+    └── cli-anything.mts  # CLI generation library
 
 lib/
-├── cli-anything.mjs          # Built runtime module
-├── compound-engineering.mjs  # Built runtime module
-└── pm-skills.mjs             # Built runtime module
+└── cli-anything.mjs      # built runtime module
 
 test/
-├── cli-anything.test.mjs          # CLI-Anything tests
-├── compound-engineering.test.mjs  # Compound Engineering tests
-└── pm-skills.test.mjs             # PM-Skills tests
+└── cli-anything.test.mjs # CLI-Anything tests
 ```
 
 ## Testing
 
-All tools include comprehensive test suites:
-- **Unit Tests**: Individual component testing
-- **Integration Tests**: End-to-end workflow testing
-- **Mock Data**: Realistic test scenarios
-- **Error Handling**: Robust error case testing
-
-Run tests:
 ```bash
-npm test
-# Or individual test files
 node test/cli-anything.test.mjs
-node test/compound-engineering.test.mjs
-node test/pm-skills.test.mjs
 ```
 
 ## Configuration
 
-### Environment Variables
-- `CI_WORKSPACE`: Default workspace directory
-- `CI_VERBOSE`: Enable verbose logging
-- `CI_OUTPUT_DIR`: Default output directory for generated files
+`ci` reads an optional `.ci-config.json` in the working directory:
 
-### Customization
-Each tool accepts configuration options:
-- **Workspace paths**: Customize working directories
-- **Output formats**: Choose different output formats
-- **Templates**: Use custom templates for CLI generation
-- **Learning storage**: Configure learning persistence
-
-## Best Practices
-
-1. **Start with PM-Skills**: Understand the "what" and "why" before building
-2. **Use Compound Engineering**: Follow structured iterative process
-3. **Automate with CLI-Anything**: Generate CLIs for frequently used tools
-4. **Capture Learnings**: Let the system build institutional knowledge
-5. **Review Regularly**: Use the review phase to improve processes
-
-## Future Enhancements
-
-- **Template Marketplace**: Share CLI templates
-- **Integration Plugins**: Connect with external tools (Jira, GitHub, etc.)
-- **AI-Powered Insights**: Enhanced analysis with ML
-- **Collaborative Features**: Team-based learning sharing
-- **Dashboard**: Visual interface for all tools
+- `workspace` (string) — output directory for generated CLIs (default `./ci-workspace`).
+- `verbose` (boolean) — enable verbose logging.

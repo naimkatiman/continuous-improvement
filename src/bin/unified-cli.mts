@@ -1,55 +1,42 @@
 #!/usr/bin/env node
 
 /**
- * Unified Continuous Improvement CLI.
+ * CLI-Anything command (`ci`).
  *
- * Comprehensive command-line interface for the unified plugin that combines
- * CLI-Anything, Compound Engineering, and PM-Skills.
+ * Thin front-end over the CLIAnything library: turns a repository into an
+ * agent-native CLI wrapper that a language model can drive.
+ *
+ * The former Compound Engineering and PM-Skills tools (and the unified-plugin
+ * orchestrator that combined all three) were removed in 3.13.0 - Compound
+ * Engineering overlapped the Mulahazah instinct engine and PM-Skills overlapped
+ * the out-of-band phuryn/pm-skills marketplace install. See CHANGELOG [3.13.0].
  */
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import UnifiedContinuousImprovement from "../lib/unified-plugin.mjs";
-import type { UnifiedOptions } from "../lib/unified-plugin.mjs";
+import CLIAnything from "../lib/cli-anything.mjs";
 
 interface Config {
-  defaultMode: string;
   verbose: boolean;
   workspace: string;
 }
 
-interface ParsedOptions extends UnifiedOptions {
-  context?: string;
-  criteria?: string;
-  industry?: string;
-  preferences?: string;
-  product?: string;
-  repo?: string;
-  targetMarket?: string;
+interface ParsedOptions {
+  verbose?: boolean;
+  workspace?: string;
 }
 
 const DEFAULT_CONFIG: Config = {
   workspace: "./ci-workspace",
   verbose: false,
-  defaultMode: "expert",
 };
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function parseJsonOption<T = unknown>(raw: string | undefined): T | undefined {
-  if (!raw) return undefined;
-  try {
-    return JSON.parse(raw) as T;
-  } catch (error) {
-    throw new Error(`Invalid JSON option: ${getErrorMessage(error)}`);
-  }
-}
-
 class UnifiedCLI {
-  private plugin: UnifiedContinuousImprovement | null = null;
   private readonly config: Config;
 
   constructor() {
@@ -63,53 +50,22 @@ class UnifiedCLI {
         const parsed = JSON.parse(readFileSync(configPath, "utf8")) as Partial<Config>;
         return { ...DEFAULT_CONFIG, ...parsed };
       } catch {
-        console.warn("Warning: Invalid config file, using defaults");
+        console.warn("Warning: invalid config file, using defaults");
       }
     }
     return { ...DEFAULT_CONFIG };
   }
 
-  private initializePlugin(options: ParsedOptions): UnifiedContinuousImprovement {
-    this.plugin = new UnifiedContinuousImprovement({
-      workspace: options.workspace ?? this.config.workspace,
-      verbose: options.verbose ?? this.config.verbose,
-    });
-    return this.plugin;
-  }
-
-  private requirePlugin(): UnifiedContinuousImprovement {
-    if (!this.plugin) {
-      throw new Error("CLI plugin not initialized");
-    }
-    return this.plugin;
-  }
-
-  async runCommand(command: string, args: string[], options: ParsedOptions = {}): Promise<unknown> {
-    this.initializePlugin(options);
-
+  async runCommand(
+    command: string,
+    args: string[],
+    options: ParsedOptions = {},
+  ): Promise<unknown> {
     switch (command) {
-      case "init":
-        return this.handleInit(args, options);
-      case "workflow":
-        return this.handleWorkflow(args, options);
-      case "research":
-        return this.handleResearch(options);
-      case "planning":
-        return this.handlePlanning(options);
-      case "execution":
-        return this.handleExecution();
-      case "review":
-        return this.handleReview(options);
-      case "status":
-        return this.handleStatus();
-      case "cli":
-        return this.handleCLI(args);
-      case "pm":
-        return this.handlePM(args, options);
-      case "compound":
-        return this.handleCompound(args);
-      case "learnings":
-        return this.handleLearnings(args);
+      case "generate":
+        return this.handleGenerate(args, options);
+      case "list":
+        return this.handleList();
       case "config":
         return this.handleConfig(args);
       default:
@@ -117,390 +73,37 @@ class UnifiedCLI {
     }
   }
 
-  private async handleInit(args: string[], options: ParsedOptions): Promise<unknown> {
-    if (args.length < 2) {
-      throw new Error("Usage: ci init <project-name> <objective> [options]");
+  private async handleGenerate(args: string[], options: ParsedOptions): Promise<unknown> {
+    const repoPath = args[0];
+    if (!repoPath) {
+      throw new Error("Usage: ci generate <repository-path>");
     }
 
-    const [name, ...objectiveParts] = args;
-    const objective = objectiveParts.join(" ");
-
-    console.log(`🚀 Initializing project: ${name}`);
-    console.log(`📋 Objective: ${objective}`);
-
-    const plugin = this.requirePlugin();
-    const result = await plugin.initializeProject({
-      name: name!,
-      objective,
-      product: parseJsonOption<Record<string, unknown>>(options.product) ?? {},
-      industry: options.industry ?? "",
-      targetMarket: parseJsonOption<Record<string, unknown>>(options.targetMarket) ?? {},
+    const cliAnything = new CLIAnything({
+      outputDir: options.workspace ?? this.config.workspace,
+      verbose: options.verbose ?? this.config.verbose,
     });
+    const result = await cliAnything.generateCLI(repoPath);
 
-    console.log(`✅ Project initialized successfully!`);
-    console.log(`🆔 Project ID: ${result.projectId}`);
-    console.log(`🔗 Session ID: ${result.sessionId}`);
-    console.log(`📊 PM Analysis: ${result.pmAnalysis.totalSkills} skills completed`);
-    console.log(`\n🎯 Next steps:`);
-    result.nextSteps.forEach((step, i) => {
-      console.log(`   ${i + 1}. ${step}`);
-    });
-
-    return result;
-  }
-
-  private async handleWorkflow(args: string[], options: ParsedOptions): Promise<unknown> {
-    if (args.length < 2) {
-      throw new Error("Usage: ci workflow <project-name> <objective> [options]");
-    }
-
-    const [name, ...objectiveParts] = args;
-    const objective = objectiveParts.join(" ");
-
-    console.log(`🚀 Starting complete workflow for: ${name}`);
-    console.log(`📋 Objective: ${objective}`);
-
-    const progressCallback = (message: string): void => {
-      console.log(`   ⏳ ${message}`);
-    };
-
-    const plugin = this.requirePlugin();
-    const result = await plugin.executeCompleteWorkflow(
-      {
-        name: name!,
-        objective,
-        product: parseJsonOption<Record<string, unknown>>(options.product) ?? {},
-        industry: options.industry ?? "",
-        targetMarket: parseJsonOption<Record<string, unknown>>(options.targetMarket) ?? {},
-      },
-      {
-        researchContext: options.repo ? { repositoryPath: options.repo } : {},
-        progressCallback,
-      },
-    );
-
-    console.log(`🎉 Complete workflow finished!`);
-    console.log(`🆔 Project: ${result.project}`);
-    console.log(`🔗 Session: ${result.sessionId}`);
-
-    for (const [phase] of Object.entries(result.phases)) {
-      console.log(`\n📊 ${phase.charAt(0).toUpperCase() + phase.slice(1)} Phase:`);
-    }
-
-    return result;
-  }
-
-  private async handleResearch(options: ParsedOptions): Promise<unknown> {
-    console.log(`🔍 Starting research phase...`);
-
-    const context: Record<string, unknown> = {};
-    if (options.repo) context.repositoryPath = options.repo;
-    if (options.context) context.additionalContext = parseJsonOption(options.context);
-
-    const plugin = this.requirePlugin();
-    const result = await plugin.executeResearchPhase(context);
-
-    console.log(`✅ Research phase completed!`);
-    console.log(`💡 Generated ${result.brainstorm.ideas.length} ideas`);
-    console.log(`🔍 Identified ${result.brainstorm.risks.length} risks`);
-    if (result.cliTools) {
-      console.log(`🛠️  Generated CLI with ${result.cliTools.commands.length} commands`);
-    }
-
-    return result;
-  }
-
-  private async handlePlanning(options: ParsedOptions): Promise<unknown> {
-    console.log(`📋 Starting planning phase...`);
-
-    const preferences = parseJsonOption<Record<string, unknown>>(options.preferences) ?? {};
-    const plugin = this.requirePlugin();
-    const result = await plugin.executePlanningPhase(preferences);
-
-    console.log(`✅ Planning phase completed!`);
-    console.log(`📈 Created plan with ${result.corePlan.steps.length} steps`);
-    const estimated = (result.corePlan.timeline as { estimated?: string } | undefined)?.estimated;
-    if (estimated) console.log(`⏱️  Timeline: ${estimated}`);
-    console.log(`⚠️  Identified ${result.risks.length} risks`);
-
-    return result;
-  }
-
-  private async handleExecution(): Promise<unknown> {
-    console.log(`🔧 Starting execution phase...`);
-
-    const progressCallback = (message: string): void => {
-      console.log(`   ⚡ ${message}`);
-    };
-
-    const plugin = this.requirePlugin();
-    const result = await plugin.executeWorkingPhase(progressCallback);
-
-    console.log(`✅ Execution phase completed!`);
-    console.log(`📋 Completed ${result.coreWork.steps.length} steps`);
-    console.log(`🔧 Resolved ${result.issues.length} issues`);
-    console.log(`💡 Applied ${result.solutions.length} solutions`);
-
-    return result;
-  }
-
-  private async handleReview(options: ParsedOptions): Promise<unknown> {
-    console.log(`🔍 Starting review phase...`);
-
-    const criteria = parseJsonOption(options.criteria);
-    const plugin = this.requirePlugin();
-    const result = await plugin.executeReviewPhase(criteria);
-
-    console.log(`✅ Review phase completed!`);
-    console.log(`📊 Overall score: ${result.coreReview.review.overallScore}/100`);
-    console.log(`💡 Generated ${result.learnings.length} learnings`);
-    console.log(`📋 Created ${result.recommendations.length} recommendations`);
-
-    return result;
-  }
-
-  private async handleStatus(): Promise<unknown> {
-    const plugin = this.requirePlugin();
-    const status = await plugin.getProjectStatus();
-
-    console.log(`📊 Project Status:`);
-    console.log(`   Project: ${status.project ?? "No active project"}`);
-    console.log(`   Session: ${status.sessionId ?? "N/A"}`);
-    console.log(`   Current Phase: ${status.currentPhase ?? "N/A"}`);
-
-    if (status.progress) {
-      console.log(
-        `   Progress: ${status.progress.completed}/${status.progress.total} (${status.progress.percentage}%)`,
-      );
-    }
-
-    if (status.nextSteps && status.nextSteps.length > 0) {
-      console.log(`\n🎯 Next Steps:`);
-      status.nextSteps.forEach((step, i) => {
-        console.log(`   ${i + 1}. ${step}`);
-      });
-    }
-
-    return status;
-  }
-
-  private async handleCLI(args: string[]): Promise<unknown> {
-    const [subcommand, ...subArgs] = args;
-
-    switch (subcommand) {
-      case "generate":
-        if (subArgs.length === 0) {
-          throw new Error("Usage: ci cli generate <repository-path>");
-        }
-        return this.handleCLIGenerate(subArgs[0]!);
-      case "list":
-        return this.handleCLIList();
-      default:
-        throw new Error("Usage: ci cli <generate|list> [args]");
-    }
-  }
-
-  private async handleCLIGenerate(repoPath: string): Promise<unknown> {
-    console.log(`🛠️  Generating CLI for: ${repoPath}`);
-
-    const plugin = this.requirePlugin();
-    const result = await plugin.cliAnything.generateCLI(repoPath);
-
-    console.log(`✅ CLI generated successfully!`);
-    console.log(`📁 Output: ${result.outputPath}`);
-    console.log(`🔧 Commands: ${result.commands.length}`);
-
-    console.log(`\n📋 Available Commands:`);
+    console.log(`Generated CLI for: ${repoPath}`);
+    console.log(`  Output: ${result.outputPath}`);
+    console.log(`  Commands: ${result.commands.length}`);
     for (const cmd of result.commands) {
-      console.log(`   ${cmd.name.padEnd(15)} - ${cmd.description}`);
+      console.log(`    ${cmd.name.padEnd(15)} ${cmd.description}`);
     }
 
     return result;
   }
 
-  private handleCLIList(): void {
-    console.log(`🛠️  CLI Generation Tool Status: Ready`);
-    console.log(`   Repository Analysis: Supported`);
-    console.log(`   Project Types: Node.js, React, Python, Docker, and more`);
-    console.log(`   Output Format: Executable JavaScript`);
+  private handleList(): void {
+    console.log("CLI-Anything status: ready");
+    console.log("  Repository analysis: supported");
+    console.log("  Project types: Node.js, React, Python, Docker, and more");
+    console.log("  Output format: executable JavaScript");
   }
 
-  private async handlePM(args: string[], options: ParsedOptions): Promise<unknown> {
+  private handleConfig(args: string[]): unknown {
     const [subcommand, ...subArgs] = args;
-
-    switch (subcommand) {
-      case "analyze":
-        return this.handlePMAnalyze(options);
-      case "skill":
-        return this.handlePMSkill(subArgs);
-      case "list":
-        return this.handlePMList();
-      default:
-        throw new Error("Usage: ci pm <analyze|skill|list> [args]");
-    }
-  }
-
-  private async handlePMAnalyze(options: ParsedOptions): Promise<unknown> {
-    console.log(`📊 Running comprehensive PM analysis...`);
-
-    const productInfo = {
-      product: parseJsonOption<Record<string, unknown>>(options.product) ?? {},
-      industry: options.industry ?? "Technology",
-      targetMarket: parseJsonOption<Record<string, unknown>>(options.targetMarket) ?? {},
-    };
-
-    const plugin = this.requirePlugin();
-    const result = await plugin.pmSkills.runProductAnalysis(productInfo);
-
-    console.log(`✅ PM analysis completed!`);
-    console.log(
-      `📊 Summary: ${result.summary.completedSkills}/${result.summary.totalSkills} skills completed`,
-    );
-    console.log(`💡 Key insights: ${result.summary.keyInsights.length}`);
-    console.log(`📋 Recommendations: ${result.summary.recommendations.length}`);
-    console.log(`📁 Results saved to: ${result.savedTo}`);
-
-    return result;
-  }
-
-  private async handlePMSkill(args: string[]): Promise<unknown> {
-    if (args.length === 0) {
-      throw new Error("Usage: ci pm skill <skill-name>");
-    }
-
-    const [skillName] = args;
-    console.log(`📊 Executing PM skill: ${skillName}`);
-
-    const input = {
-      product: { name: "Sample Product" },
-      market: { size: "Medium" },
-    };
-
-    const plugin = this.requirePlugin();
-    const result = await plugin.pmSkills.executeSkill(skillName!, input);
-
-    console.log(`✅ PM skill ${skillName} completed!`);
-    console.log(`📁 Results saved to: ${result.savedTo}`);
-
-    return result;
-  }
-
-  private handlePMList(): void {
-    const plugin = this.requirePlugin();
-    const skills = plugin.pmSkills.getAvailableSkills();
-
-    console.log(`📊 Available PM Skills:`);
-    for (const skill of skills) {
-      console.log(`   ${skill.name.padEnd(20)} - ${skill.description} [${skill.category}]`);
-    }
-  }
-
-  private async handleCompound(args: string[]): Promise<unknown> {
-    const [subcommand, ...subArgs] = args;
-
-    switch (subcommand) {
-      case "session":
-        return this.handleCompoundSession(subArgs);
-      case "learnings":
-        return this.handleCompoundLearnings();
-      default:
-        throw new Error("Usage: ci compound <session|learnings> [args]");
-    }
-  }
-
-  private async handleCompoundSession(args: string[]): Promise<unknown> {
-    if (args.length < 2) {
-      throw new Error("Usage: ci compound session <project-name> <objective>");
-    }
-
-    const [name, ...objectiveParts] = args;
-    const objective = objectiveParts.join(" ");
-
-    console.log(`🔧 Starting compound engineering session...`);
-
-    const plugin = this.requirePlugin();
-    const session = await plugin.compoundEngineering.startSession(name!, objective);
-
-    console.log(`✅ Session started!`);
-    console.log(`🆔 Session ID: ${session.id}`);
-    console.log(`📋 Objective: ${session.objective}`);
-    console.log(`🔄 Current Phase: ${session.phase}`);
-
-    return session;
-  }
-
-  private async handleCompoundLearnings(): Promise<unknown> {
-    console.log(`📚 Loading compound engineering learnings...`);
-
-    const plugin = this.requirePlugin();
-    await plugin.compoundEngineering.loadLearnings();
-    const learnings = plugin.compoundEngineering.getAllLearnings();
-
-    console.log(`📚 Found ${learnings.length} learnings:`);
-    for (const learning of learnings) {
-      console.log(`   [${learning.confidence.toFixed(2)}] ${learning.summary}`);
-    }
-
-    return learnings;
-  }
-
-  private async handleLearnings(args: string[]): Promise<unknown> {
-    const [subcommand, ...subArgs] = args;
-
-    switch (subcommand) {
-      case "search":
-        return this.handleLearningsSearch(subArgs.join(" "));
-      case "all":
-        return this.handleLearningsAll();
-      default:
-        throw new Error("Usage: ci learnings <search|all> [query]");
-    }
-  }
-
-  private async handleLearningsSearch(query: string): Promise<unknown> {
-    console.log(`🔍 Searching learnings for: "${query}"`);
-
-    const plugin = this.requirePlugin();
-    await plugin.compoundEngineering.loadLearnings();
-    const results = plugin.compoundEngineering.searchLearnings(query);
-
-    console.log(`🔍 Found ${results.length} matching learnings:`);
-    for (const learning of results) {
-      console.log(`   [${learning.confidence.toFixed(2)}] ${learning.summary}`);
-    }
-
-    return results;
-  }
-
-  private async handleLearningsAll(): Promise<unknown> {
-    console.log(`📚 Loading all learnings...`);
-
-    const plugin = this.requirePlugin();
-    await plugin.compoundEngineering.loadLearnings();
-    const learnings = plugin.compoundEngineering.getAllLearnings();
-
-    console.log(`📚 Total learnings: ${learnings.length}`);
-
-    const grouped = learnings.reduce<Record<string, typeof learnings>>((groups, learning) => {
-      const type = learning.type || "general";
-      if (!groups[type]) groups[type] = [];
-      groups[type]!.push(learning);
-      return groups;
-    }, {});
-
-    for (const [type, items] of Object.entries(grouped)) {
-      console.log(`\n   ${type.charAt(0).toUpperCase() + type.slice(1)} (${items.length}):`);
-      for (const learning of items) {
-        console.log(`     [${learning.confidence.toFixed(2)}] ${learning.summary}`);
-      }
-    }
-
-    return learnings;
-  }
-
-  private async handleConfig(args: string[]): Promise<unknown> {
-    const [subcommand, ...subArgs] = args;
-
     switch (subcommand) {
       case "show":
         return this.handleConfigShow();
@@ -512,17 +115,12 @@ class UnifiedCLI {
   }
 
   private handleConfigShow(): void {
-    console.log(`⚙️  Current Configuration:`);
-    console.log(`   Workspace: ${this.config.workspace}`);
-    console.log(`   Verbose: ${this.config.verbose}`);
-    console.log(`   Default Mode: ${this.config.defaultMode}`);
+    console.log("Current configuration:");
+    console.log(`  Workspace: ${this.config.workspace}`);
+    console.log(`  Verbose: ${this.config.verbose}`);
   }
 
   private handleConfigSet(args: string[]): void {
-    if (args.length < 2) {
-      throw new Error("Usage: ci config set <key> <value>");
-    }
-
     const [key, value] = args;
     if (!key || value === undefined) {
       throw new Error("Usage: ci config set <key> <value>");
@@ -532,13 +130,11 @@ class UnifiedCLI {
       this.config.workspace = value;
     } else if (key === "verbose") {
       this.config.verbose = value === "true";
-    } else if (key === "defaultMode") {
-      this.config.defaultMode = value;
     } else {
       throw new Error(`Unknown config key: ${key}`);
     }
 
-    console.log(`✅ Configuration updated: ${key} = ${value}`);
+    console.log(`Configuration updated: ${key} = ${value}`);
   }
 }
 
@@ -549,33 +145,18 @@ function parseGlobalOptions(args: string[]): ParsedOptions {
     const flag = args[i];
     const next = args[i + 1];
 
-    const consumeValue = (key: keyof ParsedOptions): void => {
-      if (next === undefined) return;
-      (options[key] as string) = next;
-      args.splice(i, 2);
-      i--;
-    };
-
     switch (flag) {
       case "--workspace":
-        consumeValue("workspace");
+        if (next !== undefined) {
+          options.workspace = next;
+          args.splice(i, 2);
+          i--;
+        }
         break;
       case "--verbose":
         options.verbose = true;
         args.splice(i, 1);
         i--;
-        break;
-      case "--repo":
-        consumeValue("repo");
-        break;
-      case "--product":
-        consumeValue("product");
-        break;
-      case "--industry":
-        consumeValue("industry");
-        break;
-      case "--target-market":
-        consumeValue("targetMarket");
         break;
       default:
         break;
@@ -588,49 +169,25 @@ function parseGlobalOptions(args: string[]): ParsedOptions {
 async function main(): Promise<void> {
   const [, , command, ...args] = process.argv;
 
-  if (!command || command === "--help" || command === "-h") {
+  if (!command || command === "--help" || command === "-h" || command === "help") {
     console.log(`
-Unified Continuous Improvement CLI
+CLI-Anything (ci) - turn a repository into an agent-native CLI
 
 Usage: ci <command> [args] [options]
 
-Main Commands:
-  init <name> <objective>        Initialize new project with comprehensive analysis
-  workflow <name> <objective>    Run complete end-to-end workflow
-  research                       Execute research phase
-  planning                       Execute planning phase
-  execution                      Execute execution phase
-  review                         Execute review phase
-  status                         Show project status
-
-Tool Commands:
-  cli generate <repo-path>       Generate CLI for repository
-  pm analyze                     Run comprehensive PM analysis
-  pm skill <name>                Execute specific PM skill
-  pm list                        List available PM skills
-  compound session <name> <obj>  Start compound engineering session
-  compound learnings             Show compound engineering learnings
-  learnings search <query>       Search through all learnings
-  learnings all                  Show all learnings
-
-Configuration:
-  config show                    Show current configuration
-  config set <key> <value>       Set configuration value
+Commands:
+  generate <repo-path>      Analyze a repository and generate an agent-native CLI wrapper
+  list                      Show CLI-Anything capabilities
+  config show               Show current configuration
+  config set <key> <value>  Set a configuration value (workspace | verbose)
 
 Global Options:
-  --workspace <dir>              Workspace directory
-  --verbose                      Enable verbose logging
-  --repo <path>                  Repository path for CLI generation
-  --product <json>               Product information as JSON
-  --industry <name>              Industry name
-  --target-market <json>         Target market as JSON
+  --workspace <dir>         Workspace directory (default: ./ci-workspace)
+  --verbose                 Enable verbose logging
 
 Examples:
-  ci init "MyApp" "Build a task management app"
-  ci workflow "MyApp" "Build task management" --repo ./my-app
-  ci cli generate ./my-repo
-  ci pm analyze --industry "SaaS" --target-market '{"segment":"SMB"}'
-  ci learnings search "performance"
+  ci generate ./my-repo
+  ci config set workspace ./out
 `);
     process.exit(0);
   }
@@ -640,20 +197,19 @@ Examples:
 
   try {
     const result = await cli.runCommand(command, args, options);
-
     if (options.verbose && result) {
-      console.log(`\n🔍 Detailed result:`);
+      console.log("\nDetailed result:");
       console.log(JSON.stringify(result, null, 2));
     }
   } catch (error) {
-    console.error(`❌ Error: ${getErrorMessage(error)}`);
+    console.error(`Error: ${getErrorMessage(error)}`);
     process.exit(1);
   }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   main().catch((error: unknown) => {
-    console.error(`❌ Fatal error: ${getErrorMessage(error)}`);
+    console.error(`Fatal error: ${getErrorMessage(error)}`);
     process.exit(1);
   });
 }

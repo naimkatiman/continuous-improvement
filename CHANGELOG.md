@@ -6,6 +6,10 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+### Removed
+
+- **`ci` toolkit slimmed to CLI-Anything only — Compound Engineering + PM-Skills removed (breaking)** — the published `ci` command dropped its `compound`, `pm`, `learnings`, and `init`/`workflow`/`research`/`planning`/`execution`/`review` subcommands. Compound Engineering overlapped the Mulahazah instinct engine and PM-Skills overlapped the out-of-band `phuryn/pm-skills` marketplace install, so both were tree-shaken; the vestigial `unified-plugin` orchestrator was deleted and `unified-cli` rewritten as a thin front-end over the retained CLI-Anything library (`ci generate <repo>` / `ci list` / `ci config`). Removes ~4,500 LOC of source + tests; `cli-anything` and the build-critical `pm-marketplace` are unchanged. Plan: `docs/plans/2026-06-08-slim-ci-to-cli-anything.md`.
+
 ## [3.12.3] — 2026-06-08
 
 ### Fixed
