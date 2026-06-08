@@ -348,4 +348,30 @@ describe("workflowRunFromObservations + draftFromWorkflowRun (workflow bridge)",
     assert.match(yaml, /\n---\n/);
     assert.match(yaml, /Plan → Build → Verify/);
   });
+
+  it("scopes phase titles to the phases array, ignoring inline agent/step title fields", () => {
+    const scriptWithNestedTitle = [
+      "export const meta = {",
+      "  name: 'scoped-wf',",
+      "  description: 'real intent',",
+      "  phases: [{ title: 'Scan' }],",
+      "}",
+      "phase('Scan')",
+      "const r = await agent('x', { title: 'inline-label' })",
+    ].join("\n");
+    const run = workflowRunFromObservations([wfRow(scriptWithNestedTitle), verifyRow()]);
+    assert.ok(run);
+    assert.equal(run!.description, "real intent");
+    assert.deepEqual(run!.phases, ["Scan"], "an inline agent title: must not be captured as a phase");
+  });
+
+  it("does not count a verify from a different session as proof of the run", () => {
+    const wf = obs("Workflow", { session: "A", input_summary: JSON.stringify({ script: goodScript }) });
+    const otherSessionVerify = obs("Bash", {
+      session: "B",
+      input_summary: "npm run verify:all",
+      output_summary: "OK all passing",
+    });
+    assert.equal(workflowRunFromObservations([wf, otherSessionVerify]), null);
+  });
 });

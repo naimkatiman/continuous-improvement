@@ -335,7 +335,7 @@ describe("MCP server — expert mode", () => {
             // Windows can briefly keep stdio handles open after the child exits.
         }
     });
-    it("lists all expert tools (18) in expert mode", async () => {
+    it("lists all expert tools (19) in expert mode", async () => {
         await client.send({ jsonrpc: "2.0", id: 10, method: "initialize", params: {} });
         const response = await client.send({ jsonrpc: "2.0", id: 11, method: "tools/list", params: {} });
         const names = response.result.tools.map((tool) => tool.name);

@@ -53,9 +53,10 @@ warrants a draft — `minSessions`/`minOccurrences` do not apply.
 - MCP tool `ci_distill_from_workflow` (expert): `readDistillObservations` →
   `workflowRunFromObservations` → `draftFromWorkflowRun` → `serializeDraft` → write to
   `drafts/`. Promotion stays `ci_distill_promote`, unchanged. Tool count 18 → 19.
-- Stop hook `workflow-distill.mjs` (fail-open, opt-in via env, default off): on Stop,
-  if the session shows a verified Workflow run, print ONE stderr nudge to run
-  `ci_distill_from_workflow`. Never writes, never blocks.
+- **Deferred to a fast-follow PR (not in this commit)** — Stop hook
+  `workflow-distill.mjs` (fail-open, opt-in, default off): on Stop, if the session
+  shows a verified Workflow run, print ONE stderr nudge to run
+  `ci_distill_from_workflow`. This PR ships the MCP tool only.
 
 ## Fail-closed boundaries (the 2026-06-03 audit lesson)
 
@@ -70,11 +71,12 @@ null, never fabricated.
 - `src/lib/skill-distill.mts` — two functions + `WorkflowRun` type.
 - `src/test/skill-distill.test.mts` — RED→GREEN boundary + happy-path.
 - `src/bin/mcp-server.mts` — `ci_distill_from_workflow` case.
-- `src/lib/plugin-metadata.mts` — `EXPERT_TOOL_ENTRIES` entry + `workflow-distill`
-  Stop-hook registration in `getPluginHooksConfig`.
-- `src/hooks/workflow-distill.mts` — new Stop hook.
+- `src/lib/plugin-metadata.mts` — `EXPERT_TOOL_ENTRIES` entry for the MCP tool.
 - `docs/skills.md`, `README.md`, `QUICKSTART.md` — expert tool count 18 → 19.
 - Generated (via `npm run build`): manifests + `plugins/` mirror + tool-count claims.
+- **Deferred (fast-follow):** `src/hooks/workflow-distill.mts` + its
+  `getPluginHooksConfig` Stop registration — the auto-detect nudge, shipped
+  separately to keep this PR single-concern (the MCP capability).
 
 ## Verification
 

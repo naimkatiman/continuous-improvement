@@ -848,11 +848,19 @@ function handleTool(name, params) {
                     "Run a workflow, verify its output, then try `ci_distill_from_workflow` again.");
             }
             const draftInstinct = draftFromWorkflowRun(run);
+            if (!isSafeDraftId(draftInstinct.id)) {
+                return error(`Internal error: generated draft id "${draftInstinct.id}" failed the safety check.`);
+            }
             const draft = serializeDraft(draftInstinct);
             const draftsDir = join(INSTINCTS_DIR, project.hash, "drafts");
-            mkdirSync(draftsDir, { recursive: true });
             const draftPath = join(draftsDir, `${draftInstinct.id}.yaml`);
-            writeFileSync(draftPath, draft);
+            try {
+                mkdirSync(draftsDir, { recursive: true });
+                writeFileSync(draftPath, draft);
+            }
+            catch (err) {
+                return error(`Failed to write draft to ${draftPath}: ${err instanceof Error ? err.message : String(err)}`);
+            }
             return text([
                 "## Draft written from a verified workflow run",
                 "",

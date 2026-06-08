@@ -344,13 +344,22 @@ function parseWorkflowScript(inputSummary: string): { name: string; description:
     }
   }
   if (!script) return null;
-  const name = (script.match(/name\s*:\s*['"]([^'"]+)['"]/) ?? [])[1] ?? "";
+  // Scope name/description to the meta head (text before `phases:`) so a phase
+  // object's own description: is never mistaken for meta.description; scope phase
+  // titles to the phases array literal so inline agent/step title: fields are not
+  // captured. The capture classes exclude quotes and newlines, so a hostile
+  // name/description cannot inject lines into the draft YAML — serializeDraft emits
+  // trigger as a quoted scalar.
+  const phasesAt = script.search(/\bphases\s*:/);
+  const metaHead = phasesAt >= 0 ? script.slice(0, phasesAt) : script;
+  const name = (metaHead.match(/\bname\s*:\s*['"]([^'"\r\n]+)['"]/) ?? [])[1] ?? "";
   if (!name) return null; // fail closed: no recipe identity
-  const description = (script.match(/description\s*:\s*['"]([^'"]+)['"]/) ?? [])[1] ?? "";
+  const description = (metaHead.match(/\bdescription\s*:\s*['"]([^'"\r\n]+)['"]/) ?? [])[1] ?? "";
+  const phasesBlock = (script.match(/\bphases\s*:\s*\[([^\]]*)\]/) ?? [])[1] ?? "";
   const phases: string[] = [];
-  const phaseRe = /title\s*:\s*['"]([^'"]+)['"]/g;
+  const phaseRe = /\btitle\s*:\s*['"]([^'"\r\n]+)['"]/g;
   let pm: RegExpExecArray | null;
-  while ((pm = phaseRe.exec(script)) !== null) phases.push(pm[1]!);
+  while ((pm = phaseRe.exec(phasesBlock)) !== null) phases.push(pm[1]!);
   return { name, description, phases };
 }
 
@@ -383,11 +392,17 @@ export function workflowRunFromObservations(observations: DistillObservation[]):
     }
   }
   if (wfIndex === -1 || !meta) return null;
+  const wfSession = (observations[wfIndex]!.session ?? "").toString();
 
+  // The verify that proves the run must follow the Workflow row in the SAME session.
+  // A verify from an unrelated later task (different session) does not count — the
+  // run is asynchronous, so an interleaved verify could otherwise falsely prove it.
   let verifyCommand = "";
   for (let i = wfIndex + 1; i < observations.length; i += 1) {
-    if (isVerifySuccessRow(observations[i]!)) {
-      verifyCommand = (observations[i]!.input_summary ?? "").toString();
+    const row = observations[i]!;
+    if ((row.session ?? "").toString() !== wfSession) continue;
+    if (isVerifySuccessRow(row)) {
+      verifyCommand = (row.input_summary ?? "").toString();
       break;
     }
   }
@@ -403,7 +418,9 @@ export function workflowRunFromObservations(observations: DistillObservation[]):
  * `draft-workflow-` id prefix marks the source and stays filesystem-safe.
  */
 export function draftFromWorkflowRun(run: WorkflowRun): DraftInstinct {
-  const slug = slugifyNgram([run.name]);
+  // Cap the slug so a hostile/huge meta.name cannot produce a path that trips
+  // ENAMETOOLONG on write; strip a trailing hyphen left by the cut.
+  const slug = slugifyNgram([run.name]).slice(0, 120).replace(/-+$/, "") || "workflow";
   const phaseLine = run.phases.length > 0 ? run.phases.join(" → ") : "(phases not captured)";
   const lines = [
     `When this situation recurs, the workflow "${run.name}" handled it end to end and its output passed verification.`,
