@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-08
 
+## 2026-06-08 — Sync update-card test counts to 761 after Hangul regression test
+- The HTML summary card at `reports/assets/update-card.html` still showed `760` in the "Tests Passing", "Total Tests", and badge stats even though the Korean Hangul keyword-floor fix (PR with commit `9770875`) added one regression test, bringing the suite to `761 pass / 0 fail`. The card was last synced to `760` during the CI slim refactor earlier today and was not updated when the Hangul test landed.
+- Updated all three occurrences from `760` to `761` so the card reflects the current test-suite reality.
+- Verified with `npm run verify:all` (all 12 content invariants + typecheck pass, 761 pass / 0 fail). Working tree has a doc-only diff.
+
 ## 2026-06-08 — Push verified Korean Hangul fix to origin/main and delete stale branch
 - Local `main` was 1 commit ahead of `origin/main` with the verified Korean Hangul keyword-floor fix (`9770875`). The source branch `fix/goal-state-hangul-floor` still existed both locally and remotely even though its changes were already on `main`.
 - Pushed `main` to `origin/main`; remote fast-forwarded cleanly from `41a0137` to `9770875`.
