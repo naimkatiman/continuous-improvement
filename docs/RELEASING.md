@@ -129,9 +129,18 @@ curl -s https://continuous-improvement.dev/ | grep -o "REV 3.[0-9.]*"   # confir
 domain (no preview-only step). The deploy uses your local wrangler OAuth session — there is no
 `CLOUDFLARE_API_TOKEN` secret in CI.
 
-**To automate (recommended):** connect the Pages project to the GitHub repo in the Cloudflare dashboard
-(Builds & deployments → Connect to Git; no build command, output directory `docs/landing`). Then every
-push to `main` rebuilds the live domain with no token and no manual step.
+**Catch staleness automatically:** the [`landing-drift.yml`](../.github/workflows/landing-drift.yml)
+workflow runs daily (and on demand) and fails if `continuous-improvement.dev` is not serving the version
+in `docs/landing/index.html` — so a missed deploy pages you instead of going unnoticed for weeks. It is
+read-only (curl + version compare) and needs no secret.
+
+**Full push-to-deploy (optional, involves a cutover):** Cloudflare fixes a Pages project's connection
+type at creation — a **Direct Upload** project (this one) cannot be connected to Git in place, and the
+[docs](https://developers.cloudflare.com/pages/get-started/git-integration/) confirm the reverse is also
+one-way. To get auto-deploy you must create a *new* Git-connected Pages project from the repo (no build
+command, output directory `docs/landing`), verify it on its `*.pages.dev` URL, then move the
+`continuous-improvement.dev` custom domain off the old project onto the new one. Since the OAuth-CLI
+deploy already works, the manual deploy + drift check above is the lower-risk default.
 
 > The former CI workflows `pages.yml` (GitHub Pages) and `cf-pages.yml` (Cloudflare) were removed. The
 > first deployed only to an orphaned `github.io` URL the domain never pointed at; the second failed on
