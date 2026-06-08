@@ -1,9 +1,14 @@
 name: Landing drift check
 
-# Fails when continuous-improvement.dev is NOT serving the version currently in
+# Fails when the deployed landing page is NOT serving the version currently in
 # docs/landing/index.html — i.e. a landing change merged to main but the manual
-# Cloudflare Pages deploy was never run. Read-only (curl + version compare): it
-# needs no secret and cannot deploy. See docs/RELEASING.md "Landing page".
+# Cloudflare Pages deploy was never run. Read-only (curl + version compare): no
+# secret, cannot deploy. See docs/RELEASING.md "Landing page".
+#
+# continuous-improvement.dev sits behind the customer zone's Cloudflare bot
+# protection, which 403s datacenter IPs (GitHub runners) even with a browser UA.
+# So we try the custom domain first, then fall back to the *.pages.dev URL (the
+# Cloudflare-managed zone, no customer bot rules) — both serve the same deployment.
 on:
   schedule:
     - cron: '37 7 * * *'   # daily; catches a missed deploy within 24h
@@ -18,19 +23,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Compare live domain to docs/landing source
+      - name: Compare deployed landing to docs/landing source
         run: |
+          ua='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
+          rev() { curl -fsSL --retry 3 --retry-delay 5 -A "$ua" "$1" 2>/dev/null \
+            | grep -oE 'REV [0-9]+\.[0-9]+\.[0-9]+' | head -1 | awk '{print $2}'; }
+
           src=$(grep -oE 'REV [0-9]+\.[0-9]+\.[0-9]+' docs/landing/index.html | head -1 | awk '{print $2}')
-          live=$(curl -fsSL --retry 3 --retry-delay 5 https://continuous-improvement.dev/ \
-            | grep -oE 'REV [0-9]+\.[0-9]+\.[0-9]+' | head -1 | awk '{print $2}')
+
+          url='https://continuous-improvement.dev/'
+          live=$(rev "$url")
+          if [ -z "$live" ]; then
+            url='https://continuous-improvement.pages.dev/'
+            live=$(rev "$url")
+          fi
+
           echo "source docs/landing/index.html : ${src:-<none>}"
-          echo "live  continuous-improvement.dev : ${live:-<none>}"
+          echo "live  $url : ${live:-<none>}"
+
           if [ -z "$src" ] || [ -z "$live" ]; then
-            echo "::error::Could not extract a REV version (source='$src' live='$live'). Check the page markup or the extraction pattern."
+            echo "::error::Could not extract a REV version (source='$src' live='$live'). Both the custom domain and *.pages.dev were unreachable, or the page markup/pattern changed."
             exit 1
           fi
           if [ "$src" != "$live" ]; then
-            echo "::error::Live domain is STALE: serving $live but docs/landing is $src. Redeploy: wrangler pages deploy docs/landing --project-name=continuous-improvement --branch=main --commit-dirty=true"
+            echo "::error::Deployed landing is STALE: serving $live but docs/landing is $src. Redeploy: wrangler pages deploy docs/landing --project-name=continuous-improvement --branch=main --commit-dirty=true"
             exit 1
           fi
-          echo "OK: live domain matches docs/landing ($src)"
+          echo "OK: deployed landing matches docs/landing ($src)"
