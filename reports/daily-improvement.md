@@ -1,4 +1,11 @@
-# Daily Improvement Report — 2026-06-07
+# Daily Improvement Report — 2026-06-08
+
+## 2026-06-08 — Fast-forward main to origin/main (v3.12.3) and sync stale report dates
+- Local `main` was 8 commits behind `origin/main` after PRs #211–#218 landed on the remote (OIDC trusted publishing fixes, v3.12.1–v3.12.3 releases). The fix branch `fix/goal-state-hangul-floor` was also based on the old local main, so rebasing it onto current `origin/main` was required before it can be pushed.
+- Checked out `main` and fast-forwarded to `origin/main` (commit `302b621`, v3.12.3). Verified `npm run verify:all` — all 12 content invariants + typecheck pass, 801 pass / 0 fail.
+- Rebased `fix/goal-state-hangul-floor` onto the updated main; rebase applied cleanly (no conflicts). Verified `npm run verify:all` and `npm test` — 802 pass / 0 fail (the +1 is the Korean Hangul regression test on the branch).
+- Updated the HTML summary card at `reports/assets/update-card.html` from "June 7, 2026" / "2026-06-07" to "June 8, 2026" / "2026-06-08" and from `v3.12.0` to `v3.12.3` so the card matches the current reporting period and release. Updated the report header from "2026-06-07" to "2026-06-08" and the Project Snapshot version from `v3.12.0` to `v3.12.3`.
+- Verified with `npm run verify:all` (all 12 content invariants + typecheck pass, 801 pass / 0 fail). Working tree has a doc-only diff on `main`; the fix branch is rebased and ready to push.
 
 ## 2026-06-07 — Sync stale v3.10.0 references in landing-page blueprint plan
 - `docs/plans/2026-06-07-landing-page-blueprint-rebuild.md` (dated today) still advertised `v3.10.0` / `REV 3.10.0` on its spec-sheet summary line and footer example even though the project released `v3.11.0` on 2026-06-07 and advanced to `v3.12.0` later the same day. A plan document referencing an outdated version risks being executed with stale expectations.
@@ -611,7 +618,7 @@
 
 | Field | Value |
 |-------|-------|
-| Project | continuous-improvement v3.12.0 |
+| Project | continuous-improvement v3.12.3 |
 | Stack | Node.js (ESM), MCP server, GitHub Action, CLI tools |
 | Stage | Published npm package, active development |
 | Tests (current) | 801 pass / 0 fail |
