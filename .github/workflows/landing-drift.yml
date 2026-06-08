@@ -1,0 +1,36 @@
+name: Landing drift check
+
+# Fails when continuous-improvement.dev is NOT serving the version currently in
+# docs/landing/index.html — i.e. a landing change merged to main but the manual
+# Cloudflare Pages deploy was never run. Read-only (curl + version compare): it
+# needs no secret and cannot deploy. See docs/RELEASING.md "Landing page".
+on:
+  schedule:
+    - cron: '37 7 * * *'   # daily; catches a missed deploy within 24h
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare live domain to docs/landing source
+        run: |
+          src=$(grep -oE 'REV [0-9]+\.[0-9]+\.[0-9]+' docs/landing/index.html | head -1 | awk '{print $2}')
+          live=$(curl -fsSL --retry 3 --retry-delay 5 https://continuous-improvement.dev/ \
+            | grep -oE 'REV [0-9]+\.[0-9]+\.[0-9]+' | head -1 | awk '{print $2}')
+          echo "source docs/landing/index.html : ${src:-<none>}"
+          echo "live  continuous-improvement.dev : ${live:-<none>}"
+          if [ -z "$src" ] || [ -z "$live" ]; then
+            echo "::error::Could not extract a REV version (source='$src' live='$live'). Check the page markup or the extraction pattern."
+            exit 1
+          fi
+          if [ "$src" != "$live" ]; then
+            echo "::error::Live domain is STALE: serving $live but docs/landing is $src. Redeploy: wrangler pages deploy docs/landing --project-name=continuous-improvement --branch=main --commit-dirty=true"
+            exit 1
+          fi
+          echo "OK: live domain matches docs/landing ($src)"
