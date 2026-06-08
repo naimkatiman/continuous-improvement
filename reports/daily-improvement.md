@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-08
 
+## 2026-06-08 — Sync test counts to 760 after CI slim refactor
+- PR #220 (`refactor(ci): slim the ci CLI to CLI-Anything; remove Compound Engineering + PM-Skills`) deleted three large test suites (`compound-engineering`, `pm-skills`, `unified-plugin`) and their generated `.mjs` artifacts, reducing the total test count from 801 to 760. The Project Snapshot table, Remaining Failures prose, and HTML summary card at `reports/assets/update-card.html` still showed `801`.
+- Updated the Project Snapshot and Remaining Failures sections from `801 pass / 0 fail` to `760 pass / 0 fail`, and synced the update-card badge, stat values, and footer line from `801` to `760` so all hand-maintained test counts reflect the post-refactor reality.
+- Verified with `npm run verify:all` (all 12 content invariants + typecheck pass) and `npm test` (760 pass / 0 fail). Working tree has a doc-only diff.
+
 ## 2026-06-08 — Fast-forward main to origin/main (v3.12.3) and sync stale report dates
 - Local `main` was 8 commits behind `origin/main` after PRs #211–#218 landed on the remote (OIDC trusted publishing fixes, v3.12.1–v3.12.3 releases). The fix branch `fix/goal-state-hangul-floor` was also based on the old local main, so rebasing it onto current `origin/main` was required before it can be pushed.
 - Checked out `main` and fast-forwarded to `origin/main` (commit `302b621`, v3.12.3). Verified `npm run verify:all` — all 12 content invariants + typecheck pass, 801 pass / 0 fail.
@@ -621,7 +626,7 @@
 | Project | continuous-improvement v3.12.3 |
 | Stack | Node.js (ESM), MCP server, GitHub Action, CLI tools |
 | Stage | Published npm package, active development |
-| Tests (current) | 801 pass / 0 fail |
+| Tests (current) | 760 pass / 0 fail |
 
 ## Changes Implemented
 
@@ -641,7 +646,7 @@
 
 ## Remaining Failures
 
-None. All 801 tests pass / 0 fail as of this cycle.
+None. All 760 tests pass / 0 fail as of this cycle.
 
 ## Deferred Items
 
