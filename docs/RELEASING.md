@@ -9,6 +9,7 @@ The release pipeline is **tag-triggered**. Pushing a `v*` tag publishes the npm 
 | **Plugin marketplace** (`/plugin install`) | Merge to `main` | Claude Code clients fetch `.claude-plugin/marketplace.json` from `main` on demand. Consumers refresh with `/plugin update continuous-improvement`. |
 | **npm package** (`npm install -g continuous-improvement`) | Tag push (`v*`) | `.github/workflows/release.yml` publishes via OIDC trusted publishing (no token) and creates a GitHub Release. |
 | **GitHub Action Marketplace** | Manual (one-time setup + per-release) | Publish `action.yml` via the GitHub Release UI. See [Publishing to Marketplace](#publishing-to-github-marketplace) below. |
+| **Landing page** (`continuous-improvement.dev`) | Manual today; automate by connecting the CF Pages project to Git | `wrangler pages deploy docs/landing --project-name=continuous-improvement --branch=main`. The domain is a **Cloudflare Pages** direct-upload project — pushes to `main` do **not** auto-deploy. See [Landing page](#landing-page-continuous-improvementdev) below. |
 
 ## Cutting a release
 
@@ -110,6 +111,32 @@ npm view continuous-improvement version    # matches the tag
 gh run list --workflow=release.yml -L 1    # shows the latest run as success
 gh release view vX.Y.Z                     # shows generated notes
 ```
+
+## Landing page (continuous-improvement.dev)
+
+The marketing site at **continuous-improvement.dev** is a **Cloudflare Pages** project named
+`continuous-improvement` (direct upload, also reachable at `continuous-improvement.pages.dev`). It is
+**not** GitHub Pages and **not** git-connected, so merging changes to `docs/landing/` on `main` does
+**not** update the live domain. Deploy it explicitly:
+
+```bash
+wrangler login   # one-time OAuth; the account needs Cloudflare Pages: Edit
+wrangler pages deploy docs/landing --project-name=continuous-improvement --branch=main --commit-dirty=true
+curl -s https://continuous-improvement.dev/ | grep -o "REV 3.[0-9.]*"   # confirm the live version
+```
+
+`main` is the project's production branch, so that single command updates production **and** the custom
+domain (no preview-only step). The deploy uses your local wrangler OAuth session — there is no
+`CLOUDFLARE_API_TOKEN` secret in CI.
+
+**To automate (recommended):** connect the Pages project to the GitHub repo in the Cloudflare dashboard
+(Builds & deployments → Connect to Git; no build command, output directory `docs/landing`). Then every
+push to `main` rebuilds the live domain with no token and no manual step.
+
+> The former CI workflows `pages.yml` (GitHub Pages) and `cf-pages.yml` (Cloudflare) were removed. The
+> first deployed only to an orphaned `github.io` URL the domain never pointed at; the second failed on
+> every run because it needs a `CLOUDFLARE_API_TOKEN` secret that the OAuth-CLI path does not use. The
+> result was a live site frozen weeks behind `main` (v3.10.0) with green-looking CI.
 
 ## Rollback
 
