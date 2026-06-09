@@ -1,4 +1,9 @@
-# Daily Improvement Report — 2026-06-08
+# Daily Improvement Report — 2026-06-09
+
+## 2026-06-09 — Sync test counts to 771 after PR #226 distill feature tests
+- PR #226 (`feat(distill): turn a verified Workflow run into a draft instinct`) added 10 new regression tests to `src/test/skill-distill.test.mts` (expanding the compiled `test/skill-distill.test.mjs` from 17 to 27 tests), but the Project Snapshot, Remaining Failures prose, and HTML summary card were never updated to reflect the new total.
+- Updated the Project Snapshot table from `761 pass / 0 fail` to `771 pass / 0 fail`, the Remaining Failures prose from `761` to `771`, and the HTML summary card at `reports/assets/update-card.html` (Tests Passing, Total Tests, and badge) from `761` to `771`. Also updated the report header and card date from June 8 to June 9.
+- Verified with `npm run verify:all` (all 12 content invariants + typecheck pass, 771 pass / 0 fail). Working tree has a doc-only diff.
 
 ## 2026-06-08 — Rebase cloudplugin version sync onto landed PR #226 and push to origin/main
 - After the prior cycle authored commit `02918d8` on local `main`, PR #226 (`feat(distill): turn a verified Workflow run into a draft instinct`) landed on `origin/main` at `2649383`, creating a non-fast-forward push condition.
@@ -654,7 +659,7 @@
 | Project | continuous-improvement v3.12.3 |
 | Stack | Node.js (ESM), MCP server, GitHub Action, CLI tools |
 | Stage | Published npm package, active development |
-| Tests (current) | 761 pass / 0 fail |
+| Tests (current) | 771 pass / 0 fail |
 
 ## Changes Implemented
 
@@ -674,7 +679,7 @@
 
 ## Remaining Failures
 
-None. All 761 tests pass / 0 fail as of this cycle.
+None. All 771 tests pass / 0 fail as of this cycle.
 
 ## Deferred Items
 
