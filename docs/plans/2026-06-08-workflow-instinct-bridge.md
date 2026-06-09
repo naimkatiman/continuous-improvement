@@ -1,5 +1,7 @@
 # 2026-06-08 — Workflow-run → instinct bridge
 
+- Status: complete (verified 2026-06-09)
+
 ## Goal
 
 Make a completed native Workflow run (Opus 4.8 orchestration / ultracode) leave a

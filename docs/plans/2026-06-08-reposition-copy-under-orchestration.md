@@ -1,5 +1,7 @@
 # 2026-06-08 — Reposition copy under the orchestration layer
 
+- Status: complete (verified 2026-06-09)
+
 ## Goal
 
 Move continuous-improvement's positioning off the "intelligence amplifier / reason
