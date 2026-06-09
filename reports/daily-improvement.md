@@ -1,4 +1,4 @@
-# Daily Improvement Report — 2026-06-09
+# Daily Improvement Report — 2026-06-10
 
 ## 2026-06-09 — Mark `reposition-copy-under-orchestration` and `workflow-instinct-bridge` plans as complete
 - `docs/plans/2026-06-08-reposition-copy-under-orchestration.md` and `docs/plans/2026-06-08-workflow-instinct-bridge.md` had no status line even though both PRs landed on 2026-06-08: PR #225 repositioned copy as the persistent-memory + discipline layer, and PR #226 shipped the Workflow-run → instinct bridge (`src/lib/skill-distill.mts` `ci_distill_from_workflow` MCP tool, tests, and generated artifacts). Both plans were left open after implementation.
