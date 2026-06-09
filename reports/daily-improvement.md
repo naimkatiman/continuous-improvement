@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-10
 
+## 2026-06-10 — Merge hourly branch via PR #227 and delete stale branch
+- The hourly branch `hourly/2026-06-10-deprecate-stale-unified-plugin-guide` (commits `871d53a` and `33b1247`) had the verified unified-plugin-guide deprecation and report entry, but it was not yet merged to `main` and the branch still existed locally and remotely.
+- Created PR #227 (`docs: deprecate stale unified-plugin-guide and record in daily report`), enabled squash auto-merge, and let CI pass (lint-transcript + Node 18/20/22 test matrix all green). After merge, fast-forwarded local `main` to `origin/main` (commit `4e4bc15`). Deleted the stale local branch and pruned the remote tracking ref.
+- Verified with `npm run verify:all` (all 12 content invariants + typecheck pass, 771 pass / 0 fail). Working tree clean, `main` up to date with `origin/main`, no stale hourly branches remain.
+
 ## 2026-06-10 — Deprecate stale `docs/unified-plugin-guide.md`
 - `docs/unified-plugin-guide.md` still documented the pre-slim `ci` toolkit (`ci init`, `ci workflow`, `ci compound`, `ci pm`, `ci learnings`, etc.) even though those subcommands and surfaces were removed in the v3.12.3 refactor (plan: `docs/plans/2026-06-08-slim-ci-to-cli-anything.md`). The guide was 468 lines of drift and was the only file still referencing deleted test files (`test/unified-plugin.test.mjs`, `test/compound-engineering.test.mjs`, `test/pm-skills.test.mjs`).
 - Added an obsolete banner at the top directing readers to `docs/new-tools-integration.md` for the current surface, and rewrote the overview to describe CLI-Anything only (`ci generate`, `ci list`, `ci config`). Left the rest of the stale body in place with the banner as a guardrail; a future cycle can rewrite or remove the full guide.
