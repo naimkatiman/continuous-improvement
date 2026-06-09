@@ -57,8 +57,8 @@ npm run verify:all (12 invariants + typecheck) green.
 
 ## Deferred
 
-- .cloudplugin/marketplace.json version is stale (3.12.0 vs package 3.12.3) —
-  pre-existing, out of scope for a copy PR; bump in a release/version PR.
+- .cloudplugin/marketplace.json version sync (3.12.0 → 3.12.3) — fixed on
+  2026-06-08 (commit d5c75e9).
 - Explicit "CI x ultracode" wedge on the public landing page (a sharper, named
   contrast) — deferred to operator review. PR1 only de-collides; it adds no
   ultracode-named section.

@@ -5,6 +5,11 @@
 - Updated the card `<title>` and visible date line from "June 9, 2026" / "2026-06-09" to "June 10, 2026" / "2026-06-10", and updated the report header to match. Pushed `main` to `origin/main`; remote fast-forwarded cleanly from `350e3c8` to `7e69fca`.
 - Verified with `npm run verify:all` (all 12 content invariants + typecheck pass, 771 pass / 0 fail). Working tree clean, `main` up to date with `origin/main`.
 
+## 2026-06-10 — Close stale deferred item in reposition-copy plan
+- `docs/plans/2026-06-08-reposition-copy-under-orchestration.md` listed a deferred item claiming `.cloudplugin/marketplace.json version is stale (3.12.0 vs package 3.12.3)`, but that sync already shipped on 2026-06-08 (commit d5c75e9). A completed plan should not advertise an unfixed pre-existing issue that is already resolved.
+- Updated the deferred line to state the version sync was fixed on 2026-06-08 (commit d5c75e9) so the plan's deferred section stays accurate.
+- Verified with `npm run verify:all` (all 12 content invariants + typecheck pass, 771 pass / 0 fail). Working tree has a doc-only diff.
+
 ## 2026-06-09 — Mark `reposition-copy-under-orchestration` and `workflow-instinct-bridge` plans as complete
 - `docs/plans/2026-06-08-reposition-copy-under-orchestration.md` and `docs/plans/2026-06-08-workflow-instinct-bridge.md` had no status line even though both PRs landed on 2026-06-08: PR #225 repositioned copy as the persistent-memory + discipline layer, and PR #226 shipped the Workflow-run → instinct bridge (`src/lib/skill-distill.mts` `ci_distill_from_workflow` MCP tool, tests, and generated artifacts). Both plans were left open after implementation.
 - Added `Status: complete (verified 2026-06-09)` to both plan files so the plans directory accurately reflects reality.
