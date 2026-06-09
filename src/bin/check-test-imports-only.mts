@@ -13,7 +13,7 @@
  *   - reach-through into `hooks/`, `scripts/`, `src/`, or deeper paths under
  *     `bin/` or `lib/`
  *
- * Baseline: all 50 `src/test/*.test.mts` files pass today.
+ * Baseline: all 56 `src/test/*.test.mts` files pass today.
  *
  * Usage:
  *   node bin/check-test-imports-only.mjs              # Check the current repo

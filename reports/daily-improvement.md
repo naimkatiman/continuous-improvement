@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-09
 
+## 2026-06-09 — Sync `check-test-imports-only` baseline comment from 50 → 56 test files
+- `src/bin/check-test-imports-only.mts` header comment claimed "Baseline: all 50 `src/test/*.test.mts` files pass today." but the repo has grown to 56 test files under `src/test/` (confirmed by `ls src/test/*.test.mts | wc -l`). The stale count was accurate after PR #164 (check-everything-mirror TypeScript migration) but has been wrong since subsequent test additions (PRs #178, #183, #184, #189, #226, and others).
+- Updated the baseline comment from `50` to `56` so the invariant checker documents its own reality. Rebuilt via `npm run build` so the generated `bin/check-test-imports-only.mjs` stays in sync.
+- Verified with `npm run build` (mirrors regenerated cleanly), `npm run verify:all` (all 12 content invariants + typecheck pass), and `npm test` (771 pass / 0 fail). Working tree has a generated-artifact diff on `bin/check-test-imports-only.mjs` plus the source edit.
+
 ## 2026-06-09 — Sync test counts to 771 after PR #226 distill feature tests
 - PR #226 (`feat(distill): turn a verified Workflow run into a draft instinct`) added 10 new regression tests to `src/test/skill-distill.test.mts` (expanding the compiled `test/skill-distill.test.mjs` from 17 to 27 tests), but the Project Snapshot, Remaining Failures prose, and HTML summary card were never updated to reflect the new total.
 - Updated the Project Snapshot table from `761 pass / 0 fail` to `771 pass / 0 fail`, the Remaining Failures prose from `761` to `771`, and the HTML summary card at `reports/assets/update-card.html` (Tests Passing, Total Tests, and badge) from `761` to `771`. Also updated the report header and card date from June 8 to June 9.
