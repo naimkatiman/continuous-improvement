@@ -16,6 +16,22 @@
 - Updated the version field from `3.12.0` to `3.12.3` so the CloudPlugin marketplace listing matches the current release.
 - Verified with `npm run verify:all` (all 12 content invariants + typecheck pass, 761 pass / 0 fail). No generated drift.
 
+## 2026-06-08 — Korean Hangul keyword floor fix
+
+**What changed:** `src/lib/goal-state.mts` (`extractKeywordsFromProse`) now uses a script-aware minimum token length: tokens containing Korean Hangul syllables (`\p{Script=Hangul}`) clear a 2-char floor instead of the global 4-char floor. This prevents Korean goals from extracting zero keywords and falsely scoring all observations as drift.
+
+**Files:** `src/lib/goal-state.mts`, `src/test/goal-state.test.mts` (regression test)
+**Lines changed:** ~19 (+12 source, +7 test)
+
+**Verification:**
+- `npm run build` — clean
+- `npm test` — 761 pass / 0 fail (+1 new regression test)
+- `npm run verify:all` — all 12 invariants green (skill-mirror, skill-tiers, skill-law-tag, skill-count, docs-substrings, everything-mirror, routing-targets, doc-runtime-claims, test-imports-only, scripts-citation-drift, third-party-shape, tool-count, typecheck)
+
+**Status:** Merged into main by hourly loop. Branch `fix/goal-state-hangul-floor` deleted locally and remotely in the following cycle.
+
+**Blockers / next step:** None.
+
 ## 2026-06-08 — Sync update-card test counts to 761 after Hangul regression test
 - The HTML summary card at `reports/assets/update-card.html` still showed `760` in the "Tests Passing", "Total Tests", and badge stats even though the Korean Hangul keyword-floor fix (PR with commit `9770875`) added one regression test, bringing the suite to `761 pass / 0 fail`. The card was last synced to `760` during the CI slim refactor earlier today and was not updated when the Hangul test landed.
 - Updated all three occurrences from `760` to `761` so the card reflects the current test-suite reality.
@@ -684,20 +700,3 @@ None. All 771 tests pass / 0 fail as of this cycle.
 ## Deferred Items
 
 - No orphan `.mjs` files remain (all are generated from `.mts` sources). See `CLAUDE.md` § Deferred for the current audit-deferred item list.
-
-
-## 2026-06-08 — Korean Hangul keyword floor fix
-
-**What changed:** `src/lib/goal-state.mts` (`extractKeywordsFromProse`) now uses a script-aware minimum token length: tokens containing Korean Hangul syllables (`\p{Script=Hangul}`) clear a 2-char floor instead of the global 4-char floor. This prevents Korean goals from extracting zero keywords and falsely scoring all observations as drift.
-
-**Files:** `src/lib/goal-state.mts`, `src/test/goal-state.test.mts` (regression test)
-**Lines changed:** ~19 (+12 source, +7 test)
-
-**Verification:**
-- `npm run build` — clean
-- `npm test` — 761 pass / 0 fail (+1 new regression test)
-- `npm run verify:all` — all 12 invariants green (skill-mirror, skill-tiers, skill-law-tag, skill-count, docs-substrings, everything-mirror, routing-targets, doc-runtime-claims, test-imports-only, scripts-citation-drift, third-party-shape, tool-count, typecheck)
-
-**Status:** Merged into main by hourly loop. Branch `fix/goal-state-hangul-floor` can be deleted.
-
-**Blockers / next step:** None.
