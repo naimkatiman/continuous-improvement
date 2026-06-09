@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-10
 
+## 2026-06-10 — Update report dates to June 10 and push pending commit
+- The HTML summary card at `reports/assets/update-card.html` and the daily report header still showed "June 9, 2026" / "2026-06-09" even though the date boundary crossed to June 10. Additionally, local `main` was 1 commit ahead of `origin/main` with the verified June 9 plan-completion sync.
+- Updated the card `<title>` and visible date line from "June 9, 2026" / "2026-06-09" to "June 10, 2026" / "2026-06-10", and updated the report header to match. Pushed `main` to `origin/main`; remote fast-forwarded cleanly from `350e3c8` to `7e69fca`.
+- Verified with `npm run verify:all` (all 12 content invariants + typecheck pass, 771 pass / 0 fail). Working tree clean, `main` up to date with `origin/main`.
+
 ## 2026-06-09 — Mark `reposition-copy-under-orchestration` and `workflow-instinct-bridge` plans as complete
 - `docs/plans/2026-06-08-reposition-copy-under-orchestration.md` and `docs/plans/2026-06-08-workflow-instinct-bridge.md` had no status line even though both PRs landed on 2026-06-08: PR #225 repositioned copy as the persistent-memory + discipline layer, and PR #226 shipped the Workflow-run → instinct bridge (`src/lib/skill-distill.mts` `ci_distill_from_workflow` MCP tool, tests, and generated artifacts). Both plans were left open after implementation.
 - Added `Status: complete (verified 2026-06-09)` to both plan files so the plans directory accurately reflects reality.
