@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-10
 
+## 2026-06-10 — Deprecate stale `docs/unified-plugin-guide.md`
+- `docs/unified-plugin-guide.md` still documented the pre-slim `ci` toolkit (`ci init`, `ci workflow`, `ci compound`, `ci pm`, `ci learnings`, etc.) even though those subcommands and surfaces were removed in the v3.12.3 refactor (plan: `docs/plans/2026-06-08-slim-ci-to-cli-anything.md`). The guide was 468 lines of drift and was the only file still referencing deleted test files (`test/unified-plugin.test.mjs`, `test/compound-engineering.test.mjs`, `test/pm-skills.test.mjs`).
+- Added an obsolete banner at the top directing readers to `docs/new-tools-integration.md` for the current surface, and rewrote the overview to describe CLI-Anything only (`ci generate`, `ci list`, `ci config`). Left the rest of the stale body in place with the banner as a guardrail; a future cycle can rewrite or remove the full guide.
+- Verified with `npm run verify:all` (all 12 content invariants + typecheck pass, 771 pass / 0 fail). Committed to branch `hourly/2026-06-10-deprecate-stale-unified-plugin-guide` and pushed to origin.
+
 ## 2026-06-10 — Update report dates to June 10 and push pending commit
 - The HTML summary card at `reports/assets/update-card.html` and the daily report header still showed "June 9, 2026" / "2026-06-09" even though the date boundary crossed to June 10. Additionally, local `main` was 1 commit ahead of `origin/main` with the verified June 9 plan-completion sync.
 - Updated the card `<title>` and visible date line from "June 9, 2026" / "2026-06-09" to "June 10, 2026" / "2026-06-10", and updated the report header to match. Pushed `main` to `origin/main`; remote fast-forwarded cleanly from `350e3c8` to `7e69fca`.
