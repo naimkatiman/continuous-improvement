@@ -1,7 +1,7 @@
 # Plan — Canonical GateGuard clearance + in-harness clearance action
 
 - Date: 2026-06-07
-- Status: Spec approved (design sign-off given); implementation NOT started
+- Status: complete (verified 2026-06-09)
 - Owner: gateguard
 - Follows: PR #193 (block reason now prints the exact state-file path and stops instructing the impossible inline flag). This plan removes the remaining fragility.
 - Scope decision (confirmed): root-cause canonicalization **plus** a clearance action.

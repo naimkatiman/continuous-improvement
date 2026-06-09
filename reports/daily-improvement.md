@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-09
 
+## 2026-06-09 — Mark `gateguard-canonical-clearance` plan as complete
+- `docs/plans/2026-06-07-gateguard-canonical-clearance.md` still listed `Status: Spec approved (design sign-off given); implementation NOT started` even though the work fully shipped in v3.11.0: `src/bin/gateguard-clear.mts`, the `ci_gateguard_clear` MCP tool in `src/bin/mcp-server.mts`, `plugins/expert.json`, generated `bin/gateguard-clear.mjs`, regression tests in `src/test/gateguard-clear.test.mts`, and CHANGELOG documentation all landed on 2026-06-07. The plan was left open after implementation.
+- Updated the status line from `Status: Spec approved (design sign-off given); implementation NOT started` to `Status: complete (verified 2026-06-09)` so the plans directory accurately reflects reality.
+- Verified with `npm run verify:all` (all 12 content invariants + typecheck pass, 771 pass / 0 fail). Working tree has a doc-only diff.
+
 ## 2026-06-09 — Mark `verify-tool-count` plan as complete
 - `docs/plans/2026-06-07-verify-tool-count-invariant.md` still listed `Status: implementing` even though the invariant shipped in v3.12.0: `src/bin/check-tool-count.mts`, its test, the `verify:tool-count` script, and its inclusion in `verify:all` all landed on 2026-06-07. The plan was left open after implementation.
 - Updated the status line from `Status: implementing` to `Status: complete (verified 2026-06-09)` so the plans directory accurately reflects reality.
