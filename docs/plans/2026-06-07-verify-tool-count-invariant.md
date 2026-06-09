@@ -1,7 +1,7 @@
 # Plan: `verify:tool-count` invariant
 
 Date: 2026-06-07
-Status: implementing
+Status: complete (verified 2026-06-09)
 
 ## Goal
 

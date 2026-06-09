@@ -1,5 +1,15 @@
 # Daily Improvement Report — 2026-06-09
 
+## 2026-06-09 — Mark `verify-tool-count` plan as complete
+- `docs/plans/2026-06-07-verify-tool-count-invariant.md` still listed `Status: implementing` even though the invariant shipped in v3.12.0: `src/bin/check-tool-count.mts`, its test, the `verify:tool-count` script, and its inclusion in `verify:all` all landed on 2026-06-07. The plan was left open after implementation.
+- Updated the status line from `Status: implementing` to `Status: complete (verified 2026-06-09)` so the plans directory accurately reflects reality.
+- Verified with `npm run verify:all` (all 12 content invariants + typecheck pass, 771 pass / 0 fail). Working tree has a doc-only diff.
+
+## 2026-06-09 — Mark `slim-ci-to-cli-anything` plan as complete
+- `docs/plans/2026-06-08-slim-ci-to-cli-anything.md` still listed `Status: in progress` even though the work was fully implemented: `src/lib/compound-engineering.mts`, `src/lib/pm-skills.mts`, `src/lib/unified-plugin.mts`, and their associated tests were deleted; `src/bin/unified-cli.mts` was rewritten as a thin front-end over `CLIAnything`; and the `CHANGELOG.md` `[Unreleased]` section documents the breaking change. The plan had been left open since the work landed earlier on 2026-06-08.
+- Updated the status line from `Status: in progress` to `Status: complete (verified 2026-06-09)` so the plans directory accurately reflects reality.
+- Verified with `npm run verify:all` (all 12 content invariants + typecheck pass, 771 pass / 0 fail). Working tree has a doc-only diff.
+
 ## 2026-06-09 — Sync `check-test-imports-only` baseline comment from 50 → 56 test files
 - `src/bin/check-test-imports-only.mts` header comment claimed "Baseline: all 50 `src/test/*.test.mts` files pass today." but the repo has grown to 56 test files under `src/test/` (confirmed by `ls src/test/*.test.mts | wc -l`). The stale count was accurate after PR #164 (check-everything-mirror TypeScript migration) but has been wrong since subsequent test additions (PRs #178, #183, #184, #189, #226, and others).
 - Updated the baseline comment from `50` to `56` so the invariant checker documents its own reality. Rebuilt via `npm run build` so the generated `bin/check-test-imports-only.mjs` stays in sync.
