@@ -447,10 +447,7 @@ npm test
 npm test
 
 # Run specific test suites
-node test/unified-plugin.test.mjs
 node test/cli-anything.test.mjs
-node test/compound-engineering.test.mjs
-node test/pm-skills.test.mjs
 ```
 
 ### Adding New Features

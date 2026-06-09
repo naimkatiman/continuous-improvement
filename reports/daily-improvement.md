@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-10
 
+## 2026-06-10 — Remove deleted test-file references from deprecated `docs/unified-plugin-guide.md`
+- The deprecated guide still listed three `node test/...` commands for test files deleted in the v3.12.3 slim refactor (`test/unified-plugin.test.mjs`, `test/compound-engineering.test.mjs`, `test/pm-skills.test.mjs`). A reader following the guide would hit "module not found" errors.
+- Removed the three stale lines from the "Running Tests" section, leaving only the still-valid `node test/cli-anything.test.mjs`. The rest of the deprecated body remains in place per the June 10 deprecation entry.
+- Verified with `npm run verify:all` (all 12 content invariants + typecheck pass, 771 pass / 0 fail). Working tree has a doc-only diff.
+
 ## 2026-06-10 — Merge hourly branch via PR #227 and delete stale branch
 - The hourly branch `hourly/2026-06-10-deprecate-stale-unified-plugin-guide` (commits `871d53a` and `33b1247`) had the verified unified-plugin-guide deprecation and report entry, but it was not yet merged to `main` and the branch still existed locally and remotely.
 - Created PR #227 (`docs: deprecate stale unified-plugin-guide and record in daily report`), enabled squash auto-merge, and let CI pass (lint-transcript + Node 18/20/22 test matrix all green). After merge, fast-forwarded local `main` to `origin/main` (commit `4e4bc15`). Deleted the stale local branch and pruned the remote tracking ref.
