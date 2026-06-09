@@ -1,14 +1,26 @@
 # Unified Continuous Improvement Plugin Guide
 
+> **Obsolete as of v3.12.3.** This guide documents the pre-slim `ci` toolkit surface
+> (`ci init`, `ci workflow`, `ci compound`, `ci pm`, `ci learnings`, etc.) that was
+> removed in the refactor tracked by `docs/plans/2026-06-08-slim-ci-to-cli-anything.md`.
+> The current `ci` CLI is a thin front-end over **CLI-Anything only**:
+> `ci generate <repo>`, `ci list`, and `ci config`. See `docs/new-tools-integration.md`
+> for the up-to-date documentation.
+
 ## Overview
 
-The Unified Continuous Improvement Plugin combines three powerful tools into a single cohesive system:
+The `continuous-improvement` package ships a single `ci` command powered by
+**CLI-Anything** — it turns a repository into an agent-native CLI wrapper that a
+language model can drive.
 
-1. **CLI-Anything** - Generate agent-native CLIs for open-source software
-2. **Compound Engineering** - Iterative development process with learning capture
-3. **PM-Skills** - Product management expertise for defining "what" and "why"
+- **Repository analysis** — detects project type (Node.js, React, Python, Docker, and more).
+- **Command extraction** — pulls commands from `package.json` scripts and existing CLI configs.
+- **CLI generation** — emits an executable JavaScript CLI wrapper an agent can run.
 
-This unified approach follows the 7 Laws of AI Agent Discipline and provides a complete workflow from ideation to deployment and learning.
+The legacy Compound Engineering and PM-Skills surfaces, plus the `init` / `workflow` /
+`research` / `planning` / `execution` / `review` subcommands, were removed because they
+overlapped the Mulahazah instinct engine and the out-of-band `phuryn/pm-skills`
+marketplace install. See `CHANGELOG.md` `[Unreleased]` for the full removal note.
 
 ## Installation
 
