@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-10
 
+## 2026-06-10 — Add verification date to model-forward plan status
+- `docs/plans/2026-06-10-model-forward-default-skill.md` listed `Status: complete` without a verification date, while every other recently completed plan (`gateguard-canonical-clearance`, `verify-tool-count-invariant`, `reposition-copy-under-orchestration`, `slim-ci-to-cli-anything`, `workflow-instinct-bridge`) uses the consistent pattern `Status: complete (verified YYYY-MM-DD)`.
+- Updated the status line from `Status: complete` to `Status: complete (verified 2026-06-10)` so the plans directory stays internally consistent.
+- Verified with `npm run verify:all` (all 13 content invariants + typecheck pass, 771 pass / 0 fail). Working tree has a doc-only diff.
+
 ## 2026-06-10 — Merge PR #229 (model-forward skill) and sync missed 25 → 26 count references
 - PR #229 (`feat(skills): ship model-forward as default tier-1 stance`) added bundled skill 26 (`model-forward`, tier 1, all 7 Laws) with its plan doc, command stub, generated plugin bundle, and count cascade in `package.json`, `llms.txt`, `src/lib/plugin-metadata.mts`, `.cloudplugin/marketplace.json`, and `docs/landing/index.html`. All CI checks passed (lint-transcript + Node 18/20/22 test matrix green); merge state was clean.
 - Squash-merged the PR to `main` at commit `d210c42` and deleted the remote branch. Fast-forwarded local `main` to `origin/main`.
