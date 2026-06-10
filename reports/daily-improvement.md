@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-10
 
+## 2026-06-10 — Sync stale v3.12.3 references in landing-page blueprint plan to v3.13.0
+- `docs/plans/2026-06-07-landing-page-blueprint-rebuild.md` is an open build-spec plan (no `Status: complete` line) that still advertised `v3.12.3` and `25 bundled skills` on its "Real numbers" summary line and footer example. The project released `v3.13.0` on 2026-06-10 and now ships 26 skills. If this plan were executed today, the rebuilt landing page would immediately need another version-sync cycle.
+- Updated both occurrences from `v3.12.3` / `REV 3.12.3` to `v3.13.0` / `REV 3.13.0` and from `25 bundled skills` to `26 bundled skills` so the open plan stays internally consistent with current reality.
+- Verified with `npm run verify:all` (all 13 content invariants + typecheck pass, 771 pass / 0 fail). Working tree has a doc-only diff.
+
 ## 2026-06-10 — Sync stale v3.12.3 references to v3.13.0
 - PR #231 (`chore(release): cut v3.13.0`) bumped `package.json`, `package-lock.json`, the generated plugin manifests, and `CHANGELOG.md` to v3.13.0, but four hand-maintained surfaces still advertised v3.12.3: `.cloudplugin/marketplace.json` (version field), `docs/landing/index.html` (nav badge, hero kicker, current-rev stat, footer REV), `reports/assets/update-card.html` (visible date line), and the Project Snapshot in this report.
 - Updated all five occurrences from `v3.12.3` / `REV 3.12.3` to `v3.13.0` / `REV 3.13.0` so user-facing version references match the current release.

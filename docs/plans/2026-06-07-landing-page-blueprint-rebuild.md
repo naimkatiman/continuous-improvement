@@ -50,7 +50,7 @@ Enforcement mechanisms (real, accurate to the repo):
 - Goal-Drift Stop gate: Stop hook, fires goal-check, refuses "Done" on DRIFT.
 - Mulahazah instinct engine: instinct packs capture lessons so the same mistake never repeats.
 
-Real numbers only: 25 bundled skills, 7 Laws, zero runtime deps, MIT, v3.12.3.
+Real numbers only: 26 bundled skills, 7 Laws, zero runtime deps, MIT, v3.13.0.
 
 ## Design system
 
@@ -68,7 +68,7 @@ Real numbers only: 25 bundled skills, 7 Laws, zero runtime deps, MIT, v3.12.3.
 4. The Loop: full-width horizontal band of mono nodes joined by rules.
 5. Enforcement: 2-column zig-zag (not a 3-card grid), mechanism-id + accurate one-liner each.
 6. CTA: "Adopt the standard", install command, npm + Quickstart, CSS crop-mark motif.
-7. Footer: `DOC. CI-7L · REV 3.12.3 · MIT` + GitHub/npm.
+7. Footer: `DOC. CI-7L · REV 3.13.0 · MIT` + GitHub/npm.
 
 ## Motion (CSS only, gated on prefers-reduced-motion)
 
