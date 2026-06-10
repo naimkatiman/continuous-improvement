@@ -238,9 +238,9 @@ Every bundled skill, command, and hook enforces at least one of the 7 Laws. Use 
 | **2 — Plan Is Sacred** | `wild-risa-balance`, `token-budget-advisor`, `/planning-with-files` | skill, skill, cmd |
 | **3 — One Thing at a Time** | `tdd-workflow`, `safety-guard` | skill, skill |
 | **4 — Verify Before Reporting** | `verification-loop`, `tdd-workflow`, `three-section-close.mjs` | skill, skill, hook |
-| **5 — Reflect After Every Session** | `para-memory-files`, `strategic-compact`, `session.sh`, `/seven-laws`, `/dashboard` | skill, skill, hook, cmd, cmd |
+| **5 — Reflect After Every Session** | `strategic-compact`, `session.sh`, `/seven-laws`, `/dashboard` | skill, hook, cmd, cmd |
 | **6 — Iterate Means One Thing** | `ralph` | skill+cmd |
-| **7 — Learn From Every Session** | `para-memory-files`, `/learn-eval`, `observe.sh`, `/seven-laws`, `/dashboard` | skill, cmd, hook, cmd, cmd |
+| **7 — Learn From Every Session** | `/learn-eval`, `observe.sh`, `/seven-laws`, `/dashboard` | cmd, hook, cmd, cmd |
 | **All 7 (orchestrator)** | `proceed-with-the-recommendation` | skill+cmd |
 | **Activator (dispatches Law-aligned skills)** | `superpowers` | skill+cmd |
 

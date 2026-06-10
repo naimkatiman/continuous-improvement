@@ -35,7 +35,7 @@ the trade-off is fallback quality vs dedicated-skill quality.
 - `tdd-workflow` — RED/GREEN/REFACTOR + 80% coverage gate
 - `workspace-surface-audit` — environment + capability audit
 - Tier-1/Tier-2 enforcement skills (`gateguard`, `verification-loop`,
-  `para-memory-files`, `safety-guard`, `token-budget-advisor`,
+  `safety-guard`, `token-budget-advisor`,
   `strategic-compact`, `wild-risa-balance`)
 
 **Optional companions the orchestrator routes to (install separately if
