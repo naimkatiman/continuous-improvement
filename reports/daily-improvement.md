@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-11
 
+## 2026-06-11 — Remove retired `para-memory-files` reference from test fixtures
+- `src/test/skill-tiers.test.mts` still used `para-memory-files` (retired in PR #238) as the fixture name and description in the "collapses folded block scalars" parser test. While this did not affect test outcomes (the test only verifies YAML frontmatter parsing mechanics), stale fixture data creates confusion when grepping for the retired skill.
+- Replaced the fixture name with `goal-monitor` and updated the multi-line description to match a current tier-1 skill. Rebuilt `test/skill-tiers.test.mjs` from the `.mts` source.
+- Verified with `npm run build`, `node --test test/skill-tiers.test.mjs` (17 pass / 0 fail), `npm test` (795 pass / 0 fail), and `npm run verify:all` (all 13 content invariants + typecheck pass).
+
 ## 2026-06-11 — Sync stale skill-count prose after para-memory-files retirement
 - PR #229 (`feat(skills): ship model-forward as default tier-1 stance`) bumped hand-maintained prose counts from 25 → 26 skills / 6 → 7 tier-1 / "Adding a 26th skill" → "Adding a 27th skill" in `README.md`, `CONTRIBUTING.md`, and `docs/skills.md`. Later the same day, PR #238 (`feat(skills): retire para-memory-files`) removed one skill, returning the count to 25, but the prose surfaces were not cascaded back.
 - `README.md` still advertised **26 skills** with a **7 tier-1** breakdown; `CONTRIBUTING.md` referenced `"26 skills"`; and `docs/skills.md` pointed at "Adding a 27th skill".

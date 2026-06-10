@@ -35,17 +35,17 @@ describe("parseSkillFrontmatter", () => {
     it("collapses folded block scalars (description: >) into one line", () => {
         const md = [
             "---",
-            "name: para-memory-files",
+            "name: goal-monitor",
             "tier: \"1\"",
             "description: >",
-            "  File-based memory system using PARA.",
-            "  Three layers: knowledge graph, daily notes, and tacit knowledge.",
+            "  Monitors session goals and detects drift.",
+            "  Uses keyword matching and stopword filtering.",
             "---",
         ].join("\n");
         const out = parseSkillFrontmatter(md);
-        assert.equal(out.name, "para-memory-files");
+        assert.equal(out.name, "goal-monitor");
         assert.equal(out.tier, "1");
-        assert.equal(out.description, "File-based memory system using PARA. Three layers: knowledge graph, daily notes, and tacit knowledge.");
+        assert.equal(out.description, "Monitors session goals and detects drift. Uses keyword matching and stopword filtering.");
     });
     it("handles >- block scalars the same as >", () => {
         const md = [
