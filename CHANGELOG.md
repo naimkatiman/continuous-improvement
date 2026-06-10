@@ -4,7 +4,17 @@ All notable changes to this skill are documented here.
 
 ---
 
-## [Unreleased]
+## [3.13.0] — 2026-06-10
+
+### Added
+
+- **model-forward ships as a default tier-1 skill** — the standing stance that skills are scaffolding which merges into the model over time; durable core = goal-driven execution + guardrails. (#229)
+- **`distill` turns a verified Workflow run into a draft instinct** — the ultracode-to-memory bridge: a completed multi-agent Workflow's verified trajectory becomes a reviewable instinct draft instead of evaporating with the session. (#226)
+
+### Fixed
+
+- **PreToolUse hooks no longer flood every session with `Hook JSON output validation failed — (root): Invalid input` errors (twice per tool call)** — `gateguard.mjs` and `companion-preference.mjs` emitted `{"decision":"allow"}` on every allowed call, which was never schema-valid PreToolUse output (the deprecated `decision` enum is `approve | block`), and current Claude Code clients surface the validation failure instead of silently discarding it. Allow is now empty stdout + exit 0; block uses the documented `hookSpecificOutput.permissionDecision: "deny"` shape. (#230)
+- **goal-state keyword extraction works for Korean goals** — a script-aware minimum keyword length (2 for Hangul tokens, 4 elsewhere) stops Korean goal statements from extracting zero keywords and scoring all work as drift.
 
 ### Removed
 
