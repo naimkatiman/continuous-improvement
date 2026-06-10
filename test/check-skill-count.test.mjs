@@ -15,6 +15,8 @@ function setupRepo(skillNames, descriptions) {
     mkdirSync(bundleSkillsDir, { recursive: true });
     mkdirSync(join(root, ".claude-plugin"), { recursive: true });
     mkdirSync(join(root, "plugins", "continuous-improvement", ".claude-plugin"), { recursive: true });
+    mkdirSync(join(root, ".cloudplugin"), { recursive: true });
+    mkdirSync(join(root, "docs", "landing"), { recursive: true });
     for (const name of skillNames) {
         mkdirSync(join(bundleSkillsDir, name), { recursive: true });
         writeFileSync(join(bundleSkillsDir, name, "SKILL.md"), `---\nname: ${name}\n---\n# ${name}\n`);
@@ -23,6 +25,10 @@ function setupRepo(skillNames, descriptions) {
     writeFileSync(join(root, "plugins", "continuous-improvement", ".claude-plugin", "plugin.json"), JSON.stringify({ description: descriptions.plugin ?? "" }));
     writeFileSync(join(root, "package.json"), JSON.stringify({ description: descriptions.package ?? "" }));
     writeFileSync(join(root, "llms.txt"), descriptions.llms ?? "");
+    writeFileSync(join(root, ".cloudplugin", "marketplace.json"), JSON.stringify({ description: descriptions.cloudplugin ?? descriptions.marketplace ?? "" }));
+    const count = skillNames.length;
+    writeFileSync(join(root, "docs", "landing", "index.html"), descriptions.landing ??
+        `<li><span class="v">${count}</span><span class="k">Bundled skills</span></li>`);
     return root;
 }
 describe("check-skill-count — unit", () => {
@@ -38,7 +44,7 @@ describe("check-skill-count — unit", () => {
     });
 });
 describe("check-skill-count — integration", () => {
-    it("CLI exits 0 when all four descriptions state the correct count", () => {
+    it("CLI exits 0 when all six checked files state the correct count", () => {
         const phrase = "2 bundled skills";
         const root = setupRepo(["alpha", "beta"], {
             marketplace: `The 7 Laws — ${phrase}, gating hooks.`,
@@ -48,7 +54,59 @@ describe("check-skill-count — integration", () => {
         });
         try {
             const out = execFileSync("node", [CHECKER, root], { encoding: "utf8" });
-            assert.match(out, /OK skill-count: all 4 description string\(s\) state "2 bundled skills"/);
+            assert.match(out, /OK skill-count: all 6 description string\(s\) state "2 bundled skills"/);
+        }
+        finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+    it("CLI exits 1 when the landing-page stat block states a stale count", () => {
+        const phrase = "2 bundled skills";
+        const root = setupRepo(["alpha", "beta"], {
+            marketplace: `The 7 Laws — ${phrase}, gating hooks.`,
+            plugin: `The 7 Laws — ${phrase}, gating hooks.`,
+            package: `The 7 Laws — ${phrase}, gating hooks.`,
+            llms: `The 7 Laws — ${phrase}, gating hooks.`,
+            landing: `<li><span class="v">25</span><span class="k">Bundled skills</span></li>`,
+        });
+        try {
+            let exited = false;
+            try {
+                execFileSync("node", [CHECKER, root], { encoding: "utf8" });
+            }
+            catch (err) {
+                exited = true;
+                const e = err;
+                assert.equal(e.status, 1, `expected exit 1, got ${e.status}`);
+                assert.match(e.stderr ?? "", /docs\/landing\/index\.html/);
+            }
+            assert.ok(exited, "CLI should have exited non-zero when the landing stat drifts");
+        }
+        finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+    it("CLI exits 1 when .cloudplugin/marketplace.json states a stale count", () => {
+        const phrase = "2 bundled skills";
+        const root = setupRepo(["alpha", "beta"], {
+            marketplace: `The 7 Laws — ${phrase}, gating hooks.`,
+            plugin: `The 7 Laws — ${phrase}, gating hooks.`,
+            package: `The 7 Laws — ${phrase}, gating hooks.`,
+            llms: `The 7 Laws — ${phrase}, gating hooks.`,
+            cloudplugin: "The 7 Laws — 13 bundled skills, gating hooks.",
+        });
+        try {
+            let exited = false;
+            try {
+                execFileSync("node", [CHECKER, root], { encoding: "utf8" });
+            }
+            catch (err) {
+                exited = true;
+                const e = err;
+                assert.equal(e.status, 1, `expected exit 1, got ${e.status}`);
+                assert.match(e.stderr ?? "", /\.cloudplugin\/marketplace\.json — states "13 bundled skills"/);
+            }
+            assert.ok(exited, "CLI should have exited non-zero when the cloudplugin count drifts");
         }
         finally {
             rmSync(root, { recursive: true, force: true });

@@ -24,6 +24,11 @@
  *   - plugins/continuous-improvement/.claude-plugin/plugin.json
  *   - package.json
  *   - llms.txt
+ *   - .cloudplugin/marketplace.json   (hand-maintained, not generator-owned)
+ *
+ * Stat-block files (count lives in a split HTML stat, not the phrase):
+ *   - docs/landing/index.html — `<span class="v">N</span><span class="k">Bundled skills</span>`
+ *     (PR #229 found this surface stale at 25 while every phrase file said 26)
  *
  * Usage:
  *   node bin/check-skill-count.mjs              # Check the current repo
@@ -42,7 +47,9 @@ const CHECKED_FILES = [
     "plugins/continuous-improvement/.claude-plugin/plugin.json",
     "package.json",
     "llms.txt",
+    ".cloudplugin/marketplace.json",
 ];
+const STAT_CHECKED_FILES = ["docs/landing/index.html"];
 export function countSkills(repoRoot) {
     const skillsDir = join(repoRoot, BUNDLE_SKILLS_DIR);
     const entries = readdirSync(skillsDir);
@@ -75,6 +82,24 @@ function checkFile(repoRoot, relPath, expected) {
         found: staleMatch ? staleMatch[0] : undefined,
     };
 }
+function checkStatFile(repoRoot, relPath, expected) {
+    let content;
+    try {
+        content = readFileSync(join(repoRoot, relPath), "utf8");
+    }
+    catch {
+        return { file: relPath, reason: "missing" };
+    }
+    const expectedPattern = new RegExp(`class="v">${expected}</span><span class="k">Bundled skills`);
+    if (expectedPattern.test(content))
+        return null;
+    const staleMatch = content.match(/class="v">(\d+)<\/span><span class="k">Bundled skills/);
+    return {
+        file: relPath,
+        reason: staleMatch ? "stale" : "missing",
+        found: staleMatch ? `${staleMatch[1]} Bundled skills (stat block)` : undefined,
+    };
+}
 function main() {
     const repoRoot = argv[2] ?? cwd();
     const expected = countSkills(repoRoot);
@@ -84,8 +109,14 @@ function main() {
         if (v)
             violations.push(v);
     }
+    for (const file of STAT_CHECKED_FILES) {
+        const v = checkStatFile(repoRoot, file, expected);
+        if (v)
+            violations.push(v);
+    }
+    const totalChecked = CHECKED_FILES.length + STAT_CHECKED_FILES.length;
     if (violations.length === 0) {
-        console.log(`OK skill-count: all ${CHECKED_FILES.length} description string(s) state "${expected} bundled skills" (matches skills/ source-of-truth).`);
+        console.log(`OK skill-count: all ${totalChecked} description string(s) state "${expected} bundled skills" (matches skills/ source-of-truth).`);
         exit(0);
     }
     console.error(`FAIL skill-count: ${violations.length} description string(s) do not state the actual bundled-skill count of ${expected}.`);
