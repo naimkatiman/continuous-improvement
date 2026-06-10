@@ -1,5 +1,11 @@
 # Daily Improvement Report — 2026-06-11
 
+## 2026-06-11 — Sync stale skill-count prose after para-memory-files retirement
+- PR #229 (`feat(skills): ship model-forward as default tier-1 stance`) bumped hand-maintained prose counts from 25 → 26 skills / 6 → 7 tier-1 / "Adding a 26th skill" → "Adding a 27th skill" in `README.md`, `CONTRIBUTING.md`, and `docs/skills.md`. Later the same day, PR #238 (`feat(skills): retire para-memory-files`) removed one skill, returning the count to 25, but the prose surfaces were not cascaded back.
+- `README.md` still advertised **26 skills** with a **7 tier-1** breakdown; `CONTRIBUTING.md` referenced `"26 skills"`; and `docs/skills.md` pointed at "Adding a 27th skill".
+- Updated all three occurrences back to **25 skills**, **6 tier-1**, and **Adding a 26th skill** so hand-maintained prose matches the actual post-retirement catalog (1 core + 1 featured + 6 tier-1 + 14 tier-2 + 3 always-bundled = 25).
+- Verified with `npm run verify:all` (all 13 content invariants + typecheck pass) and `npm test` (795 pass / 0 fail). Working tree has a doc-only diff.
+
 ## 2026-06-11 — Sync stale test-count surfaces from 771 to 773
 - The test suite grew to 773 pass / 0 fail (2 new tests added since the last report), but the HTML summary card at `reports/assets/update-card.html` and the Project Snapshot in this report still advertised `771`.
 - Updated the card date from June 10 to June 11, the Tests Passing / Total Tests stats from `771` to `773`, and the badge from `771 / 771` to `773 / 773`. Updated the Project Snapshot table at the bottom of this report from `771 pass / 0 fail` to `773 pass / 0 fail`.
@@ -781,7 +787,7 @@
 
 ## Remaining Failures
 
-None. All 771 tests pass / 0 fail as of this cycle.
+None. All 795 tests pass / 0 fail as of this cycle.
 
 ## Deferred Items
 

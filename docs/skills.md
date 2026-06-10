@@ -60,5 +60,5 @@ curl -L https://raw.githubusercontent.com/naimkatiman/continuous-improvement/mai
 ## See also
 
 - [README](../README.md) — landing page and install
-- [CONTRIBUTING.md → Evolution: adding a new skill](../CONTRIBUTING.md#evolution--adding-a-new-skill) — how to add a 27th skill
+- [CONTRIBUTING.md → Evolution: adding a new skill](../CONTRIBUTING.md#evolution--adding-a-new-skill) — how to add a 26th skill
 - [SKILL.md](../SKILL.md) — full 7 Laws spec
