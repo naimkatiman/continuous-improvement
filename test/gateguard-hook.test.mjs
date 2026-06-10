@@ -7,7 +7,9 @@
  *
  * The hook contract follows Claude Code's PreToolUse format:
  *   stdin  : JSON { tool_name, tool_input }
- *   stdout : JSON { decision: "allow" | "block", reason?: string }
+ *   stdout : empty on allow (no output = no opinion); on deny the
+ *            { hookSpecificOutput: { hookEventName: "PreToolUse",
+ *              permissionDecision: "deny", permissionDecisionReason } } shape
  *   exit   : 0 always (decision is in stdout)
  *
  * Three-stage gate (per skills/gateguard.md):
@@ -41,8 +43,16 @@ function runHook(toolName, toolInput, sessionDir) {
     });
     assert.equal(result.status, 0, `hook exited non-zero: ${result.stderr}`);
     const stdout = result.stdout.trim();
-    assert.notEqual(stdout, "", "hook must emit a JSON decision on stdout");
-    return JSON.parse(stdout);
+    // Allow is empty stdout (no opinion). Anything else must be the documented
+    // PreToolUse deny shape — a bare { decision: "allow" } fails Claude Code's
+    // hook-output schema validation.
+    if (stdout === "")
+        return { decision: "allow" };
+    const parsed = JSON.parse(stdout);
+    const out = parsed.hookSpecificOutput;
+    assert.equal(out?.hookEventName, "PreToolUse", "deny output names the hook event");
+    assert.equal(out?.permissionDecision, "deny", "non-empty output must be a deny");
+    return { decision: "block", reason: out?.permissionDecisionReason };
 }
 function seedClearedFiles(sessionDir, files) {
     writeFileSync(join(sessionDir, "gateguard-session.json"), `${JSON.stringify({

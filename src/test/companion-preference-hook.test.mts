@@ -66,8 +66,23 @@ function installCompanion(home: string, pluginName: string): void {
   mkdirSync(join(home, ".claude", "plugins", pluginName), { recursive: true });
 }
 
+// Allow is empty stdout (no opinion). Anything else must be the documented
+// PreToolUse deny shape — a bare { decision: "allow" } fails Claude Code's
+// hook-output schema validation.
 function decision(r: HookResult): HookDecision {
-  return JSON.parse(r.stdout) as HookDecision;
+  const stdout = r.stdout.trim();
+  if (stdout === "") return { decision: "allow" };
+  const parsed = JSON.parse(stdout) as {
+    hookSpecificOutput?: {
+      hookEventName?: string;
+      permissionDecision?: string;
+      permissionDecisionReason?: string;
+    };
+  };
+  const out = parsed.hookSpecificOutput;
+  assert.equal(out?.hookEventName, "PreToolUse", "deny output names the hook event");
+  assert.equal(out?.permissionDecision, "deny", "non-empty output must be a deny");
+  return { decision: "block", reason: out?.permissionDecisionReason };
 }
 
 describe("companion-preference hook", () => {

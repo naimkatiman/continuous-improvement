@@ -12,11 +12,17 @@
  *                             (when installed) or the install hint (when not).
  *
  * Fail-open: any unexpected error reading stdin / parsing settings / probing
- * the filesystem → emit { decision: "allow" } and exit 0. The hook never
- * blocks on its own bugs.
+ * the filesystem → exit 0 with empty stdout (allow). The hook never blocks
+ * on its own bugs.
  *
  * Stdin  : JSON { tool_name, tool_input }
- * Stdout : JSON { decision: "allow" | "block", reason?: string }
+ * Stdout : empty on allow (no output = no opinion, the call proceeds); on
+ *          deny, the documented PreToolUse shape:
+ *          { hookSpecificOutput: { hookEventName: "PreToolUse",
+ *            permissionDecision: "deny", permissionDecisionReason } }
+ *          A bare { decision: "allow" } is not schema-valid for PreToolUse
+ *          (the deprecated enum is "approve" | "block") and surfaces as a
+ *          "Hook JSON output validation failed" error on every tool call.
  * Exit   : 0 always — decision lives in stdout, never in the exit code.
  *
  * OVERRIDES map must stay row-aligned with skills/superpowers.md
@@ -60,11 +66,6 @@ const OVERRIDES: Record<string, Override> = {
 
 type Mode = "ci-first" | "companions-first" | "strict-companions";
 
-interface Decision {
-  decision: "allow" | "block";
-  reason?: string;
-}
-
 interface ToolInput {
   skill?: unknown;
 }
@@ -74,8 +75,23 @@ interface Payload {
   tool_input?: ToolInput;
 }
 
-function emitAndExit(d: Decision): never {
-  process.stdout.write(`${JSON.stringify(d)}\n`);
+// Allow = empty stdout + exit 0. Emitting JSON here is wrong: PreToolUse has
+// no { decision: "allow" } shape, and the invalid output surfaces as a
+// per-tool-call "Hook JSON output validation failed" error in the client.
+function emitAllowAndExit(): never {
+  process.exit(0);
+}
+
+function emitDenyAndExit(reason: string): never {
+  process.stdout.write(
+    `${JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: "deny",
+        permissionDecisionReason: reason,
+      },
+    })}\n`,
+  );
   process.exit(0);
 }
 
@@ -179,19 +195,19 @@ function main(): void {
   try {
     payload = JSON.parse(raw) as Payload;
   } catch {
-    emitAndExit({ decision: "allow" });
+    emitAllowAndExit();
   }
   if (payload.tool_name !== "Skill") {
-    emitAndExit({ decision: "allow" });
+    emitAllowAndExit();
   }
   const skill = payload.tool_input?.skill;
   if (typeof skill !== "string" || skill.length === 0) {
-    emitAndExit({ decision: "allow" });
+    emitAllowAndExit();
   }
   const normalized = normalizeSkill(skill as string);
   const override = OVERRIDES[normalized];
   if (!override) {
-    emitAndExit({ decision: "allow" });
+    emitAllowAndExit();
   }
   const home = resolveHome();
   const mode = readMode(home);
@@ -208,28 +224,26 @@ function main(): void {
     // Shadow row: what companions-first would have done. This is the data
     // set that earns a future default-flip decision.
     writeTelemetry(home, { ...baseEvent, mode, action: "observation" });
-    emitAndExit({ decision: "allow" });
+    emitAllowAndExit();
   }
   if (mode === "companions-first") {
     process.stderr.write(
       `[continuous-improvement] companion_preference=companions-first → prefer \`${override!.companion}\` over \`ci:${normalized}\`.\n`,
     );
     writeTelemetry(home, { ...baseEvent, mode, action: "advisory" });
-    emitAndExit({ decision: "allow" });
+    emitAllowAndExit();
   }
   // strict-companions: always block; reason depends on install state.
   if (installed) {
     writeTelemetry(home, { ...baseEvent, mode, action: "block" });
-    emitAndExit({
-      decision: "block",
-      reason: `companion_preference=strict-companions: route to \`${override!.companion}\` instead of \`ci:${normalized}\`. The CI fallback is suppressed by your setting.`,
-    });
+    emitDenyAndExit(
+      `companion_preference=strict-companions: route to \`${override!.companion}\` instead of \`ci:${normalized}\`. The CI fallback is suppressed by your setting.`,
+    );
   }
   writeTelemetry(home, { ...baseEvent, mode, action: "block-not-installed" });
-  emitAndExit({
-    decision: "block",
-    reason: `companion_preference=strict-companions: companion plugin \`${override!.plugin}\` is not installed. Install with \`/plugin install ${override!.plugin}@continuous-improvement\` or relax the setting to \`companions-first\` or \`ci-first\` in ~/.claude/settings.json.`,
-  });
+  emitDenyAndExit(
+    `companion_preference=strict-companions: companion plugin \`${override!.plugin}\` is not installed. Install with \`/plugin install ${override!.plugin}@continuous-improvement\` or relax the setting to \`companions-first\` or \`ci-first\` in ~/.claude/settings.json.`,
+  );
 }
 
 main();
