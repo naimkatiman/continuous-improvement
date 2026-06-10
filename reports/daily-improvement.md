@@ -1,4 +1,9 @@
-# Daily Improvement Report — 2026-06-10
+# Daily Improvement Report — 2026-06-11
+
+## 2026-06-11 — Sync stale test-count surfaces from 771 to 773
+- The test suite grew to 773 pass / 0 fail (2 new tests added since the last report), but the HTML summary card at `reports/assets/update-card.html` and the Project Snapshot in this report still advertised `771`.
+- Updated the card date from June 10 to June 11, the Tests Passing / Total Tests stats from `771` to `773`, and the badge from `771 / 771` to `773 / 773`. Updated the Project Snapshot table at the bottom of this report from `771 pass / 0 fail` to `773 pass / 0 fail`.
+- Verified with `npm run verify:all` (all 13 content invariants + typecheck pass) and `npm test` (773 pass / 0 fail). Working tree clean.
 
 ## 2026-06-10 — Sync stale v3.12.3 references in landing-page blueprint plan to v3.13.0
 - `docs/plans/2026-06-07-landing-page-blueprint-rebuild.md` is an open build-spec plan (no `Status: complete` line) that still advertised `v3.12.3` and `25 bundled skills` on its "Real numbers" summary line and footer example. The project released `v3.13.0` on 2026-06-10 and now ships 26 skills. If this plan were executed today, the rebuilt landing page would immediately need another version-sync cycle.
@@ -751,7 +756,7 @@
 | Project | continuous-improvement v3.13.0 |
 | Stack | Node.js (ESM), MCP server, GitHub Action, CLI tools |
 | Stage | Published npm package, active development |
-| Tests (current) | 771 pass / 0 fail |
+| Tests (current) | 773 pass / 0 fail |
 
 ## Changes Implemented
 
