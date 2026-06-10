@@ -3,7 +3,13 @@
  * Runtime PreToolUse gateguard hook.
  *
  * Stdin  : JSON { tool_name, tool_input }
- * Stdout : JSON { decision: "allow" | "block", reason?: string }
+ * Stdout : empty on allow (no output = no opinion, the call proceeds); on
+ *          deny, the documented PreToolUse shape:
+ *          { hookSpecificOutput: { hookEventName: "PreToolUse",
+ *            permissionDecision: "deny", permissionDecisionReason } }
+ *          A bare { decision: "allow" } is not schema-valid for PreToolUse
+ *          (the deprecated enum is "approve" | "block") and surfaces as a
+ *          "Hook JSON output validation failed" error on every tool call.
  * Exit   : 0 always (decision is in stdout, fail-open on parse error).
  *
  * Three-stage gate per skills/gateguard.md:
@@ -55,11 +61,6 @@ interface ToolInput {
 interface Payload {
   tool_name?: unknown;
   tool_input?: ToolInput;
-}
-
-interface Decision {
-  decision: "allow" | "block";
-  reason?: string;
 }
 
 const TOOL_ROUTE: Record<string, GateType> = {
@@ -197,8 +198,23 @@ function buildCapReachedReason(): string {
   ].join("\n");
 }
 
-function emit(decision: Decision): void {
-  process.stdout.write(`${JSON.stringify(decision)}\n`);
+// Allow = empty stdout + exit 0. Emitting JSON here is wrong: PreToolUse has
+// no { decision: "allow" } shape, and the invalid output surfaces as a
+// per-tool-call "Hook JSON output validation failed" error in the client.
+function emitAllow(): void {
+  process.exit(0);
+}
+
+function emitDeny(reason: string): void {
+  process.stdout.write(
+    `${JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: "deny",
+        permissionDecisionReason: reason,
+      },
+    })}\n`,
+  );
   process.exit(0);
 }
 
@@ -207,14 +223,14 @@ function main(): void {
   try {
     raw = readFileSync(0, "utf8");
   } catch {
-    emit({ decision: "allow" });
+    emitAllow();
     return;
   }
   let payload: Payload;
   try {
     payload = JSON.parse(raw) as Payload;
   } catch {
-    emit({ decision: "allow" }); // fail-open
+    emitAllow(); // fail-open
     return;
   }
   const toolName = typeof payload.tool_name === "string" ? payload.tool_name : "";
@@ -222,13 +238,13 @@ function main(): void {
   const gate = classifyTool(toolName, toolInput);
 
   if (gate === "allow") {
-    emit({ decision: "allow" });
+    emitAllow();
     return;
   }
 
   if (gate === "destructive-bash") {
     const cmd = typeof toolInput.command === "string" ? toolInput.command : "";
-    emit({ decision: "block", reason: buildDestructiveBashReason(cmd) });
+    emitDeny(buildDestructiveBashReason(cmd));
     return;
   }
 
@@ -243,13 +259,13 @@ function main(): void {
   const newFileCount = countDistinctNewFilePaths(filePaths, state);
 
   if (!factsFlagged && !alreadyCleared) {
-    emit({ decision: "block", reason: buildMutatingFileReason(toolName, filePaths.length > 0 ? filePaths : [filePath], stateFilePath) });
+    emitDeny(buildMutatingFileReason(toolName, filePaths.length > 0 ? filePaths : [filePath], stateFilePath));
     return;
   }
 
   if (factsFlagged && !alreadyCleared) {
     if (isCapReached(state) || Object.keys(state.cleared_files).length + newFileCount > MAX_CLEARED_FILES) {
-      emit({ decision: "block", reason: buildCapReachedReason() });
+      emitDeny(buildCapReachedReason());
       return;
     }
     let nextState = state;
@@ -259,7 +275,7 @@ function main(): void {
     if (filePaths.length > 0) saveState(sessionDir, nextState);
   }
 
-  emit({ decision: "allow" });
+  emitAllow();
 }
 
 main();

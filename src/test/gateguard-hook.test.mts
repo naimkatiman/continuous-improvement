@@ -7,7 +7,9 @@
  *
  * The hook contract follows Claude Code's PreToolUse format:
  *   stdin  : JSON { tool_name, tool_input }
- *   stdout : JSON { decision: "allow" | "block", reason?: string }
+ *   stdout : empty on allow (no output = no opinion); on deny the
+ *            { hookSpecificOutput: { hookEventName: "PreToolUse",
+ *              permissionDecision: "deny", permissionDecisionReason } } shape
  *   exit   : 0 always (decision is in stdout)
  *
  * Three-stage gate (per skills/gateguard.md):
@@ -37,6 +39,14 @@ interface HookDecision {
   reason?: string;
 }
 
+interface PreToolUseHookOutput {
+  hookSpecificOutput?: {
+    hookEventName?: string;
+    permissionDecision?: string;
+    permissionDecisionReason?: string;
+  };
+}
+
 function runHook(toolName: string, toolInput: Record<string, unknown>, sessionDir: string): HookDecision {
   const payload = JSON.stringify({ tool_name: toolName, tool_input: toolInput });
   const result = spawnSync(process.execPath, [HOOK_PATH], {
@@ -49,8 +59,15 @@ function runHook(toolName: string, toolInput: Record<string, unknown>, sessionDi
   });
   assert.equal(result.status, 0, `hook exited non-zero: ${result.stderr}`);
   const stdout = result.stdout.trim();
-  assert.notEqual(stdout, "", "hook must emit a JSON decision on stdout");
-  return JSON.parse(stdout) as HookDecision;
+  // Allow is empty stdout (no opinion). Anything else must be the documented
+  // PreToolUse deny shape — a bare { decision: "allow" } fails Claude Code's
+  // hook-output schema validation.
+  if (stdout === "") return { decision: "allow" };
+  const parsed = JSON.parse(stdout) as PreToolUseHookOutput;
+  const out = parsed.hookSpecificOutput;
+  assert.equal(out?.hookEventName, "PreToolUse", "deny output names the hook event");
+  assert.equal(out?.permissionDecision, "deny", "non-empty output must be a deny");
+  return { decision: "block", reason: out?.permissionDecisionReason };
 }
 
 function seedClearedFiles(sessionDir: string, files: string[]): void {
