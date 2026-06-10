@@ -77,5 +77,5 @@ ci_goal_check goal_file=docs/x.md  # score against a specific plan file
 ## Pairs With
 
 - **`proceed-with-the-recommendation`** (orchestrator, Law 2) — run a goal check at phase boundaries to confirm the plan still matches the work.
-- **`para-memory-files`** / planning-with-files — the `## Goal` section this skill reads is the same one those workflows write.
+- **planning-with-files** — the `## Goal` section this skill reads is the same one that workflow writes.
 - **`strategic-compact`** — before compacting a long session, a goal check confirms what the session was actually about.

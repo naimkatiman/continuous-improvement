@@ -26,7 +26,7 @@ const KEYWORDS = [
     "transcript-linter",
 ];
 const CLAUDE_PLUGIN_CATEGORY = "productivity";
-const SHARED_PLUGIN_DESCRIPTION = "The persistent-memory and runtime-discipline layer for Claude Code. It remembers the corrections you already gave, grounds every edit in real facts before it lands, and — through the Mulahazah engine — turns each fix into a reusable instinct, so a lesson learned once is applied automatically next time with no re-teaching. Built on the 7 Laws of AI Agent Discipline (research, plan, verify, reflect, learn) and shipped as 26 bundled skills, instinct-aware hooks, an MCP toolset for recall and reflection, and a GitHub Action transcript linter that feeds real work history back into sharper instincts.";
+const SHARED_PLUGIN_DESCRIPTION = "The persistent-memory and runtime-discipline layer for Claude Code. It remembers the corrections you already gave, grounds every edit in real facts before it lands, and — through the Mulahazah engine — turns each fix into a reusable instinct, so a lesson learned once is applied automatically next time with no re-teaching. Built on the 7 Laws of AI Agent Discipline (research, plan, verify, reflect, learn) and shipped as 25 bundled skills, instinct-aware hooks, an MCP toolset for recall and reflection, and a GitHub Action transcript linter that feeds real work history back into sharper instincts.";
 // Four vendored upstream companions registered alongside the CI plugin.
 // Each entry points at a pinned-SHA snapshot under third-party/<name>/.
 // See third-party/MANIFEST.md for refresh recipes and per-snapshot
@@ -382,7 +382,7 @@ const EXPERT_TOOL_ENTRIES = [
 ];
 const MODE_METADATA = {
     beginner: {
-        description: "Beginner mode: see what your agent learned, list its instincts, and request a session reflection. Bundles four grounding skills (gateguard, para-memory-files, tdd-workflow, verification-loop) so research, memory, tests, and verification happen by default — every edit starts from facts, not guesses.",
+        description: "Beginner mode: see what your agent learned, list its instincts, and request a session reflection. Bundles three grounding skills (gateguard, tdd-workflow, verification-loop) so research, memory, tests, and verification happen by default — every edit starts from facts, not guesses.",
         hooks: ["PreToolUse", "PostToolUse", "UserPromptSubmit"],
         hookDescription: "Silently captures every tool call as observations and routes prompts to the matching skill via the route table. Lightweight and non-blocking.",
     },

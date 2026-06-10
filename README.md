@@ -86,7 +86,7 @@ You have used Claude Code (or any agentic coding tool) long enough to recognize 
 | 2 | **No shared language** | The agent uses 20 words where 1 would do; jargon decoded fresh every session; variable names drift from domain terms | Law 2 (Plan), Law 7 (Learn) | [`grill-with-docs`](skills/grill-with-docs.md) (writes & maintains `CONTEXT.md`), [`token-budget-advisor`](skills/token-budget-advisor.md), [`strategic-compact`](skills/strategic-compact.md) |
 | 3 | **No feedback loop** | The code doesn't work — agent claims "done" without running build, tests, or healthcheck | Law 4 (Verify) | [`tdd-workflow`](skills/tdd-workflow.md), [`verification-loop`](skills/verification-loop.md), [`deploy-receipt`](skills/deploy-receipt.md) |
 | 4 | **Design rot** | Ball-of-mud accelerates — agent bundles three concerns into one PR, stacks untested changes, ignores prior architectural decisions | Law 2 (Plan), Law 3 (One Thing) | [`superpowers:writing-plans`](https://github.com/obra/superpowers/blob/main/skills/writing-plans/SKILL.md), [`safety-guard`](skills/safety-guard.md), [`worktree-safety`](skills/worktree-safety.md), [`wild-risa-balance`](skills/wild-risa-balance.md) |
-| 5 | **Forgotten lessons** | Next session starts from zero — prior corrections, decisions, instincts are lost; the same mistake repeats next week | Law 5 (Reflect), Law 7 (Learn) | [`handoff`](skills/handoff.md), [`para-memory-files`](skills/para-memory-files.md), Mulahazah instinct engine |
+| 5 | **Forgotten lessons** | Next session starts from zero — prior corrections, decisions, instincts are lost; the same mistake repeats next week | Law 5 (Reflect), Law 7 (Learn) | [`handoff`](skills/handoff.md), Mulahazah instinct engine |
 
 Three of those alignment + reflection skills (`grill-me`, `grill-with-docs`, `handoff`) are MIT-licensed ports from mattpocock/skills; the rest are continuous-improvement-native. Every failure mode has at least one runtime hook or model-side skill that catches it before it lands in the diff.
 
@@ -172,6 +172,26 @@ The framework has documented operator-level modes that change hook behavior with
 | `CLAUDE_THREE_SECTION_CLOSE_DISABLED=1` | `three-section-close.mjs` short-circuits before any enforcement or telemetry. Use when end-of-turn reflection should run as internal thinking rather than visible "What has been done / What is next / Recommendation" sections. Public default unchanged — the rule still fires for everyone else. | bash/zsh: `export CLAUDE_THREE_SECTION_CLOSE_DISABLED=1` in `~/.bashrc` / `~/.zshrc`. PowerShell: `$env:CLAUDE_THREE_SECTION_CLOSE_DISABLED=1` (session) or `[Environment]::SetEnvironmentVariable('CLAUDE_THREE_SECTION_CLOSE_DISABLED','1','User')` (persistent). |
 | `CLAUDE_GOAL_DRIFT_GATE` | `goal-drift-stop.mjs` (a `Stop` hook) scores each turn's activity against the `## Goal` in `task_plan.md` and acts on drift. `warn` (default) prints a one-line stderr notice and never blocks; `block` re-prompts a substantive wrap-up that has drifted off-goal so the goal gates the close; `off` disables it. Reads the same observation feed as Mulahazah; fails open on any error. | bash/zsh: `export CLAUDE_GOAL_DRIFT_GATE=block` in `~/.bashrc` / `~/.zshrc`. PowerShell: `$env:CLAUDE_GOAL_DRIFT_GATE='block'` (session) or `[Environment]::SetEnvironmentVariable('CLAUDE_GOAL_DRIFT_GATE','block','User')` (persistent). |
 | `CLAUDE_RECALL_BRIEFING=1` | `hooks/recall-briefing.mjs` (a UserPromptSubmit hook) makes episodic memory proactive: on the first substantive prompt of a session it searches this project's past observations (BM25) and injects a one-time `<system-reminder>` with the most relevant prior activity, so the agent reuses a past fix instead of re-deriving it. Opt-in and default off; it is an amplifier, never a gate — it cannot block a prompt and fails open. The `ci_recall` MCP tool stays available for explicit, deeper searches. | bash/zsh: `export CLAUDE_RECALL_BRIEFING=1` in `~/.bashrc` / `~/.zshrc`. PowerShell: `$env:CLAUDE_RECALL_BRIEFING=1` (session) or `[Environment]::SetEnvironmentVariable('CLAUDE_RECALL_BRIEFING','1','User')` (persistent). |
+
+### Works with other agents
+
+Claude Code gets the full install (hooks, MCP server, instinct learning). Every other agent platform can still run the 7 Laws as a rules file — one flag writes the skill text into the file that platform reads, at your project root:
+
+```bash
+npx continuous-improvement install --target gemini,codex
+```
+
+| Target | File written |
+|---|---|
+| `gemini` | `GEMINI.md` (Gemini CLI context file) |
+| `codex` | `AGENTS.md` (agents.md standard — also read by opencode, Jules, Cursor ≥0.50) |
+| `cursor` | `.cursor/rules/continuous-improvement.mdc` (`alwaysApply: true`) |
+| `windsurf` | `.windsurf/rules/continuous-improvement.md` |
+| `zed` | `.rules` |
+| `aider` | `CONVENTIONS.md` + a minimal `.aider.conf.yml` if none exists |
+| `copilot` | `.github/copilot-instructions.md` |
+
+Shared files (`GEMINI.md`, `AGENTS.md`, `.rules`, `CONVENTIONS.md`, `copilot-instructions.md`) are merged through a managed marker block — your existing content is preserved and reinstalls are idempotent. Targets can be combined freely (`--target claude,gemini,codex` runs the full Claude Code install plus the rules files).
 
 ---
 

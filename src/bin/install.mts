@@ -7,6 +7,7 @@
  *   npx continuous-improvement install                # beginner mode (default)
  *   npx continuous-improvement install --mode expert  # + MCP server + session hooks
  *   npx continuous-improvement install --pack react   # load starter instinct pack
+ *   npx continuous-improvement install --target gemini,codex  # skill into other agents' rules files
  *   npx continuous-improvement install --uninstall    # remove everything
  */
 
@@ -27,6 +28,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { getToolNames } from "../lib/plugin-metadata.mjs";
+import { TARGET_IDS, planTargetWrites, resolveTargets } from "../lib/install-targets.mjs";
 
 type InstallMode = "beginner" | "expert";
 type HookType = "PreToolUse" | "PostToolUse" | "SessionStart" | "SessionEnd";
@@ -610,6 +612,17 @@ Options for 'install':
                       beginner  — hooks + skill + commands (default)
                       expert    — beginner + MCP server + session hooks
   --pack <name>     Load a starter instinct pack (react, python, go, meta)
+  --target <names>  Comma-separated platform list (default: claude):
+                      claude    — full install: hooks + skill + commands
+                      gemini    — GEMINI.md (Gemini CLI)
+                      codex     — AGENTS.md (Codex CLI / agents.md standard)
+                      cursor    — .cursor/rules/continuous-improvement.mdc
+                      windsurf  — .windsurf/rules/continuous-improvement.md
+                      zed       — .rules
+                      aider     — CONVENTIONS.md + .aider.conf.yml
+                      copilot   — .github/copilot-instructions.md
+                    Non-claude targets write the 7-Laws skill text into the
+                    current project; hooks/MCP/instincts stay Claude Code-only.
   --help            Show this help
 
 Options for 'backfill':
@@ -620,6 +633,7 @@ Examples:
   npx continuous-improvement install                # beginner (default)
   npx continuous-improvement install --mode expert  # full power
   npx continuous-improvement install --pack react   # load React instincts
+  npx continuous-improvement install --target gemini,codex  # other agents' rules files
   npx continuous-improvement backfill --dry-run     # report thin/rich row counts
   npx continuous-improvement backfill               # tag rows in place
   npx continuous-improvement install --uninstall    # remove everything
@@ -628,7 +642,12 @@ Examples:
 
 function getProjectHashSync(): ProjectHash {
   try {
-    const root = execSync("git rev-parse --show-toplevel 2>/dev/null", { encoding: "utf8" }).trim();
+    // No shell redirect — `2>/dev/null` breaks under cmd.exe (tries to open a
+    // file literally named /dev/null); ignore stderr via stdio instead.
+    const root = execSync("git rev-parse --show-toplevel", {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
     const hash = createHash("sha256").update(root).digest("hex").slice(0, 12);
     return { root, hash };
   } catch {
@@ -667,6 +686,63 @@ if (command === "backfill") {
 if (args.includes("--uninstall")) {
   uninstallAll();
   process.exit(0);
+}
+
+// --target <names>: comma-separated platform list, default claude-only.
+// Non-claude targets receive the skill text in their platform's rules file
+// (project-level); the full hook/MCP/instinct install stays Claude Code-only.
+const targetFlagIndex = rawArgs.indexOf("--target");
+let requestedTargets: string[] = ["claude"];
+if (targetFlagIndex !== -1) {
+  const targetCsv = rawArgs[targetFlagIndex + 1];
+  if (!targetCsv || targetCsv.startsWith("--")) {
+    console.error(`--target requires a value. Valid targets: ${TARGET_IDS.join(", ")}`);
+    process.exit(1);
+  }
+  const resolved = resolveTargets(targetCsv);
+  if (resolved.unknown.length > 0) {
+    console.error(
+      `Unknown --target name(s): ${resolved.unknown.join(", ")}. Valid targets: ${TARGET_IDS.join(", ")}`,
+    );
+    process.exit(1);
+  }
+  if (resolved.targets.length === 0) {
+    console.error(`--target requires at least one name. Valid targets: ${TARGET_IDS.join(", ")}`);
+    process.exit(1);
+  }
+  requestedTargets = resolved.targets;
+}
+
+function installNonClaudeTargets(targetIds: string[]): void {
+  const skillMd = readFileSync(SKILL_SOURCE, "utf8");
+  const project = getProjectHashSync();
+  const projectRoot = project.root === "global" ? process.cwd() : project.root;
+  const readExisting = (relPath: string): string | null => {
+    const absPath = join(projectRoot, relPath);
+    return existsSync(absPath) ? readFileSync(absPath, "utf8") : null;
+  };
+  const notes = new Set<string>();
+  for (const targetId of targetIds) {
+    const plan = planTargetWrites(targetId, skillMd, readExisting);
+    for (const write of plan.writes) {
+      const absPath = join(projectRoot, write.relPath);
+      mkdirSync(dirname(absPath), { recursive: true });
+      writeFileSync(absPath, write.content);
+      console.log(`  ✓ ${targetId} → ${write.relPath}`);
+    }
+    for (const note of plan.notes) notes.add(note);
+  }
+  for (const note of notes) console.log(`  ℹ ${note}`);
+}
+
+const nonClaudeTargets = requestedTargets.filter((targetId) => targetId !== "claude");
+if (nonClaudeTargets.length > 0) {
+  console.log("\ncontinuous-improvement multi-platform install\n");
+  installNonClaudeTargets(nonClaudeTargets);
+  if (!requestedTargets.includes("claude")) {
+    console.log("\nDone. Claude Code install skipped (not in --target list).");
+    process.exit(0);
+  }
 }
 
 console.log(`
