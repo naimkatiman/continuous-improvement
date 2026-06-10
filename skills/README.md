@@ -18,11 +18,13 @@ These add concrete enforcement to the 7 Laws. Tier-1 skills are the always-on mi
 
 | Skill | What it does | Pairs with which Law |
 |-------|--------------|----------------------|
-| `para-memory-files` | File-based persistent memory using PARA (Projects/Areas/Resources/Archives) for cross-session context | Law 5 (Reflect), Law 7 (Learn) |
-| `verification-loop` | Six-phase verification (build, types, lint, tests, security, diff) with a structured PASS/FAIL report | Law 4 (Verify Before Reporting) |
+| `deploy-receipt` | Deploy verification receipt — SHA-match + healthcheck proof that what merged is what's live, closing the merged-but-not-deployed gap | Law 4 (Verify Before Reporting) |
 | `gateguard` | PreToolUse fact-forcing gate that blocks Edit/Write/destructive Bash until concrete investigation is presented | Law 1 (Research) |
-| `tdd-workflow` | RED→GREEN→REFACTOR enforcement, 80%+ coverage gate across unit/integration/E2E | Law 3 (One Thing), Law 4 (Verify) |
 | `model-forward` | Standing stance: go with Claude Code and the model, not against it — skills are scaffolding that merges into the model; the durable core is goal-driven execution + guardrails | All 7 Laws (stance) |
+| `para-memory-files` | File-based persistent memory using PARA (Projects/Areas/Resources/Archives) for cross-session context | Law 5 (Reflect), Law 7 (Learn) |
+| `recall` | BM25 search over the observation log so "have I hit this before?" is answerable before re-deriving a fix | Law 1 (Research) |
+| `tdd-workflow` | RED→GREEN→REFACTOR enforcement, 80%+ coverage gate across unit/integration/E2E | Law 3 (One Thing), Law 4 (Verify) |
+| `verification-loop` | Six-phase verification (build, types, lint, tests, security, diff) with a structured PASS/FAIL report | Law 4 (Verify Before Reporting) |
 
 ## Tier 2 — additional skills for **expert** mode
 
