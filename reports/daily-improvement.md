@@ -1,5 +1,11 @@
 # Daily Improvement Report — 2026-06-10
 
+## 2026-06-10 — Merge PR #229 (model-forward skill) and sync missed 25 → 26 count references
+- PR #229 (`feat(skills): ship model-forward as default tier-1 stance`) added bundled skill 26 (`model-forward`, tier 1, all 7 Laws) with its plan doc, command stub, generated plugin bundle, and count cascade in `package.json`, `llms.txt`, `src/lib/plugin-metadata.mts`, `.cloudplugin/marketplace.json`, and `docs/landing/index.html`. All CI checks passed (lint-transcript + Node 18/20/22 test matrix green); merge state was clean.
+- Squash-merged the PR to `main` at commit `d210c42` and deleted the remote branch. Fast-forwarded local `main` to `origin/main`.
+- The PR did not update the hand-maintained prose counts in `README.md`, `docs/skills.md`, or `CONTRIBUTING.md`, which still advertised 25 skills / 6 tier-1 / "Adding a 26th skill". Updated all three files to 26 skills / 7 tier-1 / "Adding a 27th skill", added row #26 to the `docs/skills.md` catalog table, and updated the cross-reference in `README.md` landing-page bullets.
+- Verified with `npm run verify:all` (all 13 content invariants + typecheck pass, 771 pass / 0 fail). Working tree has a doc-only diff on top of the merged feature.
+
 ## 2026-06-10 — Merge hourly branch and delete stale branch
 - The hourly branch `hourly/2026-06-10-remove-deleted-test-refs-from-deprecated-guide` (commit `2cfc408`) contained the verified doc-only fix removing deleted test-file references from `docs/unified-plugin-guide.md`, but it was not yet merged to `main` and the branch still existed locally.
 - Fast-forward merged the branch into `main` and pushed to `origin/main` (remote advanced from `85554db` to `2cfc408`). Deleted the stale local branch.
