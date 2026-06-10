@@ -1,5 +1,10 @@
 # Daily Improvement Report — 2026-06-10
 
+## 2026-06-10 — Sync stale v3.12.3 references to v3.13.0
+- PR #231 (`chore(release): cut v3.13.0`) bumped `package.json`, `package-lock.json`, the generated plugin manifests, and `CHANGELOG.md` to v3.13.0, but four hand-maintained surfaces still advertised v3.12.3: `.cloudplugin/marketplace.json` (version field), `docs/landing/index.html` (nav badge, hero kicker, current-rev stat, footer REV), `reports/assets/update-card.html` (visible date line), and the Project Snapshot in this report.
+- Updated all five occurrences from `v3.12.3` / `REV 3.12.3` to `v3.13.0` / `REV 3.13.0` so user-facing version references match the current release.
+- Verified with `npm run verify:all` (all 13 content invariants + typecheck pass, 771 pass / 0 fail). Working tree has a doc-only diff.
+
 ## 2026-06-10 — Add verification date to model-forward plan status
 - `docs/plans/2026-06-10-model-forward-default-skill.md` listed `Status: complete` without a verification date, while every other recently completed plan (`gateguard-canonical-clearance`, `verify-tool-count-invariant`, `reposition-copy-under-orchestration`, `slim-ci-to-cli-anything`, `workflow-instinct-bridge`) uses the consistent pattern `Status: complete (verified YYYY-MM-DD)`.
 - Updated the status line from `Status: complete` to `Status: complete (verified 2026-06-10)` so the plans directory stays internally consistent.
@@ -738,7 +743,7 @@
 
 | Field | Value |
 |-------|-------|
-| Project | continuous-improvement v3.12.3 |
+| Project | continuous-improvement v3.13.0 |
 | Stack | Node.js (ESM), MCP server, GitHub Action, CLI tools |
 | Stage | Published npm package, active development |
 | Tests (current) | 771 pass / 0 fail |
