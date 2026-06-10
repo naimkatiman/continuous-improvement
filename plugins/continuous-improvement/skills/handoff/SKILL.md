@@ -51,7 +51,6 @@ Anything that is already captured elsewhere gets a path or URL pointer, not a du
 ## Companion / alternative skills
 
 - [`strategic-compact`](./strategic-compact.md) — compact the current session at a phase boundary instead of writing a handoff doc. Use when the session continues with the same agent.
-- [`para-memory-files`](./para-memory-files.md) — durable cross-session memory under `~/.claude/memory/`. Use for classified facts (user, project, feedback, reference), not per-session handoff briefs.
 - `superpowers:writing-plans` — produce the plan doc the handoff can reference instead of duplicating.
 
 ## Attribution
