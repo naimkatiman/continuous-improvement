@@ -1,5 +1,15 @@
 # Daily Improvement Report — 2026-06-11
 
+## 2026-06-11 — Mark `multi-platform-installer` plan as complete
+- `docs/plans/2026-06-11-multi-platform-installer.md` had no status line even though the work fully shipped in PR #239 (`feat(install): 7-Laws skill installs into 7 more agent platforms via --target`). The plan was left open after implementation.
+- Added `Status: complete (verified 2026-06-11)` so the plans directory accurately reflects reality.
+- Verified with `npm run verify:all` (all 13 content invariants + typecheck pass) and `npm test` (795 pass / 0 fail). Working tree has a doc-only diff.
+
+## 2026-06-11 — Sync stale HTML card `<title>` date to June 11
+- `reports/assets/update-card.html` carried a stale `<title>` tag (`Daily Improvement Report — 2026-06-10`) while the visible date line inside the body was already updated to `June 11, 2026` during the prior hourly cycle. A browser tab or embed reading the title would show the wrong date.
+- Updated the `<title>` from `2026-06-10` to `2026-06-11` so the card's metadata matches its visible content.
+- Verified with `npm run verify:all` (all 13 content invariants + typecheck pass) and `npm test` (795 pass / 0 fail). Working tree has a doc-only diff.
+
 ## 2026-06-11 — Remove retired `para-memory-files` reference from test fixtures
 - `src/test/skill-tiers.test.mts` still used `para-memory-files` (retired in PR #238) as the fixture name and description in the "collapses folded block scalars" parser test. While this did not affect test outcomes (the test only verifies YAML frontmatter parsing mechanics), stale fixture data creates confusion when grepping for the retired skill.
 - Replaced the fixture name with `goal-monitor` and updated the multi-line description to match a current tier-1 skill. Rebuilt `test/skill-tiers.test.mjs` from the `.mts` source.
