@@ -226,6 +226,49 @@ describe("MCP server — beginner mode", () => {
     assert.match(response.result.content[0].text, /file_paths/);
   });
 
+  it("ci_gateguard_clear honors an in-root state_path and writes to that exact dir (session-scoped routing)", async () => {
+    // Inside the instincts root (HOME=tempHome for the server), mirroring the
+    // session-scoped path the hook prints. saveState mkdir's it recursively.
+    const statePath = join(tempHome, ".claude", "instincts", "scoped-test", "sessions", "sess-statepath", "gateguard-session.json");
+    const response = await client.send({
+      jsonrpc: "2.0",
+      id: 43,
+      method: "tools/call",
+      params: {
+        name: "ci_gateguard_clear",
+        arguments: { file_paths: ["D:\\proj\\z.ts"], state_path: statePath },
+      },
+    });
+    assert.ok(!response.result.isError, "clear with an in-root state_path should succeed");
+    assert.match(response.result.content[0].text, /gateguard-session\.json/);
+    // The marker must land at the supplied state_path, not the default session
+    // dir — this is what keeps the MCP clear route session-correct once the hook
+    // is session-scoped.
+    assert.ok(existsSync(statePath), "state file written at the supplied state_path");
+    const state = JSON.parse(readFileSync(statePath, "utf8")) as {
+      cleared_files?: Record<string, unknown>;
+    };
+    assert.ok(state.cleared_files && "d:/proj/z.ts" in state.cleared_files, "canonical key recorded at state_path");
+  });
+
+  it("ci_gateguard_clear rejects a state_path that resolves outside the instincts root (no arbitrary write)", async () => {
+    // A traversal/arbitrary path outside ~/.claude/instincts must be refused so
+    // the clear can't be turned into an arbitrary-write primitive.
+    const evil = join(tmpdir(), "ci-gg-evil", "gateguard-session.json");
+    const response = await client.send({
+      jsonrpc: "2.0",
+      id: 44,
+      method: "tools/call",
+      params: {
+        name: "ci_gateguard_clear",
+        arguments: { file_paths: ["D:\\proj\\z.ts"], state_path: evil },
+      },
+    });
+    assert.ok(response.result.isError, "a state_path outside ~/.claude/instincts must be rejected");
+    assert.match(response.result.content[0].text, /instincts/);
+    assert.ok(!existsSync(evil), "must not write the state file outside the instincts root");
+  });
+
   it("ci_status returns project info", async () => {
     const response = await client.send({
       jsonrpc: "2.0",
