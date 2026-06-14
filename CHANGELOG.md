@@ -4,6 +4,12 @@ All notable changes to this skill are documented here.
 
 ---
 
+## [3.14.0] — 2026-06-14
+
+### Fixed
+
+- **Gateguard clearance cap no longer bleeds across concurrent sessions and self-heals instead of needing a manual `rm`** — the per-session clearance state was keyed on the project hash only, so every Claude session on a repo (sequential or concurrent) shared one 50-file counter that only grew; on a multi-Claude host later sessions inherited a near-full gate, and the "start a new session to reset" message did nothing because a new session resolved to the same file. State is now scoped to `~/.claude/instincts/<projectHash>/sessions/<sessionId>/` (the hook reads `session_id` from stdin; ids are sanitized against path traversal), a 12h TTL self-heals a stale state file to empty on load, and the MCP `ci_gateguard_clear` route accepts a `state_path` so it writes to the session-scoped file. The `MAX_CLEARED_FILES` rogue-loop cap still bounds a single session. Plan: `docs/plans/2026-06-14-gateguard-session-scoped-cap.md`. (#242)
+
 ## [3.13.0] — 2026-06-10
 
 ### Added
