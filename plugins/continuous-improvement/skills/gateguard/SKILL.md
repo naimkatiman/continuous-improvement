@@ -136,7 +136,7 @@ This gate is what catches the squash-merge / ahead-of-origin trap recorded in th
 
 ### Today: runtime hook + skill (zero install beyond the plugin)
 
-`hooks/gateguard.mjs` is bundled with this plugin and wired as the first PreToolUse hook in `plugins/continuous-improvement/hooks/hooks.json`. When you install the plugin, the runtime gate is live — no extra config, no opt-in. The hook reads tool input from stdin, classifies it through a data-driven routing table (Read/Grep/Glob → allow, Write/Edit/MultiEdit → mutating-file gate, Bash → destructive-pattern check), and emits `{decision, reason?}` on stdout. Per-session state lives at `~/.claude/instincts/<project-hash>/gateguard-session.json` (override via `GATEGUARD_SESSION_DIR` for tests) and caps cumulative clearances at `MAX_CLEARED_FILES = 50`.
+`hooks/gateguard.mjs` is bundled with this plugin and wired as the first PreToolUse hook in `plugins/continuous-improvement/hooks/hooks.json`. When you install the plugin, the runtime gate is live — no extra config, no opt-in. The hook reads tool input from stdin, classifies it through a data-driven routing table (Read/Grep/Glob → allow, Write/Edit/MultiEdit → mutating-file gate, Bash → destructive-pattern check), and emits `{decision, reason?}` on stdout. Per-session state lives at `~/.claude/instincts/<project-hash>/sessions/<session-id>/gateguard-session.json` — scoped by the stdin `session_id` so the cap never bleeds across concurrent sessions (it falls back to the unscoped `<project-hash>/` dir when no session id is present, and `GATEGUARD_SESSION_DIR` overrides it for tests). The cap is `MAX_CLEARED_FILES = 50` per session, and the state self-heals after `STATE_TTL_MS` so a stale gate never needs a manual `rm`.
 
 Smoke-test the runtime gate after install: ask Claude to write a throwaway file with no research first. The hook should return a `block` decision with a fact-list reason; Claude should pause rather than write.
 
@@ -150,10 +150,10 @@ The block reason prints the exact `gateguard-session.json` path and the clearanc
 
 The inline `_gateguard_facts_presented: true` retry still works on harnesses that forward unknown tool params, but Claude Code's strict tool schema (`additionalProperties: false`) rejects it with `InputValidationError` — use one of the above on Claude Code.
 
-### V1 honest limitations (not mitigated, documented)
+### Limitations and guarantees
 
-- **Honor system.** Clearance is recorded by `ci_gateguard_clear`, the `gateguard-clear.mjs` CLI, a manual state-file write, or the inline `_gateguard_facts_presented` flag where the harness allows it (see "Clearing the gate" above). The hook can't verify the investigation actually happened; the 50-file cap bounds damage from stuck loops or rogue agents.
-- **State-file deletion.** `rm`-ing the session state resets every gate. Acceptable because the session itself is the trust boundary.
+- **Honor system.** Clearance is recorded by `ci_gateguard_clear`, the `gateguard-clear.mjs` CLI, a manual state-file write, or the inline `_gateguard_facts_presented` flag where the harness allows it (see "Clearing the gate" above). The hook can't verify the investigation actually happened; the 50-file cap — counted per session — bounds damage from stuck loops or rogue agents.
+- **State-file deletion / self-heal.** `rm`-ing the session state resets every gate. Because state is scoped per session (`sessions/<session-id>/`), the session is a real trust boundary, not one shared across concurrent runs. A stale state file also self-heals once its `created_at` ages past `STATE_TTL_MS`, so a manual `rm` is rarely needed.
 - **Parallel-hook race.** Two simultaneous hook invocations can race the read+write of the state file. Acceptable trade-off vs Windows atomic-rename complexity.
 
 **MultiEdit per-file gating.** The hook clears and checks every `edits[]` path individually, so a mixed-clearance batch blocks until *all* edited files are cleared or facts are presented. The block reason now names the whole batch, not just the first uncleared path.

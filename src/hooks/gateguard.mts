@@ -61,6 +61,7 @@ interface ToolInput {
 interface Payload {
   tool_name?: unknown;
   tool_input?: ToolInput;
+  session_id?: unknown;
 }
 
 const TOOL_ROUTE: Record<string, GateType> = {
@@ -171,7 +172,7 @@ function buildMutatingFileReason(toolName: string, filePaths: string[], stateFil
     "",
     "Then clear the gate and retry the same call. Either route works:",
     `  A. Bash (always works — run verbatim): node ${quotePath(CLEAR_CLI_PATH)} --state ${quotePath(stateFilePath)} ${quoted.join(" ")}`,
-    `  B. MCP tool (when the continuous-improvement server is connected): ci_gateguard_clear  {file_paths: [${quoted.join(", ")}]}`,
+    `  B. MCP tool (when the continuous-improvement server is connected): ci_gateguard_clear  {file_paths: [${quoted.join(", ")}], state_path: ${quotePath(stateFilePath)}}`,
     "  Both canonicalize paths — drive-letter case and separators don't matter.",
     "  (Harnesses that forward unknown tool params may instead retry the call with",
     "  `_gateguard_facts_presented: true`; Claude Code's strict schema rejects that, so use A or B.)",
@@ -192,9 +193,10 @@ function buildDestructiveBashReason(command: string): string {
 
 function buildCapReachedReason(): string {
   return [
-    `Gateguard session clearance cap reached (${MAX_CLEARED_FILES} distinct files).`,
-    "Start a new Claude Code session to reset the gate. The cap exists to bound",
-    "stuck-loop or rogue-agent clearance from compounding within a single session.",
+    `Gateguard clearance cap reached (${MAX_CLEARED_FILES} distinct files this session).`,
+    "The cap is per-session: start a new Claude Code session to reset it, or wait",
+    "for the state file to self-heal. It bounds stuck-loop or rogue-agent clearance",
+    "from compounding within one session without affecting your other sessions.",
   ].join("\n");
 }
 
@@ -248,8 +250,11 @@ function main(): void {
     return;
   }
 
-  // mutating-file
-  const sessionDir = resolveSessionDir();
+  // mutating-file — scope state to THIS session so the clearance cap never
+  // bleeds across concurrent same-day sessions. session_id is the standard hook
+  // stdin field (see recall-briefing / observe-event); absent → legacy dir.
+  const sessionId = typeof payload.session_id === "string" ? payload.session_id : undefined;
+  const sessionDir = resolveSessionDir(sessionId);
   const stateFilePath = join(sessionDir, "gateguard-session.json");
   const state = loadState(sessionDir);
   const filePaths = extractFilePaths(toolInput);

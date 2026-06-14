@@ -13,7 +13,7 @@
 import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
@@ -21,7 +21,7 @@ import { PACKAGE_NAME, VERSION, getToolDefinitions, isPluginMode, } from "../lib
 import { formatDriftReport, parseGoalFromPlan, scoreObservations, } from "../lib/goal-state.mjs";
 import { buildIndex, formatRecallHits, parseSince, query as queryRecall, } from "../lib/recall-index.mjs";
 import { draftFromCandidate, draftFromWorkflowRun, extractTrajectories, findCandidates, formatCandidates, serializeDraft, workflowRunFromObservations, } from "../lib/skill-distill.mjs";
-import { MAX_CLEARED_FILES, clearFiles, resolveSessionDir, } from "../lib/gateguard-state.mjs";
+import { MAX_CLEARED_FILES, canonicalizeFileKey, clearFiles, resolveInstinctsRoot, resolveSessionDir, } from "../lib/gateguard-state.mjs";
 function getHomeDir() {
     return process.env.HOME || process.env.USERPROFILE || homedir();
 }
@@ -508,10 +508,11 @@ function handleTool(name, params) {
         }
         case "ci_gateguard_clear": {
             // Beginner-available on purpose: the GateGuard hook fires for every
-            // install, so the clearance action must too. Resolves the session dir via
-            // gateguard-state (canonical), the same way the hook does, so the marker
-            // lands where the hook looks regardless of how each process spelled the
-            // project root.
+            // install, so the clearance action must too. The hook's block reason now
+            // prints state_path (the session-scoped state file); honoring it writes
+            // the marker exactly where the hook looks. Without it the MCP server can't
+            // know the caller's session, so it falls back to the canonical session dir
+            // — correct only on the legacy unscoped path.
             const rawList = Array.isArray(params.file_paths) ? params.file_paths : [];
             const listPaths = rawList.filter((value) => typeof value === "string" && value.length > 0);
             const single = getString(params.file_path).trim();
@@ -519,7 +520,24 @@ function handleTool(name, params) {
             if (paths.length === 0) {
                 return error("file_paths is required — pass the file path(s) named in the GateGuard block reason, e.g. { file_paths: [\"src/x.ts\"] }.");
             }
-            const sessionDir = resolveSessionDir();
+            // state_path is a model-controlled argument, so it could be a traversal
+            // string (`../../etc/...`). dirname leaves `..` segments for the OS to
+            // resolve at write time, so without a bound this is an arbitrary-write
+            // primitive. Resolve + canonicalize, then require containment within the
+            // instincts root (the only tree the hook ever prints a state_path inside).
+            const rawStatePath = getString(params.state_path).trim();
+            let sessionDir;
+            if (rawStatePath) {
+                const resolvedKey = canonicalizeFileKey(resolve(rawStatePath));
+                const rootKey = canonicalizeFileKey(resolveInstinctsRoot());
+                if (resolvedKey !== rootKey && !resolvedKey.startsWith(`${rootKey}/`)) {
+                    return error("state_path must resolve inside ~/.claude/instincts/. Pass it verbatim from the GateGuard block reason.");
+                }
+                sessionDir = dirname(resolve(rawStatePath));
+            }
+            else {
+                sessionDir = resolveSessionDir();
+            }
             const { cleared, skippedForCap } = clearFiles(sessionDir, paths);
             const lines = [
                 "## GateGuard clearance",

@@ -293,6 +293,10 @@ describe("hooks/gateguard.mjs (runtime PreToolUse hook — issue #106)", () => {
         const decision = runHook("Write", { file_path: "fresh-file.ts", content: "x" }, dir);
         assert.equal(decision.decision, "block");
         assert.match(decision.reason ?? "", /ci_gateguard_clear|gateguard-clear\.mjs/);
+        // Route B must advertise state_path so the agent passes the session-scoped
+        // path to ci_gateguard_clear; without it the MCP clear falls back to the
+        // unscoped canonical dir and misses the session state.
+        assert.match(decision.reason ?? "", /state_path:/);
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
@@ -329,5 +333,61 @@ describe("hooks/gateguard.mjs (runtime PreToolUse hook — issue #106)", () => {
         rmSync(dir, { recursive: true, force: true });
       }
     });
+  });
+});
+
+// Session isolation: the cap and clearance state must NOT bleed across
+// concurrent same-day sessions. Drives the production path (no
+// GATEGUARD_SESSION_DIR override) with HOME/USERPROFILE pinned to a temp dir so
+// the hook resolves its own session-scoped dir from the stdin session_id.
+describe("hooks/gateguard.mjs — per-session isolation (no shared cap)", () => {
+  let tempHome = "";
+
+  before(() => {
+    tempHome = mkdtempSync(join(tmpdir(), "gg-session-iso-"));
+  });
+
+  after(() => {
+    rmSync(tempHome, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  });
+
+  function runScoped(sessionId: string, toolInput: Record<string, unknown>): HookDecision {
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      HOME: tempHome,
+      USERPROFILE: tempHome,
+      CLAUDE_PROJECT_DIR: "d:/proj/iso",
+    };
+    delete env.GATEGUARD_SESSION_DIR;
+    const payload = JSON.stringify({ tool_name: "Edit", tool_input: toolInput, session_id: sessionId });
+    const result = spawnSync(process.execPath, [HOOK_PATH], { input: payload, encoding: "utf8", env });
+    assert.equal(result.status, 0, `hook exited non-zero: ${result.stderr}`);
+    const stdout = result.stdout.trim();
+    if (stdout === "") return { decision: "allow" };
+    const parsed = JSON.parse(stdout) as PreToolUseHookOutput;
+    return { decision: "block", reason: parsed.hookSpecificOutput?.permissionDecisionReason };
+  }
+
+  it("clearing a file in session A does not clear it in session B", () => {
+    const file = "d:/proj/iso/a.ts";
+    // Session A presents facts → file cleared and recorded in A's session dir.
+    assert.equal(
+      runScoped("session-A", { file_path: file, _gateguard_facts_presented: true }).decision,
+      "allow",
+      "facts-flagged clear in session A must be allowed",
+    );
+    // Session A retry without facts → allowed (A already cleared it).
+    assert.equal(
+      runScoped("session-A", { file_path: file }).decision,
+      "allow",
+      "session A retry must see its own clearance",
+    );
+    // Session B never cleared it → blocked. (Current shared-dir code wrongly allows.)
+    const blockResult = runScoped("session-B", { file_path: file });
+    assert.equal(blockResult.decision, "block", "session B must NOT inherit session A's clearance");
+    // The block reason must carry the session-scoped state_path so route B clears
+    // the right dir — pinned to session-B so a regression in scoping is visible.
+    assert.match(blockResult.reason ?? "", /state_path:/, "block reason advertises the MCP state_path");
+    assert.match(blockResult.reason ?? "", /session-B/, "state_path references the session-B scoped dir");
   });
 });
