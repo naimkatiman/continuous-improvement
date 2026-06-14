@@ -1,4 +1,35 @@
-# Daily Improvement Report — 2026-06-10
+# Daily Improvement Report — 2026-06-11
+
+## 2026-06-11 — Mark `multi-platform-installer` plan as complete
+- `docs/plans/2026-06-11-multi-platform-installer.md` had no status line even though the work fully shipped in PR #239 (`feat(install): 7-Laws skill installs into 7 more agent platforms via --target`). The plan was left open after implementation.
+- Added `Status: complete (verified 2026-06-11)` so the plans directory accurately reflects reality.
+- Verified with `npm run verify:all` (all 13 content invariants + typecheck pass) and `npm test` (795 pass / 0 fail). Working tree has a doc-only diff.
+
+## 2026-06-11 — Sync stale HTML card `<title>` date to June 11
+- `reports/assets/update-card.html` carried a stale `<title>` tag (`Daily Improvement Report — 2026-06-10`) while the visible date line inside the body was already updated to `June 11, 2026` during the prior hourly cycle. A browser tab or embed reading the title would show the wrong date.
+- Updated the `<title>` from `2026-06-10` to `2026-06-11` so the card's metadata matches its visible content.
+- Verified with `npm run verify:all` (all 13 content invariants + typecheck pass) and `npm test` (795 pass / 0 fail). Working tree has a doc-only diff.
+
+## 2026-06-11 — Remove retired `para-memory-files` reference from test fixtures
+- `src/test/skill-tiers.test.mts` still used `para-memory-files` (retired in PR #238) as the fixture name and description in the "collapses folded block scalars" parser test. While this did not affect test outcomes (the test only verifies YAML frontmatter parsing mechanics), stale fixture data creates confusion when grepping for the retired skill.
+- Replaced the fixture name with `goal-monitor` and updated the multi-line description to match a current tier-1 skill. Rebuilt `test/skill-tiers.test.mjs` from the `.mts` source.
+- Verified with `npm run build`, `node --test test/skill-tiers.test.mjs` (17 pass / 0 fail), `npm test` (795 pass / 0 fail), and `npm run verify:all` (all 13 content invariants + typecheck pass).
+
+## 2026-06-11 — Sync stale skill-count prose after para-memory-files retirement
+- PR #229 (`feat(skills): ship model-forward as default tier-1 stance`) bumped hand-maintained prose counts from 25 → 26 skills / 6 → 7 tier-1 / "Adding a 26th skill" → "Adding a 27th skill" in `README.md`, `CONTRIBUTING.md`, and `docs/skills.md`. Later the same day, PR #238 (`feat(skills): retire para-memory-files`) removed one skill, returning the count to 25, but the prose surfaces were not cascaded back.
+- `README.md` still advertised **26 skills** with a **7 tier-1** breakdown; `CONTRIBUTING.md` referenced `"26 skills"`; and `docs/skills.md` pointed at "Adding a 27th skill".
+- Updated all three occurrences back to **25 skills**, **6 tier-1**, and **Adding a 26th skill** so hand-maintained prose matches the actual post-retirement catalog (1 core + 1 featured + 6 tier-1 + 14 tier-2 + 3 always-bundled = 25).
+- Verified with `npm run verify:all` (all 13 content invariants + typecheck pass) and `npm test` (795 pass / 0 fail). Working tree has a doc-only diff.
+
+## 2026-06-11 — Sync stale test-count surfaces from 771 to 773
+- The test suite grew to 773 pass / 0 fail (2 new tests added since the last report), but the HTML summary card at `reports/assets/update-card.html` and the Project Snapshot in this report still advertised `771`.
+- Updated the card date from June 10 to June 11, the Tests Passing / Total Tests stats from `771` to `773`, and the badge from `771 / 771` to `773 / 773`. Updated the Project Snapshot table at the bottom of this report from `771 pass / 0 fail` to `773 pass / 0 fail`.
+- Verified with `npm run verify:all` (all 13 content invariants + typecheck pass) and `npm test` (773 pass / 0 fail). Working tree clean.
+
+## 2026-06-11 — Sync stale test-count surfaces from 773 to 795
+- While the prior hourly cycle was in flight, PR #239 (`feat(install): 7-Laws skill installs into 7 more agent platforms via --target`) landed on `origin/main`, adding `src/lib/install-targets.mts` with 22 new regression tests. The test suite is now 795 pass / 0 fail, but the HTML summary card and Project Snapshot still advertised `773`.
+- Updated the Tests Passing / Total Tests stats from `773` to `795` and the badge from `773 / 773` to `795 / 795` in `reports/assets/update-card.html`. Updated the Project Snapshot table at the bottom of this report from `773 pass / 0 fail` to `795 pass / 0 fail`.
+- Verified with `npm run verify:all` (all 13 content invariants + typecheck pass) and `npm test` (795 pass / 0 fail). Working tree clean.
 
 ## 2026-06-10 — Sync stale v3.12.3 references in landing-page blueprint plan to v3.13.0
 - `docs/plans/2026-06-07-landing-page-blueprint-rebuild.md` is an open build-spec plan (no `Status: complete` line) that still advertised `v3.12.3` and `25 bundled skills` on its "Real numbers" summary line and footer example. The project released `v3.13.0` on 2026-06-10 and now ships 26 skills. If this plan were executed today, the rebuilt landing page would immediately need another version-sync cycle.
@@ -751,7 +782,7 @@
 | Project | continuous-improvement v3.13.0 |
 | Stack | Node.js (ESM), MCP server, GitHub Action, CLI tools |
 | Stage | Published npm package, active development |
-| Tests (current) | 771 pass / 0 fail |
+| Tests (current) | 795 pass / 0 fail |
 
 ## Changes Implemented
 
@@ -771,7 +802,7 @@
 
 ## Remaining Failures
 
-None. All 771 tests pass / 0 fail as of this cycle.
+None. All 795 tests pass / 0 fail as of this cycle.
 
 ## Deferred Items
 

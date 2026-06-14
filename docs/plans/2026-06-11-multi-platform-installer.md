@@ -1,6 +1,7 @@
 # Multi-platform installer — `--target <platform>`
 
 Date: 2026-06-11 · Branch: `feat/multi-platform-installer` · Issues: #9 (Gemini CLI), #14 (Aider), #15 (Windsurf/Zed)
+Status: complete (verified 2026-06-11)
 
 ## Goal (one sentence)
 
