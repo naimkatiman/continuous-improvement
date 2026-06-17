@@ -197,4 +197,11 @@ describe("hook-pack registration", () => {
         const commands = preToolUse.flatMap((entry) => entry.hooks.map((h) => h.command));
         assert.ok(commands.some((c) => /hook-pack\.mjs/.test(c)), "hook-pack must be registered in PreToolUse");
     });
+    it("bundles the hook-pack-gate lib core the bundled hook imports", () => {
+        // The bundled hooks/hook-pack.mjs imports ../lib/hook-pack-gate.mjs; if the
+        // generator's copyFileTo list omits it, the installed plugin's hook crashes
+        // at runtime even though repo-root tests pass. Pin the bundle copy.
+        const bundledLib = join(REPO_ROOT, "plugins", "continuous-improvement", "lib", "hook-pack-gate.mjs");
+        assert.ok(existsSync(bundledLib), `expected ${bundledLib} to be bundled`);
+    });
 });
