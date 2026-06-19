@@ -375,3 +375,34 @@ describe("workflowRunFromObservations + draftFromWorkflowRun (workflow bridge)",
     assert.equal(workflowRunFromObservations([wf, otherSessionVerify]), null);
   });
 });
+
+describe("extractTrajectories — event field preservation (regression)", () => {
+  it("preserves the event field on observations passed through extraction", () => {
+    clock = Date.parse("2026-05-28T08:00:00Z");
+    const observations = [
+      obs("Read", { session: "ev1", input_summary: "src/a.ts", event: "PreToolUse" }),
+      obs("Edit", { session: "ev1", input_summary: "src/a.test.ts", event: "PostToolUse" }),
+      obs("Bash", { session: "ev1", input_summary: "npm test", output_summary: "3 passing", event: "PostToolUse" }),
+      obs("Edit", { session: "ev1", input_summary: "src/a.ts", event: "Stop" }),
+    ];
+    const trajectories = extractTrajectories(observations);
+    assert.equal(trajectories.length, 1);
+    const events = trajectories[0]!.observations.map((o) => o.event);
+    assert.deepEqual(events, ["PreToolUse", "PostToolUse", "PostToolUse", "Stop"]);
+  });
+
+  it("leaves event undefined when it was never set", () => {
+    clock = Date.parse("2026-05-28T08:00:00Z");
+    const observations = [
+      obs("Read", { session: "ev2", input_summary: "src/b.ts" }),
+      obs("Edit", { session: "ev2", input_summary: "src/b.test.ts" }),
+      obs("Bash", { session: "ev2", input_summary: "npm test", output_summary: "5 passing" }),
+      obs("Edit", { session: "ev2", input_summary: "src/b.ts" }),
+    ];
+    const trajectories = extractTrajectories(observations);
+    assert.equal(trajectories.length, 1);
+    for (const o of trajectories[0]!.observations) {
+      assert.equal(o.event, undefined);
+    }
+  });
+});
