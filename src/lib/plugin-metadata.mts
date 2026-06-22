@@ -75,7 +75,7 @@ export interface PluginHookCommand {
 
 export interface PluginHooksConfig {
   description: string;
-  hooks: Partial<Record<HookType, Array<{ hooks: PluginHookCommand[] }>>>;
+  hooks: Partial<Record<HookType, Array<{ matcher?: string; hooks: PluginHookCommand[] }>>>;
 }
 
 export interface ClaudePluginManifest {
@@ -628,6 +628,11 @@ export function getPluginHooksConfig(): PluginHooksConfig {
     command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/companion-preference.mjs\"",
     timeout: 5,
   };
+  const hookPackCommand = {
+    type: "command" as const,
+    command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/hook-pack.mjs\"",
+    timeout: 5,
+  };
   const observeCommand = {
     type: "command" as const,
     command: "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/observe.sh\"",
@@ -674,6 +679,12 @@ export function getPluginHooksConfig(): PluginHooksConfig {
       // through with no output.
       PreToolUse: [
         { hooks: [gateguardCommand, companionPreferenceCommand] },
+        // hook-pack gates Bash `git push` to protected branches and oversized
+        // `git commit`s. The "Bash" matcher scopes it off the hot path for all
+        // non-Bash tools, so the two-subprocess note above still holds for
+        // Edit/Read/etc. Warn-default (CLAUDE_CI_HOOKPACK_GATE) — never blocks
+        // until the operator opts in.
+        { matcher: "Bash", hooks: [hookPackCommand] },
       ],
       PostToolUse: [{ hooks: [observeCommand] }],
       UserPromptSubmit: [{ hooks: [routePromptCommand, recallBriefingCommand] }],

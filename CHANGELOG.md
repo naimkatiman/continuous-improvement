@@ -4,6 +4,16 @@ All notable changes to this skill are documented here.
 
 ---
 
+## [3.15.0] — 2026-06-21
+
+### Added
+
+- **`/ship` cuts one defect from audit to an open PR** — a single-concern fast path that routes `reconcile` → `tdd-workflow` → `verification-loop` → `commit-push-pr` → `deploy-receipt` for one fix, then stops at PR-open. Never auto-merges or deploys. Command-only; `/release-train` remains the multi-PR path. Plan: `docs/plans/2026-06-17-ship-command.md`. (#246)
+- **`/production-readiness-review` fans a blind multi-agent review into one punch-list** — parallel reviewers across performance, security, UI/UX, and test coverage, each grounding findings in real code/logs/live data, reconciled into a deduplicated, severity-ranked list. Report-only; never fixes, merges, or deploys. Plan: `docs/plans/2026-06-17-production-readiness-review-command.md`. (#247)
+- **`hook-pack` enforces push-to-main and commit-size at the tool boundary** — a warn-default PreToolUse hook (Bash-matched so the non-Bash hot path stays cheap; gateguard stays first) that flags a direct `git push` to a protected branch (`main`/`master`/`release/*`) and a `git commit` staging more than 15 files. Mode `CLAUDE_CI_HOOKPACK_GATE=warn|block|off`; warn never blocks, so zero disruption until you opt into `block`. Pure logic in `lib/hook-pack-gate`. Plan: `docs/plans/2026-06-17-enforcing-hook-pack.md`. (#248)
+- **`/plan-pack` turns a plan doc into a commentable review packet for colleague review** — converts a `docs/plans/` doc into a structured packet a colleague can comment on before implementation. (#244)
+- **How-to-best-use guide** mapping the agentic-engineering workflow to the plugin's skills, commands, and hooks (`docs/using-this-plugin.md`). (#245)
+
 ## [3.14.0] — 2026-06-14
 
 ### Fixed
