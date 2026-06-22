@@ -160,6 +160,12 @@ function formatReport(result) {
     return lines.join("\n");
 }
 const args = process.argv.slice(2);
+function actionInput(name) {
+    return (process.env[`INPUT_${name.toUpperCase()}`] ?? "").trim();
+}
+function actionInputBoolean(name) {
+    return /^(1|true|yes)$/i.test(actionInput(name));
+}
 if (args.includes("--help") || args.includes("-h")) {
     console.log(`
 Agent Transcript Linter — The 7 Laws of AI Agent Discipline
@@ -176,7 +182,7 @@ Options:
 `);
     process.exit(0);
 }
-const isStrict = args.includes("--strict");
+const isStrict = args.includes("--strict") || actionInputBoolean("strict");
 const isJson = args.includes("--json");
 const isStdin = args.includes("--stdin");
 async function main() {
@@ -190,7 +196,9 @@ async function main() {
         }
     }
     else {
-        const filePath = args.find((arg) => !arg.startsWith("--"));
+        const filePath = args.find((arg) => !arg.startsWith("--"))
+            || actionInput("transcript-path")
+            || actionInput("observations-path");
         if (!filePath) {
             console.error("Error: provide a file path or use --stdin");
             process.exit(1);
@@ -213,16 +221,20 @@ async function main() {
         process.exit(0);
     }
     const result = analyzeTranscript(events, parseFailures);
+    const report = formatReport(result);
     if (isJson) {
         console.log(JSON.stringify(result, null, 2));
     }
     else {
-        console.log(formatReport(result));
+        console.log(report);
     }
     if (process.env.GITHUB_OUTPUT) {
         const outputLines = [
             `violations=${result.violations.length}`,
             `score=${result.score}`,
+            `report<<CI_REPORT_EOF`,
+            report,
+            "CI_REPORT_EOF",
         ];
         const { appendFileSync } = await import("node:fs");
         for (const line of outputLines) {
