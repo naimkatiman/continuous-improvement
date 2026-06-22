@@ -1,5 +1,714 @@
 # AI Improvement Implementation Log
 
+## 2026-06-22 18:18 MPST — source-metrics-method refresh
+
+### Scope
+
+- Run type: scheduled CEO Zaky autonomous repository improvement agent (one docs-only increment).
+- One logical change: refreshed repository `.mts` source-metrics documentation from current `pygount` + Node scan outputs.
+- Code changes: none this run.
+
+### Research performed
+
+- Re-scanned repo state in `C:/Ai/continuous-improvement`: `main...origin/main [ahead 1, behind 4]` with `18` dirty paths (`11` tracked + `7` untracked).
+- Ran a fresh `pygount` size scan with the repo-wide skip set and a fresh `.mts` source scan for `src/`.
+- Read the shared prompt template, central-board row for this project, and repo-local AI-improvement docs before editing.
+
+### External source applied
+
+- External source applied: continuous-improvement + codebase-inspection/pygount + shadcn/improve + ponytail + graphify + zaky-improvement-stack/metrics-packet.
+
+### Files changed / artifacts produced
+
+- Updated `docs/ai-improvement/source-metrics-method.md` with refreshed timestamps and counts:
+  - full `pygount`: **474 files**, **15,998 code**, **9,373 comments**;
+  - `.mts` source: **103 files**, **24,908 total lines**, **22,304 non-empty lines**;
+  - `src/bin` / `src/lib` / `src/test` totals refreshed.
+- Updated `docs/ai-improvement/implementation-log.md` with this run entry.
+- Updated `C:/Ai/_zaky_ai_board/KANBAN.md` with the latest run row for this project.
+
+### Verification evidence
+
+1. `date '+%Y-%m-%d %H:%M MPST (%:z)'` — `2026-06-22 18:18 MPST (+08:00)`.
+2. `uvx --from pygount pygount --format=summary --folders-to-skip='.git,node_modules,venv,.venv,__pycache__,.cache,dist,build,.next,.tox,.eggs,*.egg-info,third-party' .` — exit 0 with:
+
+```text
+Sum: 474 files, 15,998 code, 9,373 comment
+```
+
+3. `uvx --from pygount pygount --suffix=mts --format=summary src` — exit 0:
+
+```text
+__unknown__: 103 files, 0 code, 0 comment
+```
+
+4. Supplemental Node scan under `src/` via `node --input-type=module -e ...` — exit 0 with:
+
+```text
+files: 103
+lines: 24908
+nonEmpty: 22304
+```
+
+### Risks / approval needed
+
+- Branch remains ahead/behind drift (`main...origin/main [ahead 1, behind 4]`) with zero dirty-path overlap to remote-changed paths, but runtime/source decisions remain owner/Fatin/maintainer-gated.
+
+### Recommended next move
+
+- Continue lane-split stabilization of the current local-ahead working tree (`bin/test/plugins/skills/docs` lanes) before any runtime/code changes.
+
+## 2026-06-22 00:20 MPST — scheduled docs-only posture refresh
+
+### Scope
+
+- Run type: scheduled CEO Zaky autonomous repository improvement agent (one docs-only, one-lane increment).
+- One logical change: refreshed this run's postures and evidence after a fresh `git fetch --prune`, with no source/runtime code edits.
+- Code changes: none this run.
+
+### Research performed
+
+- Re-scanned repo state in `C:/Ai/continuous-improvement` after an explicit remote fetch: `main...origin/main [ahead 1, behind 4]` with 18 dirty paths (`11` tracked + `7` untracked).
+- Computed merge base and remote path delta to `origin/main` for current verification consistency:
+  - `mergeBase: 136b7f1e8212ec987df31f44fd88e60fdd420cef`
+  - `remoteChangedPathCount: 29`
+  - `dirtyOverlapCount: 0`
+- Read the shared prompt template and existing central-board rows for this portfolio run before editing.
+- Re-read repo-local artifacts before changing board pointers: `docs/ai-improvement/README.md`, `docs/ai-improvement/source-review-metrics.md`, `docs/ai-improvement/uncommitted-source-verification-handoff.md`, `docs/ai-improvement/verification-command-matrix.md`, and this log.
+
+### External source applied
+
+- External source applied: continuous-improvement + shadcn/improve + ponytail + graphify + codebase-inspection/pygount + zaky-improvement-stack/source-review-metrics-packet.
+
+### Files changed / artifacts produced
+
+- Updated `docs/ai-improvement/implementation-log.md` with this run entry.
+- Updated `C:/Ai/_zaky_ai_board/KANBAN.md` with the latest run row for this project and this portfolio refresh.
+
+### Verification evidence
+
+1. `git -C /c/Ai/continuous-improvement fetch --prune origin` — exit 0.
+
+2. Remote/local posture probe — exit 0:
+
+```text
+branchStatus: main...origin/main [ahead 1, behind 4]
+mergeBase: 136b7f1e8212ec987df31f44fd88e60fdd420cef
+remoteChangedPathCount: 29
+headTrackedDirtyCount: 11
+headUntrackedCount: 7
+dirtyPathCount: 18
+dirtyOverlapCount: 0
+```
+
+3. `npm run typecheck` — exit 0.
+
+4. `npm run verify:doc-runtime-claims` — exit 0.
+
+### Risks / approval needed
+
+- Branch remains local-ahead vs remote (`main...origin/main [ahead 1, behind 4]`) with no dirty/remote overlap.
+- Working-tree dirt remains from earlier user-facing / repo-context edits; runtime/source changes still require explicit owner/Fatin review before continuation.
+
+### Recommended next move
+
+- Owner/Fatin should decide local commit posture (`aa6df67`) and then continue the existing post-lane split by lane (hook-pack changes, release/readiness docs, MCP/plugin manifests, and metrics validation) before adding non-doc changes.
+
+## 2026-06-21 12:21 MPST — remote-advance refresh for stale metrics checkpoint
+
+### Scope
+
+- Run type: scheduled CEO Zaky autonomous repository improvement agent (docs-only, one logical increment).
+- One logical change: refreshed existing tracking artifacts to capture a fresh remote-advance probe after upstream `origin/main` moved to `38f2b01`.
+- Code changes: none this run. No `.mts`, generated `.mjs`, source skill, landing source, plan docs, MCP schema, hook behavior, action metadata, release/deploy config, env/secret, third-party snapshot, cron job, staging, commit, push, reset, rebase, or git config was changed by this run.
+
+### Research performed
+
+- Re-scanned repo state from `C:/Ai/continuous-improvement`: branch status after fetch is `main...origin/main [ahead 1, behind 4]`, with 11 tracked modified files and 7 untracked docs.
+- Read shared template at `C:/Ai/_zaky_ai_board/agent_prompt_template.md` and latest central-board `continuous-improvement` rows.
+- Re-read repo-local AI artifacts: `docs/ai-improvement/README.md`, `docs/ai-improvement/source-review-metrics.md`, `docs/ai-improvement/uncommitted-source-verification-handoff.md`, `docs/ai-improvement/verification-command-matrix.md`, and this implementation log.
+- Re-ran git posture checks after `origin/main` advanced beyond the previous packet.
+- Re-ran `npm run typecheck` and `npm run verify:doc-runtime-claims` to confirm no regression in the current dirty-tree safety posture.
+
+### External source applied
+
+- External source applied: none this run.
+
+### Files changed / artifacts produced
+
+- Updated `docs/ai-improvement/source-review-metrics.md` with fresh remote-local posture, remote commit/paths counts, and verification evidence.
+- Updated `docs/ai-improvement/implementation-log.md` — this entry.
+- Updated `C:/Ai/_zaky_ai_board/KANBAN.md` with the latest run row for this refresh.
+
+### Verification evidence
+
+1. `git fetch --prune origin` — exit 0.
+
+2. Remote/local probe after the fetch — exit 0:
+
+```text
+branchStatus: main...origin/main [ahead 1, behind 4]
+mergeBase: 136b7f1e8212ec987df31f44fd88e60fdd420cef
+remoteChangedPathCount: 29
+headTrackedDirtyCount: 11
+headUntrackedCount: 7
+dirtyPathCount: 18
+dirtyOverlapCount: 0
+remoteCommits: 38f2b01 chore(release): cut v3.15.0 (#249) | c4a09e9 feat(hook-pack): warn-default push-to-main + commit-size PreToolUse gates (#248) | b00337b feat(readiness): add /production-readiness-review parallel multi-agent review command (#247) | fd5bc8a feat(ship): add /ship single-defect audit-to-PR command (#246)
+diffStat: .claude-plugin/marketplace.json, CHANGELOG.md, ..., test/skill-distill.test.mjs (29 remote changed paths)
+```
+
+3. `npm run typecheck` — exit 0.
+
+4. `npm run verify:doc-runtime-claims` — exit 0.
+
+### Risks / approval needed
+
+- Branch is now `main...origin/main [ahead 1, behind 4]`; remote now includes the v3.15.0 release-surface commit (`38f2b01`) plus prior three remote commits.
+- The working tree remains dirty and this run remains docs-only; owner/Fatin/maintainer approval is still required before any runtime/artifact/hook/public contract changes.
+
+### Recommended next move
+
+- Owner/Fatin should decide whether local commit `aa6df67` is kept/amended/rebased/dropped and then continue split-lane review using `docs/ai-improvement/source-review-metrics.md` and `docs/ai-improvement/verification-command-matrix.md` before any new runtime work.
+
+## 2026-06-19 21:49 MPST — source-review metrics packet for remote-divergent dirty tree
+
+### Scope
+
+- Run type: scheduled CEO Zaky autonomous repository improvement agent (one docs-only review-leverage increment).
+- One logical change: created `docs/ai-improvement/source-review-metrics.md` and refreshed active dirty-tree tracking after `git fetch --prune origin` changed the branch posture from remote-clean to `main...origin/main [ahead 1, behind 3]`.
+- Code changes: none this run. No `.mts`, generated `.mjs`, source skill, landing source, plan docs, MCP schema, hook behavior, action metadata, release/deploy config, env/secret, third-party snapshot, cron job, staging, commit, push, reset, rebase, or git config was changed by this run.
+
+### Research performed
+
+- Re-scanned repo state from `C:/Ai/continuous-improvement`: before creating the metrics packet, branch status was `main...origin/main [ahead 1, behind 3]`, with 11 tracked modified files and 6 untracked docs.
+- Read the shared Zaky template at `C:/Ai/_zaky_ai_board/agent_prompt_template.md` and the central-board continuous-improvement rows.
+- Read repo-local AI artifacts: `docs/ai-improvement/README.md`, this implementation log, `docs/ai-improvement/uncommitted-source-verification-handoff.md`, `docs/ai-improvement/verification-command-matrix.md`, and existing source/release/MCP compatibility notes.
+- Loaded the Zaky `source-review-metrics-packet`, `uncommitted-source-verification-handoff`, and continuous-improvement doc-runtime-claim lint references.
+- Inspected source-of-truth project constraints in `package.json`, existing AI docs, git branch/upstream status, remote commit inventory, diff numstat, and source/test/config metrics before choosing documentation/status work over new runtime edits.
+
+### External source applied
+
+- External source applied: https://github.com/naimkatiman/continuous-improvement — applied the 7 Laws loop: inspect live repo state, keep to one docs-only increment, verify before reporting.
+- External source applied: https://github.com/shadcn/improve — used file-specific review planning around branch divergence, dirty lanes, remote commits, and verification selectors before updating tracking docs.
+- External source applied: https://github.com/DietrichGebert/ponytail — chose the smallest useful action: add review metrics and status evidence instead of adding source work on top of an unreviewed dirty tree.
+- External source applied: https://github.com/safishamsi/graphify — mapped relationships among local commit `aa6df67`, the 3 remote commits, dirty path lanes, AI tracking docs, and central board state.
+- External source applied: codebase-inspection/pygount — measured source/test/config size and paired pygount's `.mts` blind spot with a supplemental no-dependency source-line scan.
+- External source applied: zaky-improvement-stack `source-review-metrics-packet` reference — followed the docs-only metrics packet pattern for dirty-tree review leverage.
+
+### Files changed / artifacts produced
+
+- Created `docs/ai-improvement/source-review-metrics.md` — branch/remote/local posture, lane churn, remote-only inventory, pygount summary, supplemental `.mts` source-line scan, anti-scope, and review sequence.
+- Updated `docs/ai-improvement/uncommitted-source-verification-handoff.md` — refreshed from remote-clean local-lane checkpoint to remote-divergent local-lane checkpoint with 3 remote commits / 21 remote paths and zero dirty-path overlap.
+- Updated `docs/ai-improvement/README.md` — refreshed timestamp, evidence snapshot, risk/backlog row, and recommended next move to point reviewers at the metrics packet and current ahead/behind state.
+- Updated `docs/ai-improvement/verification-command-matrix.md` — added the metrics packet to the dirty-tree verification surface and current recommended next move.
+- Updated `docs/ai-improvement/implementation-log.md` — this entry.
+- Updated `C:/Ai/_zaky_ai_board/KANBAN.md` — latest artifact row for this run.
+
+### Verification evidence
+
+1. `git fetch --prune origin` — exit 0; `origin/main` advanced from `136b7f1` to `c4a09e9`, and three deleted remote branches were pruned.
+
+2. Remote/local probe before creating the metrics packet — exit 0:
+
+```text
+branchStatus: main...origin/main [ahead 1, behind 3]
+mergeBase: 136b7f1e8212ec987df31f44fd88e60fdd420cef
+remoteChangedPathCount: 21
+headChangedPathCount: 11
+dirtyPathCount: 17
+dirtyOverlapCount: 0
+diffShortstat: 11 files changed, 671 insertions(+), 80 deletions(-)
+```
+
+3. Remote commit inventory since merge base — exit 0:
+
+```text
+fd5bc8a feat(ship): add /ship single-defect audit-to-PR command (#246)
+b00337b feat(readiness): add /production-readiness-review parallel multi-agent review command (#247)
+c4a09e9 feat(hook-pack): warn-default push-to-main + commit-size PreToolUse gates (#248)
+```
+
+4. Lane churn probes before the metrics packet — exit 0:
+
+```text
+Action linter lane: 231 insertions / 8 deletions across 4 files
+Strategic-compact lane: 25 insertions / 65 deletions across 3 files
+Landing + plan-status docs: 14 insertions / 5 deletions across 2 files
+AI tracking tracked lane before this packet: 401 insertions / 2 deletions across README/log
+```
+
+5. `uvx --from pygount pygount --format=summary ... src test bin lib hooks scripts synthetic-checks action.yml package.json tsconfig.json .github` — exit 0:
+
+```text
+Sum: 233 files, 14938 code, 2468 comment
+JavaScript: 108 files, 14043 code, 2113 comment
+__unknown__: 103 files, 0 code, 0 comment
+```
+
+6. `.mts` classification/source-line probes — exit 0:
+
+```text
+pygount --suffix=mts: __unknown__ 103 files, 0 code, 0 comment
+supplemental src scan: 103 .mts files, 24908 total source lines, 22304 non-empty source lines
+```
+
+7. `npm run typecheck` — exit 0:
+
+```text
+> continuous-improvement@3.14.0 typecheck
+> tsc -p tsconfig.json --noEmit
+```
+
+8. `node --test test/lint-transcript.test.mjs test/skill-distill.test.mjs` — exit 0:
+
+```text
+ℹ tests 46
+ℹ suites 8
+ℹ pass 46
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+```
+
+9. Post-metrics packet overlap probe before final board/log static checks — exit 0:
+
+```text
+branchStatus: main...origin/main [ahead 1, behind 3]
+remoteChangedPathCount: 21
+dirtyPathCount: 18
+dirtyOverlapCount: 0
+```
+
+10. Post-artifact typecheck/runtime-claim lint — exit 0:
+
+```text
+npm run typecheck — exit 0
+npm run verify:doc-runtime-claims — exit 0
+OK doc-runtime-claims: every runtime-claim line in 26 scanned file(s) has a hooks/<name>.mjs anchor within ±5 lines.
+```
+
+11. Post-artifact static/no-index checks before this final evidence block was inserted — exit 0 overall:
+
+```text
+git diff --check — exit 0
+NOINDEX docs/ai-improvement/source-review-metrics.md exit=1 output=<empty>
+NOINDEX docs/ai-improvement/uncommitted-source-verification-handoff.md exit=1 output=<empty>
+NOINDEX docs/ai-improvement/verification-command-matrix.md exit=1 output=<empty>
+NOINDEX docs/ai-improvement/README.md exit=1 output=<empty>
+NOINDEX docs/ai-improvement/implementation-log.md exit=1 output=<empty>
+NOINDEX C:/Ai/_zaky_ai_board/KANBAN.md exit=1 output=<empty>
+final status: main...origin/main [ahead 1, behind 3], 11 tracked modified files, 7 untracked docs
+```
+
+The `--no-index --check` exit code `1` results are expected for `/dev/null` versus existing docs/board files when no whitespace-error lines are printed. A final post-log-patch static/read-back rerun is reported by the scheduled run's final response so this log does not imply review or acceptance of the dirty source lanes.
+
+### Risks / approval needed
+
+- The branch is now `main...origin/main [ahead 1, behind 3]`; remote-only hook/command work landed after the previous handoff. Dirty-path overlap is zero, but generated/public-surface sync review is still required before any PR/rebase/merge.
+- The working tree remains broad: linter action source/generated/tests, strategic-compact source/mirror docs, landing marker, plan-pack status doc, AI tracking docs, and untracked policy docs.
+- Owner/Fatin/maintainer approval remains required before changing `skill-distill` success inference, public bin/action/MCP names or schemas, hook enforcement semantics, release/deploy infrastructure, env/secrets, third-party snapshots, or cron jobs.
+
+### Recommended next move
+
+Owner/Fatin/maintainer should decide whether local commit `aa6df67` should become a reviewed PR, be rebased after the 3 remote commits, be amended/squashed, or be dropped, then split or revert the remaining dirty lanes using `docs/ai-improvement/source-review-metrics.md` and `docs/ai-improvement/verification-command-matrix.md`. If no owner decision is available, keep future autonomous runs docs-only/status-only and do not add new runtime work.
+
+## 2026-06-19 18:38 MPST — remote-clean dirty-tree verification checkpoint
+
+### Scope
+
+- Run type: scheduled CEO Zaky autonomous repository improvement agent (one docs-only verification checkpoint).
+- One logical change: refreshed the active dirty-tree handoff/tracking with remote-clean merge-base evidence so owner/Fatin review starts from local lane decisions rather than phantom remote-conflict triage.
+- Code changes: none this run. No `.mts`, generated `.mjs`, source skill, landing source, plan docs, MCP schema, hook behavior, action metadata, release/deploy config, env/secret, third-party snapshot, cron job, staging, commit, push, reset, rebase, or git config was changed by this run.
+
+### Research performed
+
+- Re-scanned repo state from `C:/Ai/continuous-improvement`: branch `main...origin/main [ahead 1]`, 11 tracked modified files, and 6 untracked docs were present before this checkpoint's docs-only edits.
+- Read the shared Zaky template at `C:/Ai/_zaky_ai_board/agent_prompt_template.md` and the current central-board continuous-improvement rows.
+- Read repo-local AI artifacts: `docs/ai-improvement/README.md`, this implementation log, `docs/ai-improvement/uncommitted-source-verification-handoff.md`, and `docs/ai-improvement/verification-command-matrix.md`.
+- Loaded the Zaky `uncommitted-source-verification-handoff` reference and followed its branch-ahead remote-clean checkpoint path.
+- Inspected source-of-truth project constraints in `package.json`, `CLAUDE.md`, and `CONTRIBUTING.md` before choosing documentation/status work over new runtime edits.
+
+### External source applied
+
+- External source applied: https://github.com/naimkatiman/continuous-improvement — applied the 7 Laws loop: inspect live repo state, keep to one docs-only checkpoint, verify before reporting.
+- External source applied: https://github.com/shadcn/improve — used file-specific status planning around the dirty lanes, remote merge-base, and verification matrix before updating tracking docs.
+- External source applied: https://github.com/DietrichGebert/ponytail — chose the smallest useful action: add remote-clean evidence instead of adding code on top of an unreviewed dirty tree.
+- External source applied: https://github.com/safishamsi/graphify — mapped the relationship among local commit `aa6df67`, `origin/main`, dirty path lanes, AI tracking docs, and the central board.
+- External source applied: zaky-improvement-stack `uncommitted-source-verification-handoff` reference — followed the docs-only local-ahead/dirty-tree checkpoint pattern.
+
+### Files changed / artifacts produced
+
+- Updated `docs/ai-improvement/uncommitted-source-verification-handoff.md` — added the 18:38 MPST remote-clean merge-base checkpoint, zero remote changed paths, zero dirty-path overlap, current status, and updated targeted test snapshot.
+- Updated `docs/ai-improvement/README.md` — refreshed timestamp, evidence snapshot, accumulated-lanes risk, P0 backlog row, and recommended next move to reflect the remote-clean local-lane checkpoint.
+- Updated `docs/ai-improvement/implementation-log.md` — this entry.
+- Updated `C:/Ai/_zaky_ai_board/KANBAN.md` — latest artifact row for this run.
+
+### Verification evidence
+
+1. `git fetch --prune origin` — exit 0.
+
+2. No-temp remote-clean probe after removing the temporary verifier — exit 0:
+
+```text
+status: main...origin/main [ahead 1]
+mergeBase: 136b7f1e8212ec987df31f44fd88e60fdd420cef
+remoteChangedPathCount: 0
+dirtyPathCount: 17
+dirtyOverlapCount: 0
+diffShortstat: 11 files changed, 582 insertions(+), 80 deletions(-)
+```
+
+3. `npm run typecheck` — exit 0:
+
+```text
+> continuous-improvement@3.14.0 typecheck
+> tsc -p tsconfig.json --noEmit
+```
+
+4. `node --test test/lint-transcript.test.mjs test/skill-distill.test.mjs` — exit 0:
+
+```text
+ℹ tests 46
+ℹ suites 8
+ℹ pass 46
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+```
+
+5. Post-artifact static/read-back verification after the handoff/README/board/log edits — exit 0 overall:
+
+```text
+npm run typecheck — exit 0
+
+NOINDEX docs/ai-improvement/uncommitted-source-verification-handoff.md exit=1 output=<empty>
+NOINDEX docs/ai-improvement/implementation-log.md exit=1 output=<empty>
+NOINDEX docs/ai-improvement/README.md exit=1 output=<empty>
+NOINDEX C:/Ai/_zaky_ai_board/KANBAN.md exit=1 output=<empty>
+TYPECHECK_EXIT=0
+DIFF_CHECK_EXIT=0
+```
+
+The `--no-index --check` exit code `1` results are expected for `/dev/null` versus existing docs/board files when no whitespace-error lines are printed. Final status still showed `main...origin/main [ahead 1]`, 11 tracked modified files, and 6 untracked docs; the temporary remote-clean verifier was removed and did not appear in the final status.
+
+### Risks / approval needed
+
+- The branch is still `main...origin/main [ahead 1]` with broad dirty lanes. Remote-clean evidence reduces conflict ambiguity but does not review, accept, or ship any existing runtime/source/docs lane.
+- Owner/Fatin/maintainer approval remains required before changing `skill-distill` success inference, public bin/action/MCP names or schemas, hook enforcement semantics, release/deploy infrastructure, env/secrets, third-party snapshots, or cron jobs.
+
+### Recommended next move
+
+Owner/Fatin/maintainer should decide whether local commit `aa6df67` should become a reviewed PR, be amended/squashed, or be dropped, then split or revert the remaining dirty lanes. Because `origin/main` has zero changed paths since the merge base and dirty-path overlap is zero, review can start with local-lane decisions rather than remote-conflict triage. If no owner decision is available, keep future autonomous runs docs-only/status-only and do not add new runtime work.
+
+## 2026-06-19 15:30 MPST — verification command matrix
+
+### Scope
+
+- Run type: scheduled CEO Zaky autonomous repository improvement agent (one docs-only developer-experience increment).
+- One logical change: created an active verification command matrix so future Zaky/Fatin/maintainer runs choose the smallest credible checks per changed surface instead of over-testing, under-testing, or layering new runtime work on the current dirty tree.
+- Code changes: none this run. No `.mts`, generated `.mjs`, source skill, landing source, plan docs, MCP schema, hook behavior, action metadata, release/deploy config, env/secret, third-party snapshot, cron job, staging, commit, push, reset, rebase, or git config was changed by this run.
+
+### Research performed
+
+- Re-scanned repo state from `C:/Ai/continuous-improvement`: branch `main...origin/main [ahead 1]`, 11 tracked modified files, and 5 untracked docs were present before creating the new matrix.
+- Read the shared Zaky template at `C:/Ai/_zaky_ai_board/agent_prompt_template.md` and the current central-board continuous-improvement rows.
+- Read repo-local AI artifacts: `docs/ai-improvement/README.md`, this implementation log, `docs/ai-improvement/uncommitted-source-verification-handoff.md`, `docs/ai-improvement/mcp-cli-compatibility-contract.md`, and `docs/ai-improvement/release-readiness-checklist.md`.
+- Loaded the Zaky `recurring-verification-matrix` reference and inspected the source-of-truth verification files before writing: `CLAUDE.md`, `CONTRIBUTING.md`, `package.json`, `tsconfig.json`, `action.yml`, `.github/workflows/ci.yml`, `.github/workflows/release.yml`, `.github/workflows/landing-drift.yml`, and `docs/RELEASING.md`.
+
+### External source applied
+
+- External source applied: https://github.com/naimkatiman/continuous-improvement — applied the 7 Laws loop: inspect live repo state, make one docs-only increment, and verify before reporting.
+- External source applied: https://github.com/shadcn/improve — used file-specific planning to map the verification source of truth (`package.json`, CI/release workflows, action metadata, public-surface docs) before writing the matrix.
+- External source applied: https://github.com/DietrichGebert/ponytail — chose documentation and check-selection guidance instead of adding new runtime code on top of the existing dirty tree.
+- External source applied: https://github.com/safishamsi/graphify — mapped the relationships among TypeScript source, generated artifacts, skills/mirrors, MCP/CLI contracts, GitHub Action, release workflow, landing drift, third-party snapshots, and dirty-tree handoff lanes.
+- External source applied: zaky-improvement-stack `recurring-verification-matrix` reference — followed the docs-only matrix artifact shape and verification pattern.
+
+### Files changed / artifacts produced
+
+- Created `docs/ai-improvement/verification-command-matrix.md` — active verification selector covering docs-only, TypeScript source, generated artifacts, GitHub Action, MCP/CLI, source skills, hooks/privacy, release, landing, third-party, dirty-tree stabilization, and approval-required surfaces.
+- Updated `docs/ai-improvement/README.md` — added the matrix to the evidence snapshot, risk table, backlog, and recommended next move while keeping source stabilization as the active safest move.
+- Updated `docs/ai-improvement/implementation-log.md` — this entry.
+- Updated `C:/Ai/_zaky_ai_board/KANBAN.md` — latest artifact row for this run.
+
+### Verification evidence
+
+1. Initial repo state before the matrix:
+
+```text
+## main...origin/main [ahead 1]
+ M bin/lint-transcript.mjs
+ M docs/ai-improvement/README.md
+ M docs/ai-improvement/implementation-log.md
+ M docs/landing/index.html
+ M docs/plans/2026-06-15-plan-pack.md
+ M plugins/continuous-improvement/skills/strategic-compact/SKILL.md
+ M skills/README.md
+ M skills/strategic-compact.md
+ M src/bin/lint-transcript.mts
+ M src/test/lint-transcript.test.mts
+ M test/lint-transcript.test.mjs
+?? docs/ai-improvement/uncommitted-source-verification-handoff.md
+?? docs/plans/2026-06-18-goal-keyword-substring-heuristic-contract.md
+?? docs/plans/2026-06-18-model-forward-retirement-candidates.md
+?? docs/plans/2026-06-18-observation-sharing-privacy-posture.md
+?? docs/plans/2026-06-18-skill-distill-empty-verify-output-policy.md
+```
+
+2. `npm run typecheck` — exit 0:
+
+```text
+> continuous-improvement@3.14.0 typecheck
+> tsc -p tsconfig.json --noEmit
+```
+
+3. `npm run verify:doc-runtime-claims` — exit 0:
+
+```text
+OK doc-runtime-claims: every runtime-claim line in 26 scanned file(s) has a hooks/<name>.mjs anchor within ±5 lines.
+```
+
+4. Manifest/source probe — exit 0:
+
+```text
+parsed json manifests: 2; workflow/action files present: 4
+```
+
+5. `git diff --check` — exit 0 after the matrix and README edits.
+
+6. `git diff --no-index --check -- /dev/null docs/ai-improvement/verification-command-matrix.md` — exit 1 with no whitespace-error output; expected for `/dev/null` versus this new untracked doc.
+
+7. `git diff --no-index --stat -- /dev/null docs/ai-improvement/verification-command-matrix.md` — exit 1 with expected stat output:
+
+```text
+.../ai-improvement/verification-command-matrix.md  | 113 +++++++++++++++++++++
+1 file changed, 113 insertions(+)
+```
+
+8. Post-matrix status showed the same 11 tracked modified files plus the new untracked verification matrix alongside the existing untracked handoff and four policy docs. No staging/commit/push/reset/rebase/config was performed.
+
+### Risks / approval needed
+
+- The branch is still `main...origin/main [ahead 1]` with broad dirty lanes. The new matrix reduces future verification ambiguity but does not review, accept, or ship any existing runtime/source/docs lane.
+- Owner/Fatin/maintainer approval remains required before changing `skill-distill` success inference, public bin/action/MCP names or schemas, hook enforcement semantics, release/deploy infrastructure, env/secrets, third-party snapshots, or cron jobs.
+
+### Recommended next move
+
+Stabilize the accumulated branch/working-tree lanes before new runtime work. Use `docs/ai-improvement/verification-command-matrix.md` while reviewing `docs/ai-improvement/uncommitted-source-verification-handoff.md` so each kept lane gets the narrowest credible verification: generated/action/source lanes get build + targeted tests + `verify:all`; docs-only lanes get read-back/static checks + typecheck; release/deploy/public-contract changes remain owner/Fatin-approved.
+
+## 2026-06-19 12:23 MPST — dirty-tree handoff refresh
+
+### Scope
+
+- Run type: scheduled CEO Zaky autonomous repository improvement agent (one docs-only handoff refresh increment).
+- One logical change: refreshed the existing source-diff stabilization handoff and tracking surfaces to match the live dirty/ahead state before any new runtime work.
+- Code changes: none this run. No `.mts`, generated `.mjs`, source skill, landing source, plan docs, MCP schema, hook behavior, action metadata, release/deploy config, env/secret, third-party snapshot, cron job, staging, commit, push, reset, rebase, or git config was changed by this run.
+
+### Research performed
+
+- Re-scanned repo state from `C:/Ai/continuous-improvement`: branch `main...origin/main [ahead 1]`, 11 tracked modified files, and 5 untracked docs were present before this run's docs-only refresh.
+- Read the shared Zaky template at `C:/Ai/_zaky_ai_board/agent_prompt_template.md` and the central board top rows.
+- Read repo-local AI artifacts: `docs/ai-improvement/README.md`, this implementation log, and `docs/ai-improvement/uncommitted-source-verification-handoff.md`.
+- Loaded the `zaky-improvement-stack` uncommitted-source handoff reference and the `continuous-improvement` doc-runtime-claim lint pitfall reference because this repo's public source-skill/runtime-claim lanes are part of the current dirty tree.
+- Inspected source-of-truth and dirty-lane surfaces before writing: `package.json`, `src/bin/lint-transcript.mts`, `src/test/lint-transcript.test.mts`, the current `HEAD` (`aa6df67`), git status, git log, git show stats, and git diff name/status/shortstat.
+
+### External source applied
+
+- External source applied: https://github.com/naimkatiman/continuous-improvement — applied the 7 Laws loop: inspect the existing dirty state, make one docs-only handoff refresh, verify before reporting.
+- External source applied: https://github.com/shadcn/improve — used file-specific public-surface/source-diff planning before choosing status refresh instead of adding another code change.
+- External source applied: https://github.com/DietrichGebert/ponytail — chose the smallest valuable action: keep the stabilization packet current rather than increasing the dirty runtime surface.
+- External source applied: https://github.com/safishamsi/graphify — mapped the relationship among local ahead commit, Action linter source/generated tests, landing marker, strategic-compact skill/mirror, plan docs, AI tracking, and central board.
+- External source applied: zaky-improvement-stack `uncommitted-source-verification-handoff` reference — followed the docs-only dirty-tree handoff refresh pattern for recurring Zaky runs.
+
+### Files changed / artifacts produced
+
+- Updated `docs/ai-improvement/uncommitted-source-verification-handoff.md` — refreshed the current branch/working-tree inventory from 9 tracked + 4 untracked to 11 tracked + 5 untracked docs, added the AI-tracking lane, and recorded the current typecheck/targeted-test/`verify:all` snapshot.
+- Updated `docs/ai-improvement/README.md` — refreshed timestamp/evidence, accumulated-lanes risk/backlog row, and recommended next move to match the refreshed handoff.
+- Updated `docs/ai-improvement/implementation-log.md` — this entry.
+- Updated `C:/Ai/_zaky_ai_board/KANBAN.md` — latest artifact row for this run.
+
+### Verification evidence before tracking-doc edits
+
+1. Dirty-tree inventory before docs edits:
+
+```text
+## main...origin/main [ahead 1]
+ M bin/lint-transcript.mjs
+ M docs/ai-improvement/README.md
+ M docs/ai-improvement/implementation-log.md
+ M docs/landing/index.html
+ M docs/plans/2026-06-15-plan-pack.md
+ M plugins/continuous-improvement/skills/strategic-compact/SKILL.md
+ M skills/README.md
+ M skills/strategic-compact.md
+ M src/bin/lint-transcript.mts
+ M src/test/lint-transcript.test.mts
+ M test/lint-transcript.test.mjs
+?? docs/ai-improvement/uncommitted-source-verification-handoff.md
+?? docs/plans/2026-06-18-goal-keyword-substring-heuristic-contract.md
+?? docs/plans/2026-06-18-model-forward-retirement-candidates.md
+?? docs/plans/2026-06-18-observation-sharing-privacy-posture.md
+?? docs/plans/2026-06-18-skill-distill-empty-verify-output-policy.md
+```
+
+2. `git show --stat --oneline --no-renames HEAD --` — local ahead commit `aa6df67 feat(skill-distill): carry observation event field through trajectory extraction`, `11 files changed, 2215 insertions(+)`.
+
+3. `git diff --shortstat` before docs edits — `11 files changed, 378 insertions(+), 80 deletions(-)`.
+
+4. `npm run typecheck` — exit 0:
+
+```text
+> continuous-improvement@3.14.0 typecheck
+> tsc -p tsconfig.json --noEmit
+```
+
+5. `node --test test/lint-transcript.test.mjs test/skill-distill.test.mjs` — exit 0:
+
+```text
+ℹ tests 46
+ℹ suites 8
+ℹ pass 46
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+```
+
+6. `npm run verify:all` — exit 0; all content invariants passed (`skill-mirror`, `skill-tiers`, `skill-law-tag`, `skill-count`, `docs-substrings`, `everything-mirror`, `routing-targets`, `doc-runtime-claims`, `test-imports-only`, `scripts-citation-drift`, `third-party-shape`, `tool-count`) plus final typecheck.
+
+### Post-tracking-edit verification evidence
+
+```text
+npm run typecheck && npm run verify:all — exit 0 after the handoff/README/board/log initial edits.
+OK skill-mirror: all 25 skill pair(s) match between plugin and standalone copies.
+OK docs-substrings: all 176 substring assertion(s) match their target files.
+OK doc-runtime-claims: every runtime-claim line in 26 scanned file(s) has a hooks/<name>.mjs anchor within ±5 lines.
+OK test-imports-only: 58 test file(s), 26 production import(s), all within node:* or ../bin/*.mjs or ../lib/*.mjs.
+OK tool-count: all 4 claim(s) match the generated manifests (expert=19, beginner=4).
+
+node --test test/lint-transcript.test.mjs test/skill-distill.test.mjs — exit 0 before edits (8 suites / 46 tests pass).
+Post-log-patch static rerun: git diff --check — exit 0.
+Post-log-patch static rerun: git diff --no-index --check -- /dev/null docs/ai-improvement/uncommitted-source-verification-handoff.md — exit 1 with no whitespace-error output; expected for /dev/null versus this untracked handoff doc.
+Post-log-patch static rerun: git diff --no-index --check -- /dev/null docs/ai-improvement/implementation-log.md — exit 1 with no whitespace-error output; expected for /dev/null versus this log file.
+Post-log-patch static rerun: git diff --no-index --check -- /dev/null C:/Ai/_zaky_ai_board/KANBAN.md — exit 1 with no whitespace-error output; expected for /dev/null versus the central board file.
+Final git status: main...origin/main [ahead 1]; 11 tracked modified files and 5 untracked docs remain. No staging/commit/push/reset/rebase/config was performed.
+```
+
+### Risks / approval needed
+
+- The branch is already ahead of `origin/main` by local commit `aa6df67`; owner/Fatin/maintainer should decide whether that commit is meant to be turned into a PR, superseded, or reverted.
+- The working tree still has public Action, generated artifact, landing, source skill/mirror, plan-doc, AI-tracking, and untracked policy-doc lanes. Passing verification is a current safety snapshot, not a review/ship decision.
+- Approval remains required before changing `skill-distill` success inference, public bin/action/MCP names or schemas, hook enforcement semantics, release/deploy infrastructure, env/secrets, third-party snapshots, or cron jobs.
+
+### Recommended next move
+
+Stabilize the accumulated branch/working-tree lanes before new runtime work: owner/Fatin/maintainer should split keep/revert/commit/PR decisions for `aa6df67`, the linter Action lane, landing marker, strategic-compact docs/mirror lane, plan-pack status update, AI tracking docs, and four untracked policy docs. If no owner decision is available, keep future autonomous runs docs-only and update the handoff/status instead of adding source changes.
+
+## 2026-06-19 09:16 MPST — uncommitted source verification handoff
+
+### Scope
+
+- Run type: scheduled CEO Zaky autonomous repository improvement agent (one docs-only handoff increment).
+- One logical change: created a source-diff stabilization handoff for the current dirty `continuous-improvement` working tree so future runs do not layer new runtime work on top of unreviewed accumulated lanes.
+- Code changes: none this run. No `.mts`, generated `.mjs`, source skill, landing source, plan docs, MCP schema, hook behavior, action metadata, release/deploy config, env/secret, third-party snapshot, cron job, staging, commit, push, reset, rebase, or git config was changed by this run.
+
+### Research performed
+
+- Re-scanned repo state from `C:/Ai/continuous-improvement`: branch `main...origin/main [ahead 1]`, 9 tracked modified files, and 4 untracked plan docs were already present before this run's docs-only edits.
+- Read the shared Zaky template at `C:/Ai/_zaky_ai_board/agent_prompt_template.md` and the central board top rows.
+- Read repo-local AI artifacts: `docs/ai-improvement/README.md`, this implementation log, `docs/ai-improvement/mcp-cli-compatibility-contract.md`, and `docs/ai-improvement/release-readiness-checklist.md`.
+- Inspected source-of-truth files and diffs before writing: `package.json`, `action.yml`, `src/bin/lint-transcript.mts`, `src/test/lint-transcript.test.mts`, `skills/strategic-compact.md`, `skills/README.md`, `docs/landing/index.html`, `docs/plans/2026-06-15-plan-pack.md`, and the current `HEAD` (`aa6df67`).
+- Verified the current dirty snapshot before editing tracking docs with `npm run typecheck`, targeted `node --test test/lint-transcript.test.mjs test/skill-distill.test.mjs`, and `npm run verify:all`.
+
+### External source applied
+
+- External source applied: https://github.com/naimkatiman/continuous-improvement — applied the 7 Laws loop: inspect the existing dirty state, make one docs-only handoff, verify before reporting.
+- External source applied: https://github.com/shadcn/improve — used file-specific public-surface/source-diff planning before choosing the handoff instead of adding another code change.
+- External source applied: https://github.com/DietrichGebert/ponytail — chose the smallest valuable action: document and stabilize the accumulated lanes rather than adding code.
+- External source applied: https://github.com/safishamsi/graphify — mapped the relationship among local ahead commit, Action linter source/generated tests, landing marker, strategic-compact skill/mirror, plan docs, AI tracking, and central board.
+- External source applied: zaky-improvement-stack `uncommitted-source-verification-handoff` reference — followed the docs-only dirty-tree handoff pattern for recurring Zaky runs.
+
+### Files changed / artifacts produced
+
+- Created `docs/ai-improvement/uncommitted-source-verification-handoff.md` — inventories the current branch/working-tree lanes, verification snapshot, guardrails, suggested review sequence, and recommended next move.
+- Updated `docs/ai-improvement/README.md` — refreshed timestamp/evidence, added the accumulated-lanes risk/backlog row, and made working-tree stabilization the active recommended next move.
+- Updated `docs/ai-improvement/implementation-log.md` — this entry.
+- Updated `C:/Ai/_zaky_ai_board/KANBAN.md` — latest artifact row for this run.
+
+### Verification evidence
+
+1. Dirty-tree inventory before docs edits:
+
+```text
+## main...origin/main [ahead 1]
+ M bin/lint-transcript.mjs
+ M docs/landing/index.html
+ M docs/plans/2026-06-15-plan-pack.md
+ M plugins/continuous-improvement/skills/strategic-compact/SKILL.md
+ M skills/README.md
+ M skills/strategic-compact.md
+ M src/bin/lint-transcript.mts
+ M src/test/lint-transcript.test.mts
+ M test/lint-transcript.test.mjs
+?? docs/plans/2026-06-18-goal-keyword-substring-heuristic-contract.md
+?? docs/plans/2026-06-18-model-forward-retirement-candidates.md
+?? docs/plans/2026-06-18-observation-sharing-privacy-posture.md
+?? docs/plans/2026-06-18-skill-distill-empty-verify-output-policy.md
+```
+
+2. `git diff --shortstat` before docs edits — `9 files changed, 270 insertions(+), 78 deletions(-)`.
+
+3. `npm run typecheck` — exit 0:
+
+```text
+> continuous-improvement@3.14.0 typecheck
+> tsc -p tsconfig.json --noEmit
+```
+
+4. `node --test test/lint-transcript.test.mjs test/skill-distill.test.mjs` — exit 0:
+
+```text
+ℹ tests 46
+ℹ suites 8
+ℹ pass 46
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+```
+
+5. `npm run verify:all` — exit 0; all content invariants passed (`skill-mirror`, `skill-tiers`, `skill-law-tag`, `skill-count`, `docs-substrings`, `everything-mirror`, `routing-targets`, `doc-runtime-claims`, `test-imports-only`, `scripts-citation-drift`, `third-party-shape`, `tool-count`) plus final typecheck.
+
+6. Final tracking/static verification after log and board updates:
+
+```text
+npm run typecheck — exit 0
+> continuous-improvement@3.14.0 typecheck
+> tsc -p tsconfig.json --noEmit
+
+git diff --check — exit 0
+
+git diff --no-index --check -- /dev/null docs/ai-improvement/uncommitted-source-verification-handoff.md — exit 1 with no whitespace-error output; expected for /dev/null versus a new untracked doc.
+
+git diff --no-index --check -- /dev/null docs/ai-improvement/implementation-log.md — exit 1 with no whitespace-error output; expected for /dev/null versus this log file.
+
+git diff --no-index --check -- /dev/null C:/Ai/_zaky_ai_board/KANBAN.md — exit 1 with no whitespace-error output; expected for /dev/null versus the central board file.
+
+Final git status: main...origin/main [ahead 1]; pre-existing tracked diffs remain, plus this run's docs/ai-improvement README/log modifications and new untracked uncommitted-source-verification-handoff.md. No staging/commit/push/reset/config was performed.
+```
+
+### Risks / approval needed
+
+- The branch is already ahead of `origin/main` by local commit `aa6df67`; owner/Fatin/maintainer should decide whether that commit is meant to be turned into a PR, superseded, or reverted.
+- The working tree still has public Action, generated artifact, landing, source skill/mirror, plan-doc, and untracked policy-doc lanes. Passing verification is a current safety snapshot, not a review/ship decision.
+- Approval remains required before changing `skill-distill` success inference, public bin/action/MCP names or schemas, hook enforcement semantics, release/deploy infrastructure, env/secrets, third-party snapshots, or cron jobs.
+
+### Recommended next move
+
+Stabilize the accumulated branch/working-tree lanes before new runtime work: owner/Fatin/maintainer should split keep/revert/commit/PR decisions for `aa6df67`, the linter Action lane, landing marker, strategic-compact docs/mirror lane, plan-pack status update, and four untracked policy docs. If no owner decision is available, keep future autonomous runs docs-only and update the handoff/status instead of adding source changes.
+
 ## 2026-06-19 — skill-distill: pin event-field preservation through trajectory extraction (regression test)
 
 ### Scope
