@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -141,6 +141,103 @@ describe("lint-transcript.mjs", () => {
         ];
         const output = lintEvents(events, ["--strict"]);
         assert.match(output, /No law violations/);
+    });
+    it("uses the GitHub Action transcript-path input when no CLI path is provided", () => {
+        const tempDir = join(tmpdir(), `ci-lint-gh-input-${Date.now()}`);
+        mkdirSync(tempDir, { recursive: true });
+        const filePath = join(tempDir, "transcript.jsonl");
+        const events = [
+            { tool: "Grep", event: "tool_start", tool_input: { pattern: "x" } },
+            { tool: "Read", event: "tool_start", tool_input: { file_path: "/tmp/a.ts" } },
+            { tool: "Edit", event: "tool_start", tool_input: { file_path: "/tmp/a.ts" } },
+            { tool: "Bash", event: "tool_start", tool_input: { command: "npm test" } },
+        ];
+        writeFileSync(filePath, events.map((event) => JSON.stringify(event)).join("\n") + "\n");
+        try {
+            const output = execFileSync("node", [LINTER], {
+                encoding: "utf8",
+                env: { ...process.env, "INPUT_TRANSCRIPT-PATH": filePath },
+            });
+            assert.match(output, /No law violations/);
+        }
+        finally {
+            rmSync(tempDir, { recursive: true, force: true });
+        }
+    });
+    it("uses the GitHub Action observations-path input as a fallback", () => {
+        const tempDir = join(tmpdir(), `ci-lint-gh-observations-${Date.now()}`);
+        mkdirSync(tempDir, { recursive: true });
+        const filePath = join(tempDir, "observations.jsonl");
+        const events = [
+            { tool: "Read", event: "tool_start", tool_input: { file_path: "/tmp/a.ts" } },
+        ];
+        writeFileSync(filePath, events.map((event) => JSON.stringify(event)).join("\n") + "\n");
+        try {
+            const output = execFileSync("node", [LINTER], {
+                encoding: "utf8",
+                env: { ...process.env, "INPUT_OBSERVATIONS-PATH": filePath },
+            });
+            assert.match(output, /Agent Discipline Report/);
+        }
+        finally {
+            rmSync(tempDir, { recursive: true, force: true });
+        }
+    });
+    it("uses the GitHub Action strict input", () => {
+        const tempDir = join(tmpdir(), `ci-lint-gh-strict-${Date.now()}`);
+        mkdirSync(tempDir, { recursive: true });
+        const filePath = join(tempDir, "transcript.jsonl");
+        const events = [
+            { tool: "Write", event: "tool_start", tool_input: { file_path: "/tmp/a.ts" } },
+        ];
+        writeFileSync(filePath, events.map((event) => JSON.stringify(event)).join("\n") + "\n");
+        try {
+            let status = 0;
+            let stdout = "";
+            try {
+                stdout = execFileSync("node", [LINTER], {
+                    encoding: "utf8",
+                    env: { ...process.env, "INPUT_TRANSCRIPT-PATH": filePath, INPUT_STRICT: "true" },
+                });
+            }
+            catch (error) {
+                status = typeof error.status === "number"
+                    ? error.status
+                    : 0;
+                stdout = String(error.stdout ?? "");
+            }
+            assert.equal(status, 1, "strict action input should fail on violations");
+            assert.match(stdout, /Law 1/);
+        }
+        finally {
+            rmSync(tempDir, { recursive: true, force: true });
+        }
+    });
+    it("writes the declared GitHub Action report output", () => {
+        const tempDir = join(tmpdir(), `ci-lint-gh-output-${Date.now()}`);
+        mkdirSync(tempDir, { recursive: true });
+        const filePath = join(tempDir, "transcript.jsonl");
+        const githubOutput = join(tempDir, "github-output.txt");
+        const events = [
+            { tool: "Write", event: "tool_start", tool_input: { file_path: "/tmp/a.ts" } },
+        ];
+        writeFileSync(filePath, events.map((event) => JSON.stringify(event)).join("\n") + "\n");
+        try {
+            execFileSync("node", [LINTER, filePath], {
+                encoding: "utf8",
+                env: { ...process.env, GITHUB_OUTPUT: githubOutput },
+            });
+            const output = readFileSync(githubOutput, "utf8");
+            assert.match(output, /^violations=3$/m);
+            assert.match(output, /^score=14$/m);
+            const reportMatch = output.match(/^report<<CI_REPORT_EOF\n([\s\S]*?)\nCI_REPORT_EOF$/m);
+            assert.ok(reportMatch, "GITHUB_OUTPUT should contain a multiline report output");
+            assert.match(reportMatch[1] ?? "", /Agent Discipline Report/);
+            assert.match(reportMatch[1] ?? "", /Law 1/);
+        }
+        finally {
+            rmSync(tempDir, { recursive: true, force: true });
+        }
     });
     it("tracks stats correctly", () => {
         const events = [

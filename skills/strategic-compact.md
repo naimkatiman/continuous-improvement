@@ -32,37 +32,17 @@ Strategic compaction at logical boundaries:
 
 ## How It Works
 
-The `suggest-compact.js` script runs on PreToolUse (Edit/Write) and:
+This skill is a manual phase-boundary checklist, not a bundled runtime hook. Use it when planning or reviewing a long session:
 
-1. **Tracks tool calls** — Counts tool invocations in session
-2. **Threshold detection** — Suggests at configurable threshold (default: 50 calls)
-3. **Periodic reminders** — Reminds every 25 calls after threshold
+1. **Name the current phase** — research, planning, implementation, testing, debugging, release, or handoff.
+2. **Check the next transition** — decide whether the next phase needs fresh context or the current context is still load-bearing.
+3. **Preserve state first** — write the plan, todo list, findings, or handoff note that must survive compaction.
+4. **Compact only at a boundary** — if compaction helps, run `/compact` with a specific summary for the next phase.
+5. **Resume from durable artifacts** — after compaction, re-read the plan/files instead of relying on lost conversation context.
 
-## Hook Setup
+## Runtime Boundary
 
-Add to your `~/.claude/settings.json`:
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Edit",
-        "hooks": [{ "type": "command", "command": "node ~/.claude/skills/strategic-compact/suggest-compact.js" }]
-      },
-      {
-        "matcher": "Write",
-        "hooks": [{ "type": "command", "command": "node ~/.claude/skills/strategic-compact/suggest-compact.js" }]
-      }
-    ]
-  }
-}
-```
-
-## Configuration
-
-Environment variables:
-- `COMPACT_THRESHOLD` — Tool calls before first suggestion (default: 50)
+The current plugin does not ship `strategic-compact` PreToolUse automation or a threshold script. Treat compaction as an operator/agent decision: this skill gives the decision guide, while Claude Code's native `/compact` command performs the actual compaction.
 
 ## Compaction Decision Guide
 
@@ -94,7 +74,7 @@ Understanding what persists helps you compact with confidence:
 1. **Compact after planning** — Once plan is finalized in TodoWrite, compact to start fresh
 2. **Compact after debugging** — Clear error-resolution context before continuing
 3. **Don't compact mid-implementation** — Preserve context for related changes
-4. **Read the suggestion** — The hook tells you *when*, you decide *if*
+4. **Use the checklist** — The phase table helps decide *when*; you still decide *if*
 5. **Write before compacting** — Save important context to files or memory before compacting
 6. **Use `/compact` with a summary** — Add a custom message: `/compact Focus on implementing auth middleware next`
 
