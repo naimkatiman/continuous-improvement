@@ -653,6 +653,11 @@ export function getPluginHooksConfig(): PluginHooksConfig {
     command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/goal-drift-stop.mjs\"",
     timeout: 5,
   };
+  const workflowDistillCommand = {
+    type: "command" as const,
+    command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/workflow-distill.mjs\"",
+    timeout: 5,
+  };
   const routePromptCommand = {
     type: "command" as const,
     command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/route-prompt.mjs\"",
@@ -666,7 +671,7 @@ export function getPluginHooksConfig(): PluginHooksConfig {
 
   return {
     description:
-      "Gateguard fact-forcing PreToolUse, companion-preference enforcement, observation, session lifecycle, 3-section-close discipline, goal-drift Stop gate, and UserPromptSubmit lazy-routing plus opt-in proactive recall-briefing hooks for continuous-improvement.",
+      "Gateguard fact-forcing PreToolUse, companion-preference enforcement, observation, session lifecycle, 3-section-close discipline, goal-drift Stop gate, opt-in workflow-distill Stop nudge, and UserPromptSubmit lazy-routing plus opt-in proactive recall-briefing hooks for continuous-improvement.",
     hooks: {
       // gateguard runs FIRST on PreToolUse so its block decision short-circuits
       // before companion-preference sees the call. companion-preference runs
@@ -690,7 +695,7 @@ export function getPluginHooksConfig(): PluginHooksConfig {
       UserPromptSubmit: [{ hooks: [routePromptCommand, recallBriefingCommand] }],
       SessionStart: [{ hooks: [sessionCommand] }],
       SessionEnd: [{ hooks: [sessionCommand] }],
-      Stop: [{ hooks: [threeSectionCloseCommand, goalDriftStopCommand] }],
+      Stop: [{ hooks: [threeSectionCloseCommand, goalDriftStopCommand, workflowDistillCommand] }],
     },
   };
 }
