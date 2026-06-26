@@ -149,7 +149,7 @@ npx continuous-improvement install --pack react   # optional: react | python | g
 ```
 
 Verify: run `/dashboard` in Claude Code — you should see instinct health and observation count.
-Update later with `/plugin marketplace update continuous-improvement` or by re-running the npx command.
+Update later with `/plugin marketplace update continuous-improvement` or by re-running the npx command. When you run the npx installer, it makes one throttled, fail-open read of the public npm registry and prints a one-line notice if a newer version is published (no telemetry — nothing about you is sent). Silence it with `CLAUDE_CI_UPDATE_CHECK=off`.
 
 ### Troubleshooting install
 

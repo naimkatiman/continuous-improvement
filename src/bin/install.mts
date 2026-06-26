@@ -27,8 +27,15 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
-import { getToolNames } from "../lib/plugin-metadata.mjs";
+import { PACKAGE_NAME, VERSION, getToolNames } from "../lib/plugin-metadata.mjs";
 import { TARGET_IDS, planTargetWrites, resolveTargets } from "../lib/install-targets.mjs";
+import {
+  type UpdateCache,
+  evaluateUpdateCheck,
+  fetchLatestNpmVersion,
+  isThrottled,
+  pendingNotice,
+} from "../lib/version-check.mjs";
 
 type InstallMode = "beginner" | "expert";
 type HookType = "PreToolUse" | "PostToolUse" | "SessionStart" | "SessionEnd";
@@ -829,3 +836,45 @@ Next steps:
 ${INSTALL_MODE === "expert" ? `\nMCP tools available (${getToolNames("expert").length}): ${getToolNames("expert").join(", ")}` : ""}
 Available instinct packs: npx continuous-improvement install --pack react|python|go|meta
 `);
+
+// Update-available nudge for the npm/CLI install path (the marketplace path is
+// covered by Claude Code's native plugin auto-update). Reads the public npm
+// registry only — no telemetry. Throttled, default-on, off via
+// CLAUDE_CI_UPDATE_CHECK=off. Fully fail-open: it can never change the
+// installer's outcome. See docs/plans/2026-06-25-version-check-nudge.md.
+async function maybeNotifyUpdate(): Promise<void> {
+  if ((process.env.CLAUDE_CI_UPDATE_CHECK ?? "on").trim().toLowerCase() === "off") return;
+  const cacheFile = join(getHomeDir(), ".claude", "instincts", "global", "update-check.json");
+  const now = Date.now();
+
+  let cache: UpdateCache | null = null;
+  try {
+    if (existsSync(cacheFile)) cache = JSON.parse(readFileSync(cacheFile, "utf8")) as UpdateCache;
+  } catch {
+    cache = null;
+  }
+
+  if (isThrottled(cache, now)) {
+    const notice = pendingNotice(cache, VERSION);
+    if (notice) console.log(`\n${notice}`);
+    return;
+  }
+
+  const remote = await fetchLatestNpmVersion(PACKAGE_NAME);
+  const decision = evaluateUpdateCheck({ local: VERSION, remote, now });
+  if (decision.notice) console.log(`\n${decision.notice}`);
+  if (decision.nextCache) {
+    try {
+      mkdirSync(dirname(cacheFile), { recursive: true });
+      writeFileSync(cacheFile, JSON.stringify(decision.nextCache) + "\n", "utf8");
+    } catch {
+      // cache persistence is best-effort; never throw
+    }
+  }
+}
+
+try {
+  await maybeNotifyUpdate();
+} catch {
+  // a version check must never change the installer's outcome
+}
