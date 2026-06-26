@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Scheduled Automations — Local Kanban</title>
+<style>
+  :root {
+    --bg: #0b0f14;
+    --panel: #121821;
+    --panel-2: #161e29;
+    --line: #1f2a37;
+    --txt: #e6edf3;
+    --muted: #8b9bb0;
+    --faint: #5b6b80;
+    --green: #2ecc87;
+    --green-bg: rgba(46,204,135,.10);
+    --amber: #f5b14c;
+    --amber-bg: rgba(245,177,76,.10);
+    --red: #f0556a;
+    --red-bg: rgba(240,85,106,.10);
+    --blue: #4ca3f5;
+    --accent: #6ee7c7;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: radial-gradient(1200px 600px at 80% -10%, #14202e 0%, var(--bg) 55%) fixed;
+    color: var(--txt);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding: 28px clamp(16px, 4vw, 48px) 64px;
+  }
+  .svgicon { width: 1em; height: 1em; vertical-align: -0.14em; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  header.page { margin-bottom: 22px; }
+  .title { display: flex; align-items: center; gap: 12px; }
+  .title h1 { font-size: 22px; font-weight: 650; letter-spacing: -0.01em; margin: 0; }
+  .title .svgicon { font-size: 24px; color: var(--accent); }
+  .sub { color: var(--muted); margin: 6px 0 0; font-size: 13px; }
+  .sub b { color: var(--txt); font-weight: 600; }
+
+  .stats { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0 8px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; min-width: 120px; }
+  .stat .n { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+  .stat .l { color: var(--muted); font-size: 12px; margin-top: 2px; display: flex; align-items: center; gap: 6px; }
+  .stat.good .n { color: var(--green); }
+  .stat.warn .n { color: var(--amber); }
+  .stat.bad .n { color: var(--red); }
+  .stat.info .n { color: var(--blue); }
+
+  .board { display: grid; grid-template-columns: repeat(3, minmax(280px, 1fr)); gap: 18px; margin-top: 22px; align-items: start; }
+  @media (max-width: 980px) { .board { grid-template-columns: 1fr; } }
+
+  .col { background: rgba(18,24,33,.5); border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
+  .col > h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 2px 4px 14px; display: flex; align-items: center; gap: 8px; }
+  .col > h2 .count { margin-left: auto; background: var(--panel-2); border: 1px solid var(--line); color: var(--txt); border-radius: 999px; padding: 1px 9px; font-size: 12px; letter-spacing: 0; }
+  .col.attn > h2 { color: var(--amber); }
+  .col.next > h2 { color: var(--accent); }
+
+  .card { background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%); border: 1px solid var(--line); border-radius: 13px; padding: 14px; margin-bottom: 12px; position: relative; overflow: hidden; }
+  .card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--faint); }
+  .card.h-healthy::before { background: var(--green); }
+  .card.h-warning::before { background: var(--amber); }
+  .card.h-failing::before { background: var(--red); }
+  .card .row1 { display: flex; align-items: flex-start; gap: 8px; }
+  .card .name { font-weight: 640; font-size: 14.5px; letter-spacing: -0.01em; }
+  .badge { margin-left: auto; flex: none; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .badge.healthy { color: var(--green); background: var(--green-bg); }
+  .badge.warning { color: var(--amber); background: var(--amber-bg); }
+  .badge.failing { color: var(--red); background: var(--red-bg); }
+
+  .meta { display: flex; flex-wrap: wrap; gap: 6px; margin: 9px 0 8px; }
+  .chip { font-size: 11px; color: var(--muted); background: rgba(255,255,255,.03); border: 1px solid var(--line); border-radius: 7px; padding: 2px 7px; display: inline-flex; align-items: center; gap: 5px; }
+  .chip .svgicon { font-size: 13px; color: var(--faint); }
+  .chip.on { color: var(--txt); }
+  .chip.on .svgicon { color: var(--blue); }
+
+  .desc { color: var(--muted); font-size: 12.5px; margin: 6px 0 2px; }
+  .lastres { color: var(--faint); font-size: 11.5px; margin: 8px 0 0; display: flex; gap: 6px; align-items: flex-start; }
+  .lastres .svgicon { font-size: 13px; flex: none; margin-top: 1px; }
+
+  .recbtn { margin-top: 11px; width: 100%; cursor: pointer; background: var(--panel-2); border: 1px solid var(--line); color: var(--accent); border-radius: 9px; padding: 8px 10px; font: inherit; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 7px; transition: background .15s, border-color .15s; }
+  .recbtn:hover { background: #1b2531; border-color: #2a3a4d; }
+  .recbtn .chev { margin-left: auto; transition: transform .2s; }
+  .recbtn[aria-expanded="true"] .chev { transform: rotate(180deg); }
+  .rec { display: none; margin-top: 9px; padding: 11px 12px; border-radius: 9px; background: rgba(110,231,199,.06); border: 1px solid rgba(110,231,199,.18); color: var(--txt); font-size: 12.5px; }
+  .rec.open { display: block; }
+
+  .act { border-left: 3px solid var(--accent); }
+  .act .prio { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; padding: 1px 7px; border-radius: 6px; }
+  .p-crit { color: var(--red); background: var(--red-bg); }
+  .p-high { color: var(--amber); background: var(--amber-bg); }
+  .p-med { color: var(--blue); background: rgba(76,163,245,.10); }
+  .p-low { color: var(--muted); background: rgba(255,255,255,.04); }
+  .act .name { margin-top: 7px; }
+  .act .desc { margin-bottom: 0; }
+  .act .tgt { color: var(--faint); font-size: 11.5px; margin-top: 8px; display: flex; align-items: center; gap: 6px; word-break: break-word; }
+
+  footer.note { margin-top: 26px; color: var(--faint); font-size: 12px; border-top: 1px solid var(--line); padding-top: 14px; }
+  footer.note code { color: var(--muted); background: rgba(255,255,255,.04); padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<header class="page">
+  <div class="title">
+    <svg class="svgicon" viewBox="0 0 24 24"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+    <h1>Scheduled Automations — Local Kanban</h1>
+  </div>
+  <p class="sub">Every Claude/automation task on this machine (Windows Task Scheduler). Generated <b>2026-06-24</b>. Times are <b>MYT (UTC+8)</b>. Vendor/OS tasks (Adobe, OneDrive, Firefox, Lenovo, Google, Realtek, SoftLanding) filtered out. No Claude session crons exist (<code>CronList</code> empty).</p>
+  <div class="stats" id="stats"></div>
+</header>
+
+<main class="board">
+  <section class="col" id="col-ok"><h2><svg class="svgicon" viewBox="0 0 24 24"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg> Healthy &middot; running <span class="count" id="c-ok">0</span></h2></section>
+  <section class="col attn" id="col-attn"><h2><svg class="svgicon" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Needs attention <span class="count" id="c-attn">0</span></h2></section>
+  <section class="col next" id="col-next"><h2><svg class="svgicon" viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg> Recommended next <span class="count" id="c-next">0</span></h2></section>
+</main>
+
+<footer class="note">
+  <b>How this was built:</b> <code>Get-ScheduledTask</code> inventory + an 8-agent ultracode workflow that read each script, decoded its last Task-Scheduler result code, and graded health. <code>0x41306</code> = terminated (hit time limit); <code>0x8007042B</code> = process crashed (exit 1067). A wrapper exit code 0 does <i>not</i> prove the standup inside succeeded — the per-job <code>status.log</code>/<code>refresh.log</code> is the real signal.
+</footer>
+
+<script>
+const ICON = {
+  clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  bot: '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>',
+  git: '<line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+  file: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>',
+  check: '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+  warn: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  x: '<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>',
+  chev: '<path d="m6 9 6 6 6-6"/>',
+  bolt: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
+  target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+  bulb: '<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>'
+};
+function svg(name, cls) { return '<svg class="svgicon ' + (cls||'') + '" viewBox="0 0 24 24">' + (ICON[name]||'') + '</svg>'; }
+function esc(s){ return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+const cards = [
+  { name:"GT-Harness-PRWatch", schedule:"Daily 08:30", health:"healthy", claude:false, git:"read-only", desc:"Scans open PRs across repos.txt via gh, flags CI/conflict/review/staleness, dry-merges in a throwaway clone, writes a markdown digest.", last:"Last run exit 0 (success).", rec:"Healthy. Prune merged/closed repos from repos.txt and confirm the watched PR (tradeclaw#96) still matters, so the digest stays signal-dense." },
+  { name:"GT-Harness-Briefing", schedule:"Daily 08:57", health:"healthy", claude:false, git:"read-only", desc:"Read-only cross-project digest: open PRs per repo plus each repo's last-24h commits, written to a dated + _latest markdown file.", last:"Last run exit 0 (success).", rec:"Healthy. Note ~19 min slippage (08:57 fired 09:16) from sharing harness.ps1 + the gh path with PRWatch; only stagger if it grows into the 09:30 slot." },
+  { name:"SecondBrain-HotRefresh", schedule:"Daily 06:00", health:"healthy", claude:false, git:false, desc:"Offline graphify rebuild of the code graph for 3 hot repos (sprintbo, Roboforex, tadabbur), then regenerates the Obsidian vault.", last:"Last run exit 0 (success).", rec:"Healthy, quiet 06:00 slot. Tail refresh.log for a nonzero 'N nodes refreshed' per tag - exit 0 masks silent zero-node skips (ErrorActionPreference=Continue)." },
+  { name:"SecondBrain-WeeklyRefresh", schedule:"Weekly Sun 03:00", health:"healthy", claude:false, git:false, desc:"Offline graphify re-extract of all 33 tracked repos into the global graph, then regenerates the Obsidian SecondBrain vault.", last:"Last run exit 0 (success).", rec:"Ran 06:01 vs scheduled 03:00 - a catch-up after the machine was asleep. Enable a wake timer (or it keeps sliding) and skim refresh.log for MISSING/0-node lines." },
+  { name:"MiniTelegramApp-DailyStandup", schedule:"Daily 09:30", health:"healthy", claude:true, git:false, desc:"Headless Claude (read-only tools, MCP off) generates a daily standup digest for the GoldTraders Mini App repo.", last:"Last run exit 0 - 2710-char digest confirmed in run.log.", rec:"Healthy. Stagger off the 09:30 slot it shares with 3 other standups; --allowedTools is passed as one space-joined string, fine solo but brittle under concurrent fan-out." },
+  { name:"Roboforex Daily Standup", schedule:"Daily 09:30", health:"healthy", claude:true, git:true, desc:"Headless Claude (Opus 4.8, effort max, $8 cap) standup over D:\\Chatbot\\Roboforex with an adversarial git-plan verifier, guarded by a 90-min lock.", last:"Last run exit 0 (wrapper exited cleanly).", rec:"The wrapper exits 0 even when the standup is marked FAILED - trust the latest status.log OK/FAILED line, not the Task Scheduler code. Also stagger off 09:30." },
+  { name:"TAMC-Daily-Standup-0930", schedule:"Daily 09:30", health:"warning", claude:true, git:true, desc:"Headless Claude standup in Trading-Anti-MC on feat/kontes-trading-pro: Done/Pending/Next, safe commit/push, PR to protected main (never direct).", last:"Terminated (0x41306) - last log stopped at 'start', never reached 'finished'.", rec:"The run was killed at the Task Scheduler time limit mid-Claude-run. Raise 'Stop the task if it runs longer than' (and/or add a per-invocation cap). The script is correct - don't edit it. Confirm the next run reaches the 'finished (claude exit ...)' log line." },
+  { name:"TradingHub-Daily-Standup", schedule:"Daily 09:30", health:"failing", claude:true, git:true, desc:"Headless Claude in the TG Trading Apps monorepo: DONE/PENDING/NEXT git standup + graphify-brain MCP PR triage + WIP commit routed to main via a draft PR + dated memory entry.", last:"Crashed (0x8007042B / exit 1067) - 0-byte log, never wrote anything.", rec:"This IS the daily graphify + reconcile + summary job you asked me to build - already implemented, just broken. The claude process aborts before any output (0-byte log). Add a heartbeat line + claude --version to the log before the invocation (line 18), then run the script manually to capture the real 1067 error instead of a silent crash." }
+];
+
+const actions = [
+  { prio:"CRITICAL", cls:"p-crit", icon:"x", name:"Fix the TradingHub standup crash", desc:"Your done/pending/next + graphify + reconcile-to-PR job is crashing daily (0-byte log, exit 1067). Add a heartbeat before the claude call and run it manually to surface the real error.", tgt:".claude\\scheduled\\run-daily-standup.ps1" },
+  { prio:"HIGH", cls:"p-high", icon:"clock", name:"Un-terminate the TAMC standup", desc:"It is being killed at the Task Scheduler time limit before finishing. Raise the execution time limit so a normal multi-phase run completes.", tgt:"Task Scheduler &rarr; TAMC-Daily-Standup-0930 &rarr; Settings" },
+  { prio:"MEDIUM", cls:"p-med", icon:"bolt", name:"Stagger the 09:30 pile-up", desc:"Four standups (MiniTelegramApp, Roboforex, TAMC, TradingHub) all fire at 09:30 and contend for the same Claude CLI + network. Spread them onto distinct off-:30 minutes (e.g. 09:23 / 09:37 / 09:44 / 09:51).", tgt:"4 daily tasks @ 09:30" },
+  { prio:"MEDIUM", cls:"p-med", icon:"check", name:"Don't build a 9th 09:30 job", desc:"Your first request (daily 09:30 summary via graphify + reconcile to main) is already covered by TradingHub-Daily-Standup. Fix it instead of adding a duplicate.", tgt:"supersedes the msg-1 prompt" },
+  { prio:"LOW", cls:"p-low", icon:"target", name:"Add real success checks", desc:"For Roboforex and the two SecondBrain refreshers, a wrapper exit 0 can hide a FAILED standup or zero-node skips. Surface the status.log / refresh.log result so the board reflects truth, not just 'the wrapper returned'.", tgt:"status.log, refresh.log" }
+];
+
+function chip(label, iconName, on){ return '<span class="chip '+(on?'on':'')+'">'+svg(iconName)+esc(label)+'</span>'; }
+
+function renderCard(c, i){
+  const id = 'rec'+i;
+  let chips = '<span class="chip on">'+svg('clock')+esc(c.schedule)+'</span>';
+  chips += chip(c.claude?'Claude CLI':'no Claude', 'bot', c.claude);
+  if (c.git === 'read-only') chips += chip('git read-only','git', false);
+  else chips += chip(c.git?'git write':'no git','git', !!c.git);
+  const lastIcon = c.health==='healthy'?'check':(c.health==='warning'?'warn':'x');
+  return ''+
+  '<div class="card h-'+c.health+'">'+
+    '<div class="row1"><span class="name">'+esc(c.name)+'</span>'+
+      '<span class="badge '+c.health+'">'+svg(lastIcon)+c.health+'</span></div>'+
+    '<div class="meta">'+chips+'</div>'+
+    '<div class="desc">'+esc(c.desc)+'</div>'+
+    '<div class="lastres">'+svg(lastIcon)+'<span>'+esc(c.last)+'</span></div>'+
+    '<button class="recbtn" aria-expanded="false" onclick="toggleRec(this,\''+id+'\')">'+svg('bulb')+
+      '<span>Recommended next</span>'+svg('chev','chev')+'</button>'+
+    '<div class="rec" id="'+id+'">'+esc(c.rec)+'</div>'+
+  '</div>';
+}
+
+function renderAct(a){
+  return ''+
+  '<div class="card act">'+
+    '<div class="row1"><span class="prio '+a.cls+'">'+esc(a.prio)+'</span>'+
+      '<span class="badge" style="background:rgba(110,231,199,.08);color:var(--accent)">'+svg(a.icon)+'</span></div>'+
+    '<div class="name">'+esc(a.name)+'</div>'+
+    '<div class="desc">'+esc(a.desc)+'</div>'+
+    '<div class="tgt">'+svg('file')+'<span>'+a.tgt+'</span></div>'+
+  '</div>';
+}
+
+function toggleRec(btn, id){
+  const el = document.getElementById(id);
+  const open = el.classList.toggle('open');
+  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+(function(){
+  const ok = cards.filter(c=>c.health==='healthy');
+  const attn = cards.filter(c=>c.health!=='healthy');
+  document.getElementById('col-ok').insertAdjacentHTML('beforeend', ok.map((c,i)=>renderCard(c, i)).join(''));
+  document.getElementById('col-attn').insertAdjacentHTML('beforeend', attn.map((c,i)=>renderCard(c, 100+i)).join(''));
+  document.getElementById('col-next').insertAdjacentHTML('beforeend', actions.map(renderAct).join(''));
+  document.getElementById('c-ok').textContent = ok.length;
+  document.getElementById('c-attn').textContent = attn.length;
+  document.getElementById('c-next').textContent = actions.length;
+
+  const fail = cards.filter(c=>c.health==='failing').length;
+  const warn = cards.filter(c=>c.health==='warning').length;
+  const stats = [
+    {cls:'info', n:cards.length, l:'our automations', i:'bot'},
+    {cls:'good', n:ok.length, l:'healthy', i:'check'},
+    {cls:'warn', n:warn, l:'terminated', i:'clock'},
+    {cls:'bad', n:fail, l:'crashing', i:'x'},
+    {cls:'info', n:4, l:'collide @ 09:30', i:'bolt'}
+  ];
+  document.getElementById('stats').innerHTML = stats.map(s=>
+    '<div class="stat '+s.cls+'"><div class="n">'+s.n+'</div><div class="l">'+svg(s.i)+s.l+'</div></div>').join('');
+})();
+</script>
+</body>
+</html>
