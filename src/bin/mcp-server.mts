@@ -334,6 +334,7 @@ function readDistillObservations(projectHash: string): DistillObservation[] {
     tool: getString(observation.tool),
     input_summary: getString((observation as Record<string, unknown>).input_summary),
     output_summary: getString((observation as Record<string, unknown>).output_summary),
+    event: getString(observation.event),
   }));
 }
 
