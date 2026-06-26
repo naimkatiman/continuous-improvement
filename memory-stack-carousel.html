@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Memory Stack — LinkedIn Carousel</title>
+<style>
+  :root {
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --bg: #08090a;
+    --surface: #121316;
+    --surface-2: #16181c;
+    --border: #232529;
+    --border-soft: #1c1e22;
+    --text: #f4f4f6;
+    --text-2: #a0a1a9;
+    --text-3: #6c6d76;
+    --c-graphify: #38bdf8;
+    --c-memorycore: #a78bfa;
+    --c-claude: #34d399;
+    --c-instincts: #fbbf24;
+    --c-obsidian: #8b5cf6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  body {
+    background: #050506;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Inter", sans-serif;
+    display: flex; flex-direction: column; align-items: center; gap: 40px; padding: 40px;
+  }
+  .mono { font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", monospace; }
+
+  .slide {
+    width: 1200px; height: 1500px; overflow: hidden; position: relative;
+    background:
+      radial-gradient(1300px 700px at 85% -8%, rgba(167, 139, 250, 0.12), transparent 60%),
+      radial-gradient(1100px 600px at -5% 5%, rgba(56, 189, 248, 0.10), transparent 55%),
+      var(--bg);
+    color: var(--text); padding: 84px; display: flex; flex-direction: column;
+    border: 1px solid var(--border-soft);
+  }
+
+  .icon { stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; display: block; }
+
+  /* ---- shared chrome ---- */
+  .top { display: flex; align-items: center; justify-content: space-between; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 11px;
+    font-size: 17px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--text-2); border: 1px solid var(--border); background: var(--surface);
+    padding: 11px 20px; border-radius: 999px;
+  }
+  .eyebrow .dot { width: 10px; height: 10px; border-radius: 999px; background: var(--c-claude); box-shadow: 0 0 0 5px rgba(52, 211, 153, 0.16); }
+  .counter { font-size: 18px; font-weight: 650; color: var(--text-3); letter-spacing: 0.1em; }
+  .counter b { color: var(--text); }
+
+  .brand { display: flex; align-items: center; justify-content: space-between; gap: 16px; color: var(--text-3); font-size: 17px; padding-top: 26px; border-top: 1px solid var(--border-soft); }
+  .brand .who { color: var(--text-2); } .brand .who b { color: var(--text); font-weight: 650; }
+
+  /* ---- slide 1 ---- */
+  .hero { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+  .multiplier {
+    font-weight: 800; letter-spacing: -0.04em; line-height: 0.86; font-size: 300px;
+    background: linear-gradient(135deg, #7dd3fc 0%, #a78bfa 52%, #f0abfc 100%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 12px 60px rgba(167, 139, 250, 0.28));
+  }
+  .multiplier span { font-size: 150px; opacity: 0.85; }
+  .hero h1 { font-size: 60px; font-weight: 750; letter-spacing: -0.025em; line-height: 1.08; margin-top: 14px; }
+  .hero p { color: var(--text-2); font-size: 25px; line-height: 1.5; max-width: 30ch; margin-top: 28px; }
+  .hero p b { color: var(--text); font-weight: 600; }
+
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 40px; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 24px 22px; }
+  .stat .icon { color: var(--text-3); margin-bottom: 14px; }
+  .stat .num { font-size: 42px; font-weight: 760; letter-spacing: -0.02em; }
+  .stat .lbl { font-size: 16px; color: var(--text-2); margin-top: 4px; line-height: 1.35; }
+
+  /* ---- slide 2 ---- */
+  .head { display: flex; flex-direction: column; gap: 10px; }
+  .head .kicker { font-size: 19px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--c-memorycore); }
+  .head h2 { font-size: 52px; font-weight: 770; letter-spacing: -0.025em; line-height: 1.04; }
+  .head .sub { font-size: 22px; color: var(--text-2); margin-top: 4px; }
+
+  .stack { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 16px; }
+  .layer {
+    --c: var(--c-graphify);
+    display: grid; grid-template-columns: 300px 1fr 1fr 1.08fr; gap: 26px; align-items: center;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+    padding: 26px 30px; position: relative; overflow: hidden;
+  }
+  .layer::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--c); }
+  .lname { display: flex; align-items: center; gap: 18px; }
+  .lname .badge {
+    width: 56px; height: 56px; flex: none; border-radius: 15px; display: grid; place-items: center;
+    background: color-mix(in srgb, var(--c) 16%, transparent);
+    color: var(--c); border: 1px solid color-mix(in srgb, var(--c) 30%, transparent);
+  }
+  .lname .badge .icon { width: 28px; height: 28px; }
+  .lname .t { font-size: 22px; font-weight: 680; letter-spacing: -0.01em; }
+  .lname .s { font-size: 15px; color: var(--text-3); font-family: ui-monospace, monospace; margin-top: 3px; }
+  .cell .k { font-size: 14px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); margin-bottom: 7px; }
+  .cell .v { font-size: 19px; color: var(--text); line-height: 1.3; }
+  .cell .v.lane { color: var(--text-2); }
+  .writer { display: inline-flex; align-items: center; gap: 9px; font-size: 18px; color: var(--text); }
+  .writer .pip { width: 9px; height: 9px; border-radius: 999px; background: var(--c); flex: none; }
+
+  /* ---- slide 3 ---- */
+  .grid2 { display: grid; grid-template-columns: 1.08fr 1fr; gap: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 32px 34px; }
+  .card h3 { font-size: 17px; font-weight: 650; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-2); margin-bottom: 24px; display: flex; align-items: center; gap: 12px; }
+  .card h3 .icon { width: 22px; height: 22px; color: var(--text-3); }
+  .chain { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .pill { font-weight: 650; font-size: 21px; padding: 13px 22px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface-2); }
+  .pill.a { color: var(--c-claude); border-color: color-mix(in srgb, var(--c-claude) 35%, transparent); background: color-mix(in srgb, var(--c-claude) 10%, transparent); }
+  .pill.b { color: var(--c-memorycore); border-color: color-mix(in srgb, var(--c-memorycore) 35%, transparent); background: color-mix(in srgb, var(--c-memorycore) 10%, transparent); }
+  .pill.c { color: var(--c-instincts); border-color: color-mix(in srgb, var(--c-instincts) 35%, transparent); background: color-mix(in srgb, var(--c-instincts) 10%, transparent); }
+  .arrow { color: var(--text-3); display: grid; place-items: center; }
+  .arrow .icon { width: 24px; height: 24px; }
+  .chain-note { color: var(--text-2); font-size: 19px; margin-top: 22px; line-height: 1.55; }
+  .chain-note code { font-family: ui-monospace, monospace; color: var(--text); font-size: 17px; }
+  .model li { list-style: none; display: grid; grid-template-columns: 150px 1fr; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--border-soft); font-size: 20px; color: var(--text-2); }
+  .model li:last-child { border-bottom: 0; }
+  .model li b { color: var(--text); font-weight: 650; }
+  .model li .tag { font-size: 15px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-3); padding-top: 3px; }
+
+  .truths { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+  .truth { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 28px 30px; }
+  .truth .h { display: flex; align-items: center; gap: 13px; margin-bottom: 14px; }
+  .truth .h .icon { width: 24px; height: 24px; color: var(--c-instincts); }
+  .truth .h .n { font-size: 16px; font-weight: 750; color: var(--text-3); }
+  .truth .h .ttl { font-size: 22px; font-weight: 680; }
+  .truth p { font-size: 18.5px; color: var(--text-2); line-height: 1.55; }
+  .truth p b { color: var(--text); font-weight: 600; }
+
+  .closer { margin-top: 22px; background: linear-gradient(120deg, rgba(56,189,248,0.10), rgba(167,139,250,0.12)); border: 1px solid var(--border); border-radius: 20px; padding: 30px 34px; }
+  .closer p { font-size: 27px; font-weight: 680; letter-spacing: -0.015em; line-height: 1.3; }
+  .closer p b { background: linear-gradient(135deg, #7dd3fc, #c4b5fd); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+</style>
+</head>
+<body>
+
+  <!-- ============ SLIDE 1 — HOOK ============ -->
+  <section class="slide" id="s1">
+    <div class="top">
+      <span class="eyebrow"><span class="dot"></span>Personal AI operating system</span>
+      <span class="counter"><b>01</b> / 03</span>
+    </div>
+    <div class="hero">
+      <div class="multiplier">40<span>×</span></div>
+      <h1>Five memory surfaces.<br>One operator.<br>Zero context lost.</h1>
+      <p>Most people run an AI assistant with a goldfish memory. I run a <b>persistent memory stack</b> across every project — so my agent knows the <b>what</b>, the <b>why</b>, and the <b>how</b> before I type a word.</p>
+    </div>
+    <div class="stats">
+      <div class="stat">
+        <svg class="icon" width="26" height="26" viewBox="0 0 24 24"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+        <div class="num mono">33</div><div class="lbl">repositories indexed</div>
+      </div>
+      <div class="stat">
+        <svg class="icon" width="26" height="26" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        <div class="num mono">54,946</div><div class="lbl">graph nodes, live query</div>
+      </div>
+      <div class="stat">
+        <svg class="icon" width="26" height="26" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+        <div class="num mono">5</div><div class="lbl">surfaces, one lane each</div>
+      </div>
+      <div class="stat">
+        <svg class="icon" width="26" height="26" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M7 12h13"/><path d="M11 18h9"/></svg>
+        <div class="num mono">1</div><div class="lbl">deterministic precedence</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SLIDE 2 — THE STACK ============ -->
+  <section class="slide" id="s2">
+    <div class="top">
+      <div class="head">
+        <span class="kicker">The architecture</span>
+        <h2>The five-surface stack</h2>
+        <span class="sub">Each surface owns exactly one lane. No overlap, no sprawl.</span>
+      </div>
+      <span class="counter"><b>02</b> / 03</span>
+    </div>
+
+    <div class="stack">
+      <div class="layer" style="--c: var(--c-graphify)">
+        <div class="lname">
+          <div class="badge"><svg class="icon" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></div>
+          <div><div class="t">graphify / second brain</div><div class="s">graphify-brain · MCP</div></div>
+        </div>
+        <div class="cell"><div class="k">Stores</div><div class="v">Code structure across 33 repos</div></div>
+        <div class="cell"><div class="k">Who writes it</div><div class="writer"><span class="pip"></span>automated extractor</div></div>
+        <div class="cell"><div class="k">Lane</div><div class="v lane">What's in the code, how it connects</div></div>
+      </div>
+
+      <div class="layer" style="--c: var(--c-memorycore)">
+        <div class="lname">
+          <div class="badge"><svg class="icon" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></div>
+          <div><div class="t">MemoryCore</div><div class="s">~/.codex/memorycore</div></div>
+        </div>
+        <div class="cell"><div class="k">Stores</div><div class="v">Decisions, project state, patterns</div></div>
+        <div class="cell"><div class="k">Who writes it</div><div class="writer"><span class="pip"></span>you + the skill</div></div>
+        <div class="cell"><div class="k">Lane</div><div class="v lane">The why, the cross-project narrative</div></div>
+      </div>
+
+      <div class="layer" style="--c: var(--c-claude)">
+        <div class="lname">
+          <div class="badge"><svg class="icon" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg></div>
+          <div><div class="t">.claude auto-memory</div><div class="s">per-project memory/</div></div>
+        </div>
+        <div class="cell"><div class="k">Stores</div><div class="v">Atomic agent-learned facts</div></div>
+        <div class="cell"><div class="k">Who writes it</div><div class="writer"><span class="pip"></span>the agent</div></div>
+        <div class="cell"><div class="k">Lane</div><div class="v lane">Lessons + specifics, auto-recalled</div></div>
+      </div>
+
+      <div class="layer" style="--c: var(--c-instincts)">
+        <div class="lname">
+          <div class="badge"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg></div>
+          <div><div class="t">instincts / Mulahazah</div><div class="s">observer → distiller</div></div>
+        </div>
+        <div class="cell"><div class="k">Stores</div><div class="v">Behavioral corrections</div></div>
+        <div class="cell"><div class="k">Who writes it</div><div class="writer"><span class="pip"></span>observer → distiller</div></div>
+        <div class="cell"><div class="k">Lane</div><div class="v lane">How the agent should act</div></div>
+      </div>
+
+      <div class="layer" style="--c: var(--c-obsidian)">
+        <div class="lname">
+          <div class="badge"><svg class="icon" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></div>
+          <div><div class="t">Obsidian</div><div class="s">naimpro vault</div></div>
+        </div>
+        <div class="cell"><div class="k">Stores</div><div class="v">Human view + notes + second brain</div></div>
+        <div class="cell"><div class="k">Who writes it</div><div class="writer"><span class="pip"></span>you + the generator</div></div>
+        <div class="cell"><div class="k">Lane</div><div class="v lane">The surface you read and sync</div></div>
+      </div>
+    </div>
+
+    <div class="brand">
+      <span class="who">Built and operated by <b>Naim Katiman</b></span>
+      <span>persistent-memory AI engineering</span>
+    </div>
+  </section>
+
+  <!-- ============ SLIDE 3 — HOW IT RESOLVES + HONEST ============ -->
+  <section class="slide" id="s3">
+    <div class="top">
+      <div class="head">
+        <span class="kicker">The discipline</span>
+        <h2>Why it doesn't collapse</h2>
+      </div>
+      <span class="counter"><b>03</b> / 03</span>
+    </div>
+
+    <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:20px;">
+      <div class="grid2">
+        <div class="card">
+          <h3><svg class="icon" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M7 12h13"/><path d="M11 18h9"/></svg>Read-precedence</h3>
+          <div class="chain">
+            <span class="pill a">.claude</span>
+            <span class="arrow"><svg class="icon" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>
+            <span class="pill b">MemoryCore</span>
+            <span class="arrow"><svg class="icon" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>
+            <span class="pill c">instincts</span>
+          </div>
+          <p class="chain-note">When two surfaces disagree, the order resolves it — deterministically, every time. <code>.claude → MemoryCore → instincts</code> is the tie-break, so overlaps never become noise.</p>
+        </div>
+
+        <div class="card">
+          <h3><svg class="icon" viewBox="0 0 24 24"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"/></svg>Mental model</h3>
+          <ul class="model">
+            <li><span class="tag">graphify</span><span><b>where / what</b> in the code</span></li>
+            <li><span class="tag">MemoryCore</span><span><b>why</b> we decided X</span></li>
+            <li><span class="tag">.claude</span><span><b>atomic lessons</b></span></li>
+            <li><span class="tag">instincts</span><span><b>shape behavior</b></span></li>
+            <li><span class="tag">Obsidian</span><span>the <b>window</b></span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="truths">
+        <div class="truth">
+          <div class="h"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span class="n">01</span><span class="ttl">The agent is the bridge</span></div>
+          <p>No automatic link wires code-facts to decisions. The agent connects them — queries graphify for structure, reads memory for intent. The reasoning loop is the bridge.</p>
+        </div>
+        <div class="truth">
+          <div class="h"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span class="n">02</span><span class="ttl">Sprawl is the real risk</span></div>
+          <p>Five surfaces can become five places to lose things. One lane each — and never hand-curate the second brain. It's generated; manual edits get overwritten.</p>
+        </div>
+      </div>
+
+      <div class="closer">
+        <p>The payoff isn't a smarter model. It's a system that <b>never forgets what we already learned.</b></p>
+      </div>
+    </div>
+
+    <div class="brand">
+      <span class="who">Built and operated by <b>Naim Katiman</b></span>
+      <span>second brain live · auto-refresh hardened · 54,946 nodes verified</span>
+    </div>
+  </section>
+
+</body>
+</html>
