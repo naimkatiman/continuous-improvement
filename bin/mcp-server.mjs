@@ -219,6 +219,7 @@ function readDistillObservations(projectHash) {
         tool: getString(observation.tool),
         input_summary: getString(observation.input_summary),
         output_summary: getString(observation.output_summary),
+        event: getString(observation.event),
     }));
 }
 function detectLevel(projectHash) {
