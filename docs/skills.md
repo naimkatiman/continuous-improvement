@@ -59,6 +59,7 @@ curl -L https://raw.githubusercontent.com/naimkatiman/continuous-improvement/mai
 
 ## See also
 
+- [skill-use-cases.md](skill-use-cases.md) — the decision guide: when to reach for each skill, the must-use spine, and how to tell similar-sounding skills apart
 - [README](../README.md) — landing page and install
 - [CONTRIBUTING.md → Evolution: adding a new skill](../CONTRIBUTING.md#evolution--adding-a-new-skill) — how to add a 26th skill
 - [SKILL.md](../SKILL.md) — full 7 Laws spec
