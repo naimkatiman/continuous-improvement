@@ -36,6 +36,7 @@ export interface DistillObservation {
   tool?: string;
   input_summary?: string;
   output_summary?: string;
+  event?: string;
 }
 
 export type SuccessReason = "verify-exit-0" | "reflection-pass";
