@@ -2,7 +2,7 @@
 
 [`docs/skills.md`](skills.md) is the **catalog** (what each skill *is*). This page is the **decision guide** (when to *reach for it*, and how to tell two similar-sounding skills apart).
 
-The plugin ships **25 skills** (1 core + 1 featured + 6 tier-1 + 14 tier-2 + 3 always-bundled companions). Most confusion is not "what does this skill do" — it is "I have five skills that all sound like *stop and check first*; which one is this situation?" The [disambiguation section](#disambiguation--this-not-that) is the answer to that.
+The plugin ships **25 skills** (1 core + 1 featured + 6 tier-1 + 14 tier-2 + 3 always-bundled companions). Most confusion is not "what does this skill do" — it is "I have five skills that all sound like *stop and check first*; which one is this situation?" The [disambiguation section](#4-disambiguation--this-not-that) is the answer to that.
 
 ---
 
@@ -70,10 +70,13 @@ Grouped by the job, not the tier. Each skill gets the **trigger** that is unique
 |---|---|---|
 | `safety-guard` | Running autonomously, on production, or with `--dangerously-skip-permissions` — locks edits to a directory and blocks destructive shell | Normal interactive work where `gateguard` already gates edits |
 
-### Verify deeper — *prove it* (Law 4)
+### Verify — *prove it* (Law 3 + 4)
 
 | Skill | Reach for it when… | Not for… |
 |---|---|---|
+| `tdd-workflow` | Writing a new feature, fixing a bug, or refactoring — anything that changes behavior, built test-first | Checking already-written code (use `verification-loop`) |
+| `verification-loop` | About to say "done" — run the full ladder (build, types, lint, tests, security, diff) on the current change | Proving the *deploy* (use `deploy-receipt`) |
+| `deploy-receipt` | The merge target auto-deploys and you must prove the deployed SHA matches merged HEAD + healthcheck 200 | Local pre-merge verification (use `verification-loop`) |
 | `audit` | Reviewing a *window of recent commits* for real defects, confirming each before touching code | Verifying the change you are *currently* writing (that is `verification-loop`) |
 | `recovery-classification` | A verification-ladder or auto-loop step **just failed** and you need to classify *why* (provider / tool-schema / policy / git / worktree / runtime) before retrying | A first attempt — this is the retry-decision layer |
 | `state-reconciliation` | Before dispatching a unit of work, to reconcile DB-vs-disk-vs-memory so a stale flag never re-runs completed work | Single-shot edits with no dispatch/queue |
@@ -99,6 +102,12 @@ Grouped by the job, not the tier. Each skill gets the **trigger** that is unique
 |---|---|---|
 | `proceed-with-the-recommendation` | You hold a **list** of next steps and want it executed, verified, one concern at a time | Picking *which skill* fits a single task (use `superpowers`) |
 | `superpowers` | You hold a **task** and want it routed to the right Law-aligned specialist automatically | Executing an existing list (use `proceed-with-the-recommendation`) |
+
+### Stance — always on (Law 1–7)
+
+| Skill | Reach for it when… | Not for… |
+|---|---|---|
+| `model-forward` | Never invoked per task — it is the background posture: go *with* the model, treat skills as scaffolding that fades as the model internalizes them | A concrete action; it frames *how* you use the other 24, it does not do work itself |
 
 ---
 
@@ -176,6 +185,11 @@ The skills that get confused, separated by the one word that distinguishes them.
 | A big PRD to grind through | `ralph` |
 | This sequence has worked 3× — stop re-deriving it | `skill-distillation` |
 | Before any git mutation | `reconcile` |
+| Bold options keep losing to safe ones in a recommendation list | `wild-risa-balance` |
+| A big answer is coming and I want to pick depth before spending tokens | `token-budget-advisor` |
+| Reconcile DB/disk/memory before dispatching a unit of work | `state-reconciliation` |
+| Before writing source inside a git worktree | `worktree-safety` |
+| The background posture for every task | `model-forward` |
 
 ---
 
