@@ -96,5 +96,5 @@ The point of the plugin is not to cover all 21 — it is to make the discipline 
 
 ## See also
 
-- [skills.md](skills.md) — the full 26-skill catalog with per-skill descriptions and Law tagging
+- [skills.md](skills.md) — the full 27-skill catalog with per-skill descriptions and Law tagging
 - [skill-use-cases.md](skill-use-cases.md) — the decision guide: the must-use spine, a unique trigger + boundary per skill, and how to tell similar-sounding skills apart
