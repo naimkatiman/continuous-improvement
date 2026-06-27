@@ -182,7 +182,7 @@ A new skill is a fit if it provably enforces (or is a routed activator for) at l
 ### What is *not* automated (the honest limits)
 
 - The [Law Coverage Matrix](#law-coverage-matrix) below is hand-maintained — add your new skill to the right Law row when you ship it.
-- The "26 skills" count appears in both [README.md](README.md) and [docs/skills.md](docs/skills.md) — bump both when N changes.
+- The "27 skills" count appears in both [README.md](README.md) and [docs/skills.md](docs/skills.md) — bump both when N changes.
 - Promotion between tiers (e.g. `2` → `1` after it proves itself) is a manual edit to the frontmatter `tier:` field, by design — the maintainer should make that call deliberately.
 
 ## Testing
@@ -235,7 +235,7 @@ Every bundled skill, command, and hook enforces at least one of the 7 Laws. Use 
 | Law | Enforced by | Type |
 |-----|-------------|------|
 | **1 — Research Before Executing** | `gateguard`, `workspace-surface-audit` | skill, skill+cmd |
-| **2 — Plan Is Sacred** | `wild-risa-balance`, `token-budget-advisor`, `/planning-with-files` | skill, skill, cmd |
+| **2 — Plan Is Sacred** | `intent-driven-development`, `wild-risa-balance`, `token-budget-advisor`, `/planning-with-files` | skill+cmd, skill, skill, cmd |
 | **3 — One Thing at a Time** | `tdd-workflow`, `safety-guard` | skill, skill |
 | **4 — Verify Before Reporting** | `verification-loop`, `tdd-workflow`, `three-section-close.mjs` | skill, skill, hook |
 | **5 — Reflect After Every Session** | `strategic-compact`, `session.sh`, `/seven-laws`, `/dashboard` | skill, hook, cmd, cmd |

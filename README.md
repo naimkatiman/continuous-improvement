@@ -261,7 +261,7 @@ All 18 ship in the marketplace bundle. The Beginner install gets all of them —
 
 ## Skills
 
-The plugin ships **26 skills** — 1 core + 1 featured + 6 tier-1 + 15 tier-2 + 3 always-bundled. Beginner install gets tier-1, featured, and the always-bundled companion; Expert adds tier-2, the MCP server, and observation hooks. Full catalog with per-skill descriptions, Law tagging, and drop-in single-file install: [docs/skills.md](docs/skills.md). Adding a 27th skill: [CONTRIBUTING.md § Evolution — adding a new skill](CONTRIBUTING.md#evolution--adding-a-new-skill).
+The plugin ships **27 skills** — 1 core + 1 featured + 6 tier-1 + 16 tier-2 + 3 always-bundled. Beginner install gets tier-1, featured, and the always-bundled companion; Expert adds tier-2, the MCP server, and observation hooks. Full catalog with per-skill descriptions, Law tagging, and drop-in single-file install: [docs/skills.md](docs/skills.md). Adding a 28th skill: [CONTRIBUTING.md § Evolution — adding a new skill](CONTRIBUTING.md#evolution--adding-a-new-skill).
 
 ---
 
@@ -320,7 +320,7 @@ Authored end-to-end with `/superpowers` and `/proceed-with-the-recommendation`: 
 
 - [QUICKSTART.md](QUICKSTART.md) — 2-minute setup
 - [SKILL.md](SKILL.md) — full 7 Laws spec
-- [docs/skills.md](docs/skills.md) — full 26-skill catalog
+- [docs/skills.md](docs/skills.md) — full 27-skill catalog
 - [examples/](examples/) — bug fix, feature build, refactor walkthroughs
 - [templates/insights-claude-md.md](templates/insights-claude-md.md) — paste-in CLAUDE.md blocks for verification discipline, environment notes, think-before-acting, and git/deploy workflow (sourced from the 28-day usage report)
 - [CONTRIBUTING.md](CONTRIBUTING.md) — architecture, repo internals, adding a new skill
