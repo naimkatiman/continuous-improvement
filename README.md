@@ -55,6 +55,10 @@ Claude Code is powerful but leaves intelligence on the table: it edits before re
 
 ## See it in action
 
+<p align="center">
+  <img src="assets/gateguard-demo.png" alt="gateguard blocks an unresearched Edit until the investigation is on the table" width="820" />
+</p>
+
 Without Continuous Improvement, "fix the login redirect bug" looks like this:
 
 > Claude edits `Login.tsx`, `LoginForm.tsx`, `useAuth.ts`, `authRouter.ts`, `redirects.ts`, and `useNavigate.ts` — six files, no plan, no investigation. Says "done". The redirect still loops. You roll back six files.
