@@ -2,7 +2,7 @@
 
 [`docs/skills.md`](skills.md) is the **catalog** (what each skill *is*). This page is the **decision guide** (when to *reach for it*, and how to tell two similar-sounding skills apart).
 
-The plugin ships **25 skills** (1 core + 1 featured + 6 tier-1 + 14 tier-2 + 3 always-bundled companions). Most confusion is not "what does this skill do" — it is "I have five skills that all sound like *stop and check first*; which one is this situation?" The [disambiguation section](#4-disambiguation--this-not-that) is the answer to that.
+The plugin ships **26 skills** (1 core + 1 featured + 6 tier-1 + 15 tier-2 + 3 always-bundled companions). Most confusion is not "what does this skill do" — it is "I have five skills that all sound like *stop and check first*; which one is this situation?" The [disambiguation section](#4-disambiguation--this-not-that) is the answer to that.
 
 ---
 
@@ -55,6 +55,7 @@ Grouped by the job, not the tier. Each skill gets the **trigger** that is unique
 | `grill-with-docs` | Same as `grill-me`, **and** the domain glossary/decisions should persist to `CONTEXT.md` + ADRs | A throwaway task where nothing needs to outlive the session (use plain `grill-me`) |
 | `workspace-surface-audit` | You do not yet know what this repo + MCP + env can actually do, or you are setting up Claude Code | You already know the surface; this is a discovery pass |
 | `reconcile` | Before any mutation, to establish git ground truth (branch, status, ahead/behind) and to confirm a push *landed* | Validating a worktree root specifically (use `worktree-safety`) |
+| `roast` | About to sink real time or money into an idea — convene a 5-persona adversarial council (Contrarian, Expansionist, Logician, Researcher, Buyer) → one GO / RESHAPE / KILL verdict + the cheapest 48h test | Hardening an already-validated *plan* (use `grill-me`); roast attacks the *idea* itself |
 
 ### Planning & framing — *aim the effort* (Law 2)
 
@@ -145,6 +146,12 @@ The skills that get confused, separated by the one word that distinguishes them.
 - `grill-me` — align on the plan. **Nothing persists.**
 - `grill-with-docs` — align on the plan **and write the outcomes** to `CONTEXT.md` + ADRs. Pick this when the glossary/decisions must survive the session.
 
+### roast vs grill-me — idea, then plan
+
+- `roast` — pressure-tests the **idea** itself: should this exist at all? A 5-persona adversarial council returns GO / RESHAPE / KILL. Law 1.
+- `grill-me` — hardens the **plan** once the idea is a go: interview to a shippable spec.
+- *Order:* roast the idea first, then grill the plan. (`brainstorming`, a companion, explores the solution/design space after both.)
+
 ### The two "memory" skills
 
 - `recall` — **reads** the past (search before deriving). Law 1.
@@ -167,6 +174,7 @@ The skills that get confused, separated by the one word that distinguishes them.
 
 | The moment | The skill |
 |---|---|
+| I'm about to sink real time or money into an unproven idea | `roast` |
 | I'm about to edit a file | `gateguard` (it finds you) |
 | This bug feels familiar | `recall` |
 | The request is vague | `grill-me` (→ `grill-with-docs` if it should persist) |

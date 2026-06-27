@@ -261,7 +261,7 @@ All 18 ship in the marketplace bundle. The Beginner install gets all of them —
 
 ## Skills
 
-The plugin ships **25 skills** — 1 core + 1 featured + 6 tier-1 + 14 tier-2 + 3 always-bundled. Beginner install gets tier-1, featured, and the always-bundled companion; Expert adds tier-2, the MCP server, and observation hooks. Full catalog with per-skill descriptions, Law tagging, and drop-in single-file install: [docs/skills.md](docs/skills.md). Adding a 26th skill: [CONTRIBUTING.md § Evolution — adding a new skill](CONTRIBUTING.md#evolution--adding-a-new-skill).
+The plugin ships **26 skills** — 1 core + 1 featured + 6 tier-1 + 15 tier-2 + 3 always-bundled. Beginner install gets tier-1, featured, and the always-bundled companion; Expert adds tier-2, the MCP server, and observation hooks. Full catalog with per-skill descriptions, Law tagging, and drop-in single-file install: [docs/skills.md](docs/skills.md). Adding a 27th skill: [CONTRIBUTING.md § Evolution — adding a new skill](CONTRIBUTING.md#evolution--adding-a-new-skill).
 
 ---
 
