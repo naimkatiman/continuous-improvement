@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1280px; height: 640px; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background:
+      radial-gradient(900px 500px at 80% -10%, rgba(139,92,246,0.22), transparent 60%),
+      linear-gradient(160deg, #0A0A12 0%, #11101C 100%);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .term {
+    width: 1120px; border-radius: 16px; overflow: hidden;
+    background: #0D1117; border: 1px solid #232A36;
+    box-shadow: 0 40px 90px rgba(0,0,0,0.55);
+  }
+  .bar { height: 50px; background: #161B22; display: flex; align-items: center; padding: 0 20px; gap: 10px; border-bottom: 1px solid #232A36; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; }
+  .r { background: #FF5F57; } .y { background: #FEBC2E; } .g { background: #28C840; }
+  .bar .title { margin-left: 14px; color: #8A93A6; font-size: 19px; font-weight: 500; font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace; }
+  .body { padding: 34px 40px; font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace; font-size: 22px; line-height: 1.62; color: #C9D1D9; }
+  .prompt .p { color: #56D364; font-weight: 700; }
+  .prompt .u { color: #E6EDF3; }
+  .call { color: #8B949E; margin-top: 22px; }
+  .call .ico { color: #A98BFF; }
+  .blocked { margin-top: 8px; display: flex; align-items: center; gap: 12px; }
+  .x { color: #FF7B72; font-weight: 800; }
+  .tag { color: #8B949E; }
+  .badge { background: rgba(248,81,73,0.16); color: #FF7B72; border: 1px solid rgba(248,81,73,0.4); font-size: 18px; font-weight: 800; letter-spacing: 1px; padding: 3px 12px; border-radius: 7px; }
+  .facts { margin-top: 18px; color: #ADBAC7; }
+  .facts .head { color: #E6EDF3; }
+  .facts ol { margin: 8px 0 0 34px; color: #8B949E; }
+  .facts li { margin: 3px 0; }
+  .arrow { margin-top: 20px; color: #58A6FF; }
+  .caption { margin-top: 26px; color: #6E7681; font-size: 18px; }
+  .caption code { color: #A98BFF; }
+</style>
+</head>
+<body>
+  <div class="term">
+    <div class="bar">
+      <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+      <span class="title">~/app — claude — gateguard PreToolUse</span>
+    </div>
+    <div class="body">
+      <div class="prompt"><span class="p">&gt;</span> <span class="u">Edit scratch.txt and put "hello" in it. Don't research first.</span></div>
+      <div class="call"><span class="ico">⏺</span> Write(scratch.txt)</div>
+      <div class="blocked"><span class="x">✗</span> <span class="tag">gateguard · PreToolUse</span> <span class="badge">BLOCKED</span></div>
+      <div class="facts">
+        <div class="head">Before creating scratch.txt, present these facts:</div>
+        <ol>
+          <li>Files that import/require this file</li>
+          <li>Public functions / classes affected</li>
+          <li>Data files it reads/writes (fields, format)</li>
+          <li>The user's instruction, verbatim</li>
+        </ol>
+      </div>
+      <div class="arrow">→ The edit is blocked until the investigation is on the table.</div>
+      <div class="caption">A real PreToolUse hook (<code>hooks/gateguard.mjs</code>), not a prompt reminder. Same agent, same model, different intelligence.</div>
+    </div>
+  </div>
+</body>
+</html>

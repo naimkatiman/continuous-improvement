@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1280px; height: 640px; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #ECEDF1;
+    background:
+      radial-gradient(1100px 520px at 18% -8%, rgba(139,92,246,0.30), transparent 60%),
+      radial-gradient(900px 480px at 108% 118%, rgba(56,189,248,0.18), transparent 55%),
+      linear-gradient(155deg, #0B0B14 0%, #12101F 55%, #0A0A12 100%);
+    position: relative;
+    overflow: hidden;
+  }
+  .grid {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(900px 600px at 30% 30%, #000 30%, transparent 80%);
+  }
+  .wrap { position: relative; height: 100%; padding: 70px 84px; display: flex; flex-direction: column; }
+  .top { display: flex; align-items: center; gap: 16px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 9px;
+    border: 1px solid rgba(139,92,246,0.45);
+    background: rgba(139,92,246,0.12);
+    color: #C9B8FF; font-weight: 600; font-size: 21px;
+    padding: 9px 16px; border-radius: 999px; letter-spacing: 0.2px;
+  }
+  .top .meta { margin-left: auto; color: #8A8FA3; font-size: 21px; font-weight: 500; }
+  .top .meta b { color: #C9CDDC; }
+  .hero { margin-top: 54px; }
+  .kicker { color: #8B9BFF; font-size: 26px; font-weight: 600; letter-spacing: 0.4px; }
+  h1 {
+    font-size: 76px; line-height: 1.04; font-weight: 800; letter-spacing: -1.4px;
+    margin-top: 14px; color: #FFFFFF;
+  }
+  h1 .accent { color: #A98BFF; }
+  .sub { margin-top: 22px; font-size: 28px; color: #B4B9CC; font-weight: 500; max-width: 980px; line-height: 1.4; }
+  .loop { margin-top: auto; display: flex; align-items: center; flex-wrap: wrap; gap: 10px 12px; }
+  .chip {
+    font-size: 21px; font-weight: 600; color: #E7E3FF;
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.10);
+    padding: 9px 16px; border-radius: 11px;
+  }
+  .arrow { color: #6E5BB0; font-size: 22px; font-weight: 700; }
+  svg.shield { width: 26px; height: 26px; stroke: #A98BFF; fill: none; stroke-width: 2; }
+</style>
+</head>
+<body>
+  <div class="grid"></div>
+  <div class="wrap">
+    <div class="top">
+      <span class="badge">
+        <svg class="shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+        The 7 Laws of AI Agent Discipline
+      </span>
+      <span class="meta"><b>continuous-improvement</b> &nbsp;·&nbsp; npm &nbsp;·&nbsp; MIT</span>
+    </div>
+
+    <div class="hero">
+      <div class="kicker">Runtime discipline + instinct memory for Claude Code</div>
+      <h1>Claude Code that gets<br><span class="accent">sharper every session</span></h1>
+      <div class="sub">Grounds every edit in real facts before it lands. Verifies before "done". Turns each fix into a reusable instinct, so a lesson learned once is applied automatically next time.</div>
+    </div>
+
+    <div class="loop">
+      <span class="chip">Research</span><span class="arrow">→</span>
+      <span class="chip">Plan</span><span class="arrow">→</span>
+      <span class="chip">Execute</span><span class="arrow">→</span>
+      <span class="chip">Verify</span><span class="arrow">→</span>
+      <span class="chip">Reflect</span><span class="arrow">→</span>
+      <span class="chip">Learn</span><span class="arrow">→</span>
+      <span class="chip">Iterate</span>
+    </div>
+  </div>
+</body>
+</html>
