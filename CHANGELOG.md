@@ -4,6 +4,12 @@ All notable changes to this skill are documented here.
 
 ---
 
+## [3.17.0] — 2026-06-28
+
+### Added
+
+- **`/intent-driven-development`**: turn an ambiguous or high-impact change into verifiable acceptance criteria before you build. Converts a fuzzy request into observable `AC-NNN` criteria with named verification methods and a `[revised]` protocol that forbids silently dropping a criterion mid-build, so "done" is falsifiable and the agreed plan is held sacred (Law 2). Tier 2 (expert install). Brings the bundle to 27 skills. (#258)
+
 ## [3.16.0] — 2026-06-27
 
 ### Added
