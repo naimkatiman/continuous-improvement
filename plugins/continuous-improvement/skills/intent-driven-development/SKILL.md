@@ -28,7 +28,7 @@ Do not activate for trivial edits, one-line fixes, active debugging, code review
 1. **Inspect context first.** Read the repository, docs, schemas, and test infrastructure for technical facts before asking any question. Treat product and business constraints as something only the user or a product artifact can supply.
 2. **Choose depth.** Quick Capture (3-7 criteria, low or moderate risk) or Full Acceptance Brief (security, data, migration, cross-system, or handoff).
 3. **Ask minimally.** Only ask questions whose answers cannot be inferred and that materially change scope or behavior. Group related questions into one batch.
-4. **Write observable criteria.** Each `AC-NNN` names a scenario, a trigger, an expected observable result, a prohibited side effect when meaningful, a verification method, and a priority. No "correctly" or "securely" without defined evidence.
+4. Write observable criteria. Each AC-NNN names a scenario, a trigger, an expected observable result, a prohibited side effect when meaningful, a verification method, and a priority. Do not use "correctly" or "securely" without defined evidence.
 5. **Proceed or hand off.** For a clear request with no blocking risk, record the criteria and continue. For a risky change, present the blockers and wait for confirmation.
 6. **Hold the plan sacred.** If a criterion cannot be met due to a constraint found mid-build, do not silently drop or work around it. Mark it `[revised]`, state the constraint, adjust scope or verification, increment the revision number, and re-present only the changed criteria before continuing.
 
