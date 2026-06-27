@@ -44,6 +44,7 @@
     "verify:skill-tiers": "node bin/check-skill-tiers.mjs",
     "verify:skill-law-tag": "node bin/check-skill-law-tag.mjs",
     "verify:skill-count": "node bin/check-skill-count.mjs",
+    "verify:skill-count-prose": "node bin/check-skill-count-prose.mjs",
     "verify:docs-substrings": "node bin/check-docs-substrings.mjs",
     "verify:everything-mirror": "node bin/check-everything-mirror.mjs",
     "verify:routing-targets": "node bin/check-routing-targets.mjs",
@@ -52,7 +53,7 @@
     "verify:scripts-citation-drift": "node bin/check-scripts-citation-drift.mjs",
     "verify:third-party-shape": "node bin/check-third-party-shape.mjs",
     "verify:tool-count": "node bin/check-tool-count.mjs",
-    "verify:all": "npm run verify:skill-mirror && npm run verify:skill-tiers && npm run verify:skill-law-tag && npm run verify:skill-count && npm run verify:docs-substrings && npm run verify:everything-mirror && npm run verify:routing-targets && npm run verify:doc-runtime-claims && npm run verify:test-imports-only && npm run verify:scripts-citation-drift && npm run verify:third-party-shape && npm run verify:tool-count && npm run typecheck"
+    "verify:all": "npm run verify:skill-mirror && npm run verify:skill-tiers && npm run verify:skill-law-tag && npm run verify:skill-count && npm run verify:skill-count-prose && npm run verify:docs-substrings && npm run verify:everything-mirror && npm run verify:routing-targets && npm run verify:doc-runtime-claims && npm run verify:test-imports-only && npm run verify:scripts-citation-drift && npm run verify:third-party-shape && npm run verify:tool-count && npm run typecheck"
   },
   "files": [
     ".claude-plugin/",

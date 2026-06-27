@@ -23,10 +23,13 @@ If you do nothing else, do this:
 5. **Reflect.** `/continuous-improvement` (alias `/seven-laws`) mines the session's observations into instincts.
 6. **Let recall do the rest.** Next session the instincts and memory apply on their own.
 
+*Before you even plan, if the idea itself is unproven: `/roast` convenes a 5-persona adversarial council to pressure-test it (GO / RESHAPE / KILL) so you do not plan the wrong thing.*
+
 ## Plan the work
 
 | Habit | Invoke |
 |---|---|
+| Pressure-test the idea before you build it | `/roast` — a 5-persona adversarial council (Contrarian, Expansionist, Logician, Researcher, Buyer) returns one GO / RESHAPE / KILL verdict plus the cheapest 48-hour test |
 | Plan the moment you have an idea | `/plan`, `planning-with-files`, `writing-plans`; plan docs live in `docs/plans/` |
 | Skim the plan, work from a TLDR | `handoff` for compaction; `plan-pack --stdout` surfaces a TLDR line per plan |
 | Research before planning | `deep-research`, `context7` (library docs), `WebSearch`; `gateguard` forces it for edits |
@@ -54,15 +57,15 @@ If you do nothing else, do this:
 | Generate CLIs that run real work | `ci generate` (CLI-Anything) |
 | Stay honest about the addictive loop | `safety-guard` for destructive-op and autonomy guards |
 
-## Full mapping (updated 2026-06-15)
+## Full mapping (updated 2026-06-27)
 
-The 21 habits of the agentic-engineering system, scored against what this plugin installs. Two items moved this session: #7 shipped as `plan-pack` (PR #244), and #12 changed from a hard prohibition to an allowance.
+The 21 habits of the agentic-engineering system, scored against what this plugin installs. Latest move: #3 now has a dedicated command — `/roast`, the 5-persona idea council shipped in PR #255 as the 26th bundled skill — so deep non-engineering decision work is no longer a partial. (Earlier: #7 shipped as `plan-pack` in PR #244, and #12 changed from a hard prohibition to an allowance.)
 
 | # | Habit | Status | Maps to |
 |---|---|---|---|
 | 1 | Plan the moment you have an idea | Have | `writing-plans`, `planning-with-files`, `/plan`; `docs/plans/` mandate |
 | 2 | Skim plan, work from a TLDR | Have | `handoff`; `plan-pack` emits a TLDR line |
-| 3 | A plan flow for deep non-engineering work | Partial | `brainstorming` + `planning-with-files`; no dedicated non-eng command |
+| 3 | A plan flow for deep non-engineering work | **Have (new)** | `/roast` (5-persona idea council → GO/RESHAPE/KILL) validates the non-eng decision; `brainstorming` + `planning-with-files` plan it |
 | 4 | Research before planning | Have | `deep-research`, `gateguard`, `context7`, `WebSearch` |
 | 5 | Transcript into signal | Have (core) | `observations.jsonl` → `skill-distillation` → instincts |
 | 6 | Notes as the agent's knowledge base | Have (core) | auto-memory + MemoryCore + instincts + `recall` |
@@ -82,11 +85,16 @@ The 21 habits of the agentic-engineering system, scored against what this plugin
 | 20 | CLIs that run real work | Have | `ci generate` (CLI-Anything) |
 | 21 | Stay honest about the addictive loop | Partial | `safety-guard`; no dedicated wellbeing guardrail |
 
-Tally: 14 Have, 3 Partial, 4 out of scope, 0 missing, 0 conflicts.
+Tally: 15 Have, 2 Partial, 4 out of scope, 0 missing, 0 conflicts.
 
 ## Honest boundaries
 
-- **Partial (#3, #11, #21):** the capability is reachable but there is no dedicated command. A non-engineering plan flow, email-in for remote sessions, and a wellbeing guardrail are open follow-ups.
+- **Partial (#11, #21):** the capability is reachable but there is no dedicated command. Email-in for remote sessions and a wellbeing guardrail are open follow-ups.
 - **Out of scope (#8, #10, #15, #16):** voice, terminal defaults, and machine setup are environment and hardware choices the plugin does not own. Configure them outside Claude Code.
 
 The point of the plugin is not to cover all 21 — it is to make the discipline behind them automatic. Plan, gate, verify, reflect, learn. The rest is your environment.
+
+## See also
+
+- [skills.md](skills.md) — the full 26-skill catalog with per-skill descriptions and Law tagging
+- [skill-use-cases.md](skill-use-cases.md) — the decision guide: the must-use spine, a unique trigger + boundary per skill, and how to tell similar-sounding skills apart
