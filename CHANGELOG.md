@@ -4,6 +4,20 @@ All notable changes to this skill are documented here.
 
 ---
 
+## [3.16.0] — 2026-06-27
+
+### Added
+
+- **`/roast` — a 5-persona adversarial idea council that pressure-tests a plan before any code is written** — routes a proposed idea or plan through five distinct critic personas (each attacking a different failure axis) and reconciles their objections into a go / revise / kill verdict. Catches misalignment at Law 1 (Research) before it lands in the diff. Brings the bundle to 26 skills. (#255, #256)
+- **npm-install users get nudged when a newer version is published** — the installer compares the running version against the registry `latest` and surfaces an upgrade hint instead of silently running stale. (#252)
+- **Hook nudge to distill a verified Workflow run into a reusable instinct** — a completed multi-agent Workflow's verified trajectory no longer evaporates with the session; the agent is prompted to capture it as a draft instinct. (#251)
+- **`lint-transcript` GitHub Action IO + fleet docs** — the transcript linter ships defined Action inputs/outputs for CI wiring, with fleet-usage documentation. (#250)
+- **Skill use-case decision guide** — a when-to-reach-for-each-skill map so the right skill is picked without scanning all of them. (#254)
+
+### Changed
+
+- **`skill-count` prose is now gated against the actual bundle** — the verify suite fails if any doc claims a skill count that disagrees with the shipped skill set; synced all prose to 26 after `/roast`. (#256)
+
 ## [3.15.0] — 2026-06-21
 
 ### Added
