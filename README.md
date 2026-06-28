@@ -268,7 +268,7 @@ Hooks capture every tool call. After ~20 observations Claude analyzes patterns a
 ## Slash commands
 
 <details>
-<summary><b>All 18 commands (Beginner gets every one)</b></summary>
+<summary><b>All 28 commands (Beginner gets every one)</b></summary>
 
 `/seven-laws` is the canonical reflect-and-learn command. `/continuous-improvement` is kept as an alias for backward compatibility — both run the same workflow.
 
@@ -278,22 +278,32 @@ Hooks capture every tool call. After ~20 observations Claude analyzes patterns a
 /proceed-with-the-recommendation  Walk any agent's recommendation list top-to-bottom
 /superpowers                      Law activator — route the task to the right specialist
 /workspace-surface-audit          Audit repo + MCP + env, recommend high-value skills
-/planning-with-files              Create task_plan.md, findings.md, progress.md
+/roast                            5-persona adversarial council — GO / RESHAPE / KILL on an idea
 /grill-me                         Interview-mode alignment (one question at a time)
 /grill-with-docs                  Grill-me with persistent outcomes — updates CONTEXT.md + ADRs inline
+/intent-driven-development        Scope an ambiguous change into verifiable acceptance criteria
+/planning-with-files              Create task_plan.md, findings.md, progress.md
+/goal-check                       Score recent activity against the task_plan.md goal (drift detector)
+/reconcile                        Establish git ground truth before any mutation; verify a push landed
+/audit                            Audit recent commits for real defects, confirm each before fixing
+/ship                             Single-defect fast path — reconcile, TDD fix, verify, one PR
+/production-readiness-review      Parallel readiness gate — severity-ranked punch-list (reports only)
 /handoff                          End-of-session compaction into mktemp brief for the next agent
+/recall                           BM25 search over past observations — "have I hit this before?"
 /discipline                       Quick reference card of the 7 Laws
+/model-forward                    Restate the model-forward stance — go with the model, not against it
 /verify-install                   One-shot post-install check — commands, gateguard, observe
 /dashboard                        Visual instinct health dashboard
 /companion-preference             Inspect companion-preference hook telemetry
 /ralph                            Autonomous PRD story-by-story loop
 /learn-eval                       Capture session patterns into new skills (needs observation history)
 /harvest                          Extract reusable patterns from session friction (needs observation history)
+/distill                          Distill repeated successful sequences into draft instincts (needs observation history)
 /release-train                    Coordinate a multi-PR release sequence
 /swarm                            Fan-out coordination across parallel sub-agents
 ```
 
-All 18 ship in the marketplace bundle. The Beginner install gets all of them — with one caveat: `/learn-eval` and `/harvest` only produce useful output once Mulahazah has accumulated observation history (~20 observations), so running them on day 1 returns an empty result, not a broken command. `/swarm` and `/release-train` are orchestration commands aimed at larger multi-agent or multi-PR work. In Expert (`npx`) mode, the installer mirrors the full set into `~/.claude/commands/` and additionally exposes the planning workflow through the MCP tools `ci_plan_init` (initialize `task_plan.md`, `findings.md`, `progress.md` in the project root) and `ci_plan_status` (summarize their current contents).
+All 28 ship in the marketplace bundle. The Beginner install gets all of them — with one caveat: `/learn-eval`, `/harvest`, and `/distill` only produce useful output once Mulahazah has accumulated observation history (~20 observations), so running them on day 1 returns an empty result, not a broken command. `/swarm` and `/release-train` are orchestration commands aimed at larger multi-agent or multi-PR work. In Expert (`npx`) mode, the installer mirrors the full set into `~/.claude/commands/` and additionally exposes the planning workflow through the MCP tools `ci_plan_init` (initialize `task_plan.md`, `findings.md`, `progress.md` in the project root) and `ci_plan_status` (summarize their current contents).
 
 </details>
 

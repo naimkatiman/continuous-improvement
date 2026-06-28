@@ -61,8 +61,8 @@ The package is positioned as an AI-agent reliability layer. Business value comes
 |---|---|---|
 | `package.json` | npm package metadata, CLI bins, verification scripts | Version `3.14.0`; zero runtime dependencies; dev dependency on TypeScript and Node types. |
 | `README.md`, `QUICKSTART.md`, `SKILL.md` | User-facing product narrative and 7 Laws operating spec | README is landing-page style; Quickstart optimizes beginner install; root skill is the core rule set. |
-| `skills/` | Source skills bundled into plugin | 24 companion skill markdown files plus README; root `SKILL.md` is the core skill. Mirrored into plugin bundle by build. |
-| `commands/` | Claude slash-command source files | 24 command files including `/seven-laws`, `/verify-install`, `/dashboard`, `/goal-check`, `/distill`. |
+| `skills/` | Source skills bundled into plugin | 26 companion skill markdown files plus README; root `SKILL.md` is the core skill. Mirrored into plugin bundle by build. |
+| `commands/` | Claude slash-command source files | 28 command files including `/seven-laws`, `/intent-driven-development`, `/dashboard`, `/goal-check`, `/distill`. |
 | `agents/` | Claude subagent personas | Code reviewer, security auditor, test engineer, plus README. |
 | `src/bin/` | TypeScript source for CLIs/generators/MCP server | 25 `.mts` entrypoints including installer, linter, manifest generator, MCP server, plan-pack, checks. |
 | `src/lib/` | Pure/shared runtime logic | Goal scoring, recall indexing, skill distillation, gateguard state, install targets, metadata. |
