@@ -10,8 +10,14 @@
 // The .mjs import resolves only after `npm run build` — per the .mts-is-source
 // rule, never edit the .mjs directly.
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
+import { fileURLToPath } from "node:url";
 import { auditWorkflows, renderReport, } from "../bin/audit-actions.mjs";
+const __dirname = fileURLToPath(new URL(".", import.meta.url));
+const AUDIT_BIN = join(__dirname, "..", "bin", "audit-actions.mjs");
 const SHA40 = "8ade135a41bc03ea155e62e844d188df1ea18608";
 const CLEAN_WORKFLOW = `name: CI
 on:
@@ -247,6 +253,43 @@ jobs:
 `;
         assert.ok(checks(findingsFor(yaml)).includes("missing-concurrency"));
     });
+    it("does not flag missing-concurrency when every job declares job-level concurrency", () => {
+        const yaml = `name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: build-\${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - run: npm test
+`;
+        assert.ok(!checks(findingsFor(yaml)).includes("missing-concurrency"));
+    });
+    it("still flags missing-concurrency when only some jobs declare it", () => {
+        const yaml = `name: t
+on: push
+permissions:
+  contents: read
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency: group-a
+    steps:
+      - run: npm test
+  b:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: npm test
+`;
+        assert.ok(checks(findingsFor(yaml)).includes("missing-concurrency"));
+    });
     it("does not flag a workflow_dispatch-only workflow without concurrency", () => {
         const yaml = `name: t
 on: workflow_dispatch
@@ -415,5 +458,16 @@ jobs:
     it("renders an explicit all-clear when there are no findings", () => {
         const report = renderReport([], { scannedFiles: [".github/workflows/ci.yml"] });
         assert.match(report, /No findings/i);
+    });
+});
+describe("CLI --repo guard (fail closed)", () => {
+    it("exits 2 with a clear error when the repo root does not exist, even with --strict", () => {
+        const missing = join(tmpdir(), "audit-actions-test-missing-root");
+        const res = spawnSync("node", [AUDIT_BIN, "--repo", missing, "--strict"], {
+            encoding: "utf8",
+            timeout: 10_000,
+        });
+        assert.equal(res.status, 2);
+        assert.match(res.stderr, /repo root not found/);
     });
 });

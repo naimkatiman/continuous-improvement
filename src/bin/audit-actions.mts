@@ -12,7 +12,8 @@
  *   (c) `uses: owner/repo@ref` not pinned to a 40-hex commit SHA   -> medium
  *       (first-party actions/* github/* not SHA-pinned             -> low)
  *   (d) job missing `timeout-minutes`                              -> medium
- *   (e) push/schedule-triggered workflow without `concurrency:`    -> low
+ *   (e) push/schedule-triggered workflow without `concurrency:`
+ *       at the workflow level or on every job                      -> low
  *   (f) `${{ github.event.* }}` / `${{ github.head_ref }}` in run: -> high
  *   (g) pull_request_target/issue_comment/issues trigger combined
  *       with secrets.* usage or write permissions                  -> high
@@ -31,6 +32,9 @@
  *     --out <file>   markdown report path (default "reports/actions-security.md")
  *     --strict       exit 1 when any high-severity finding exists
  *     --help         print usage
+ *
+ * Exit codes: 0 scan completed; 1 --strict with high findings; 2 repo root
+ * not found (fail closed — a typo'd --repo must never pass a security gate).
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -83,6 +87,7 @@ interface ParsedJob {
   line: number;
   hasPermissions: boolean;
   hasTimeout: boolean;
+  hasConcurrency: boolean;
   isReusableCall: boolean;
 }
 
@@ -238,7 +243,7 @@ export function parseWorkflow(content: string): ParsedWorkflow {
     if (jobNameIndent === -1 && !isListItem) jobNameIndent = indent;
 
     if (indent === jobNameIndent && !isListItem && keyMatch[2].trim() === "") {
-      currentJob = { name: keyMatch[1], line: lineNo, hasPermissions: false, hasTimeout: false, isReusableCall: false };
+      currentJob = { name: keyMatch[1], line: lineNo, hasPermissions: false, hasTimeout: false, hasConcurrency: false, isReusableCall: false };
       parsed.jobs.push(currentJob);
       jobPropIndent = -1;
       continue;
@@ -259,6 +264,10 @@ export function parseWorkflow(content: string): ParsedWorkflow {
     }
     if (isJobProp && key === "timeout-minutes") {
       currentJob.hasTimeout = true;
+      continue;
+    }
+    if (isJobProp && key === "concurrency") {
+      currentJob.hasConcurrency = true;
       continue;
     }
     if (key === "uses") {
@@ -320,8 +329,10 @@ function checkFile(file: WorkflowFile): Finding[] {
     }
   }
 
-  // (e) push/schedule without concurrency
-  if (!w.hasConcurrency && w.triggers.some((t) => CONCURRENCY_TRIGGERS.includes(t))) {
+  // (e) push/schedule without concurrency — satisfied by a workflow-level
+  // block, or by every job declaring its own job-level concurrency.
+  const everyJobHasConcurrency = w.jobs.length > 0 && w.jobs.every((j) => j.hasConcurrency);
+  if (!w.hasConcurrency && !everyJobHasConcurrency && w.triggers.some((t) => CONCURRENCY_TRIGGERS.includes(t))) {
     add(w.onLine, "low", "missing-concurrency", "Workflow is triggered by push/schedule but declares no `concurrency:` block.");
   }
 
@@ -445,6 +456,8 @@ const USAGE = `Usage: node bin/audit-actions.mjs [--repo <path>] [--out <file>] 
   --out <file>   markdown report path (default "reports/actions-security.md")
   --strict       exit 1 when any high-severity finding exists
   --help         print this usage
+
+Exit codes: 0 scan completed; 1 --strict with high findings; 2 repo root not found.
 `;
 
 function main(): number {
@@ -458,6 +471,16 @@ function main(): number {
   const repoRoot = repoIdx >= 0 ? (args[repoIdx + 1] ?? ".") : ".";
   const outPath = outIdx >= 0 ? (args[outIdx + 1] ?? "reports/actions-security.md") : "reports/actions-security.md";
   const strict = args.includes("--strict");
+
+  // Fail closed: a typo'd --repo (or wrong CWD) must not report a clean scan.
+  if (!existsSync(repoRoot)) {
+    console.error(`audit-actions: repo root not found: ${repoRoot}`);
+    return 2;
+  }
+  const workflowsDir = join(repoRoot, ".github", "workflows");
+  if (!existsSync(workflowsDir)) {
+    console.log(`audit-actions: no workflows directory at ${workflowsDir} — scanning zero workflow files.`);
+  }
 
   const files = listWorkflowFiles(repoRoot);
   const findings = auditWorkflows(files);
