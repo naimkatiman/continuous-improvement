@@ -330,6 +330,26 @@ Catches writes without prior research (Law 1), too many edits without verificati
 
 ---
 
+## Portfolio spine
+
+Two standalone commands turn a multi-repo portfolio into scored, auditable evidence. Both are offline: they read local files only, no network.
+
+**`ci-audit-actions`** — static GitHub Actions security scan. Flags missing/over-broad `permissions:`, unpinned actions, missing job timeouts, missing concurrency, untrusted event text interpolated into `run:`, and dangerous triggers combined with secrets. Writes a markdown report; `--strict` exits 1 on high-severity findings.
+
+```bash
+npx -p continuous-improvement ci-audit-actions --repo . --out reports/actions-security.md --strict
+```
+
+**`ci-portfolio-health`** — scores every repo in a `portfolio/repos.json` registry 0-100 from local proof signals (CI presence, release receipts, experiment records, commit freshness, high-severity audit findings) and writes a worst-first table with a named next action per repo.
+
+```bash
+npx -p continuous-improvement ci-portfolio-health --config portfolio/repos.json --out reports/portfolio-health.md
+```
+
+Proof-format templates ship in [templates/](templates/): `release_receipt_template.md`, `experiment_template.md`, `actions_security_checklist.md`, and `portfolio_event.schema.json`.
+
+---
+
 ## More
 
 - [QUICKSTART.md](QUICKSTART.md) — 2-minute setup
