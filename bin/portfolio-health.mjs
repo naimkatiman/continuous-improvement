@@ -22,6 +22,9 @@
  *     --config <path>  registry path (default "portfolio/repos.json")
  *     --out <file>     markdown report path (default "reports/portfolio-health.md")
  *     --help           print usage
+ *
+ * Exit codes: 0 report written; 1 config/registry error (missing or malformed
+ * --config file reports a one-line `portfolio-health: ...` error, no stack).
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -257,6 +260,8 @@ const USAGE = `Usage: node bin/portfolio-health.mjs [--config <path>] [--out <fi
   --config <path>  registry path (default "portfolio/repos.json")
   --out <file>     markdown report path (default "reports/portfolio-health.md")
   --help           print this usage
+
+Exit codes: 0 report written; 1 config/registry error.
 `;
 function main() {
     const args = argv.slice(2);
@@ -268,15 +273,24 @@ function main() {
     const outIdx = args.indexOf("--out");
     const configPath = configIdx >= 0 ? (args[configIdx + 1] ?? "portfolio/repos.json") : "portfolio/repos.json";
     const outPath = outIdx >= 0 ? (args[outIdx + 1] ?? "reports/portfolio-health.md") : "reports/portfolio-health.md";
-    const entries = loadConfig(configPath).filter((e) => e.active);
-    const rows = buildRows(entries);
-    const report = renderReport(rows, new Date().toISOString());
-    mkdirSync(dirname(outPath), { recursive: true });
-    writeFileSync(outPath, report);
-    const scored = rows.filter((r) => r.score !== null);
-    console.log(`portfolio-health: ${entries.length} active repo(s), ${scored.length} scored, ${rows.length - scored.length} without local checkout.`);
-    console.log(`Report written to ${outPath}`);
-    return 0;
+    // Explicit error handling at the CLI boundary: a missing or malformed
+    // --config file is the most common operator mistake and must produce a
+    // one-line error, not a raw stack trace (loadConfig throws deliberately).
+    try {
+        const entries = loadConfig(configPath).filter((e) => e.active);
+        const rows = buildRows(entries);
+        const report = renderReport(rows, new Date().toISOString());
+        mkdirSync(dirname(outPath), { recursive: true });
+        writeFileSync(outPath, report);
+        const scored = rows.filter((r) => r.score !== null);
+        console.log(`portfolio-health: ${entries.length} active repo(s), ${scored.length} scored, ${rows.length - scored.length} without local checkout.`);
+        console.log(`Report written to ${outPath}`);
+        return 0;
+    }
+    catch (err) {
+        console.error(`portfolio-health: ${err instanceof Error ? err.message : String(err)}`);
+        return 1;
+    }
 }
 const invokedDirectly = argv[1]?.endsWith("portfolio-health.mjs");
 if (invokedDirectly) {

@@ -10,11 +10,15 @@
 // The .mjs import resolves only after `npm run build` — per the .mts-is-source
 // rule, never edit the .mjs directly.
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
+import { fileURLToPath } from "node:url";
 import { buildRows, collectSignals, loadConfig, renderReport, scoreRepo, WEIGHT_CI, WEIGHT_EXPERIMENTS, WEIGHT_FRESHNESS, WEIGHT_RECEIPTS, WEIGHT_SECURITY, } from "../bin/portfolio-health.mjs";
+const __dirname = fileURLToPath(new URL(".", import.meta.url));
+const HEALTH_BIN = join(__dirname, "..", "bin", "portfolio-health.mjs");
 const CLEAN_WORKFLOW = `name: CI
 on: workflow_dispatch
 permissions:
@@ -243,5 +247,17 @@ describe("renderReport", () => {
         const a = renderReport(rows, "2026-07-04T00:00:00Z");
         const b = renderReport(rows, "2026-07-04T00:00:00Z");
         assert.equal(a, b);
+    });
+});
+describe("CLI --config guard", () => {
+    it("exits 1 with a one-line error (no stack trace) when --config does not exist", () => {
+        const missing = join(tmpdir(), "portfolio-health-test-missing-config.json");
+        const res = spawnSync("node", [HEALTH_BIN, "--config", missing], {
+            encoding: "utf8",
+            timeout: 10_000,
+        });
+        assert.equal(res.status, 1);
+        assert.match(res.stderr, /^portfolio-health: /);
+        assert.ok(!/\n\s+at /.test(res.stderr), `stderr leaked a stack trace:\n${res.stderr}`);
     });
 });
