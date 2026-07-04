@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/naimkatiman/continuous-improvement/main/templates/portfolio_event.schema.json",
+  "title": "PortfolioEvent",
+  "description": "Shared event schema for all repos in the portfolio. Every CI run, deploy, incident, experiment, agent action, security finding, release, decision, and metric snapshot is one event.",
+  "type": "object",
+  "required": ["eventId", "repo", "eventType", "occurredAt", "source"],
+  "additionalProperties": false,
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "description": "Globally unique id (uuid or <repo>-<timestamp>-<n>)."
+    },
+    "repo": {
+      "type": "string",
+      "description": "GitHub repo in owner/name form, e.g. naimkatiman/tradeclaw."
+    },
+    "eventType": {
+      "type": "string",
+      "enum": ["ci", "deploy", "incident", "experiment", "agent", "security", "release", "decision", "metric"]
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp."
+    },
+    "source": {
+      "type": "string",
+      "description": "What emitted the event: github-actions, wrangler, manual, agent:<name>, cron:<name>."
+    },
+    "actor": {
+      "type": "string",
+      "description": "Human or agent responsible, e.g. naimkatiman or agent:portfolio-health."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "failure", "in_progress", "cancelled", "n/a"],
+      "description": "Outcome where applicable."
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["info", "low", "medium", "high", "critical"],
+      "description": "Required in practice for incident and security events."
+    },
+    "title": {
+      "type": "string",
+      "description": "One-line human-readable summary."
+    },
+    "evidenceUrl": {
+      "type": "string",
+      "description": "Link to the receipt: CI run, release receipt file, experiment file, dashboard."
+    },
+    "commitSha": {
+      "type": "string"
+    },
+    "metricName": {
+      "type": "string",
+      "description": "For metric events: stable snake_case metric name."
+    },
+    "metricValue": {
+      "type": "number",
+      "description": "For metric events: numeric value."
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Event-type-specific payload. Keep flat and JSON-serializable."
+    }
+  }
+}
