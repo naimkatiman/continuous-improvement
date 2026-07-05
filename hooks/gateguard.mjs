@@ -95,6 +95,25 @@ function extractFilePaths(toolInput) {
         return [toolInput.command];
     return [];
 }
+// --- Path exclusions -------------------------------------------------------
+// Opt-in: skip the fact-forcing gate for low-risk paths a user edits
+// constantly (an LLM-maintained prose wiki, a generated scratch dir). Set the
+// CI_GATEGUARD_EXCLUDE env var to a comma-separated list of path substrings;
+// each is matched case-insensitively against the forward-slash-normalized file
+// path. Unset/empty (the default) changes nothing — every mutating file call is
+// gated exactly as before. A call whose targets mix excluded and non-excluded
+// paths still gates the non-excluded ones.
+const EXCLUDE_FRAGMENTS = String(process.env.CI_GATEGUARD_EXCLUDE ?? "")
+    .split(",")
+    .map((fragment) => fragment.trim().replace(/\\/g, "/").toLowerCase())
+    .filter((fragment) => fragment !== "");
+function isExcludedPath(filePath) {
+    if (EXCLUDE_FRAGMENTS.length === 0 || typeof filePath !== "string" || filePath === "") {
+        return false;
+    }
+    const normalized = filePath.replace(/\\/g, "/").toLowerCase();
+    return EXCLUDE_FRAGMENTS.some((fragment) => normalized.includes(fragment));
+}
 // The call site only reads this inside the block branch, where at least one
 // path is uncleared; an all-cleared batch returns "" and is never consumed.
 function firstUnclearedFilePath(toolInput, state) {
@@ -215,7 +234,12 @@ function main() {
     const sessionDir = resolveSessionDir(sessionId);
     const stateFilePath = join(sessionDir, "gateguard-session.json");
     const state = loadState(sessionDir);
-    const filePaths = extractFilePaths(toolInput);
+    const allTargetPaths = extractFilePaths(toolInput);
+    const filePaths = allTargetPaths.filter((path) => !isExcludedPath(path));
+    if (allTargetPaths.length > 0 && filePaths.length === 0) {
+        emitAllow(); // every target is under a CI_GATEGUARD_EXCLUDE path; skip the gate
+        return;
+    }
     const filePath = firstUnclearedFilePath(toolInput, state);
     const factsFlagged = toolInput._gateguard_facts_presented === true;
     const alreadyCleared = filePaths.length > 0 && filePaths.every((path) => isFileCleared(state, path));

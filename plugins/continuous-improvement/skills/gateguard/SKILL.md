@@ -150,6 +150,10 @@ The block reason prints the exact `gateguard-session.json` path and the clearanc
 
 The inline `_gateguard_facts_presented: true` retry still works on harnesses that forward unknown tool params, but Claude Code's strict tool schema (`additionalProperties: false`) rejects it with `InputValidationError` — use one of the above on Claude Code.
 
+### Excluding low-risk paths
+
+Set the `CI_GATEGUARD_EXCLUDE` environment variable to opt specific low-risk paths out of the gate entirely — an LLM-maintained prose wiki, a generated scratch directory, anything where the fact-forcing pause costs more than it saves. The value is a comma-separated list of path substrings, each matched case-insensitively against the forward-slash-normalized file path, so `/mywiki/` excludes `D:\Vault\MyWiki\notes\x.md`. Unset or empty (the default) changes nothing: every mutating file call is gated exactly as before, and a call that touches a mix of excluded and non-excluded paths still gates the non-excluded ones. Set it per project in `.claude/settings.json` under `env`, or globally in `~/.claude/settings.json`.
+
 ### Limitations and guarantees
 
 - **Honor system.** Clearance is recorded by `ci_gateguard_clear`, the `gateguard-clear.mjs` CLI, a manual state-file write, or the inline `_gateguard_facts_presented` flag where the harness allows it (see "Clearing the gate" above). The hook can't verify the investigation actually happened; the 50-file cap — counted per session — bounds damage from stuck loops or rogue agents.
@@ -175,6 +179,7 @@ The standalone `gateguard-ai` Python/CLI package referenced in earlier drafts of
 - Let the gate fire naturally. Don't try to pre-answer the gate questions — the investigation itself is what improves quality.
 - Customize gate messages for your domain. If your project has specific conventions, add them to the gate prompts.
 - Use `.gateguard.yml` to ignore paths like `.venv/`, `node_modules/`, `.git/`.
+- For the shipped runtime hook, set `CI_GATEGUARD_EXCLUDE` (comma-separated path substrings) to exclude low-risk paths from the gate — see [Excluding low-risk paths](#excluding-low-risk-paths).
 
 ## Related Skills
 

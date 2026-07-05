@@ -391,3 +391,68 @@ describe("hooks/gateguard.mjs — per-session isolation (no shared cap)", () => 
     assert.match(blockResult.reason ?? "", /session-B/, "state_path references the session-B scoped dir");
   });
 });
+
+// CI_GATEGUARD_EXCLUDE lets a user opt specific low-risk path substrings out of
+// the fact-forcing gate. Default (unset) must not change any existing behavior.
+describe("hooks/gateguard.mjs — CI_GATEGUARD_EXCLUDE opt-in path exclusion", () => {
+  let dir = "";
+
+  before(() => {
+    dir = mkdtempSync(join(tmpdir(), "gateguard-exclude-"));
+  });
+
+  after(() => {
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  });
+
+  function runWithExclude(
+    toolName: string,
+    toolInput: Record<string, unknown>,
+    exclude: string | undefined,
+  ): HookDecision {
+    const env: NodeJS.ProcessEnv = { ...process.env, GATEGUARD_SESSION_DIR: dir };
+    if (exclude === undefined) delete env.CI_GATEGUARD_EXCLUDE;
+    else env.CI_GATEGUARD_EXCLUDE = exclude;
+    const payload = JSON.stringify({ tool_name: toolName, tool_input: toolInput });
+    const result = spawnSync(process.execPath, [HOOK_PATH], { input: payload, encoding: "utf8", env });
+    assert.equal(result.status, 0, `hook exited non-zero: ${result.stderr}`);
+    const stdout = result.stdout.trim();
+    if (stdout === "") return { decision: "allow" };
+    const parsed = JSON.parse(stdout) as PreToolUseHookOutput;
+    return { decision: "block", reason: parsed.hookSpecificOutput?.permissionDecisionReason };
+  }
+
+  it("a fresh Write under an excluded fragment bypasses the gate", () => {
+    const decision = runWithExclude("Write", { file_path: "d:/vault/MyWiki/notes/new.md", content: "x" }, "/mywiki/");
+    assert.equal(decision.decision, "allow");
+  });
+
+  it("the same path still gates when CI_GATEGUARD_EXCLUDE is unset (default is unchanged)", () => {
+    const decision = runWithExclude("Write", { file_path: "d:/vault/MyWiki/notes/new.md", content: "x" }, undefined);
+    assert.equal(decision.decision, "block");
+  });
+
+  it("exclusion matches case-insensitively and across path separators", () => {
+    const decision = runWithExclude(
+      "Edit",
+      { file_path: "D:\\Vault\\MyWiki\\notes\\new.md", old_string: "x", new_string: "y" },
+      "/mywiki/",
+    );
+    assert.equal(decision.decision, "allow");
+  });
+
+  it("a MultiEdit batch still gates when only some targets are excluded", () => {
+    const decision = runWithExclude(
+      "MultiEdit",
+      {
+        edits: [
+          { file_path: "d:/vault/MyWiki/a.md", old_string: "x", new_string: "y" },
+          { file_path: "d:/vault/src/app.ts", old_string: "a", new_string: "b" },
+        ],
+      },
+      "/mywiki/",
+    );
+    assert.equal(decision.decision, "block");
+    assert.match(decision.reason ?? "", /app\.ts/);
+  });
+});
