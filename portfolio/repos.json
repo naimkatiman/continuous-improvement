@@ -1,0 +1,13 @@
+[
+  { "repo": "naimkatiman/MobileIB0TelegramApp", "lane": "trading", "localPath": "c:/Ai/MobileIB0TelegramApp", "active": true },
+  { "repo": "naimkatiman/MiniTelegramApp", "lane": "trading", "localPath": "c:/Ai/MiniTelegramApp", "active": true },
+  { "repo": "naimkatiman/Roboforex", "lane": "trading", "localPath": "c:/Ai/Roboforex", "active": true },
+  { "repo": "naimkatiman/tradeclaw", "lane": "trading", "localPath": "c:/Ai/tradeclaw", "active": true },
+  { "repo": "naimkatiman/QuranGPT", "lane": "quran", "localPath": "c:/Ai/QuranGPT", "active": true },
+  { "repo": "naimkatiman/quran-gpt-worker", "lane": "quran", "localPath": "c:/Ai/quran-gpt-worker", "active": true },
+  { "repo": "naimkatiman/DrSaid", "lane": "quran", "localPath": "c:/Ai/DrSaid", "active": true },
+  { "repo": "naimkatiman/mosrev", "lane": "workflow", "localPath": "c:/Ai/mosrev", "active": true },
+  { "repo": "naimkatiman/SprintBo", "lane": "workflow", "localPath": "c:/Ai/SprintBo", "active": true },
+  { "repo": "naimkatiman/uitm_comm_skills", "lane": "workflow", "localPath": "c:/Ai/uitm_comm_skills", "active": true },
+  { "repo": "naimkatiman/continuous-improvement", "lane": "infra", "localPath": "c:/Ai/continuous-improvement", "active": true }
+]
