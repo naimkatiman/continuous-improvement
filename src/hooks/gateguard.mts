@@ -39,10 +39,12 @@ import { fileURLToPath } from "node:url";
 import {
   MAX_CLEARED_FILES,
   canonicalizeFileKey,
+  canonicalizeProjectRoot,
   isCapReached,
   isFileCleared,
   loadState,
   markFileCleared,
+  resolveProjectRoot,
   resolveSessionDir,
   saveState,
   type GateguardState,
@@ -158,6 +160,43 @@ function isExcludedPath(filePath: string): boolean {
   }
   const normalized = filePath.replace(/\\/g, "/").toLowerCase();
   return EXCLUDE_FRAGMENTS.some((fragment) => normalized.includes(fragment));
+}
+
+// --- Target lock (opt-in) --------------------------------------------------
+// A fact-list can't catch a wrong-repo / wrong-worktree write — you can present
+// perfect facts about the wrong file. CI_GATEGUARD_TARGET_LOCK=block denies a
+// mutating call whose ABSOLUTE target canonicalizes outside the session project
+// root. Default (unset) checks nothing, so existing sessions — including
+// legitimate out-of-root edits to ~/.claude or /tmp — are unaffected. This is
+// the warn-first rollout: ship non-enforcing, flip to block per session.
+const TARGET_LOCK_ON = String(process.env.CI_GATEGUARD_TARGET_LOCK ?? "").toLowerCase() === "block";
+
+// Relative paths resolve under cwd (= the project root) and always pass; only an
+// absolute path into a different tree can be out-of-root. Drive-letter (d:/,
+// D:\), POSIX-absolute (/x), and UNC (\\host) forms all count as absolute.
+function isAbsolutePathString(p: string): boolean {
+  return /^[A-Za-z]:[\\/]/.test(p) || p.startsWith("/") || p.startsWith("\\\\");
+}
+
+function isTargetOutsideRoot(filePath: string, projectRoot: string): boolean {
+  if (!isAbsolutePathString(filePath)) return false;
+  const root = canonicalizeProjectRoot(projectRoot);
+  if (root === "global" || root === "") return false; // no known root — do not guess
+  const target = canonicalizeFileKey(filePath);
+  return target !== root && !target.startsWith(`${root}/`);
+}
+
+function buildTargetLockReason(strayPath: string, projectRoot: string): string {
+  return [
+    `Target is outside the session project root — refusing a possible wrong-repo / wrong-worktree write.`,
+    "",
+    `  Target: ${strayPath.replace(/\\/g, "/")}`,
+    `  Session root: ${canonicalizeProjectRoot(projectRoot)}`,
+    "",
+    "If this is intentional, confirm you are in the right worktree (cwd / CLAUDE_PROJECT_DIR),",
+    "or unset CI_GATEGUARD_TARGET_LOCK for this session. Target lock is opt-in; it fires only",
+    "when CI_GATEGUARD_TARGET_LOCK=block.",
+  ].join("\n");
 }
 
 // The call site only reads this inside the block branch, where at least one
@@ -299,6 +338,20 @@ function main(): void {
     emitAllow(); // every target is under a CI_GATEGUARD_EXCLUDE path; skip the gate
     return;
   }
+
+  // Target lock runs before the fact gate and independent of clearance: a
+  // wrong-repo write is wrong even with perfect facts. Excluded paths were
+  // already filtered out above, so an explicitly-excluded scratch dir outside
+  // the root is never target-locked.
+  if (TARGET_LOCK_ON) {
+    const projectRoot = resolveProjectRoot();
+    const stray = filePaths.find((path) => isTargetOutsideRoot(path, projectRoot));
+    if (stray) {
+      emitDeny(buildTargetLockReason(stray, projectRoot));
+      return;
+    }
+  }
+
   const filePath = firstUnclearedFilePath(toolInput, state);
   const factsFlagged = toolInput._gateguard_facts_presented === true;
   const alreadyCleared = filePaths.length > 0 && filePaths.every((path) => isFileCleared(state, path));

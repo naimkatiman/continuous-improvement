@@ -69,7 +69,11 @@ function sanitizeSessionId(sessionId?: string): string {
   return sessionId.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 64);
 }
 
-function resolveProjectRoot(): string {
+// Exported for the target-lock gate (RISA 2 / G2): the hook compares a mutating
+// call's absolute target against this root to catch wrong-repo / wrong-worktree
+// writes. Returns "global" when no CLAUDE_PROJECT_DIR and no git toplevel — the
+// caller treats that as "no known root, do not guess".
+export function resolveProjectRoot(): string {
   const fromEnv = process.env.CLAUDE_PROJECT_DIR;
   if (fromEnv) return fromEnv;
   try {

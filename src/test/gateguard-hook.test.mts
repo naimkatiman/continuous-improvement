@@ -401,6 +401,85 @@ describe("hooks/gateguard.mjs — destructive-bash message-arg carve-out (RISA 1
   });
 });
 
+// RISA 2 / G2 — opt-in target lock. CI_GATEGUARD_TARGET_LOCK=block denies a
+// mutating call whose ABSOLUTE target resolves outside the session project root
+// (the wrong-repo / wrong-worktree write a fact-list can't catch). Default off:
+// no path is checked and behaviour is unchanged.
+describe("hooks/gateguard.mjs — target lock (RISA 2 / G2)", () => {
+  const ROOT = "d:/proj/root";
+
+  function runTargetHook(
+    toolInput: Record<string, unknown>,
+    opts: { targetLock?: string; projectRoot?: string },
+  ): HookDecision {
+    const dir = mkdtempSync(join(tmpdir(), "gateguard-target-"));
+    try {
+      const env: NodeJS.ProcessEnv = {
+        ...process.env,
+        GATEGUARD_SESSION_DIR: dir,
+        CLAUDE_PROJECT_DIR: opts.projectRoot ?? ROOT,
+      };
+      if (opts.targetLock === undefined) delete env.CI_GATEGUARD_TARGET_LOCK;
+      else env.CI_GATEGUARD_TARGET_LOCK = opts.targetLock;
+      const payload = JSON.stringify({ tool_name: "Write", tool_input: toolInput });
+      const result = spawnSync(process.execPath, [HOOK_PATH], { input: payload, encoding: "utf8", env });
+      assert.equal(result.status, 0, `hook exited non-zero: ${result.stderr}`);
+      const stdout = result.stdout.trim();
+      if (stdout === "") return { decision: "allow" };
+      const parsed = JSON.parse(stdout) as PreToolUseHookOutput;
+      return { decision: "block", reason: parsed.hookSpecificOutput?.permissionDecisionReason };
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  it("absolute in-root target hits the normal fact gate, not the mismatch reason", () => {
+    const decision = runTargetHook(
+      { file_path: "d:/proj/root/src/x.ts", content: "y" },
+      { targetLock: "block" },
+    );
+    assert.equal(decision.decision, "block");
+    assert.match(decision.reason ?? "", /import|require|present these facts/i);
+    assert.doesNotMatch(decision.reason ?? "", /outside the session project root/i);
+  });
+
+  it("absolute out-of-root target is denied with an identity-mismatch reason when locked", () => {
+    const decision = runTargetHook(
+      { file_path: "d:/other/repo/x.ts", content: "y" },
+      { targetLock: "block" },
+    );
+    assert.equal(decision.decision, "block");
+    assert.match(decision.reason ?? "", /outside the session project root/i);
+    assert.match(decision.reason ?? "", /d:\/other\/repo\/x\.ts/i);
+    assert.match(decision.reason ?? "", /d:\/proj\/root/i);
+  });
+
+  it("out-of-root target with target lock UNSET falls back to the normal fact gate (default off)", () => {
+    const decision = runTargetHook(
+      { file_path: "d:/other/repo/x.ts", content: "y" },
+      { targetLock: undefined },
+    );
+    assert.equal(decision.decision, "block");
+    assert.match(decision.reason ?? "", /present these facts/i);
+    assert.doesNotMatch(decision.reason ?? "", /outside the session project root/i);
+  });
+
+  it("relative target is never target-locked (resolves under cwd)", () => {
+    const decision = runTargetHook({ file_path: "src/x.ts", content: "y" }, { targetLock: "block" });
+    assert.equal(decision.decision, "block");
+    assert.doesNotMatch(decision.reason ?? "", /outside the session project root/i);
+  });
+
+  it("a sibling dir sharing the root's name prefix is treated as outside", () => {
+    const decision = runTargetHook(
+      { file_path: "d:/proj/rootX/x.ts", content: "y" },
+      { targetLock: "block" },
+    );
+    assert.equal(decision.decision, "block");
+    assert.match(decision.reason ?? "", /outside the session project root/i);
+  });
+});
+
 // Session isolation: the cap and clearance state must NOT bleed across
 // concurrent same-day sessions. Drives the production path (no
 // GATEGUARD_SESSION_DIR override) with HOME/USERPROFILE pinned to a temp dir so

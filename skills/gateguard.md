@@ -154,6 +154,10 @@ The inline `_gateguard_facts_presented: true` retry still works on harnesses tha
 
 Set the `CI_GATEGUARD_EXCLUDE` environment variable to opt specific low-risk paths out of the gate entirely — an LLM-maintained prose wiki, a generated scratch directory, anything where the fact-forcing pause costs more than it saves. The value is a comma-separated list of path substrings, each matched case-insensitively against the forward-slash-normalized file path, so `/mywiki/` excludes `D:\Vault\MyWiki\notes\x.md`. Unset or empty (the default) changes nothing: every mutating file call is gated exactly as before, and a call that touches a mix of excluded and non-excluded paths still gates the non-excluded ones. Set it per project in `.claude/settings.json` under `env`, or globally in `~/.claude/settings.json`.
 
+### Locking edits to the current repo
+
+A fact-list can't catch a wrong-repo or wrong-worktree write — you can present perfect facts about the wrong file, in the wrong checkout. Set `CI_GATEGUARD_TARGET_LOCK=block` to make the runtime hook (`hooks/gateguard.mjs`) refuse any mutating call whose **absolute** target canonicalizes outside the session project root (`CLAUDE_PROJECT_DIR`, or the git toplevel). Relative paths resolve under the current directory (= the root) and always pass; only an absolute path into a different tree is denied, and the deny reason names both the stray target and the expected root. This runs before the fact gate and independent of clearance — a wrong-repo write is wrong even with facts. Unset (the default) checks nothing, so legitimate out-of-root edits (`~/.claude`, a `/tmp` scratch file, a sibling repo) are unaffected; turn it on per session in a multi-worktree or headless run where cross-repo writes are the real risk. Paths already covered by `CI_GATEGUARD_EXCLUDE` are never target-locked.
+
 ### Limitations and guarantees
 
 - **Honor system.** Clearance is recorded by `ci_gateguard_clear`, the `gateguard-clear.mjs` CLI, a manual state-file write, or the inline `_gateguard_facts_presented` flag where the harness allows it (see "Clearing the gate" above). The hook can't verify the investigation actually happened; the 50-file cap — counted per session — bounds damage from stuck loops or rogue agents.
@@ -180,6 +184,7 @@ The standalone `gateguard-ai` Python/CLI package referenced in earlier drafts of
 - Customize gate messages for your domain. If your project has specific conventions, add them to the gate prompts.
 - Use `.gateguard.yml` to ignore paths like `.venv/`, `node_modules/`, `.git/`.
 - For the shipped runtime hook, set `CI_GATEGUARD_EXCLUDE` (comma-separated path substrings) to exclude low-risk paths from the gate — see [Excluding low-risk paths](#excluding-low-risk-paths).
+- In multi-worktree or headless runs, set `CI_GATEGUARD_TARGET_LOCK=block` so a write into the wrong repo/worktree is refused — see [Locking edits to the current repo](#locking-edits-to-the-current-repo).
 
 ## Related Skills
 
