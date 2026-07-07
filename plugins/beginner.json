@@ -1,6 +1,6 @@
 {
   "name": "continuous-improvement",
-  "version": "3.19.0",
+  "version": "3.20.0",
   "mode": "beginner",
   "description": "Beginner mode: see what your agent learned, list its instincts, and request a session reflection. Bundles three grounding skills (gateguard, tdd-workflow, verification-loop) so research, memory, tests, and verification happen by default — every edit starts from facts, not guesses.",
   "tools": [
