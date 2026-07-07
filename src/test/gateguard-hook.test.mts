@@ -336,6 +336,71 @@ describe("hooks/gateguard.mjs (runtime PreToolUse hook — issue #106)", () => {
   });
 });
 
+// RISA 1 / G3 — the destructive-bash scan must not match patterns that appear
+// only inside the PROSE of a commit message or PR body. A verified commit whose
+// message mentions "drop"/"format"/"truncate" was being stranded on its own
+// wording. Genuine destructive commands (the verb is command syntax, not quoted
+// prose) must still gate.
+describe("hooks/gateguard.mjs — destructive-bash message-arg carve-out (RISA 1 / G3)", () => {
+  let sessionDir = "";
+
+  before(() => {
+    sessionDir = mkdtempSync(join(tmpdir(), "gateguard-msgarg-"));
+  });
+
+  after(() => {
+    rmSync(sessionDir, { recursive: true, force: true });
+  });
+
+  it("git commit -m with destructive words in the message is allowed", () => {
+    const decision = runHook(
+      "Bash",
+      { command: 'git commit -m "refactor: drop the stale format helper"' },
+      sessionDir,
+    );
+    assert.equal(decision.decision, "allow", "commit-message prose must not trip the destructive gate");
+  });
+
+  it("gh pr create --body with destructive words in the body is allowed", () => {
+    const decision = runHook(
+      "Bash",
+      { command: 'gh pr create --title "cleanup" --body "truncate the logs and remove old files"' },
+      sessionDir,
+    );
+    assert.equal(decision.decision, "allow", "PR-body prose must not trip the destructive gate");
+  });
+
+  it("git commit -m with single-quoted destructive prose is allowed", () => {
+    const decision = runHook(
+      "Bash",
+      { command: "git commit -m 'drop table cleanup: rename the format column'" },
+      sessionDir,
+    );
+    assert.equal(decision.decision, "allow", "single-quoted message prose must not trip the gate");
+  });
+
+  it("git branch -D (genuine destructive) still blocks despite a benign context", () => {
+    const decision = runHook("Bash", { command: "git branch -D feat/old-branch" }, sessionDir);
+    assert.equal(decision.decision, "block", "force-delete branch must still gate");
+    assert.match(decision.reason ?? "", /rollback|delete|destructive/i);
+  });
+
+  it("rm -rf outside any quoted message still blocks", () => {
+    const decision = runHook("Bash", { command: "rm -rf node_modules" }, sessionDir);
+    assert.equal(decision.decision, "block", "rm -rf must still gate");
+  });
+
+  it("a destructive command hidden in bash -c is NOT carved out (-c is not a message flag)", () => {
+    const decision = runHook("Bash", { command: 'bash -c "rm -rf /tmp/x"' }, sessionDir);
+    assert.equal(decision.decision, "block", "bash -c carries a command to run, not prose — must still gate");
+  });
+
+  it("a plain benign commit message is allowed (no regression)", () => {
+    const decision = runHook("Bash", { command: 'git commit -m "add gateguard tests"' }, sessionDir);
+    assert.equal(decision.decision, "allow");
+  });
+});
+
 // Session isolation: the cap and clearance state must NOT bleed across
 // concurrent same-day sessions. Drives the production path (no
 // GATEGUARD_SESSION_DIR override) with HOME/USERPROFILE pinned to a temp dir so

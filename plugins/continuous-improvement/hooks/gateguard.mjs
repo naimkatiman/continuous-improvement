@@ -69,8 +69,20 @@ const DESTRUCTIVE_PATTERNS = [
     "Remove-Item -Recurse",
     "Remove-Item -Force",
 ];
+// Flags whose VALUE is human prose (a commit message, a PR body) or a filename —
+// never a command to execute. Their contents must not trip the destructive scan:
+// `git commit -m "drop the stale format helper"` and `gh pr create --body "…"`
+// were stranding finished work on their own wording. `-c` is deliberately
+// EXCLUDED — `bash -c "rm -rf /"` carries a real command and must still gate.
+const MESSAGE_FLAG_RE = /(^|\s)(-m|--message|-F|--file|--body|--body-file|--title|--notes|-C|--reuse-message)(=|\s+)('[^']*'|"[^"]*"|\S+)/g;
+// Blank the value of every message/body flag so only executable command syntax
+// remains for the destructive-pattern scan. The flag itself is preserved so a
+// flag like `-F` never accidentally merges with its neighbours.
+function stripMessageArgs(command) {
+    return command.replace(MESSAGE_FLAG_RE, (_match, lead, flag) => `${lead}${flag} `);
+}
 function isDestructiveBash(command) {
-    const lower = command.toLowerCase();
+    const lower = stripMessageArgs(command).toLowerCase();
     return DESTRUCTIVE_PATTERNS.some((p) => lower.includes(p.toLowerCase()));
 }
 function classifyTool(toolName, toolInput) {
