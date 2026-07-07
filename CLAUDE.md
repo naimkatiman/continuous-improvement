@@ -92,7 +92,7 @@ Flaky (not a regression): `test/hook.test.mjs` "completes within 2000ms" is an e
 | Rule | Enforcing skill |
 |---|---|
 | Think Before Acting | [gateguard](skills/gateguard.md) — blocks Edit/Write/Bash before grounding |
-| Verification Discipline | [verification-loop](skills/verification-loop.md) — per-project ladder via `templates/verify-ladder.example.json` |
+| Verification Discipline | [verification-loop](skills/verification-loop.md) — per-project ladder via `templates/verify-ladder.example.json`; `hooks/typecheck-stop.mjs` — opt-in Stop-boundary typecheck gate (off by default; `CLAUDE_TYPECHECK_GATE=block` re-prompts the model with tsc failures) |
 | Build pipeline | `bin/check-everything-mirror.mjs` + `verify:generated` script |
 | 7 Laws routing | [proceed-with-the-recommendation](skills/proceed-with-the-recommendation.md) — walks recommendation lists under all 7 Laws |
 | Recommendation shape | [wild-risa-balance](skills/wild-risa-balance.md) — 5+2 floor + R-I-S-A filter |

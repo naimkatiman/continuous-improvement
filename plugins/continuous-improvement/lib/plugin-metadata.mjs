@@ -497,6 +497,14 @@ export function getPluginHooksConfig() {
         command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/workflow-distill.mjs\"",
         timeout: 5,
     };
+    const typecheckStopCommand = {
+        type: "command",
+        command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/typecheck-stop.mjs\"",
+        // Longer than the 5s hooks: tsc is slower. Opt-in via CLAUDE_TYPECHECK_GATE
+        // (off by default) and near-zero cost when off / no TS file changed; on an
+        // internal timeout it fails open (allow) rather than blocking.
+        timeout: 30,
+    };
     const routePromptCommand = {
         type: "command",
         command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/route-prompt.mjs\"",
@@ -508,7 +516,7 @@ export function getPluginHooksConfig() {
         timeout: 5,
     };
     return {
-        description: "Gateguard fact-forcing PreToolUse, companion-preference enforcement, observation, session lifecycle, 3-section-close discipline, goal-drift Stop gate, opt-in workflow-distill Stop nudge, and UserPromptSubmit lazy-routing plus opt-in proactive recall-briefing hooks for continuous-improvement.",
+        description: "Gateguard fact-forcing PreToolUse, companion-preference enforcement, observation, session lifecycle, 3-section-close discipline, goal-drift Stop gate, opt-in workflow-distill Stop nudge, opt-in typecheck Stop gate, and UserPromptSubmit lazy-routing plus opt-in proactive recall-briefing hooks for continuous-improvement.",
         hooks: {
             // gateguard runs FIRST on PreToolUse so its block decision short-circuits
             // before companion-preference sees the call. companion-preference runs
@@ -532,7 +540,7 @@ export function getPluginHooksConfig() {
             UserPromptSubmit: [{ hooks: [routePromptCommand, recallBriefingCommand] }],
             SessionStart: [{ hooks: [sessionCommand] }],
             SessionEnd: [{ hooks: [sessionCommand] }],
-            Stop: [{ hooks: [threeSectionCloseCommand, goalDriftStopCommand, workflowDistillCommand] }],
+            Stop: [{ hooks: [threeSectionCloseCommand, goalDriftStopCommand, workflowDistillCommand, typecheckStopCommand] }],
         },
     };
 }
