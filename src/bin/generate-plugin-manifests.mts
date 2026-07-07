@@ -254,6 +254,10 @@ async function writePluginBundle(): Promise<void> {
       join(REPO_ROOT, "lib", "typecheck-gate.mjs"),
       join(PLUGIN_BUNDLE_DIR, "lib", "typecheck-gate.mjs"),
     ),
+    copyFileTo(
+      join(REPO_ROOT, "lib", "query-cost-gate.mjs"),
+      join(PLUGIN_BUNDLE_DIR, "lib", "query-cost-gate.mjs"),
+    ),
     copyFileTo(join(REPO_ROOT, "LICENSE"), join(PLUGIN_BUNDLE_DIR, "LICENSE")),
     writePluginBundleReadme(),
   ]);
