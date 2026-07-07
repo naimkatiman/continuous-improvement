@@ -1,5 +1,5 @@
 {
-  "description": "Gateguard fact-forcing PreToolUse, companion-preference enforcement, observation, session lifecycle, 3-section-close discipline, goal-drift Stop gate, opt-in workflow-distill Stop nudge, and UserPromptSubmit lazy-routing plus opt-in proactive recall-briefing hooks for continuous-improvement.",
+  "description": "Gateguard fact-forcing PreToolUse, companion-preference enforcement, observation, session lifecycle, 3-section-close discipline, goal-drift Stop gate, opt-in workflow-distill Stop nudge, opt-in typecheck Stop gate, and UserPromptSubmit lazy-routing plus opt-in proactive recall-briefing hooks for continuous-improvement.",
   "hooks": {
     "PreToolUse": [
       {
@@ -93,6 +93,11 @@
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/workflow-distill.mjs\"",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/typecheck-stop.mjs\"",
+            "timeout": 30
           }
         ]
       }
