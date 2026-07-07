@@ -157,6 +157,7 @@ async function writePluginBundle() {
         copyFileTo(join(REPO_ROOT, "lib", "recall-briefing.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "recall-briefing.mjs")),
         copyFileTo(join(REPO_ROOT, "lib", "skill-distill.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "skill-distill.mjs")),
         copyFileTo(join(REPO_ROOT, "lib", "typecheck-gate.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "typecheck-gate.mjs")),
+        copyFileTo(join(REPO_ROOT, "lib", "query-cost-gate.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "query-cost-gate.mjs")),
         copyFileTo(join(REPO_ROOT, "LICENSE"), join(PLUGIN_BUNDLE_DIR, "LICENSE")),
         writePluginBundleReadme(),
     ]);
