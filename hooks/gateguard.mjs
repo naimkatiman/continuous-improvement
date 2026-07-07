@@ -210,6 +210,47 @@ function buildMutatingFileReason(toolName, filePaths, stateFilePath) {
         "  `_gateguard_facts_presented: true`; Claude Code's strict schema rejects that, so use A or B.)",
     ].join("\n");
 }
+function findUnquotedBraceRef(command) {
+    let quote = null;
+    for (let i = 0; i < command.length; i++) {
+        const ch = command[i];
+        if (quote) {
+            if (ch === quote)
+                quote = null;
+            continue;
+        }
+        if (ch === '"' || ch === "'") {
+            quote = ch;
+            continue;
+        }
+        if (ch === "@" && command[i + 1] === "{") {
+            // Expand to the whitespace-delimited word that carries this @{ ref, then
+            // single-quote that whole word in the suggested fix.
+            let wordStart = i;
+            while (wordStart > 0 && !/\s/.test(command[wordStart - 1]))
+                wordStart--;
+            let wordEnd = i;
+            while (wordEnd < command.length && !/\s/.test(command[wordEnd]))
+                wordEnd++;
+            const word = command.slice(wordStart, wordEnd);
+            const braceEnd = command.indexOf("}", i);
+            const ref = braceEnd === -1 ? command.slice(i, wordEnd) : command.slice(i, braceEnd + 1);
+            const fixed = `${command.slice(0, wordStart)}'${word}'${command.slice(wordEnd)}`;
+            return { ref, fixed };
+        }
+    }
+    return null;
+}
+function buildBraceRefReason(hit) {
+    return [
+        `Unquoted git ref ${hit.ref} — Claude Code's Bash parser trips on the braces and blocks this`,
+        "post-hoc, costing a retry. Quote the ref and run the SAME command:",
+        "",
+        `  ${hit.fixed}`,
+        "",
+        "Single quotes stop the shell from touching the braces; git reads the ref as-is.",
+    ].join("\n");
+}
 function buildDestructiveBashReason(command) {
     return [
         `Destructive command requested: ${command}`,
@@ -265,6 +306,16 @@ function main() {
     const toolName = typeof payload.tool_name === "string" ? payload.tool_name : "";
     const toolInput = payload.tool_input ?? {};
     const gate = classifyTool(toolName, toolInput);
+    // Unquoted @{…} refs trip the built-in Bash parser — catch them first, for
+    // both routine and destructive commands, so the quoted fix surfaces before the
+    // opaque post-hoc block (and before the destructive rollback demand).
+    if (toolName === "Bash" && typeof toolInput.command === "string") {
+        const braceHit = findUnquotedBraceRef(toolInput.command);
+        if (braceHit) {
+            emitDeny(buildBraceRefReason(braceHit));
+            return;
+        }
+    }
     if (gate === "allow") {
         emitAllow();
         return;

@@ -480,6 +480,66 @@ describe("hooks/gateguard.mjs — target lock (RISA 2 / G2)", () => {
   });
 });
 
+// RISA 3 / G1 — an unquoted @{u}/@{upstream} git ref makes Claude Code's Bash
+// parser trip on the braces and block post-hoc, costing a retry. Deny it
+// pre-emptively with the exact quoted replacement so the fix lands first.
+// Quoted refs pass untouched; commands with no @{ are never affected.
+describe("hooks/gateguard.mjs — unquoted @{u} brace-ref detector (RISA 3 / G1)", () => {
+  let sessionDir = "";
+
+  before(() => {
+    sessionDir = mkdtempSync(join(tmpdir(), "gateguard-brace-"));
+  });
+
+  after(() => {
+    rmSync(sessionDir, { recursive: true, force: true });
+  });
+
+  it("unquoted @{u}...HEAD is blocked with the quoted fix in the reason", () => {
+    const decision = runHook(
+      "Bash",
+      { command: "git rev-list --left-right --count @{u}...HEAD" },
+      sessionDir,
+    );
+    assert.equal(decision.decision, "block");
+    assert.match(decision.reason ?? "", /@\{u\}/);
+    assert.match(decision.reason ?? "", /'@\{u\}\.\.\.HEAD'/, "reason prints the quoted replacement");
+  });
+
+  it("unquoted @{upstream} is blocked", () => {
+    const decision = runHook("Bash", { command: "git log @{upstream}..HEAD --oneline" }, sessionDir);
+    assert.equal(decision.decision, "block");
+    assert.match(decision.reason ?? "", /@\{upstream\}/);
+  });
+
+  it("a single-quoted @{u} ref is allowed (already safe)", () => {
+    const decision = runHook(
+      "Bash",
+      { command: "git rev-list --left-right --count '@{u}...HEAD'" },
+      sessionDir,
+    );
+    assert.equal(decision.decision, "allow", "a quoted brace ref must pass untouched");
+  });
+
+  it("a double-quoted @{u} ref is allowed", () => {
+    const decision = runHook("Bash", { command: 'git rev-parse "@{u}"' }, sessionDir);
+    assert.equal(decision.decision, "allow");
+  });
+
+  it("a command with no brace ref is unaffected", () => {
+    const decision = runHook("Bash", { command: "git status --porcelain=v1" }, sessionDir);
+    assert.equal(decision.decision, "allow");
+  });
+
+  it("the brace check fires before the destructive gate (git reset --hard @{u})", () => {
+    const decision = runHook("Bash", { command: "git reset --hard @{u}" }, sessionDir);
+    assert.equal(decision.decision, "block");
+    // The quoted-fix form only appears in the brace reason, never the destructive
+    // rollback demand — this proves the brace check surfaces first.
+    assert.match(decision.reason ?? "", /'@\{u\}'/, "brace fix surfaces first, before the destructive rollback demand");
+  });
+});
+
 // Session isolation: the cap and clearance state must NOT bleed across
 // concurrent same-day sessions. Drives the production path (no
 // GATEGUARD_SESSION_DIR override) with HOME/USERPROFILE pinned to a temp dir so
