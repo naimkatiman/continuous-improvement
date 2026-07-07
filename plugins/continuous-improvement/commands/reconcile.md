@@ -16,7 +16,7 @@ Snapshots the full git state in one pass, detects a concurrent writer, classifie
 ```
 git branch --show-current
 git status --porcelain=v1                     # but trust git diff --stat for real drift (autocrlf)
-git rev-list --left-right --count @{u}...HEAD  # behind / ahead
+git rev-list --left-right --count '@{u}...HEAD'  # behind / ahead (quote the ref — bare @{u} trips the Bash parser)
 git stash list
 git worktree list
 ls .git/MERGE_HEAD .git/rebase-merge .git/rebase-apply 2>/dev/null  # in-progress op = another actor; do not race

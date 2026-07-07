@@ -39,10 +39,12 @@ import { fileURLToPath } from "node:url";
 import {
   MAX_CLEARED_FILES,
   canonicalizeFileKey,
+  canonicalizeProjectRoot,
   isCapReached,
   isFileCleared,
   loadState,
   markFileCleared,
+  resolveProjectRoot,
   resolveSessionDir,
   saveState,
   type GateguardState,
@@ -99,8 +101,23 @@ const DESTRUCTIVE_PATTERNS: readonly string[] = [
   "Remove-Item -Force",
 ];
 
+// Flags whose VALUE is human prose (a commit message, a PR body) or a filename —
+// never a command to execute. Their contents must not trip the destructive scan:
+// `git commit -m "drop the stale format helper"` and `gh pr create --body "…"`
+// were stranding finished work on their own wording. `-c` is deliberately
+// EXCLUDED — `bash -c "rm -rf /"` carries a real command and must still gate.
+const MESSAGE_FLAG_RE =
+  /(^|\s)(-m|--message|-F|--file|--body|--body-file|--title|--notes|-C|--reuse-message)(=|\s+)('[^']*'|"[^"]*"|\S+)/g;
+
+// Blank the value of every message/body flag so only executable command syntax
+// remains for the destructive-pattern scan. The flag itself is preserved so a
+// flag like `-F` never accidentally merges with its neighbours.
+function stripMessageArgs(command: string): string {
+  return command.replace(MESSAGE_FLAG_RE, (_match, lead: string, flag: string) => `${lead}${flag} `);
+}
+
 function isDestructiveBash(command: string): boolean {
-  const lower = command.toLowerCase();
+  const lower = stripMessageArgs(command).toLowerCase();
   return DESTRUCTIVE_PATTERNS.some((p) => lower.includes(p.toLowerCase()));
 }
 
@@ -143,6 +160,43 @@ function isExcludedPath(filePath: string): boolean {
   }
   const normalized = filePath.replace(/\\/g, "/").toLowerCase();
   return EXCLUDE_FRAGMENTS.some((fragment) => normalized.includes(fragment));
+}
+
+// --- Target lock (opt-in) --------------------------------------------------
+// A fact-list can't catch a wrong-repo / wrong-worktree write — you can present
+// perfect facts about the wrong file. CI_GATEGUARD_TARGET_LOCK=block denies a
+// mutating call whose ABSOLUTE target canonicalizes outside the session project
+// root. Default (unset) checks nothing, so existing sessions — including
+// legitimate out-of-root edits to ~/.claude or /tmp — are unaffected. This is
+// the warn-first rollout: ship non-enforcing, flip to block per session.
+const TARGET_LOCK_ON = String(process.env.CI_GATEGUARD_TARGET_LOCK ?? "").toLowerCase() === "block";
+
+// Relative paths resolve under cwd (= the project root) and always pass; only an
+// absolute path into a different tree can be out-of-root. Drive-letter (d:/,
+// D:\), POSIX-absolute (/x), and UNC (\\host) forms all count as absolute.
+function isAbsolutePathString(p: string): boolean {
+  return /^[A-Za-z]:[\\/]/.test(p) || p.startsWith("/") || p.startsWith("\\\\");
+}
+
+function isTargetOutsideRoot(filePath: string, projectRoot: string): boolean {
+  if (!isAbsolutePathString(filePath)) return false;
+  const root = canonicalizeProjectRoot(projectRoot);
+  if (root === "global" || root === "") return false; // no known root — do not guess
+  const target = canonicalizeFileKey(filePath);
+  return target !== root && !target.startsWith(`${root}/`);
+}
+
+function buildTargetLockReason(strayPath: string, projectRoot: string): string {
+  return [
+    `Target is outside the session project root — refusing a possible wrong-repo / wrong-worktree write.`,
+    "",
+    `  Target: ${strayPath.replace(/\\/g, "/")}`,
+    `  Session root: ${canonicalizeProjectRoot(projectRoot)}`,
+    "",
+    "If this is intentional, confirm you are in the right worktree (cwd / CLAUDE_PROJECT_DIR),",
+    "or unset CI_GATEGUARD_TARGET_LOCK for this session. Target lock is opt-in; it fires only",
+    "when CI_GATEGUARD_TARGET_LOCK=block.",
+  ].join("\n");
 }
 
 // The call site only reads this inside the block branch, where at least one
@@ -197,6 +251,59 @@ function buildMutatingFileReason(toolName: string, filePaths: string[], stateFil
     "  Both canonicalize paths — drive-letter case and separators don't matter.",
     "  (Harnesses that forward unknown tool params may instead retry the call with",
     "  `_gateguard_facts_presented: true`; Claude Code's strict schema rejects that, so use A or B.)",
+  ].join("\n");
+}
+
+// --- Unquoted brace-ref detector (RISA 3 / G1) -----------------------------
+// An unquoted @{u} / @{upstream} / @{push} / @{0} git ref makes Claude Code's
+// built-in Bash parser trip on the braces and block the call post-hoc, costing a
+// retry (measured in 4+ sessions). Walk the command tracking quote state and
+// report the FIRST @{ that sits outside any quoted span, plus the fixed command
+// that single-quotes the whole ref word — so the correction lands before the
+// opaque built-in block. A ref already inside single or double quotes is safe
+// and passes untouched.
+interface BraceRefHit {
+  ref: string;
+  fixed: string;
+}
+
+function findUnquotedBraceRef(command: string): BraceRefHit | null {
+  let quote: string | null = null;
+  for (let i = 0; i < command.length; i++) {
+    const ch = command[i]!;
+    if (quote) {
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    if (ch === "@" && command[i + 1] === "{") {
+      // Expand to the whitespace-delimited word that carries this @{ ref, then
+      // single-quote that whole word in the suggested fix.
+      let wordStart = i;
+      while (wordStart > 0 && !/\s/.test(command[wordStart - 1]!)) wordStart--;
+      let wordEnd = i;
+      while (wordEnd < command.length && !/\s/.test(command[wordEnd]!)) wordEnd++;
+      const word = command.slice(wordStart, wordEnd);
+      const braceEnd = command.indexOf("}", i);
+      const ref = braceEnd === -1 ? command.slice(i, wordEnd) : command.slice(i, braceEnd + 1);
+      const fixed = `${command.slice(0, wordStart)}'${word}'${command.slice(wordEnd)}`;
+      return { ref, fixed };
+    }
+  }
+  return null;
+}
+
+function buildBraceRefReason(hit: BraceRefHit): string {
+  return [
+    `Unquoted git ref ${hit.ref} — Claude Code's Bash parser trips on the braces and blocks this`,
+    "post-hoc, costing a retry. Quote the ref and run the SAME command:",
+    "",
+    `  ${hit.fixed}`,
+    "",
+    "Single quotes stop the shell from touching the braces; git reads the ref as-is.",
   ].join("\n");
 }
 
@@ -260,6 +367,17 @@ function main(): void {
   const toolInput: ToolInput = payload.tool_input ?? {};
   const gate = classifyTool(toolName, toolInput);
 
+  // Unquoted @{…} refs trip the built-in Bash parser — catch them first, for
+  // both routine and destructive commands, so the quoted fix surfaces before the
+  // opaque post-hoc block (and before the destructive rollback demand).
+  if (toolName === "Bash" && typeof toolInput.command === "string") {
+    const braceHit = findUnquotedBraceRef(toolInput.command);
+    if (braceHit) {
+      emitDeny(buildBraceRefReason(braceHit));
+      return;
+    }
+  }
+
   if (gate === "allow") {
     emitAllow();
     return;
@@ -284,6 +402,20 @@ function main(): void {
     emitAllow(); // every target is under a CI_GATEGUARD_EXCLUDE path; skip the gate
     return;
   }
+
+  // Target lock runs before the fact gate and independent of clearance: a
+  // wrong-repo write is wrong even with perfect facts. Excluded paths were
+  // already filtered out above, so an explicitly-excluded scratch dir outside
+  // the root is never target-locked.
+  if (TARGET_LOCK_ON) {
+    const projectRoot = resolveProjectRoot();
+    const stray = filePaths.find((path) => isTargetOutsideRoot(path, projectRoot));
+    if (stray) {
+      emitDeny(buildTargetLockReason(stray, projectRoot));
+      return;
+    }
+  }
+
   const filePath = firstUnclearedFilePath(toolInput, state);
   const factsFlagged = toolInput._gateguard_facts_presented === true;
   const alreadyCleared = filePaths.length > 0 && filePaths.every((path) => isFileCleared(state, path));

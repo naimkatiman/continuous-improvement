@@ -25,7 +25,7 @@ Read before you write. Capture the full state in one pass:
 ```
 git branch --show-current
 git status --porcelain=v1
-git rev-list --left-right --count @{u}...HEAD     # behind / ahead of upstream
+git rev-list --left-right --count '@{u}...HEAD'     # behind / ahead of upstream (quote the ref — bare @{u} trips the Bash parser)
 git stash list
 git worktree list
 ls .git/MERGE_HEAD .git/rebase-merge .git/rebase-apply 2>/dev/null   # in-progress operation?

@@ -336,6 +336,210 @@ describe("hooks/gateguard.mjs (runtime PreToolUse hook — issue #106)", () => {
   });
 });
 
+// RISA 1 / G3 — the destructive-bash scan must not match patterns that appear
+// only inside the PROSE of a commit message or PR body. A verified commit whose
+// message mentions "drop"/"format"/"truncate" was being stranded on its own
+// wording. Genuine destructive commands (the verb is command syntax, not quoted
+// prose) must still gate.
+describe("hooks/gateguard.mjs — destructive-bash message-arg carve-out (RISA 1 / G3)", () => {
+  let sessionDir = "";
+
+  before(() => {
+    sessionDir = mkdtempSync(join(tmpdir(), "gateguard-msgarg-"));
+  });
+
+  after(() => {
+    rmSync(sessionDir, { recursive: true, force: true });
+  });
+
+  it("git commit -m with destructive words in the message is allowed", () => {
+    const decision = runHook(
+      "Bash",
+      { command: 'git commit -m "refactor: drop the stale format helper"' },
+      sessionDir,
+    );
+    assert.equal(decision.decision, "allow", "commit-message prose must not trip the destructive gate");
+  });
+
+  it("gh pr create --body with destructive words in the body is allowed", () => {
+    const decision = runHook(
+      "Bash",
+      { command: 'gh pr create --title "cleanup" --body "truncate the logs and remove old files"' },
+      sessionDir,
+    );
+    assert.equal(decision.decision, "allow", "PR-body prose must not trip the destructive gate");
+  });
+
+  it("git commit -m with single-quoted destructive prose is allowed", () => {
+    const decision = runHook(
+      "Bash",
+      { command: "git commit -m 'drop table cleanup: rename the format column'" },
+      sessionDir,
+    );
+    assert.equal(decision.decision, "allow", "single-quoted message prose must not trip the gate");
+  });
+
+  it("git branch -D (genuine destructive) still blocks despite a benign context", () => {
+    const decision = runHook("Bash", { command: "git branch -D feat/old-branch" }, sessionDir);
+    assert.equal(decision.decision, "block", "force-delete branch must still gate");
+    assert.match(decision.reason ?? "", /rollback|delete|destructive/i);
+  });
+
+  it("rm -rf outside any quoted message still blocks", () => {
+    const decision = runHook("Bash", { command: "rm -rf node_modules" }, sessionDir);
+    assert.equal(decision.decision, "block", "rm -rf must still gate");
+  });
+
+  it("a destructive command hidden in bash -c is NOT carved out (-c is not a message flag)", () => {
+    const decision = runHook("Bash", { command: 'bash -c "rm -rf /tmp/x"' }, sessionDir);
+    assert.equal(decision.decision, "block", "bash -c carries a command to run, not prose — must still gate");
+  });
+
+  it("a plain benign commit message is allowed (no regression)", () => {
+    const decision = runHook("Bash", { command: 'git commit -m "add gateguard tests"' }, sessionDir);
+    assert.equal(decision.decision, "allow");
+  });
+});
+
+// RISA 2 / G2 — opt-in target lock. CI_GATEGUARD_TARGET_LOCK=block denies a
+// mutating call whose ABSOLUTE target resolves outside the session project root
+// (the wrong-repo / wrong-worktree write a fact-list can't catch). Default off:
+// no path is checked and behaviour is unchanged.
+describe("hooks/gateguard.mjs — target lock (RISA 2 / G2)", () => {
+  const ROOT = "d:/proj/root";
+
+  function runTargetHook(
+    toolInput: Record<string, unknown>,
+    opts: { targetLock?: string; projectRoot?: string },
+  ): HookDecision {
+    const dir = mkdtempSync(join(tmpdir(), "gateguard-target-"));
+    try {
+      const env: NodeJS.ProcessEnv = {
+        ...process.env,
+        GATEGUARD_SESSION_DIR: dir,
+        CLAUDE_PROJECT_DIR: opts.projectRoot ?? ROOT,
+      };
+      if (opts.targetLock === undefined) delete env.CI_GATEGUARD_TARGET_LOCK;
+      else env.CI_GATEGUARD_TARGET_LOCK = opts.targetLock;
+      const payload = JSON.stringify({ tool_name: "Write", tool_input: toolInput });
+      const result = spawnSync(process.execPath, [HOOK_PATH], { input: payload, encoding: "utf8", env });
+      assert.equal(result.status, 0, `hook exited non-zero: ${result.stderr}`);
+      const stdout = result.stdout.trim();
+      if (stdout === "") return { decision: "allow" };
+      const parsed = JSON.parse(stdout) as PreToolUseHookOutput;
+      return { decision: "block", reason: parsed.hookSpecificOutput?.permissionDecisionReason };
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  it("absolute in-root target hits the normal fact gate, not the mismatch reason", () => {
+    const decision = runTargetHook(
+      { file_path: "d:/proj/root/src/x.ts", content: "y" },
+      { targetLock: "block" },
+    );
+    assert.equal(decision.decision, "block");
+    assert.match(decision.reason ?? "", /import|require|present these facts/i);
+    assert.doesNotMatch(decision.reason ?? "", /outside the session project root/i);
+  });
+
+  it("absolute out-of-root target is denied with an identity-mismatch reason when locked", () => {
+    const decision = runTargetHook(
+      { file_path: "d:/other/repo/x.ts", content: "y" },
+      { targetLock: "block" },
+    );
+    assert.equal(decision.decision, "block");
+    assert.match(decision.reason ?? "", /outside the session project root/i);
+    assert.match(decision.reason ?? "", /d:\/other\/repo\/x\.ts/i);
+    assert.match(decision.reason ?? "", /d:\/proj\/root/i);
+  });
+
+  it("out-of-root target with target lock UNSET falls back to the normal fact gate (default off)", () => {
+    const decision = runTargetHook(
+      { file_path: "d:/other/repo/x.ts", content: "y" },
+      { targetLock: undefined },
+    );
+    assert.equal(decision.decision, "block");
+    assert.match(decision.reason ?? "", /present these facts/i);
+    assert.doesNotMatch(decision.reason ?? "", /outside the session project root/i);
+  });
+
+  it("relative target is never target-locked (resolves under cwd)", () => {
+    const decision = runTargetHook({ file_path: "src/x.ts", content: "y" }, { targetLock: "block" });
+    assert.equal(decision.decision, "block");
+    assert.doesNotMatch(decision.reason ?? "", /outside the session project root/i);
+  });
+
+  it("a sibling dir sharing the root's name prefix is treated as outside", () => {
+    const decision = runTargetHook(
+      { file_path: "d:/proj/rootX/x.ts", content: "y" },
+      { targetLock: "block" },
+    );
+    assert.equal(decision.decision, "block");
+    assert.match(decision.reason ?? "", /outside the session project root/i);
+  });
+});
+
+// RISA 3 / G1 — an unquoted @{u}/@{upstream} git ref makes Claude Code's Bash
+// parser trip on the braces and block post-hoc, costing a retry. Deny it
+// pre-emptively with the exact quoted replacement so the fix lands first.
+// Quoted refs pass untouched; commands with no @{ are never affected.
+describe("hooks/gateguard.mjs — unquoted @{u} brace-ref detector (RISA 3 / G1)", () => {
+  let sessionDir = "";
+
+  before(() => {
+    sessionDir = mkdtempSync(join(tmpdir(), "gateguard-brace-"));
+  });
+
+  after(() => {
+    rmSync(sessionDir, { recursive: true, force: true });
+  });
+
+  it("unquoted @{u}...HEAD is blocked with the quoted fix in the reason", () => {
+    const decision = runHook(
+      "Bash",
+      { command: "git rev-list --left-right --count @{u}...HEAD" },
+      sessionDir,
+    );
+    assert.equal(decision.decision, "block");
+    assert.match(decision.reason ?? "", /@\{u\}/);
+    assert.match(decision.reason ?? "", /'@\{u\}\.\.\.HEAD'/, "reason prints the quoted replacement");
+  });
+
+  it("unquoted @{upstream} is blocked", () => {
+    const decision = runHook("Bash", { command: "git log @{upstream}..HEAD --oneline" }, sessionDir);
+    assert.equal(decision.decision, "block");
+    assert.match(decision.reason ?? "", /@\{upstream\}/);
+  });
+
+  it("a single-quoted @{u} ref is allowed (already safe)", () => {
+    const decision = runHook(
+      "Bash",
+      { command: "git rev-list --left-right --count '@{u}...HEAD'" },
+      sessionDir,
+    );
+    assert.equal(decision.decision, "allow", "a quoted brace ref must pass untouched");
+  });
+
+  it("a double-quoted @{u} ref is allowed", () => {
+    const decision = runHook("Bash", { command: 'git rev-parse "@{u}"' }, sessionDir);
+    assert.equal(decision.decision, "allow");
+  });
+
+  it("a command with no brace ref is unaffected", () => {
+    const decision = runHook("Bash", { command: "git status --porcelain=v1" }, sessionDir);
+    assert.equal(decision.decision, "allow");
+  });
+
+  it("the brace check fires before the destructive gate (git reset --hard @{u})", () => {
+    const decision = runHook("Bash", { command: "git reset --hard @{u}" }, sessionDir);
+    assert.equal(decision.decision, "block");
+    // The quoted-fix form only appears in the brace reason, never the destructive
+    // rollback demand — this proves the brace check surfaces first.
+    assert.match(decision.reason ?? "", /'@\{u\}'/, "brace fix surfaces first, before the destructive rollback demand");
+  });
+});
+
 // Session isolation: the cap and clearance state must NOT bleed across
 // concurrent same-day sessions. Drives the production path (no
 // GATEGUARD_SESSION_DIR override) with HOME/USERPROFILE pinned to a temp dir so
