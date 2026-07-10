@@ -97,7 +97,7 @@ A second Claude/Codex/Maulana session can be running on the same host and the sa
 
 **On the first Edit / Write / mutating Bash of a session:**
 
-Run [`scripts/git-state-snapshot.sh`](../scripts/git-state-snapshot.sh) and quote its JSON envelope verbatim. Example output:
+Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/git-state-snapshot.sh"` (source: `scripts/git-state-snapshot.sh`) and quote its JSON envelope verbatim. Example output:
 
 ```
 {"head":"966ce51","upstream":"966ce51","dirty":0,"root":"/path/to/repo","branch":"main"}
@@ -115,7 +115,7 @@ If `upstream` is `"none"` or `branch` is `"detached"`, say so explicitly. Do not
 
 **On every subsequent Edit / Write / mutating Bash, before allowing the action:**
 
-Re-run [`scripts/git-state-snapshot.sh`](../scripts/git-state-snapshot.sh) and diff against the baseline:
+Re-run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/git-state-snapshot.sh"` (source: `scripts/git-state-snapshot.sh`) and diff against the baseline:
 
 1. `head` — has it advanced past your baseline without your commits?
 2. `upstream` — did upstream move while you worked?

@@ -23,10 +23,10 @@ Invoke this skill:
 
 Every project has its own actual invocation for build / typecheck / lint / test / security / deploy-receipt. Hardcoding `npm run build` and `npm run test` works when the project happens to use those exact scripts; for everything else (pnpm, yarn, cargo, go, mise, just, custom scripts, monorepos with workspace-scoped commands) it returns "deps not installed" or "config not found" misreads from the wrong invocation. Phase 0 runs first so Phases 1–6 never have to guess.
 
-**Run [`scripts/resolve-verify-ladder.mjs`](../scripts/resolve-verify-ladder.mjs)** at the repo root. It encodes the full four-step resolution priority and emits the fenced block below. Use `--json` for machine consumption.
+**Run `node "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-verify-ladder.mjs"`** (source: `scripts/resolve-verify-ladder.mjs`) at the repo root. It encodes the full four-step resolution priority and emits the fenced block below. Use `--json` for machine consumption.
 
 ```
-$ node scripts/resolve-verify-ladder.mjs
+$ node "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-verify-ladder.mjs"
 verify-ladder (resolved):
   build:             npm run build  (sniff:package.json:scripts.build)
   typecheck:         npm run typecheck  (sniff:package.json:scripts.typecheck)
@@ -147,9 +147,9 @@ If either is `No`, the verification report goes back to the operator with the ex
 
 For repos whose `verify-ladder.json` declares a `deploy_receipt` field — or whose sniff path detects an auto-deploy target — the verify is not complete until the deployed SHA matches the merge SHA and a healthcheck returns 200. Hand off to the `deploy-receipt` skill (Law 4 deploy-seam companion landed in PR #83) and treat its `Receipt status: COMPLETE` as the gate.
 
-**Detection.** Run [`scripts/detect-deploy-target.sh`](../scripts/detect-deploy-target.sh) at the repo root. Output is one of `railway` / `cloudflare` / `vercel` / `netlify` / `fly` / `appengine` / `apprunner` / `gha-deploy` / `none`. Anything except `none` triggers handoff to `deploy-receipt`; `none` means Phase 8 is skipped (no deploy seam exists).
+**Detection.** Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-deploy-target.sh"` (source: `scripts/detect-deploy-target.sh`) at the repo root. Output is one of `railway` / `cloudflare` / `vercel` / `netlify` / `fly` / `appengine` / `apprunner` / `gha-deploy` / `none`. Anything except `none` triggers handoff to `deploy-receipt`; `none` means Phase 8 is skipped (no deploy seam exists).
 
-**SHA extraction.** For the detected provider, [`scripts/get-deployed-sha.sh <provider>`](../scripts/get-deployed-sha.sh) returns the currently-deployed SHA via the provider CLI; `--show-command <provider>` prints the pipeline shape without executing (useful for dry-runs and citation). `deploy-receipt` owns the receipt's other components (health endpoint, build artifact, on-incomplete modes) and Route B/C fallbacks.
+**SHA extraction.** For the detected provider, `bash "${CLAUDE_PLUGIN_ROOT}/scripts/get-deployed-sha.sh" <provider>` (source: `scripts/get-deployed-sha.sh`) returns the currently-deployed SHA via the provider CLI; `bash "${CLAUDE_PLUGIN_ROOT}/scripts/get-deployed-sha.sh" --show-command <provider>` prints the pipeline shape without executing (useful for dry-runs and citation). `deploy-receipt` owns the receipt's other components (health endpoint, build artifact, on-incomplete modes) and Route B/C fallbacks.
 
 INCOMPLETE receipts move to "Immediate operator action" in the close, never to "ready". Library-only / package-published repos skip this phase entirely (no deploy seam exists).
 
@@ -164,7 +164,7 @@ Phase 8 confirms the deploy seam. Phase 9 confirms the deployed surface matches 
 
 **What the runner does:**
 
-Implementation: `scripts/run-synthetic.mjs` encodes the lexical walk, interpreter map, env injection, and exit-code aggregation below. The prose is documentation, not the contract — when the two disagree, the script wins.
+Run `node "${CLAUDE_PLUGIN_ROOT}/scripts/run-synthetic.mjs"` (source: `scripts/run-synthetic.mjs`); it encodes the lexical walk, interpreter map, env injection, and exit-code aggregation below. The prose is documentation, not the contract — when the two disagree, the script wins.
 
 1. List every `*.synthetic.{sh,mjs,ts,py}` file in the resolved directory in lexical order.
 2. For each file, set the input env vars: `BASE_URL` (production base from project config), `BASELINE_URL` (staging baseline from project config), `EXPECTED_SHA` (the merge SHA Phase 8 reported COMPLETE), `DEPLOY_BRANCH` (the deploy branch name), `RECEIPT_TIMESTAMP` (ISO-8601 of the receipt).

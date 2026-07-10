@@ -21,7 +21,7 @@ This skill defines the receipt that closes that gap, without modifying the vendo
 Activate when ALL of the following are true:
 
 1. A merge into the deploy branch (typically `main` or `master`) has just landed
-2. [`scripts/detect-deploy-target.sh`](../scripts/detect-deploy-target.sh) returns a value other than `none` at the repo root. The script encodes the full file-marker table — `railway.toml` / `railway.json` → `railway`, `wrangler.toml` / `wrangler.jsonc` → `cloudflare`, `vercel.json` / `.vercel/` → `vercel`, `netlify.toml` → `netlify`, `fly.toml` → `fly`, `app.yaml` → `appengine`, `apprunner.yaml` → `apprunner`, `.github/workflows/*.yml` with a `deploy:` job → `gha-deploy`. First match wins, in that order. The script is the source of truth; the file list above is documentation
+2. `bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-deploy-target.sh"` (source: `scripts/detect-deploy-target.sh`) returns a value other than `none` at the repo root. The script encodes the full file-marker table — `railway.toml` / `railway.json` → `railway`, `wrangler.toml` / `wrangler.jsonc` → `cloudflare`, `vercel.json` / `.vercel/` → `vercel`, `netlify.toml` → `netlify`, `fly.toml` → `fly`, `app.yaml` → `appengine`, `apprunner.yaml` → `apprunner`, `.github/workflows/*.yml` with a `deploy:` job → `gha-deploy`. First match wins, in that order. The script is the source of truth; the file list above is documentation
 3. `finishing-a-development-branch` has reported "merged" — not "PR opened", not "review pending"
 
 Do NOT activate when:
@@ -45,7 +45,7 @@ The skill is provider-aware but never hardcodes a specific API key or token shap
 
 ### Route A — Provider CLI (preferred when authenticated)
 
-The CLI is the highest-fidelity source. Run [`scripts/get-deployed-sha.sh <provider>`](../scripts/get-deployed-sha.sh) — the script owns the per-provider pipeline (CLI + jq filter) and prints just the SHA on stdout. Inspect the pipeline shape without executing via `bash scripts/get-deployed-sha.sh --show-command <provider>`.
+The CLI is the highest-fidelity source. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/get-deployed-sha.sh" <provider>` (source: `scripts/get-deployed-sha.sh`) — the script owns the per-provider pipeline (CLI + jq filter) and prints just the SHA on stdout. Inspect the pipeline shape without executing via `bash "${CLAUDE_PLUGIN_ROOT}/scripts/get-deployed-sha.sh" --show-command <provider>`.
 
 Provider-to-pipeline map (cited from the script, not redefined here):
 
