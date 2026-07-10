@@ -474,12 +474,12 @@ export function getPluginHooksConfig() {
     };
     const observeCommand = {
         type: "command",
-        command: "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/observe.sh\"",
+        command: "node \"${CLAUDE_PLUGIN_ROOT}/bin/observe.mjs\"",
         timeout: 5,
     };
     const sessionCommand = {
         type: "command",
-        command: "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session.sh\"",
+        command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session.mjs\"",
         timeout: 5,
     };
     const threeSectionCloseCommand = {
@@ -526,7 +526,7 @@ export function getPluginHooksConfig() {
             // gateguard runs FIRST on PreToolUse so its block decision short-circuits
             // before companion-preference sees the call. companion-preference runs
             // second on Skill tool calls; it is a no-op under ci-first (the default)
-            // and never blocks under companions-first. observe.sh only runs on
+            // and never blocks under companions-first. The observer only runs on
             // PostToolUse: gateguard-blocked calls are intentionally not observed so
             // PreToolUse stays at two subprocesses on the hot path. route-prompt
             // fires on UserPromptSubmit and emits a system-reminder when a prompt

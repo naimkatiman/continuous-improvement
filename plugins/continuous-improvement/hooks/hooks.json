@@ -32,7 +32,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/observe.sh\"",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/observe.mjs\"",
             "timeout": 5
           }
         ]
@@ -59,7 +59,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session.sh\"",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session.mjs\"",
             "timeout": 5
           }
         ]
@@ -70,7 +70,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session.sh\"",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session.mjs\"",
             "timeout": 5
           }
         ]
