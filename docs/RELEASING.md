@@ -15,15 +15,18 @@ The release pipeline is **tag-triggered**. Pushing a `v*` tag publishes the npm 
 
 ### 1. Bump version on a release PR
 
-The PR contains the version bump and the regenerated plugin manifests — nothing else. `src/lib/plugin-metadata.mts` derives `VERSION` from `package.json` at runtime, so `npm run build` propagates the bump to all 5 generated manifests automatically. You never edit a constant.
+The PR contains the version bump, the four landing-page release markers, and the regenerated plugin manifests. `src/lib/plugin-metadata.mts` derives `VERSION` from `package.json` at runtime, so `npm run build` propagates the bump to all 5 generated manifests automatically. Update the `vX.Y.Z` and `REV X.Y.Z` markers in `docs/landing/index.html`; `npm run verify:landing-version` fails if any marker is missing, mixed, or stale.
 
 ```bash
 git switch main
 git pull --ff-only origin main
 git switch -c chore/release-vX.Y.Z
 npm version X.Y.Z --no-git-tag-version
+# Update all four release markers in docs/landing/index.html to X.Y.Z.
 npm run build
+npm run verify:landing-version
 git add package.json package-lock.json \
+  docs/landing/index.html \
   .claude-plugin/marketplace.json \
   plugins/continuous-improvement/.claude-plugin/marketplace.json \
   plugins/continuous-improvement/.claude-plugin/plugin.json \
@@ -130,8 +133,7 @@ domain (no preview-only step). The deploy uses your local wrangler OAuth session
 `CLOUDFLARE_API_TOKEN` secret in CI.
 
 **Catch staleness automatically:** the [`landing-drift.yml`](../.github/workflows/landing-drift.yml)
-workflow runs daily (and on demand) and fails if `continuous-improvement.dev` is not serving the version
-in `docs/landing/index.html` — so a missed deploy pages you instead of going unnoticed for weeks. It is
+workflow runs daily (and on demand) and first requires every source marker to match `package.json`, then fails if `continuous-improvement.dev` is not serving that version. A stale source marker or missed deploy is reported instead of going unnoticed for weeks. It is
 read-only (curl + version compare) and needs no secret.
 
 **Full push-to-deploy (optional, involves a cutover):** Cloudflare fixes a Pages project's connection
