@@ -84,7 +84,7 @@ Then verify the tag workflow:
 
 - [ ] `gh run list --workflow=release.yml -L 1` shows the latest tag run.
 - [ ] The run used Node 22 and upgraded npm before publishing.
-- [ ] `npm publish` used `npx -y npm@latest publish --access public --provenance` with no `NPM_TOKEN`.
+- [ ] The workflow installed pinned npm 11.18.0 before direct `npm publish --access public --provenance`, with no `NPM_TOKEN`.
 - [ ] The tag/package version check passed.
 - [ ] GitHub Release was created with `--verify-tag`.
 - [ ] The floating major tag (for example `v3`) was retargeted by the workflow.
