@@ -1,6 +1,6 @@
 ---
 name: production-readiness-review
-description: "Parallel multi-agent readiness gate — fan blind reviewers across performance, security, UI/UX, and test coverage, each grounding findings in real code/logs/live data, then reconcile into one deduplicated, severity-ranked punch-list. Reports only; never fixes, merges, or deploys."
+description: "Parallel multi-agent readiness gate — fan blind reviewers across performance, security, UI/UX, test coverage, and simplicity, each grounding findings in real code/logs/live data, then reconcile into one deduplicated, severity-ranked punch-list. Reports only; never fixes, merges, or deploys."
 ---
 
 # /production-readiness-review
@@ -20,11 +20,12 @@ Pure routing over existing skills and agents. Adds no new code.
 ## Behavior
 
 1. **Scope** — establish ground truth: the diff under review and which changes are recent (`git diff`; `reconcile` fallback for branch/base state). Recent changes get extra scrutiny because they are the likeliest source of self-inflicted defects.
-2. **Fan out** — `superpowers:dispatching-parallel-agents` launches four reviewers, each blind to the others. Every reviewer is instructed to ground each finding in real code, logs, or live queries, and never to assume or fabricate state:
+2. **Fan out** — `superpowers:dispatching-parallel-agents` launches five reviewers, each blind to the others. Every reviewer is instructed to ground each finding in real code, logs, or live queries, and never to assume or fabricate state:
    - **Performance & bundle-size** — hot paths, N+1 queries, unbounded work, regressions.
    - **Security & data-access** (`security-auditor`) — authn/authz, input handling, injection, secret exposure, unsafe data access.
    - **UI/UX correctness** — verified live with Playwright when the MCP is available, else static review of the changed surface.
    - **Test coverage & flaky/stale mocks** (`test-engineer`) — uncovered branches, stale mocks, timing-flaky tests.
+   - **Simplicity & over-engineering** (`simplicity-review`) — code that could reuse an existing file, a stdlib or native feature, or fewer lines; reports trim opportunities via the reuse ladder and never flags input validation, data-loss handling, security, or accessibility.
 3. **Reconcile** — a final pass dedupes findings across reviewers, ranks each CRITICAL / HIGH / MEDIUM / LOW by severity and confidence, and explicitly flags any defect introduced by the changes under review.
 4. **Present** — emit the consolidated punch-list, severity-ranked, with file references. **Stop.**
 
@@ -42,7 +43,7 @@ Pure routing over existing skills and agents. Adds no new code.
 
 ## Composition
 
-Routes through: `reconcile` (scope/ground truth) → `superpowers:dispatching-parallel-agents` (fan-out) → the `security-auditor` and `test-engineer` agents (two of the four dimensions) → a reconciliation pass that ranks and dedupes. Each step falls back to its inline behavior when the preferred skill or agent is not installed.
+Routes through: `reconcile` (scope/ground truth) → `superpowers:dispatching-parallel-agents` (fan-out) → the `security-auditor` and `test-engineer` agents and the `simplicity-review` skill (three of the five dimensions) → a reconciliation pass that ranks and dedupes. Each step falls back to its inline behavior when the preferred skill or agent is not installed.
 
 ## Example
 
@@ -50,4 +51,4 @@ Routes through: `reconcile` (scope/ground truth) → `superpowers:dispatching-pa
 /production-readiness-review #246
 ```
 
-Scopes PR #246's diff, fans four blind reviewers across performance, security, UI/UX, and test coverage, then returns one deduplicated severity-ranked punch-list — flagging anything the PR's own changes introduced — and stops for you to prioritize.
+Scopes PR #246's diff, fans five blind reviewers across performance, security, UI/UX, test coverage, and simplicity, then returns one deduplicated severity-ranked punch-list — flagging anything the PR's own changes introduced — and stops for you to prioritize.
