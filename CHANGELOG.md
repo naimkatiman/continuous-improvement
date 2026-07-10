@@ -4,6 +4,16 @@ All notable changes to this skill are documented here.
 
 ---
 
+## [3.21.0] — 2026-07-11
+
+### Added
+
+- **`/simplicity-review`**: a diff-scoped over-engineering reviewer. It reads the current diff and walks a reuse ladder (does it need to exist? already in the codebase? stdlib? native feature? one line?), reporting `GO` or `TRIM` trim findings without editing, with a safety carve-out that never flags input validation, data-loss handling, security, or accessibility. Review-only (Law 4), tier 2, routed into `proceed-with-the-recommendation`. Brings the bundle to 28 skills. (#285)
+
+### Changed
+
+- **`/production-readiness-review` gains a fifth blind reviewer**: a simplicity and over-engineering dimension that delegates to the `simplicity-review` skill, so the readiness gate now spans performance, security, UI/UX, test coverage, and simplicity. (#286)
+
 ## [3.17.0] — 2026-06-28
 
 ### Added
