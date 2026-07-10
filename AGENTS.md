@@ -70,6 +70,7 @@ Dated entries. Roll older than 60 days into `docs/audits/archive-<quarter>.md`.
 | 2026-07-10 | Query-cost and typecheck Stop hooks inspected tracked diffs only, so new untracked migrations and TypeScript files bypassed both gates. | Changed-file gates must include `git ls-files --others --exclude-standard`. | Untracked-file cases in both hook suites. |
 | 2026-07-10 | The Windows installer accepted any executable answering `bash --version`; WSL Bash then failed on the native `C:/...` hook paths written to settings. | Probe the exact capability the installed command needs before writing any target. | Installer path-read probe + incompatible-Bash integration test. |
 | 2026-07-10 | Landing release markers stayed at v3.14.0 after package v3.20.0, and the mobile hero nowrap rule overflowed a 375 px viewport. | Tie landing markers to `package.json` in CI and verify the smallest supported viewport. | `verify:landing-version` + landing mobile regression + 375/768/1440 browser checks. |
+| 2026-07-10 | Windows committed new generated CLIs and copied plugin helpers as `100644`; the Linux build normalized them to `100755` and failed `verify:generated` after all tests passed. | New generated executables need their Git mode recorded explicitly from Windows. | `git update-index --chmod=+x` on new CLI and helper artifacts + Linux generated-diff CI gate. |
 
 ## Deferred
 
