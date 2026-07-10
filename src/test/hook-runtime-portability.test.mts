@@ -37,6 +37,10 @@ function runSession(input: string, home: string, projectRoot: string) {
 }
 
 describe("plugin-managed hook runtime portability", () => {
+  it("emits only the hooks key accepted by every supported host", () => {
+    assert.deepEqual(Object.keys(getPluginHooksConfig()), ["hooks"]);
+  });
+
   it("uses Node for observation and session lifecycle hooks", () => {
     assert.deepEqual(commandsFor("PostToolUse"), [
       'node "${CLAUDE_PLUGIN_ROOT}/bin/observe.mjs"',

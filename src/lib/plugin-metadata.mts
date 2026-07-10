@@ -74,7 +74,6 @@ export interface PluginHookCommand {
 }
 
 export interface PluginHooksConfig {
-  description: string;
   hooks: Partial<Record<HookType, Array<{ matcher?: string; hooks: PluginHookCommand[] }>>>;
 }
 
@@ -683,8 +682,6 @@ export function getPluginHooksConfig(): PluginHooksConfig {
   };
 
   return {
-    description:
-      "Gateguard fact-forcing PreToolUse, companion-preference enforcement, observation, session lifecycle, 3-section-close discipline, goal-drift Stop gate, opt-in workflow-distill Stop nudge, opt-in typecheck Stop gate, opt-in query-cost Stop nudge, and UserPromptSubmit lazy-routing plus opt-in proactive recall-briefing hooks for continuous-improvement.",
     hooks: {
       // gateguard runs FIRST on PreToolUse so its block decision short-circuits
       // before companion-preference sees the call. companion-preference runs
