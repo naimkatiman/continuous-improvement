@@ -12,7 +12,7 @@
  * Three sides of the contract are enforced as one invariant:
  *
  *   Side A — every file in scripts/ (excluding README.md) must appear in the
- *            Inventory table's Script column.
+ *            Inventory table, and every inventoried helper must exist on disk.
  *   Side B — for every Inventory row, every `skills/<name>.md` token in the
  *            Cited by cell must reference a file whose body contains the
  *            literal substring `scripts/<script-filename>` for at least one
@@ -157,9 +157,15 @@ export function checkRepo(repoRoot: string): CheckResult {
   for (const row of rows) {
     for (const s of row.scripts) inventoryScripts.add(s);
   }
+  const scriptFileSet = new Set(scriptFiles);
   for (const file of scriptFiles) {
     if (!inventoryScripts.has(file)) {
-      sideA.push(file);
+      sideA.push(`${file} — file is missing from the inventory`);
+    }
+  }
+  for (const inventoryScript of inventoryScripts) {
+    if (!scriptFileSet.has(inventoryScript)) {
+      sideA.push(`${inventoryScript} — inventoried helper file is missing`);
     }
   }
 
@@ -245,7 +251,7 @@ function main(): void {
   }
   if (result.sideA.length > 0) {
     console.error("");
-    console.error("Side A — script files missing from scripts/README.md inventory table:");
+    console.error("Side A — scripts/ files and inventory rows do not match:");
     for (const v of result.sideA) {
       console.error(`  ${toPosix(v)}`);
     }

@@ -153,6 +153,25 @@ describe("check-scripts-citation-drift — integration", () => {
             rmSync(root, { recursive: true, force: true });
         }
     });
+    it("fails closed when an inventoried helper file is missing", () => {
+        const root = setupRepo([
+            {
+                relPath: "scripts/README.md",
+                contents: INVENTORY_HEADER +
+                    "| `alpha.sh` | Alpha primitive | `skills/uno.md` (Section A) |\n",
+            },
+            { relPath: "skills/uno.md", contents: "# uno\n\nUses `scripts/alpha.sh`.\n" },
+        ]);
+        try {
+            const { exit, stderr } = runChecker(root);
+            assert.equal(exit, 1, `expected exit 1, got ${exit}`);
+            assert.match(stderr, /alpha\.sh/);
+            assert.match(stderr, /missing/i);
+        }
+        finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
     it("fails closed when the scripts directory is absent", () => {
         const root = setupRepo([]);
         try {
