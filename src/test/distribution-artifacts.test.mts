@@ -93,31 +93,50 @@ function runNpm(args: string[]): string {
   return execFileSync("npm", args, options);
 }
 
+function isNpmPackResult(candidate: unknown): candidate is NpmPackResult {
+  return (
+    typeof candidate === "object" &&
+    candidate !== null &&
+    Array.isArray((candidate as { files?: unknown }).files)
+  );
+}
+
 function parseNpmPackResults(output: string): NpmPackResult[] {
   const parsed: unknown = JSON.parse(output);
-  const candidates = Array.isArray(parsed) ? parsed : [parsed];
-  const allResultsAreValid = candidates.every((candidate): candidate is NpmPackResult => {
-    return (
-      typeof candidate === "object" &&
-      candidate !== null &&
-      Array.isArray((candidate as { files?: unknown }).files)
-    );
-  });
-  if (!allResultsAreValid) {
+  const candidates = Array.isArray(parsed)
+    ? parsed
+    : isNpmPackResult(parsed)
+      ? [parsed]
+      : typeof parsed === "object" && parsed !== null
+        ? Object.values(parsed)
+        : [];
+  if (candidates.length === 0 || !candidates.every(isNpmPackResult)) {
     throw new TypeError("npm pack JSON must contain only package results with files arrays");
   }
   return candidates;
 }
 
 describe("distribution artifacts", () => {
-  it("accepts npm pack JSON as either an array or a single result object", () => {
+  it("accepts npm pack JSON from supported npm versions", () => {
     const result: NpmPackResult = { files: [{ path: "package.json" }] };
     assert.deepEqual(parseNpmPackResults(JSON.stringify([result])), [result]);
     assert.deepEqual(parseNpmPackResults(JSON.stringify(result)), [result]);
+    assert.deepEqual(
+      parseNpmPackResults(JSON.stringify({ "continuous-improvement": result })),
+      [result],
+    );
     assert.throws(
       () => parseNpmPackResults(JSON.stringify([result, { files: null }])),
       /must contain only package results/,
     );
+    assert.throws(
+      () =>
+        parseNpmPackResults(
+          JSON.stringify({ "continuous-improvement": result, metadata: {} }),
+        ),
+      /must contain only package results/,
+    );
+    assert.throws(() => parseNpmPackResults("{}"), /must contain only package results/);
   });
 
   it("mirrors every root script into the generated plugin bundle byte-for-byte", () => {
