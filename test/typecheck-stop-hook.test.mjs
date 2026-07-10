@@ -64,6 +64,14 @@ describe("hooks/typecheck-stop.mjs (RISA 4 / G4)", () => {
         assert.match(res.reason ?? "", /Typecheck FAILED/);
         assert.match(res.reason ?? "", /mock type error line 1/);
     });
+    it("block mode + failing typecheck on an untracked .ts file → block with the tsc output", () => {
+        const dir = setupRepo({ pkg: PKG, tcJs: FAILING_TC, files: { "README.md": "fixture\n" } });
+        writeFileSync(join(dir, "untracked.ts"), "export const x: number = 'wrong';\n");
+        const res = runHook(dir, "block");
+        assert.equal(res.decision, "block");
+        assert.match(res.reason ?? "", /Typecheck FAILED/);
+        assert.match(res.reason ?? "", /mock type error line 1/);
+    });
     it("block mode + passing typecheck → allow", () => {
         const dir = setupRepo({ pkg: PKG, tcJs: PASSING_TC, files: { "a.ts": "export const x = 1;\n" } });
         assert.equal(runHook(dir, "block").decision, "allow");

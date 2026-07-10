@@ -61,6 +61,7 @@ function collectChangedFiles(root) {
     return [
         ...parseChangedFiles(run(["diff", "--name-only", "--diff-filter=ACMR"])),
         ...parseChangedFiles(run(["diff", "--cached", "--name-only", "--diff-filter=ACMR"])),
+        ...parseChangedFiles(run(["ls-files", "--others", "--exclude-standard"])),
     ];
 }
 // Marker key: the sanitized session_id when present (the normal case), else a
