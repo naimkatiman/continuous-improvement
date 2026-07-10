@@ -93,7 +93,33 @@ function runNpm(args: string[]): string {
   return execFileSync("npm", args, options);
 }
 
+function parseNpmPackResults(output: string): NpmPackResult[] {
+  const parsed: unknown = JSON.parse(output);
+  const candidates = Array.isArray(parsed) ? parsed : [parsed];
+  const allResultsAreValid = candidates.every((candidate): candidate is NpmPackResult => {
+    return (
+      typeof candidate === "object" &&
+      candidate !== null &&
+      Array.isArray((candidate as { files?: unknown }).files)
+    );
+  });
+  if (!allResultsAreValid) {
+    throw new TypeError("npm pack JSON must contain only package results with files arrays");
+  }
+  return candidates;
+}
+
 describe("distribution artifacts", () => {
+  it("accepts npm pack JSON as either an array or a single result object", () => {
+    const result: NpmPackResult = { files: [{ path: "package.json" }] };
+    assert.deepEqual(parseNpmPackResults(JSON.stringify([result])), [result]);
+    assert.deepEqual(parseNpmPackResults(JSON.stringify(result)), [result]);
+    assert.throws(
+      () => parseNpmPackResults(JSON.stringify([result, { files: null }])),
+      /must contain only package results/,
+    );
+  });
+
   it("mirrors every root script into the generated plugin bundle byte-for-byte", () => {
     const sourceFiles = listRelativeFiles(SOURCE_SCRIPTS);
     const bundledFiles = listRelativeFiles(BUNDLED_SCRIPTS);
@@ -124,7 +150,7 @@ describe("distribution artifacts", () => {
       "--json",
       "--ignore-scripts",
     ]);
-    const packResults = JSON.parse(packOutput) as NpmPackResult[];
+    const packResults = parseNpmPackResults(packOutput);
     assert.equal(packResults.length, 1, "npm pack must describe exactly one package");
     const packResult = packResults[0];
     assert.ok(packResult, "npm pack result must be present");
