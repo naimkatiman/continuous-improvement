@@ -19,6 +19,8 @@ Ship a fix-forward change that closes every verified v3.20.0 deployment defect w
 - AC-007: The landing page has no horizontal overflow at 375 px, 768 px, or 1440 px.
 - AC-008: Source and generated `.mjs` artifacts remain in exact parity.
 - AC-009: `npm run verify:all`, the full test suite, package smoke checks, and focused browser checks pass.
+- AC-010: Plugin-managed PostToolUse, SessionStart, and SessionEnd hooks run through Node and do not depend on whichever `bash` executable Windows resolves first.
+- AC-011: The npx installer migrates installer-owned Bash hook rows to Node without deleting foreign hooks, and uninstall removes both legacy and current rows.
 
 ## Assumptions and boundaries
 
@@ -35,9 +37,10 @@ Ship a fix-forward change that closes every verified v3.20.0 deployment defect w
 3. Add untracked-file integration cases to both Stop-hook suites.
 4. Add Windows Bash path-compatibility coverage to the installer suite.
 5. Add landing metadata and responsive-overflow regression coverage.
-6. Run the focused tests and record the expected RED failures.
-7. Apply the smallest implementation changes that make each case green.
-8. Rebuild from `.mts`, rerun focused tests, then run the repository-wide gates.
+6. Add plugin-manifest, session-lifecycle, and installer-migration coverage that fails when lifecycle hooks depend on Bash.
+7. Run the focused tests and record the expected RED failures.
+8. Apply the smallest implementation changes that make each case green.
+9. Rebuild from `.mts`, rerun focused tests, then run the repository-wide gates.
 
 ## Expected implementation surfaces
 
@@ -47,6 +50,7 @@ Ship a fix-forward change that closes every verified v3.20.0 deployment defect w
 - Landing-page source and landing drift verification.
 - Generated `bin/`, `hooks/`, `test/`, `lib/`, and plugin mirrors produced by `npm run build`.
 - `AGENTS.md` Past Mistakes entry for the packaging and boundary-test gaps.
+- Node-native observer and session hook wiring in plugin metadata and the npx installer.
 
 ## Verification
 
@@ -57,6 +61,7 @@ Ship a fix-forward change that closes every verified v3.20.0 deployment defect w
 - `node --test test/*.test.mjs`.
 - `npm pack --dry-run --json` plus plugin-bundle helper execution.
 - Browser checks at 375 px, 768 px, and 1440 px against a local landing-page server.
+- Direct Node invocation of the installed PostToolUse and SessionStart hooks with WSL Bash first on PATH.
 - Final branch, HEAD, `git diff --stat`, `git diff --check`, and changed-file review.
 
 ## Status
@@ -68,6 +73,12 @@ Ship a fix-forward change that closes every verified v3.20.0 deployment defect w
 - `npm pack --dry-run` reports 261 files, including all 18 root and plugin script artifacts; generated output has zero drift.
 - Playwright reports equal client and scroll widths at 375 px, 768 px, and 1,440 px.
 - Final adversarial review found two medium gaps. Both are closed with RED-to-GREEN coverage: quoted/comment-only PowerShell hashtables, and deleted inventoried helpers.
+- Lifecycle-hook follow-up RED recorded: the new portability suite failed 4/4 because plugin metadata invoked Bash and no Node session hook existed.
+- Lifecycle-hook follow-up GREEN recorded: 16/16 portability and observer tests pass after wiring PostToolUse, SessionStart, and SessionEnd directly to Node.
+- Installer follow-up RED recorded: the no-Bash case exited 1, and the old global Bash probe left the installer suite at 6 pass, 13 fail, and 11 cancelled.
+- Installer follow-up GREEN recorded: all 30 installer tests pass, including legacy-row migration, foreign-hook preservation, no-Bash installation, and Node-session cleanup.
+- Mode-transition follow-up GREEN recorded: all 35 installer and portability tests pass after preserving legacy expert session hooks through beginner reinstalls.
+- Final `npm run verify:all` passes every invariant and typecheck. Sixty-eight non-timing-sensitive test files pass in 14 low-concurrency shards; the four subprocess-timing files pass in isolation. The documented `hook.test.mjs` wall-clock case still flakes under host saturation, and its budget remains unchanged.
 
 ## Deferred
 
