@@ -22,7 +22,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { execFileSync as runFileSync, execSync } from "node:child_process";
+import { execSync } from "node:child_process";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -103,32 +103,29 @@ const ALL_HOOK_TYPES: readonly HookType[] = Array.from(
   new Set<HookType>([...HOOK_TYPES, ...SESSION_HOOK_TYPES]),
 );
 
-// Our installer writes `bash ".../.claude/instincts/(observe|session).sh"`.
-// Older Windows installs sometimes stored the same command with backslashes in
-// the quoted path; those no-op because bash can't resolve them. We strip only
-// that installer-owned command shape so foreign hooks that merely mention
-// observe.sh/session.sh survive.
-const INSTALLER_OBSERVE_SESSION_COMMAND_RE =
+// Match only installer-owned lifecycle commands. Bash rows are legacy and get
+// migrated on install; both legacy and current Node rows are removed on uninstall.
+const LEGACY_OBSERVE_SESSION_COMMAND_RE =
   /^bash ".*[\\/]\.claude[\\/]instincts[\\/](?:observe|session)\.sh"$/;
+const NODE_OBSERVE_SESSION_COMMAND_RE =
+  /^node ".*[\\/]\.claude[\\/]instincts[\\/](?:bin[\\/]observe|session)\.mjs"$/;
 
-function isBrokenObserveOrSessionCommand(command: unknown): boolean {
+function isLegacyObserveOrSessionCommand(command: unknown): boolean {
   if (typeof command !== "string") return false;
-  return command.includes("\\") && INSTALLER_OBSERVE_SESSION_COMMAND_RE.test(command);
+  return LEGACY_OBSERVE_SESSION_COMMAND_RE.test(command);
 }
 
-// Any installer-owned observe.sh / session.sh hook command, broken or clean.
-// Used by uninstall to drop both freshly-installed forward-slash hooks and any
-// stale legacy entries. Pairs with isBrokenObserveOrSessionCommand above.
 function isOurObserveOrSessionCommand(command: unknown): boolean {
   if (typeof command !== "string") return false;
-  return INSTALLER_OBSERVE_SESSION_COMMAND_RE.test(command);
+  return LEGACY_OBSERVE_SESSION_COMMAND_RE.test(command) ||
+    NODE_OBSERVE_SESSION_COMMAND_RE.test(command);
 }
 
 function getHomeDir(): string {
   return process.env.HOME || process.env.USERPROFILE || homedir();
 }
 
-function toBashPath(filePath: string): string {
+function toCommandPath(filePath: string): string {
   return filePath.replace(/\\/g, "/");
 }
 
@@ -145,33 +142,6 @@ function readJsonFile<T>(filePath: string): T | null {
     return JSON.parse(readFileSync(filePath, "utf8")) as T;
   } catch {
     return null;
-  }
-}
-
-// The observation hooks are Bash scripts, and the native Windows settings use
-// forward-slash drive paths such as C:/Users/... . Git Bash resolves that form;
-// WSL's C:\Windows\System32\bash.exe does not. Probe the real packaged hook path
-// instead of accepting any executable that happens to answer `bash --version`.
-function assertBashCanReadHookOnWindows(): void {
-  if (process.platform !== "win32") return;
-  const hookSource = toBashPath(join(REPO_ROOT, "hooks", "observe.sh"));
-  try {
-    runFileSync(
-      "bash",
-      ["-c", 'test -r "$CONTINUOUS_IMPROVEMENT_HOOK_SOURCE"'],
-      {
-        env: { ...process.env, CONTINUOUS_IMPROVEMENT_HOOK_SOURCE: hookSource },
-        stdio: "ignore",
-      },
-    );
-  } catch {
-    console.error(
-      `  ✗ Install refused: Bash on PATH cannot read the Windows hook path ${hookSource}. ` +
-        "Install Git Bash and ensure its bin directory comes before " +
-        "C:\\Windows\\System32 on PATH, then reopen your shell and re-run. " +
-        "See README > Troubleshooting install.",
-    );
-    process.exit(1);
   }
 }
 
@@ -244,41 +214,27 @@ function setupMulahazah(): void {
   mkdirSync(globalDir, { recursive: true });
   console.log(`  ✓ Instincts dir → ${instinctsDir}/`);
 
-  const observeSrc = join(REPO_ROOT, "hooks", "observe.sh");
-  const observeDest = join(instinctsDir, "observe.sh");
-  if (existsSync(observeSrc)) {
-    copyFileSync(observeSrc, observeDest);
-    chmodSync(observeDest, 0o755);
-    console.log(`  ✓ observe.sh → ${observeDest}`);
-  }
-
-  // Node observer (Phase 1 of the two-phase hook). The bash shim above
-  // exec's this when `node` and the file are both present; otherwise it
-  // falls back to the in-bash thin-schema path. Layout under instinctsDir
-  // mirrors the repo's bin/ + lib/ structure so the relative import in
-  // observe.mjs (`../lib/observe-event.mjs`) resolves correctly.
+  // Layout mirrors bin/ + lib/ so observe.mjs's relative import resolves.
   const observerJsSrc = join(REPO_ROOT, "bin", "observe.mjs");
   const observeEventSrc = join(REPO_ROOT, "lib", "observe-event.mjs");
+  const observerJsDest = join(instinctsDir, "bin", "observe.mjs");
   if (existsSync(observerJsSrc) && existsSync(observeEventSrc)) {
     const binDir = join(instinctsDir, "bin");
     const libDir = join(instinctsDir, "lib");
     mkdirSync(binDir, { recursive: true });
     mkdirSync(libDir, { recursive: true });
-    const observerJsDest = join(binDir, "observe.mjs");
     const observeEventDest = join(libDir, "observe-event.mjs");
     copyFileSync(observerJsSrc, observerJsDest);
     copyFileSync(observeEventSrc, observeEventDest);
     console.log(`  ✓ Node observer → ${observerJsDest}`);
   }
 
-  if (INSTALL_MODE === "expert") {
-    const sessionSrc = join(REPO_ROOT, "hooks", "session.sh");
-    const sessionDest = join(instinctsDir, "session.sh");
-    if (existsSync(sessionSrc)) {
-      copyFileSync(sessionSrc, sessionDest);
-      chmodSync(sessionDest, 0o755);
-      console.log(`  ✓ session.sh → ${sessionDest}`);
-    }
+  const sessionSrc = join(REPO_ROOT, "hooks", "session.mjs");
+  const sessionDest = join(instinctsDir, "session.mjs");
+  if (existsSync(sessionSrc)) {
+    copyFileSync(sessionSrc, sessionDest);
+    chmodSync(sessionDest, 0o755);
+    console.log(`  ✓ Node session hook → ${sessionDest}`);
   }
 
   const commandsDir = join(home, ".claude", "commands");
@@ -292,7 +248,7 @@ function setupMulahazah(): void {
     }
   }
 
-  patchClaudeSettings(observeDest);
+  patchClaudeSettings(observerJsDest);
 
   if (INSTALL_MODE === "expert") {
     setupMcpServer();
@@ -371,6 +327,14 @@ function patchClaudeSettings(observePath: string): void {
   if (!settings.hooks) {
     settings.hooks = {};
   }
+  const preserveSessionHooks = INSTALL_MODE === "expert" || SESSION_HOOK_TYPES.some((hookType) => {
+    const entries = settings.hooks?.[hookType];
+    return Array.isArray(entries) && entries.some((entry) =>
+      Array.isArray(entry?.hooks) && entry.hooks.some((hook) =>
+        isOurObserveOrSessionCommand(hook?.command)
+      )
+    );
+  });
 
   // Strip broken legacy observe/session hooks at the hook level, not the entry
   // level. A single entry may carry a foreign command alongside a broken hook;
@@ -394,7 +358,7 @@ function patchClaudeSettings(observePath: string): void {
       }
 
       const filteredHooks = entryHooks.filter(
-        (hook) => !isBrokenObserveOrSessionCommand(hook?.command),
+        (hook) => !isLegacyObserveOrSessionCommand(hook?.command),
       );
 
       if (filteredHooks.length === entryHooks.length) {
@@ -418,7 +382,7 @@ function patchClaudeSettings(observePath: string): void {
     }
   }
 
-  const observeCommand = `bash "${toBashPath(observePath)}"`;
+  const observeCommand = `node "${toCommandPath(observePath)}"`;
 
   for (const hookType of HOOK_TYPES) {
     if (!Array.isArray(settings.hooks[hookType])) {
@@ -439,9 +403,9 @@ function patchClaudeSettings(observePath: string): void {
     }
   }
 
-  if (INSTALL_MODE === "expert") {
-    const sessionPath = join(getHomeDir(), ".claude", "instincts", "session.sh");
-    const sessionCommand = `bash "${toBashPath(sessionPath)}"`;
+  if (preserveSessionHooks) {
+    const sessionPath = join(getHomeDir(), ".claude", "instincts", "session.mjs");
+    const sessionCommand = `node "${toCommandPath(sessionPath)}"`;
 
     for (const hookType of SESSION_HOOK_TYPES) {
       if (!Array.isArray(settings.hooks[hookType])) {
@@ -460,7 +424,7 @@ function patchClaudeSettings(observePath: string): void {
 
   if (changed) {
     writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
-    const hookTypes = INSTALL_MODE === "expert"
+    const hookTypes = preserveSessionHooks
       ? "PreToolUse/PostToolUse/SessionStart/SessionEnd"
       : "PreToolUse/PostToolUse";
     console.log(`  ✓ Patched ~/.claude/settings.json with ${hookTypes} hooks`);
@@ -498,7 +462,7 @@ function uninstallAll(): void {
     }
   }
 
-  for (const hookFile of ["observe.sh", "session.sh"] as const) {
+  for (const hookFile of ["observe.sh", "session.sh", "session.mjs"] as const) {
     const filePath = join(home, ".claude", "instincts", hookFile);
     if (!existsSync(filePath)) {
       continue;
@@ -750,10 +714,6 @@ function installNonClaudeTargets(targetIds: string[]): void {
   }
   for (const note of notes) console.log(`  ℹ ${note}`);
 }
-
-// A mixed target install can write non-Claude rule files below. Validate the
-// Claude hook runtime first so an incompatible Bash cannot leave a partial install.
-if (requestedTargets.includes("claude")) assertBashCanReadHookOnWindows();
 
 const nonClaudeTargets = requestedTargets.filter((targetId) => targetId !== "claude");
 if (nonClaudeTargets.length > 0) {
