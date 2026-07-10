@@ -51,15 +51,15 @@ function goodDocs() {
     };
 }
 describe("check-skill-count-prose — deriveCounts", () => {
-    it("derives 27 total / 16 tier-2 / next 28 from the live repo", () => {
+    it("derives 28 total / 17 tier-2 / next 29 from the live repo", () => {
         const c = deriveCounts(REPO_ROOT);
-        assert.equal(c.total, 27, `expected total 27, got ${c.total}`);
+        assert.equal(c.total, 28, `expected total 28, got ${c.total}`);
         assert.equal(c.core, 1);
         assert.equal(c.featured, 1);
         assert.equal(c.tier1, 6);
-        assert.equal(c.tier2, 16);
+        assert.equal(c.tier2, 17);
         assert.equal(c.companion, 3);
-        assert.equal(c.next, 28);
+        assert.equal(c.next, 29);
     });
     it("derives the breakdown from frontmatter on a fixture", () => {
         const root = setupSkillRepo({ feat: "featured", a: "1", b: "2", c: "2", d: "companion" });

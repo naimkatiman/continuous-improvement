@@ -2,7 +2,7 @@
 
 [`docs/skills.md`](skills.md) is the **catalog** (what each skill *is*). This page is the **decision guide** (when to *reach for it*, and how to tell two similar-sounding skills apart).
 
-The plugin ships **27 skills** (1 core + 1 featured + 6 tier-1 + 16 tier-2 + 3 always-bundled companions). Most confusion is not "what does this skill do" — it is "I have five skills that all sound like *stop and check first*; which one is this situation?" The [disambiguation section](#4-disambiguation--this-not-that) is the answer to that.
+The plugin ships **28 skills** (1 core + 1 featured + 6 tier-1 + 17 tier-2 + 3 always-bundled companions). Most confusion is not "what does this skill do" — it is "I have five skills that all sound like *stop and check first*; which one is this situation?" The [disambiguation section](#4-disambiguation--this-not-that) is the answer to that.
 
 ---
 
@@ -80,6 +80,7 @@ Grouped by the job, not the tier. Each skill gets the **trigger** that is unique
 | `verification-loop` | About to say "done" — run the full ladder (build, types, lint, tests, security, diff) on the current change | Proving the *deploy* (use `deploy-receipt`) |
 | `deploy-receipt` | The merge target auto-deploys and you must prove the deployed SHA matches merged HEAD + healthcheck 200 | Local pre-merge verification (use `verification-loop`) |
 | `audit` | Reviewing a *window of recent commits* for real defects, confirming each before touching code | Verifying the change you are *currently* writing (that is `verification-loop`) |
+| `simplicity-review` | The change works and you want to know if it is *over-built*: could it reuse an existing file, a stdlib or native feature, or fewer lines (reports GO/TRIM, never edits) | Verifying *correctness* (use `verification-loop`) or reviewing landed commits (use `audit`); this judges minimality |
 | `recovery-classification` | A verification-ladder or auto-loop step **just failed** and you need to classify *why* (provider / tool-schema / policy / git / worktree / runtime) before retrying | A first attempt — this is the retry-decision layer |
 | `state-reconciliation` | Before dispatching a unit of work, to reconcile DB-vs-disk-vs-memory so a stale flag never re-runs completed work | Single-shot edits with no dispatch/queue |
 | `worktree-safety` | Before a source-writing call **inside a git worktree** — validates the worktree root, leases, ownership | Plain single-checkout repos (use `reconcile` for general git truth) |
@@ -188,6 +189,7 @@ The skills that get confused, separated by the one word that distinguishes them.
 | Running unattended or against prod | `safety-guard` |
 | A verify step just failed | `recovery-classification` |
 | Reviewing recent commits for defects | `audit` |
+| My change works, but is it over-engineered? | `simplicity-review` |
 | Am I drifting off the goal? | `goal-monitor` |
 | Running low on context, mid-task | `strategic-compact` |
 | Wrapping up for the next session | `handoff` |
