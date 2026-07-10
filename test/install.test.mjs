@@ -186,9 +186,11 @@ describe("installer", () => {
         const settingsPath = join(tempHome, ".claude", "settings.json");
         if (existsSync(settingsPath)) {
             const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
-            const hasObserveHook = (settings.hooks?.PreToolUse || []).some((entry) => Array.isArray(entry.hooks) &&
-                entry.hooks.some((hook) => /(?:observe\.sh|bin\/observe\.mjs)/.test(hook.command ?? "")));
-            assert.ok(!hasObserveHook, "observer hooks should be removed from settings");
+            for (const hookType of ["PreToolUse", "PostToolUse"]) {
+                const hasObserveHook = (settings.hooks?.[hookType] || []).some((entry) => Array.isArray(entry.hooks) &&
+                    entry.hooks.some((hook) => /(?:observe\.sh|bin\/observe\.mjs)/.test(hook.command ?? "")));
+                assert.ok(!hasObserveHook, `${hookType} observer hooks should be removed`);
+            }
         }
     });
 });
@@ -228,6 +230,54 @@ describe("installer - expert mode", () => {
             entry.hooks.some((hook) => hook.command?.includes("session.mjs")));
         assert.ok(startHasSession, "SessionStart should have session.mjs hook");
         assert.ok(endHasSession, "SessionEnd should have session.mjs hook");
+    });
+});
+describe("installer - lifecycle mode transitions", () => {
+    it("migrates legacy expert hooks through beginner reinstalls and uninstalls cleanly", () => {
+        const tempHome = join(tmpdir(), `ci-test-lifecycle-transition-${Date.now()}`);
+        const settingsPath = join(tempHome, ".claude", "settings.json");
+        const legacyForward = `bash "${join(tempHome, ".claude", "instincts", "session.sh").replace(/\\/g, "/")}"`;
+        const legacyBackslash = 'bash "C:\\Users\\naim\\.claude\\instincts\\session.sh"';
+        mkdirSync(join(tempHome, ".claude"), { recursive: true });
+        writeFileSync(settingsPath, JSON.stringify({
+            hooks: {
+                SessionStart: [{ matcher: "", hooks: [{ type: "command", command: legacyForward }] }],
+                SessionEnd: [{ matcher: "", hooks: [{ type: "command", command: legacyBackslash }] }],
+            },
+        }, null, 2) + "\n");
+        try {
+            for (let run = 0; run < 2; run += 1) {
+                execFileSync("node", [INSTALL_SCRIPT, "install"], {
+                    env: { ...process.env, HOME: tempHome },
+                    encoding: "utf8",
+                });
+                const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
+                const expected = `node "${join(tempHome, ".claude", "instincts", "session.mjs").replace(/\\/g, "/")}"`;
+                for (const hookType of ["SessionStart", "SessionEnd"]) {
+                    const commands = (settings.hooks?.[hookType] || [])
+                        .flatMap((entry) => entry.hooks || [])
+                        .map((hook) => hook.command);
+                    assert.equal(commands.filter((command) => command === expected).length, 1);
+                    assert.ok(commands.every((command) => !command?.includes("session.sh")));
+                }
+                assert.ok(existsSync(join(tempHome, ".claude", "instincts", "session.mjs")));
+            }
+            execFileSync("node", [INSTALL_SCRIPT, "--uninstall"], {
+                env: { ...process.env, HOME: tempHome },
+                encoding: "utf8",
+            });
+            const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
+            for (const hookType of ["SessionStart", "SessionEnd"]) {
+                const commands = (settings.hooks?.[hookType] || [])
+                    .flatMap((entry) => entry.hooks || [])
+                    .map((hook) => hook.command ?? "");
+                assert.ok(commands.every((command) => !/(?:session\.sh|session\.mjs)/.test(command)));
+            }
+            assert.equal(existsSync(join(tempHome, ".claude", "instincts", "session.mjs")), false);
+        }
+        finally {
+            rmSync(tempHome, { recursive: true, force: true });
+        }
     });
 });
 describe("installer - foreign-hook preservation", () => {

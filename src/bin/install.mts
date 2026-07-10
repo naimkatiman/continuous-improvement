@@ -229,14 +229,12 @@ function setupMulahazah(): void {
     console.log(`  ✓ Node observer → ${observerJsDest}`);
   }
 
-  if (INSTALL_MODE === "expert") {
-    const sessionSrc = join(REPO_ROOT, "hooks", "session.mjs");
-    const sessionDest = join(instinctsDir, "session.mjs");
-    if (existsSync(sessionSrc)) {
-      copyFileSync(sessionSrc, sessionDest);
-      chmodSync(sessionDest, 0o755);
-      console.log(`  ✓ Node session hook → ${sessionDest}`);
-    }
+  const sessionSrc = join(REPO_ROOT, "hooks", "session.mjs");
+  const sessionDest = join(instinctsDir, "session.mjs");
+  if (existsSync(sessionSrc)) {
+    copyFileSync(sessionSrc, sessionDest);
+    chmodSync(sessionDest, 0o755);
+    console.log(`  ✓ Node session hook → ${sessionDest}`);
   }
 
   const commandsDir = join(home, ".claude", "commands");
@@ -329,6 +327,14 @@ function patchClaudeSettings(observePath: string): void {
   if (!settings.hooks) {
     settings.hooks = {};
   }
+  const preserveSessionHooks = INSTALL_MODE === "expert" || SESSION_HOOK_TYPES.some((hookType) => {
+    const entries = settings.hooks?.[hookType];
+    return Array.isArray(entries) && entries.some((entry) =>
+      Array.isArray(entry?.hooks) && entry.hooks.some((hook) =>
+        isOurObserveOrSessionCommand(hook?.command)
+      )
+    );
+  });
 
   // Strip broken legacy observe/session hooks at the hook level, not the entry
   // level. A single entry may carry a foreign command alongside a broken hook;
@@ -397,7 +403,7 @@ function patchClaudeSettings(observePath: string): void {
     }
   }
 
-  if (INSTALL_MODE === "expert") {
+  if (preserveSessionHooks) {
     const sessionPath = join(getHomeDir(), ".claude", "instincts", "session.mjs");
     const sessionCommand = `node "${toCommandPath(sessionPath)}"`;
 
@@ -418,7 +424,7 @@ function patchClaudeSettings(observePath: string): void {
 
   if (changed) {
     writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
-    const hookTypes = INSTALL_MODE === "expert"
+    const hookTypes = preserveSessionHooks
       ? "PreToolUse/PostToolUse/SessionStart/SessionEnd"
       : "PreToolUse/PostToolUse";
     console.log(`  ✓ Patched ~/.claude/settings.json with ${hookTypes} hooks`);
@@ -708,9 +714,6 @@ function installNonClaudeTargets(targetIds: string[]): void {
   }
   for (const note of notes) console.log(`  ℹ ${note}`);
 }
-
-// A mixed target install can write non-Claude rule files below. Validate the
-// Claude hook runtime first so an incompatible Bash cannot leave a partial install.
 
 const nonClaudeTargets = requestedTargets.filter((targetId) => targetId !== "claude");
 if (nonClaudeTargets.length > 0) {
