@@ -59,6 +59,16 @@ Ship a fix-forward change that closes every verified v3.20.0 deployment defect w
 - Browser checks at 375 px, 768 px, and 1440 px against a local landing-page server.
 - Final branch, HEAD, `git diff --stat`, `git diff --check`, and changed-file review.
 
+## Status
+
+- RED recorded: 10 targeted cases failed against the old behavior.
+- GREEN recorded: 102 focused tests pass after rebuilding all generated artifacts.
+- `npm run verify:all` passes every invariant and typecheck on the reviewed HEAD.
+- All 1,021 tests pass in loaded-Windows-host shards; timing assertions remain unchanged. The final isolated results include `observe.test.mjs` at 12/12 and `hook.test.mjs` at 15/15.
+- `npm pack --dry-run` reports 261 files, including all 18 root and plugin script artifacts; generated output has zero drift.
+- Playwright reports equal client and scroll widths at 375 px, 768 px, and 1,440 px.
+- Final adversarial review found two medium gaps. Both are closed with RED-to-GREEN coverage: quoted/comment-only PowerShell hashtables, and deleted inventoried helpers.
+
 ## Deferred
 
 - Publishing a patch release.
