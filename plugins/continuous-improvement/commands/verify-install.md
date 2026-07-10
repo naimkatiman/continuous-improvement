@@ -40,8 +40,8 @@ The observation hook appends one row per tool call to
 `<project-hash>` from the current repo, or check `~/.claude/instincts/global/`).
 
 - If it exists and has at least one row — capture is recording. Record `observe: ✓`.
-- If it is missing or empty — record `observe: ✗ (observation hook not recording —
-  on Windows confirm Git Bash is installed before WSL Bash on PATH, then re-run the installer)`.
+- If it is missing or empty, record `observe: ✗ (observation hook not recording; re-run
+  the installer to migrate legacy Bash hook rows to the Node observer)`.
 
 ## Report
 
