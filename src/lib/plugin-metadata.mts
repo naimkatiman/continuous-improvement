@@ -617,68 +617,67 @@ export function getClaudePluginManifest(): ClaudePluginManifest {
 }
 
 export function getPluginHooksConfig(): PluginHooksConfig {
+  // Cold Node startup on loaded Windows hosts has exceeded five seconds.
+  const hookTimeoutSeconds = 30;
   const gateguardCommand = {
     type: "command" as const,
     command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/gateguard.mjs\"",
-    timeout: 5,
+    timeout: hookTimeoutSeconds,
   };
   const companionPreferenceCommand = {
     type: "command" as const,
     command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/companion-preference.mjs\"",
-    timeout: 5,
+    timeout: hookTimeoutSeconds,
   };
   const hookPackCommand = {
     type: "command" as const,
     command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/hook-pack.mjs\"",
-    timeout: 5,
+    timeout: hookTimeoutSeconds,
   };
   const observeCommand = {
     type: "command" as const,
     command: "node \"${CLAUDE_PLUGIN_ROOT}/bin/observe.mjs\"",
-    timeout: 5,
+    timeout: hookTimeoutSeconds,
   };
   const sessionCommand = {
     type: "command" as const,
     command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session.mjs\"",
-    timeout: 5,
+    timeout: hookTimeoutSeconds,
   };
   const threeSectionCloseCommand = {
     type: "command" as const,
     command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/three-section-close.mjs\"",
-    timeout: 5,
+    timeout: hookTimeoutSeconds,
   };
   const goalDriftStopCommand = {
     type: "command" as const,
     command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/goal-drift-stop.mjs\"",
-    timeout: 5,
+    timeout: hookTimeoutSeconds,
   };
   const workflowDistillCommand = {
     type: "command" as const,
     command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/workflow-distill.mjs\"",
-    timeout: 5,
+    timeout: hookTimeoutSeconds,
   };
   const typecheckStopCommand = {
     type: "command" as const,
     command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/typecheck-stop.mjs\"",
-    // Longer than the 5s hooks: tsc is slower. Opt-in via CLAUDE_TYPECHECK_GATE
-    // (off by default) and near-zero cost when off / no TS file changed; on an
-    // internal timeout it fails open (allow) rather than blocking.
-    timeout: 30,
+    timeout: hookTimeoutSeconds,
   };
   const queryCostNudgeCommand = {
     type: "command" as const,
     command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/query-cost-nudge.mjs\"",
-    timeout: 5,
+    timeout: hookTimeoutSeconds,
   };
   const routePromptCommand = {
     type: "command" as const,
     command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/route-prompt.mjs\"",
-    timeout: 5,
+    timeout: hookTimeoutSeconds,
   };
   const recallBriefingCommand = {
     type: "command" as const,
     command: "node \"${CLAUDE_PLUGIN_ROOT}/hooks/recall-briefing.mjs\"",
-    timeout: 5,
+    timeout: hookTimeoutSeconds,
   };
 
   return {

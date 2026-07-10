@@ -6,12 +6,12 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/gateguard.mjs\"",
-            "timeout": 5
+            "timeout": 30
           },
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/companion-preference.mjs\"",
-            "timeout": 5
+            "timeout": 30
           }
         ]
       },
@@ -21,7 +21,7 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/hook-pack.mjs\"",
-            "timeout": 5
+            "timeout": 30
           }
         ]
       }
@@ -32,7 +32,7 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/observe.mjs\"",
-            "timeout": 5
+            "timeout": 30
           }
         ]
       }
@@ -43,12 +43,12 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/route-prompt.mjs\"",
-            "timeout": 5
+            "timeout": 30
           },
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/recall-briefing.mjs\"",
-            "timeout": 5
+            "timeout": 30
           }
         ]
       }
@@ -59,7 +59,7 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session.mjs\"",
-            "timeout": 5
+            "timeout": 30
           }
         ]
       }
@@ -70,7 +70,7 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session.mjs\"",
-            "timeout": 5
+            "timeout": 30
           }
         ]
       }
@@ -81,17 +81,17 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/three-section-close.mjs\"",
-            "timeout": 5
+            "timeout": 30
           },
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/goal-drift-stop.mjs\"",
-            "timeout": 5
+            "timeout": 30
           },
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/workflow-distill.mjs\"",
-            "timeout": 5
+            "timeout": 30
           },
           {
             "type": "command",
@@ -101,7 +101,7 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/query-cost-nudge.mjs\"",
-            "timeout": 5
+            "timeout": 30
           }
         ]
       }

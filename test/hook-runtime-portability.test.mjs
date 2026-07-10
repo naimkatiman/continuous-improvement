@@ -50,6 +50,15 @@ describe("plugin-managed hook runtime portability", () => {
             }
         }
     });
+    it("gives hooks enough time to start on a loaded Windows host", () => {
+        for (const [event, entries] of Object.entries(getPluginHooksConfig().hooks)) {
+            for (const entry of entries) {
+                for (const hook of entry.hooks) {
+                    assert.ok(hook.timeout >= 15, `${event} hook has an unsafe ${hook.timeout}s timeout: ${hook.command}`);
+                }
+            }
+        }
+    });
     it("reports the SessionStart level from the current project bucket", () => {
         const fixture = join(tmpdir(), `ci-session-hook-${Date.now()}`);
         const home = join(fixture, "home");

@@ -1,7 +1,7 @@
 # v3.20.0 deployment regressions
 
 Date: 2026-07-10
-Branch: `fix/v320-deployment-regressions`
+Branches: `fix/v320-deployment-regressions` (initial), `fix/node-native-lifecycle-hooks` (lifecycle follow-up)
 Base: `41f3ef0645609eaeff9202886e7b5c13d8058b4d`
 
 ## Goal
@@ -21,6 +21,7 @@ Ship a fix-forward change that closes every verified v3.20.0 deployment defect w
 - AC-009: `npm run verify:all`, the full test suite, package smoke checks, and focused browser checks pass.
 - AC-010: Plugin-managed PostToolUse, SessionStart, and SessionEnd hooks run through Node and do not depend on whichever `bash` executable Windows resolves first.
 - AC-011: The npx installer migrates installer-owned Bash hook rows to Node without deleting foreign hooks, and uninstall removes both legacy and current rows.
+- AC-012: Plugin hook timeouts tolerate cold Node startup on a loaded Windows host without cancelling valid hooks.
 
 ## Assumptions and boundaries
 
@@ -38,9 +39,10 @@ Ship a fix-forward change that closes every verified v3.20.0 deployment defect w
 4. Add Windows Bash path-compatibility coverage to the installer suite.
 5. Add landing metadata and responsive-overflow regression coverage.
 6. Add plugin-manifest, session-lifecycle, and installer-migration coverage that fails when lifecycle hooks depend on Bash.
-7. Run the focused tests and record the expected RED failures.
-8. Apply the smallest implementation changes that make each case green.
-9. Rebuild from `.mts`, rerun focused tests, then run the repository-wide gates.
+7. Add a manifest regression that rejects hook timeouts below the loaded-host safety floor.
+8. Run the focused tests and record the expected RED failures.
+9. Apply the smallest implementation changes that make each case green.
+10. Rebuild from `.mts`, rerun focused tests, then run the repository-wide gates.
 
 ## Expected implementation surfaces
 
@@ -78,6 +80,8 @@ Ship a fix-forward change that closes every verified v3.20.0 deployment defect w
 - Installer follow-up RED recorded: the no-Bash case exited 1, and the old global Bash probe left the installer suite at 6 pass, 13 fail, and 11 cancelled.
 - Installer follow-up GREEN recorded: all 30 installer tests pass, including legacy-row migration, foreign-hook preservation, no-Bash installation, and Node-session cleanup.
 - Mode-transition follow-up GREEN recorded: all 35 installer and portability tests pass after preserving legacy expert session hooks through beginner reinstalls.
+- Timeout follow-up RED recorded: the portability suite rejected the 5-second PreToolUse budget observed cancelling valid cold starts after 6.878 seconds.
+- Timeout follow-up GREEN recorded: all plugin-managed hooks now receive a 30-second host budget, and the six-case portability suite passes.
 - Final `npm run verify:all` passes every invariant and typecheck. Sixty-eight non-timing-sensitive test files pass in 14 low-concurrency shards; the four subprocess-timing files pass in isolation. The documented `hook.test.mjs` wall-clock case still flakes under host saturation, and its budget remains unchanged.
 
 ## Deferred
