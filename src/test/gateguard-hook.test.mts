@@ -512,6 +512,15 @@ describe("hooks/gateguard.mjs — unquoted @{u} brace-ref detector (RISA 3 / G1)
     assert.match(decision.reason ?? "", /@\{upstream\}/);
   });
 
+  it("a PowerShell hashtable is allowed", () => {
+    const decision = runHook(
+      "Bash",
+      { command: '$headers = @{ Authorization = "Bearer token"; Accept = "application/json" }' },
+      sessionDir,
+    );
+    assert.equal(decision.decision, "allow", "PowerShell hashtable syntax is not a Git brace ref");
+  });
+
   it("a single-quoted @{u} ref is allowed (already safe)", () => {
     const decision = runHook(
       "Bash",

@@ -224,6 +224,17 @@ function findUnquotedBraceRef(command) {
             continue;
         }
         if (ch === "@" && command[i + 1] === "{") {
+            const braceEnd = command.indexOf("}", i + 2);
+            if (braceEnd === -1)
+                continue;
+            const selector = command.slice(i + 2, braceEnd);
+            // PowerShell hashtables use @{ key = value } (or @{} when empty).
+            // Git brace selectors never contain `=`, so keep the Git protection
+            // without denying valid PowerShell commands.
+            if (selector.trim() === "" || selector.includes("=")) {
+                i = braceEnd;
+                continue;
+            }
             // Expand to the whitespace-delimited word that carries this @{ ref, then
             // single-quote that whole word in the suggested fix.
             let wordStart = i;
@@ -233,8 +244,7 @@ function findUnquotedBraceRef(command) {
             while (wordEnd < command.length && !/\s/.test(command[wordEnd]))
                 wordEnd++;
             const word = command.slice(wordStart, wordEnd);
-            const braceEnd = command.indexOf("}", i);
-            const ref = braceEnd === -1 ? command.slice(i, wordEnd) : command.slice(i, braceEnd + 1);
+            const ref = command.slice(i, braceEnd + 1);
             const fixed = `${command.slice(0, wordStart)}'${word}'${command.slice(wordEnd)}`;
             return { ref, fixed };
         }
