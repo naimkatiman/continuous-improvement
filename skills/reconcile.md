@@ -40,7 +40,7 @@ When another session/loop may be active, do not assume the tree is yours:
 - An in-progress `MERGE_HEAD` / `rebase-merge` you did not start means another actor is mid-operation. Do not "help" by editing conflicted files — wait, or hand off.
 - Re-read the current branch immediately before any mutation; if it shifted since your snapshot, re-survey from the top.
 - If `.git/index` keeps changing while you are idle, a writer is active. Pause and surface it rather than racing.
-- If `gateguard` is installed, its Parallel-Actor Gate already captured this baseline on the session's first mutation (via `scripts/git-state-snapshot.sh`) and divergence-checks every later mutation — `reconcile` complements that gate, it does not replace it. Without gateguard, run the snapshot above yourself.
+- If `gateguard` is installed, its Parallel-Actor Gate already captured this baseline on the session's first mutation by running `bash "${CLAUDE_PLUGIN_ROOT}/scripts/git-state-snapshot.sh"` (source: `scripts/git-state-snapshot.sh`) and divergence-checks every later mutation — `reconcile` complements that gate, it does not replace it. Without gateguard, run the snapshot above yourself.
 
 ## Classify, Then Act
 

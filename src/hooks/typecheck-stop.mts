@@ -61,7 +61,8 @@ function collectChangedFiles(root: string): string[] {
   };
   const unstaged = run(["diff", "--name-only", "--diff-filter=ACMR"]);
   const staged = run(["diff", "--cached", "--name-only", "--diff-filter=ACMR"]);
-  return [...parseChangedFiles(unstaged), ...parseChangedFiles(staged)];
+  const untracked = run(["ls-files", "--others", "--exclude-standard"]);
+  return [...parseChangedFiles(unstaged), ...parseChangedFiles(staged), ...parseChangedFiles(untracked)];
 }
 
 function hasNpmTypecheckScript(root: string): boolean {

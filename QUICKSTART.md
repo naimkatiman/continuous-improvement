@@ -139,7 +139,7 @@ npx continuous-improvement install --mode expert
 npx continuous-improvement install --pack react   # optional: react | python | go | meta
 ```
 
-Preconditions: Node 18 / 20 / 22, plus bash on Windows (Git Bash or WSL — `hooks/observe.sh` is a bash script). See [README.md § Expert](README.md#expert--adds-mcp-server-observation-hooks-and-instinct-packs) for the full preconditions and troubleshooting matrix.
+Preconditions: Node 18 / 20 / 22, plus Git Bash on Windows (`hooks/observe.sh` is a Bash script). WSL Bash launched from native Windows cannot resolve the `C:/...` hook paths written by the installer. See [README.md § Expert](README.md#expert--adds-mcp-server-observation-hooks-and-instinct-packs) for the full preconditions and troubleshooting matrix.
 
 Verify with `/dashboard` — you should see instinct health and observation count.
 

@@ -210,6 +210,16 @@ function buildMutatingFileReason(toolName, filePaths, stateFilePath) {
         "  `_gateguard_facts_presented: true`; Claude Code's strict schema rejects that, so use A or B.)",
     ].join("\n");
 }
+function isGitBraceSelector(value) {
+    const selector = value.trim();
+    if (/^(?:u|upstream|push|-?\d+)$/i.test(selector))
+        return true;
+    if (/^(?:now|today|yesterday|tomorrow|noon|midnight|tea)$/i.test(selector))
+        return true;
+    if (/^\d{4}-\d{1,2}-\d{1,2}(?:[ T].*)?$/.test(selector))
+        return true;
+    return !selector.startsWith("#") && /(?:^|[.\s])ago$/i.test(selector);
+}
 function findUnquotedBraceRef(command) {
     let quote = null;
     for (let i = 0; i < command.length; i++) {
@@ -224,17 +234,26 @@ function findUnquotedBraceRef(command) {
             continue;
         }
         if (ch === "@" && command[i + 1] === "{") {
+            const braceEnd = command.indexOf("}", i + 2);
+            if (braceEnd === -1)
+                continue;
+            const selector = command.slice(i + 2, braceEnd);
+            // Deny only recognized Git selector grammar. PowerShell hashtables can
+            // contain comments, quoted braces, or arbitrary key expressions.
+            if (!isGitBraceSelector(selector)) {
+                i = braceEnd;
+                continue;
+            }
             // Expand to the whitespace-delimited word that carries this @{ ref, then
             // single-quote that whole word in the suggested fix.
             let wordStart = i;
             while (wordStart > 0 && !/\s/.test(command[wordStart - 1]))
                 wordStart--;
-            let wordEnd = i;
+            let wordEnd = braceEnd + 1;
             while (wordEnd < command.length && !/\s/.test(command[wordEnd]))
                 wordEnd++;
             const word = command.slice(wordStart, wordEnd);
-            const braceEnd = command.indexOf("}", i);
-            const ref = braceEnd === -1 ? command.slice(i, wordEnd) : command.slice(i, braceEnd + 1);
+            const ref = command.slice(i, braceEnd + 1);
             const fixed = `${command.slice(0, wordStart)}'${word}'${command.slice(wordEnd)}`;
             return { ref, fixed };
         }

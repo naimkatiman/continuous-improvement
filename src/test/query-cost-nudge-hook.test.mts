@@ -76,6 +76,17 @@ describe("hooks/query-cost-nudge.mjs (RISA 5 / G5)", () => {
     assert.match(res.context ?? "", /rows_read/);
   });
 
+  it("on + untracked migration file → nudges with the cost checklist", () => {
+    const repo = setupRepo({ "README.md": "fixture\n" });
+    const migration = join(repo, "migrations", "0002_untracked.sql");
+    mkdirSync(dirname(migration), { recursive: true });
+    writeFileSync(migration, "ALTER TABLE t ADD COLUMN name TEXT;\n");
+    const home = tempDir("qc-home-");
+    const res = runHook(repo, home, "on", "sess-untracked");
+    assert.equal(res.nudged, true);
+    assert.match(res.context ?? "", /migrations\/0002_untracked\.sql/);
+  });
+
   it("second Stop in the same session stays silent (dedup)", () => {
     const repo = setupRepo({ "db/queries.sql": "SELECT 1;\n" });
     const home = tempDir("qc-home-");

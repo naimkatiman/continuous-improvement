@@ -11,7 +11,7 @@
  * Three sides of the contract are enforced as one invariant:
  *
  *   Side A — every file in scripts/ (excluding README.md) must appear in the
- *            Inventory table's Script column.
+ *            Inventory table, and every inventoried helper must exist on disk.
  *   Side B — for every Inventory row, every `skills/<name>.md` token in the
  *            Cited by cell must reference a file whose body contains the
  *            literal substring `scripts/<script-filename>` for at least one
@@ -85,30 +85,67 @@ function listSkillFiles(repoRoot) {
     const dir = join(repoRoot, SKILLS_DIR);
     if (!existsSync(dir) || !statSync(dir).isDirectory())
         return [];
-    return readdirSync(dir)
-        .filter((entry) => entry.endsWith(".md"))
-        .map((entry) => `${SKILLS_DIR}/${entry}`)
-        .sort();
+    const skills = [];
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (entry.isFile() && entry.name.endsWith(".md")) {
+            skills.push(`${SKILLS_DIR}/${entry.name}`);
+            continue;
+        }
+        if (entry.isDirectory() &&
+            existsSync(join(dir, entry.name, "SKILL.md"))) {
+            skills.push(`${SKILLS_DIR}/${entry.name}.md`);
+        }
+    }
+    return skills.sort();
+}
+function resolveSkillFile(repoRoot, skillPath) {
+    const flatPath = join(repoRoot, skillPath);
+    if (existsSync(flatPath))
+        return flatPath;
+    const bundledSkill = /^skills\/([^/]+)\.md$/.exec(skillPath);
+    if (bundledSkill?.[1]) {
+        return join(repoRoot, SKILLS_DIR, bundledSkill[1], "SKILL.md");
+    }
+    return flatPath;
 }
 function toPosix(relPath) {
     return relPath.split(sep).join(posix.sep);
 }
 export function checkRepo(repoRoot) {
+    const structure = [];
     const sideA = [];
     const sideB = [];
     const sideC = [];
-    const scriptFiles = listScriptFiles(repoRoot);
+    const scriptsPath = join(repoRoot, SCRIPTS_DIR);
     const readmePath = join(repoRoot, SCRIPTS_README);
-    const readmeContent = existsSync(readmePath) ? readFileSync(readmePath, "utf8") : "";
+    const scriptsDirectoryExists = existsSync(scriptsPath) && statSync(scriptsPath).isDirectory();
+    const readmeExists = scriptsDirectoryExists && existsSync(readmePath);
+    const readmeContent = readmeExists ? readFileSync(readmePath, "utf8") : "";
     const rows = parseInventoryTable(readmeContent);
+    if (!scriptsDirectoryExists) {
+        structure.push("scripts/ directory is missing");
+    }
+    else if (!readmeExists) {
+        structure.push("scripts/README.md inventory is missing");
+    }
+    else if (rows.length === 0) {
+        structure.push("scripts/README.md inventory has no rows");
+    }
+    const scriptFiles = listScriptFiles(repoRoot);
     const inventoryScripts = new Set();
     for (const row of rows) {
         for (const s of row.scripts)
             inventoryScripts.add(s);
     }
+    const scriptFileSet = new Set(scriptFiles);
     for (const file of scriptFiles) {
         if (!inventoryScripts.has(file)) {
-            sideA.push(file);
+            sideA.push(`${file} — file is missing from the inventory`);
+        }
+    }
+    for (const inventoryScript of inventoryScripts) {
+        if (!scriptFileSet.has(inventoryScript)) {
+            sideA.push(`${inventoryScript} — inventoried helper file is missing`);
         }
     }
     let citationCount = 0;
@@ -122,7 +159,7 @@ export function checkRepo(repoRoot) {
     for (const row of rows) {
         for (const skillPath of row.skills) {
             citationCount += 1;
-            const fullSkill = join(repoRoot, skillPath);
+            const fullSkill = resolveSkillFile(repoRoot, skillPath);
             let skillBody = "";
             try {
                 skillBody = readFileSync(fullSkill, "utf8");
@@ -142,7 +179,7 @@ export function checkRepo(repoRoot) {
     for (const skillPath of skillFiles) {
         let body = "";
         try {
-            body = readFileSync(join(repoRoot, skillPath), "utf8");
+            body = readFileSync(resolveSkillFile(repoRoot, skillPath), "utf8");
         }
         catch {
             continue;
@@ -160,6 +197,7 @@ export function checkRepo(repoRoot) {
         }
     }
     return {
+        structure,
         sideA,
         sideB,
         sideC,
@@ -170,15 +208,25 @@ export function checkRepo(repoRoot) {
 function main() {
     const repoRoot = argv[2] ?? cwd();
     const result = checkRepo(repoRoot);
-    const totalViolations = result.sideA.length + result.sideB.length + result.sideC.length;
+    const totalViolations = result.structure.length +
+        result.sideA.length +
+        result.sideB.length +
+        result.sideC.length;
     if (totalViolations === 0) {
         console.log(`OK scripts-citation-drift: ${result.scriptCount} script(s), ${result.citationCount} skill citation(s), all three sides reconciled.`);
         exit(0);
     }
     console.error(`FAIL scripts-citation-drift: ${totalViolations} drift(s) across the inventory-citation contract.`);
+    if (result.structure.length > 0) {
+        console.error("");
+        console.error("Contract structure:");
+        for (const v of result.structure) {
+            console.error(`  ${toPosix(v)}`);
+        }
+    }
     if (result.sideA.length > 0) {
         console.error("");
-        console.error("Side A — script files missing from scripts/README.md inventory table:");
+        console.error("Side A — scripts/ files and inventory rows do not match:");
         for (const v of result.sideA) {
             console.error(`  ${toPosix(v)}`);
         }
@@ -198,7 +246,7 @@ function main() {
         }
     }
     console.error("");
-    console.error("Fix: update scripts/README.md inventory (Side A/C) or correct the skill citation (Side B).");
+    console.error("Fix: restore scripts/ and its inventory, update Side A/C, or correct the Side B skill citation.");
     exit(1);
 }
 const scriptPathFromArgv = argv[1];

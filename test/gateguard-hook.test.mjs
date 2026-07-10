@@ -371,6 +371,23 @@ describe("hooks/gateguard.mjs — unquoted @{u} brace-ref detector (RISA 3 / G1)
         assert.equal(decision.decision, "block");
         assert.match(decision.reason ?? "", /@\{upstream\}/);
     });
+    it("a PowerShell hashtable is allowed", () => {
+        const decision = runHook("Bash", { command: '$headers = @{ Authorization = "Bearer token"; Accept = "application/json" }' }, sessionDir);
+        assert.equal(decision.decision, "allow", "PowerShell hashtable syntax is not a Git brace ref");
+    });
+    it("a PowerShell hashtable with a quoted closing brace in its key is allowed", () => {
+        const decision = runHook("Bash", { command: "$headers = @{ 'a}' = 1 }" }, sessionDir);
+        assert.equal(decision.decision, "allow");
+    });
+    it("a comment-only PowerShell hashtable is allowed", () => {
+        const decision = runHook("Bash", { command: "$headers = @{\n  # populated later\n}" }, sessionDir);
+        assert.equal(decision.decision, "allow");
+    });
+    it("an unquoted Git date selector is blocked", () => {
+        const decision = runHook("Bash", { command: "git show HEAD@{yesterday}" }, sessionDir);
+        assert.equal(decision.decision, "block");
+        assert.match(decision.reason ?? "", /@\{yesterday\}/);
+    });
     it("a single-quoted @{u} ref is allowed (already safe)", () => {
         const decision = runHook("Bash", { command: "git rev-list --left-right --count '@{u}...HEAD'" }, sessionDir);
         assert.equal(decision.decision, "allow", "a quoted brace ref must pass untouched");

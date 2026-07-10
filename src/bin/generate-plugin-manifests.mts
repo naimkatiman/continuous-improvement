@@ -128,6 +128,7 @@ async function writePluginBundleReadme(): Promise<void> {
     "- `commands/`",
     "- `agents/` — `code-reviewer`, `security-auditor`, `test-engineer` personas (auto-discovered Claude Code subagents; pattern from addy/agent-skills)",
     "- `hooks/`",
+    "- `scripts/`",
     "- `bin/mcp-server.mjs`",
     "- `bin/observe.mjs`",
     "- `bin/backfill.mjs`",
@@ -195,6 +196,7 @@ async function writePluginBundle(): Promise<void> {
     copyDirectory(join(REPO_ROOT, "commands"), join(PLUGIN_BUNDLE_DIR, "commands")),
     copyDirectory(join(REPO_ROOT, "agents"), join(PLUGIN_BUNDLE_DIR, "agents")),
     copyDirectory(join(REPO_ROOT, "hooks"), join(PLUGIN_BUNDLE_DIR, "hooks")),
+    copyDirectory(join(REPO_ROOT, "scripts"), join(PLUGIN_BUNDLE_DIR, "scripts")),
     copyDirectory(
       join(REPO_ROOT, "instinct-packs"),
       join(PLUGIN_BUNDLE_DIR, "instinct-packs"),

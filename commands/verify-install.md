@@ -41,7 +41,7 @@ The observation hook appends one row per tool call to
 
 - If it exists and has at least one row — capture is recording. Record `observe: ✓`.
 - If it is missing or empty — record `observe: ✗ (observation hook not recording —
-  on Windows confirm Git Bash / WSL is installed, then re-run the installer)`.
+  on Windows confirm Git Bash is installed before WSL Bash on PATH, then re-run the installer)`.
 
 ## Report
 

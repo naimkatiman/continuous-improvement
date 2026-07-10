@@ -71,6 +71,7 @@ function collectChangedFiles(root: string): string[] {
   return [
     ...parseChangedFiles(run(["diff", "--name-only", "--diff-filter=ACMR"])),
     ...parseChangedFiles(run(["diff", "--cached", "--name-only", "--diff-filter=ACMR"])),
+    ...parseChangedFiles(run(["ls-files", "--others", "--exclude-standard"])),
   ];
 }
 

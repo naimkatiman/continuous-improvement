@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
+  chmodSync,
+  copyFileSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -9,7 +11,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import { after, before, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -35,6 +37,39 @@ interface TestSettings {
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const INSTALL_SCRIPT = join(__dirname, "..", "bin", "install.mjs");
 const SKILL_SOURCE = join(__dirname, "..", "SKILL.md");
+const ORIGINAL_PATH = process.env.PATH;
+
+function findGitBashBin(): string | null {
+  if (process.platform !== "win32") return null;
+
+  const candidates: string[] = [];
+  try {
+    const gitExecPath = execFileSync("git", ["--exec-path"], { encoding: "utf8" }).trim();
+    candidates.push(join(dirname(dirname(dirname(gitExecPath))), "bin"));
+  } catch {
+    // Fall through to conventional install roots.
+  }
+  if (process.env.ProgramFiles) candidates.push(join(process.env.ProgramFiles, "Git", "bin"));
+  if (process.env.LOCALAPPDATA) candidates.push(join(process.env.LOCALAPPDATA, "Programs", "Git", "bin"));
+
+  return candidates.find((candidate) => existsSync(join(candidate, "bash.exe"))) ?? null;
+}
+
+const GIT_BASH_BIN = findGitBashBin();
+
+before(() => {
+  if (process.platform !== "win32") return;
+  assert.ok(GIT_BASH_BIN, "Windows installer tests require Git Bash");
+  process.env.PATH = `${GIT_BASH_BIN}${delimiter}${ORIGINAL_PATH ?? ""}`;
+});
+
+after(() => {
+  if (ORIGINAL_PATH === undefined) {
+    delete process.env.PATH;
+  } else {
+    process.env.PATH = ORIGINAL_PATH;
+  }
+});
 
 const ALL_COMMAND_FILES = [
   "continuous-improvement.md",
@@ -72,6 +107,66 @@ describe("installer", () => {
     });
     assert.match(output, /--mode/);
     assert.match(output, /--uninstall/);
+  });
+
+  it("refuses Windows Bash that passes --version but cannot read Windows hook paths", () => {
+    const root = join(tmpdir(), `ci-test-bash-path-${process.pid}-${Date.now()}`);
+    const home = join(root, "home");
+    const fakeBin = join(root, "bin");
+    mkdirSync(join(home, ".claude"), { recursive: true });
+    mkdirSync(fakeBin, { recursive: true });
+
+    try {
+      const fakeBash = join(fakeBin, process.platform === "win32" ? "bash.exe" : "bash");
+      if (process.platform === "win32") {
+        // node.exe answers --version but rejects Bash's -c probe, matching the
+        // capability boundary without relying on WSL being installed in CI.
+        copyFileSync(process.execPath, fakeBash);
+      } else {
+        writeFileSync(
+          fakeBash,
+          '#!/usr/bin/env node\nif (process.argv[2] === "--version") process.exit(0);\nprocess.exit(1);\n',
+        );
+        chmodSync(fakeBash, 0o755);
+      }
+
+      const env: NodeJS.ProcessEnv = {
+        ...process.env,
+        HOME: home,
+        USERPROFILE: home,
+        PATH: `${fakeBin}${delimiter}${process.env.PATH ?? ""}`,
+        CLAUDE_CI_UPDATE_CHECK: "off",
+      };
+
+      if (process.platform !== "win32") {
+        const forceWindows = join(root, "force-win32.cjs");
+        writeFileSync(
+          forceWindows,
+          'Object.defineProperty(process, "platform", { value: "win32" });\n',
+        );
+        env.NODE_OPTIONS = [process.env.NODE_OPTIONS, `--require=${forceWindows}`]
+          .filter((value): value is string => Boolean(value))
+          .join(" ");
+        env.comspec = "/bin/sh";
+        env.ComSpec = "/bin/sh";
+      }
+
+      const result = spawnSync(process.execPath, [INSTALL_SCRIPT, "install"], {
+        cwd: root,
+        env,
+        encoding: "utf8",
+      });
+      const combined = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+      assert.notEqual(result.status, 0, `installer accepted an incompatible Bash:\n${combined}`);
+      assert.match(combined, /Git Bash/i);
+      assert.equal(
+        existsSync(join(home, ".claude", "skills", "continuous-improvement", "SKILL.md")),
+        false,
+        "compatibility refusal must happen before installation writes",
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("installs skill to Claude Code", () => {

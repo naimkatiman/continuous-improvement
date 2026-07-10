@@ -7,7 +7,9 @@ import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
-const REPO_ROOT = join(__dirname, "..");
+const REPO_ROOT = existsSync(join(__dirname, "..", "package.json"))
+  ? join(__dirname, "..")
+  : join(__dirname, "..", "..");
 assert.ok(
   existsSync(join(REPO_ROOT, "package.json")),
   `REPO_ROOT sanity check failed — ${REPO_ROOT}/package.json not found`,
@@ -164,6 +166,65 @@ describe("check-scripts-citation-drift — integration", () => {
     try {
       const { exit } = runChecker(root);
       assert.equal(exit, 0, `expected exit 0, got ${exit}`);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed when an inventoried helper file is missing", () => {
+    const root = setupRepo([
+      {
+        relPath: "scripts/README.md",
+        contents:
+          INVENTORY_HEADER +
+          "| `alpha.sh` | Alpha primitive | `skills/uno.md` (Section A) |\n",
+      },
+      { relPath: "skills/uno.md", contents: "# uno\n\nUses `scripts/alpha.sh`.\n" },
+    ]);
+    try {
+      const { exit, stderr } = runChecker(root);
+      assert.equal(exit, 1, `expected exit 1, got ${exit}`);
+      assert.match(stderr, /alpha\.sh/);
+      assert.match(stderr, /missing/i);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed when the scripts directory is absent", () => {
+    const root = setupRepo([]);
+    try {
+      const { exit, stderr } = runChecker(root);
+      assert.equal(exit, 1, `expected exit 1, got ${exit}`);
+      assert.match(stderr, /scripts/i);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed when scripts/ exists without its inventory README", () => {
+    const root = setupRepo([]);
+    mkdirSync(join(root, "scripts"), { recursive: true });
+    try {
+      const { exit, stderr } = runChecker(root);
+      assert.equal(exit, 1, `expected exit 1, got ${exit}`);
+      assert.match(stderr, /README|inventory/i);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed when the scripts inventory has no rows", () => {
+    const root = setupRepo([
+      {
+        relPath: "scripts/README.md",
+        contents: INVENTORY_HEADER,
+      },
+    ]);
+    try {
+      const { exit, stderr } = runChecker(root);
+      assert.equal(exit, 1, `expected exit 1, got ${exit}`);
+      assert.match(stderr, /inventory/i);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

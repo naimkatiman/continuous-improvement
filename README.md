@@ -137,7 +137,7 @@ V1 honest limitations: the runtime gate is honor-system once the agent flips `_g
 
 Pick this if you want the MCP tools (19 of them, including `ci_plan_init` / `ci_plan_status` for `task_plan.md`-style planning), the session hooks that feed Mulahazah, and starter packs.
 
-Preconditions: Node 18 / 20 / 22, plus bash on Windows (Git Bash or WSL — `hooks/observe.sh` is a bash script and silently no-ops without it). **`jq` is no longer required**: as of v3.6.0, `observe.sh` prefers the Node observer (`bin/observe.mjs`) which writes the rich event schema natively without external dependencies. The bash thin-schema path is kept as a two-phase shim, so legacy installs that have not re-run `npx continuous-improvement install` since v3.5.x will still degrade silently without `jq` (`winget install jqlang.jq` on Windows, `brew install jq` on macOS, `apt install jq` on Debian/Ubuntu) — re-running the installer is the cleaner fix and removes the dependency entirely. See [CHANGELOG.md](CHANGELOG.md) `[3.6.0]` for the migration details.
+Preconditions: Node 18 / 20 / 22, plus Git Bash on Windows (`hooks/observe.sh` is a Bash script). WSL Bash launched from native Windows cannot resolve the `C:/...` hook paths written by the installer. **`jq` is no longer required**: as of v3.6.0, `observe.sh` prefers the Node observer (`bin/observe.mjs`) which writes the rich event schema natively without external dependencies. The bash thin-schema path is kept as a two-phase shim, so legacy installs that have not re-run `npx continuous-improvement install` since v3.5.x will still degrade silently without `jq` (`winget install jqlang.jq` on Windows, `brew install jq` on macOS, `apt install jq` on Debian/Ubuntu) — re-running the installer is the cleaner fix and removes the dependency entirely. See [CHANGELOG.md](CHANGELOG.md) `[3.6.0]` for the migration details.
 
 ```bash
 npx continuous-improvement install --mode expert
@@ -158,7 +158,7 @@ Three failures account for nearly every install support thread. Try them in orde
 | Symptom | Real cause | Fix |
 |---|---|---|
 | `/discipline` says "command not recognized" right after `/plugin install` | Slash commands load on session start; the marketplace did pick the plugin up | Quit and reopen Claude Code, then run `/discipline` again |
-| Expert mode hooks never fire on Windows | `observe.sh` is bash; PowerShell silently no-ops on it | Install Git Bash (or WSL) and re-run `npx continuous-improvement install --mode expert` |
+| Expert mode hooks never fire on Windows | WSL Bash cannot resolve the native `C:/...` hook paths | Install Git Bash, ensure its `bin` directory precedes `C:\Windows\System32` on PATH, then re-run `npx continuous-improvement install --mode expert` |
 | `/plugin marketplace add ...` returned nothing visible | Marketplace add was silent; the plugin is not yet selected | Run `/plugin install continuous-improvement@continuous-improvement` to select and activate it |
 
 If none of those apply, paste the output of `npx continuous-improvement install` into a GitHub issue — that surface logs every step.

@@ -135,7 +135,7 @@ Before research begins, the skill must read its own track record. The instinct s
 
 ### Rule 1 — Acknowledge before context (right context from the beginning)
 
-Run [`scripts/scan-past-mistakes.mjs`](../scripts/scan-past-mistakes.mjs) at the project root. Scan three surfaces in one pass and surface every entry with a citation:
+Run `node "${CLAUDE_PLUGIN_ROOT}/scripts/scan-past-mistakes.mjs"` (source: `scripts/scan-past-mistakes.mjs`) at the project root. Scan three surfaces in one pass and surface every entry with a citation:
 
 - `~/.claude/instincts/<project-hash>/observations.jsonl` — last N (default 10) entries with `type: failure` or `correction` (legacy `event` field also matched for pre-2026-05-06 rows)
 - `~/.claude/projects/<project-hash>/memory/feedback_*.md` — every file whose frontmatter declares `type: feedback`; the canonical home of the operator's named corrections (e.g. `feedback_past_mistake_gate.md`, `feedback_no_git_add_all_on_windows.md`)
@@ -202,7 +202,7 @@ For each item in the ORIGINAL order:
 
 ### Routing Table (with Inline Fallbacks)
 
-Run [`scripts/route-recommendation.mjs "<item>"`](../scripts/route-recommendation.mjs) to match a single recommendation item to its preferred chain + inline fallback. Default mode prints the matched row; `--json` for programmatic consumption; `--list` enumerates every row. The programmatic source of truth is [`scripts/route-recommendation.routes.json`](../scripts/route-recommendation.routes.json) — the table below is the human-readable documentation that mirrors it. If they drift, the routes.json file wins.
+Run `node "${CLAUDE_PLUGIN_ROOT}/scripts/route-recommendation.mjs" "<item>"` (source: `scripts/route-recommendation.mjs`) to match a single recommendation item to its preferred chain + inline fallback. Default mode prints the matched row; `--json` for programmatic consumption; `--list` enumerates every row. The programmatic source of truth is `scripts/route-recommendation.routes.json` — the table below is the human-readable documentation that mirrors it. If they drift, the routes.json file wins.
 
 Rows whose **Preferred skill** is not bundled with the `continuous-improvement` plugin carry a `(Reference behavior — does not require <skill>.)` marker on the fallback cell. The marker makes the soft-dependency contract visible at point of use: the inline fallback is fully self-contained and runs without that skill installed. Rows whose preferred skill ships with the plugin (`ralph`, `tdd-workflow`, `continuous-improvement`) carry no marker — the dedicated skill is always available.
 

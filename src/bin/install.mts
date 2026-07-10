@@ -22,7 +22,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { execSync } from "node:child_process";
+import { execFileSync as runFileSync, execSync } from "node:child_process";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -148,19 +148,28 @@ function readJsonFile<T>(filePath: string): T | null {
   }
 }
 
-// The observation hooks (hooks/observe.sh, hooks/session.sh) are bash scripts.
-// On Windows without Git Bash / WSL the hook commands written into settings.json
-// silently no-op, so the user finishes install thinking observation capture is
-// live when it never fires. Refuse the install with one actionable line instead.
-function assertBashAvailableOnWindows(): void {
+// The observation hooks are Bash scripts, and the native Windows settings use
+// forward-slash drive paths such as C:/Users/... . Git Bash resolves that form;
+// WSL's C:\Windows\System32\bash.exe does not. Probe the real packaged hook path
+// instead of accepting any executable that happens to answer `bash --version`.
+function assertBashCanReadHookOnWindows(): void {
   if (process.platform !== "win32") return;
+  const hookSource = toBashPath(join(REPO_ROOT, "hooks", "observe.sh"));
   try {
-    execSync("bash --version", { stdio: "ignore" });
+    runFileSync(
+      "bash",
+      ["-c", 'test -r "$CONTINUOUS_IMPROVEMENT_HOOK_SOURCE"'],
+      {
+        env: { ...process.env, CONTINUOUS_IMPROVEMENT_HOOK_SOURCE: hookSource },
+        stdio: "ignore",
+      },
+    );
   } catch {
     console.error(
-      "  ✗ Install refused: the observation hooks (hooks/observe.sh, hooks/session.sh) " +
-        "are bash scripts, but `bash --version` is not on PATH. Install Git Bash or WSL, " +
-        "reopen your shell, and re-run — see README → Troubleshooting install.",
+      `  ✗ Install refused: Bash on PATH cannot read the Windows hook path ${hookSource}. ` +
+        "Install Git Bash and ensure its bin directory comes before " +
+        "C:\\Windows\\System32 on PATH, then reopen your shell and re-run. " +
+        "See README > Troubleshooting install.",
     );
     process.exit(1);
   }
@@ -742,6 +751,10 @@ function installNonClaudeTargets(targetIds: string[]): void {
   for (const note of notes) console.log(`  ℹ ${note}`);
 }
 
+// A mixed target install can write non-Claude rule files below. Validate the
+// Claude hook runtime first so an incompatible Bash cannot leave a partial install.
+if (requestedTargets.includes("claude")) assertBashCanReadHookOnWindows();
+
 const nonClaudeTargets = requestedTargets.filter((targetId) => targetId !== "claude");
 if (nonClaudeTargets.length > 0) {
   console.log("\ncontinuous-improvement multi-platform install\n");
@@ -757,7 +770,6 @@ continuous-improvement (mode: ${INSTALL_MODE})
 Research → Plan → Execute → Verify → Reflect → Learn → Iterate
 `);
 
-assertBashAvailableOnWindows();
 warnOnMarketplaceCollision();
 
 console.log("Installing to Claude Code...\n");
