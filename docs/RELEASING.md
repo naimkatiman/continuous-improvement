@@ -56,7 +56,7 @@ git push origin vX.Y.Z
 
 `release.yml` runs on the tag push:
 
-1. `npm install -g npm@latest` (trusted publishing needs npm ≥ 11.5.1)
+1. `npm install -g npm@11.18.0` (pinned trusted publisher, npm ≥ 11.5.1)
 2. `npm ci` + `npm run build`
 3. `git diff --exit-code` to ensure generated artifacts are committed
 4. `npm run verify:all` (12 invariants + typecheck)
@@ -83,14 +83,14 @@ The workflow already grants `permissions: id-token: write`, and bumps npm to ≥
 
 Trusted publishing has two hard requirements that the workflow must satisfy, plus a configured publisher on npmjs.com:
 
-- **Node ≥ 22.14.0 AND npm ≥ 11.5.1** in the publish step (per [docs.npmjs.com/trusted-publishers](https://docs.npmjs.com/trusted-publishers)). `setup-node` keeps `registry-url: 'https://registry.npmjs.org'` (it anchors the OIDC exchange), and the publish step runs through `npx -y npm@latest publish` so it uses ≥ 11.5.1 even if the global npm is older.
+- **Node ≥ 22.14.0 AND npm ≥ 11.5.1** in the publish step (per [docs.npmjs.com/trusted-publishers](https://docs.npmjs.com/trusted-publishers)). `setup-node` keeps `registry-url: 'https://registry.npmjs.org'` (it anchors the OIDC exchange). The workflow globally installs the proven npm 11.18.0 publisher, then calls `npm publish` directly. Do not use `npx npm@latest publish`; npm 12.0.0's temporary npx install omitted `sigstore` during v3.20.3.
 - **The trusted publisher fields are case-sensitive.** owner `naimkatiman`, repo `continuous-improvement`, workflow `release.yml` (filename only), environment **blank**.
 
 Symptom decoder when `build`/`verify`/`tests` all pass but the publish step fails:
 
 | Error | Meaning | Fix |
 |---|---|---|
-| `E404 PUT .../continuous-improvement` | npm sent `setup-node`'s placeholder `_authToken` — OIDC did **not** mint a token | publish step is running npm < 11.5.1 (or Node < 22.14); force a fresh npm via `npx npm@latest publish` |
+| `E404 PUT .../continuous-improvement` | npm sent `setup-node`'s placeholder `_authToken`, so OIDC did **not** mint a token | confirm the pinned npm 11.18.0 install ran before direct `npm publish`, and confirm Node is ≥ 22.14 |
 | `ENEEDAUTH` "not logged in" | no token at all and OIDC did not engage | same root cause with `registry-url` absent, or the trusted publisher isn't configured/matching |
 | `npm notice Signed provenance statement` then `E404` | provenance (npm 10+) worked but the trusted-publishing token mint (npm 11.5.1+) didn't | confirms the publish step's npm is too old |
 

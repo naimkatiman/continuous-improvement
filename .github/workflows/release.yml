@@ -30,11 +30,10 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       # Trusted publishing (OIDC) requires npm >= 11.5.1 AND Node >= 22.14.0.
-      # Node 22 ships npm 10.x, so still upgrade npm to the trusted-publishing
-      # minimum. (Node 20 was below the floor and caused the v3.12.0/v3.12.1
-      # publish to skip OIDC — E404 then ENEEDAUTH.)
+      # Node 22 ships npm 10.x, so install the npm 11.18.0 publisher proven by
+      # the successful v3.20.0 release. Do not track the mutable latest tag here.
       - name: Upgrade npm for trusted publishing
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.18.0
 
       - name: Install dependencies
         run: npm ci
@@ -67,15 +66,14 @@ jobs:
       # repo + workflow file (see docs/RELEASING.md). Provenance attestations are
       # generated automatically from the OIDC claims.
       #
-      # Run the publish through `npx npm@latest` to GUARANTEE npm >= 11.5.1 in this
-      # step: the v3.12.0-v3.12.3 OIDC publishes failed because the global
-      # `npm install -g npm@latest` above didn't reach the publish step (npm signed
-      # provenance but never minted a trusted-publishing token — the signature of
-      # npm < 11.5.1). The version echo proves which npm actually runs the publish.
+      # Publish with the pinned npm installed by the explicit global upgrade above.
+      # Do not launch a second npm through npx: npm 12's temporary npx install
+      # omitted the sigstore module and stopped v3.20.3 before registry contact.
+      # The version echo proves which global npm executable runs the publish.
       - name: Publish to npm
         run: |
           echo "node $(node -v) / global npm $(npm -v)"
-          npx -y npm@latest publish --access public --provenance
+          npm publish --access public --provenance
 
       - name: Create GitHub Release
         env:
