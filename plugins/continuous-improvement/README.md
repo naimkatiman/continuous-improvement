@@ -10,6 +10,7 @@ Included surfaces:
 - `commands/`
 - `agents/` — `code-reviewer`, `security-auditor`, `test-engineer` personas (auto-discovered Claude Code subagents; pattern from addy/agent-skills)
 - `hooks/`
+- `scripts/`
 - `bin/mcp-server.mjs`
 - `bin/observe.mjs`
 - `bin/backfill.mjs`

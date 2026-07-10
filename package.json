@@ -57,7 +57,7 @@
     "verify:doc-runtime-claims": "node bin/check-doc-runtime-claims.mjs",
     "verify:test-imports-only": "node bin/check-test-imports-only.mjs",
     "verify:landing-version": "node bin/check-landing-version.mjs",
-    "verify:scripts-citation-drift": "node bin/check-scripts-citation-drift.mjs",
+    "verify:scripts-citation-drift": "node bin/check-scripts-citation-drift.mjs && node bin/check-scripts-citation-drift.mjs plugins/continuous-improvement",
     "verify:third-party-shape": "node bin/check-third-party-shape.mjs",
     "verify:tool-count": "node bin/check-tool-count.mjs",
     "verify:all": "npm run verify:skill-mirror && npm run verify:skill-tiers && npm run verify:skill-law-tag && npm run verify:skill-count && npm run verify:skill-count-prose && npm run verify:command-count && npm run verify:docs-substrings && npm run verify:everything-mirror && npm run verify:routing-targets && npm run verify:doc-runtime-claims && npm run verify:test-imports-only && npm run verify:landing-version && npm run verify:scripts-citation-drift && npm run verify:third-party-shape && npm run verify:tool-count && npm run typecheck"
@@ -75,6 +75,7 @@
     "hooks/",
     "commands/",
     "skills/",
+    "scripts/",
     "templates/",
     "plugins/",
     "instinct-packs/"
