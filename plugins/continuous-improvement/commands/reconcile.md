@@ -13,14 +13,35 @@ Snapshots the full git state in one pass, detects a concurrent writer, classifie
 
 ## Establish ground truth
 
+One command, cross-platform, no shell required:
+
 ```
-git branch --show-current
-git status --porcelain=v1                     # but trust git diff --stat for real drift (autocrlf)
-git rev-list --left-right --count '@{u}...HEAD'  # behind / ahead (quote the ref — bare @{u} trips the Bash parser)
+npx ci-reconcile              # resolved-state block; exit 0 clear / 1 blocked / 2 not a repo
+npx ci-reconcile --json       # machine-readable
+npx ci-reconcile --explain    # the probe set and why each probe runs
+```
+
+The same pass by hand. `src/lib/git-state.mts` is the source of truth for this list, and `npm run verify:reconcile-parity` fails if this file drifts from it:
+
+```
+git rev-parse --show-toplevel                          # inside a work tree, and where
+git rev-parse HEAD                                     # the sha every later claim is relative to
+git symbolic-ref --quiet --short HEAD                  # branch; NON-ZERO EXIT = detached HEAD
+git rev-parse --abbrev-ref --symbolic-full-name @{u}   # upstream, or non-zero = none configured
+git rev-list --left-right --count @{u}...HEAD          # behind/ahead — only after the line above succeeded
+git status --porcelain=v1                              # reported changes (inflated by autocrlf)
+git diff --name-only --ignore-all-space                # real content drift — the number to trust
 git stash list
-git worktree list
-ls .git/MERGE_HEAD .git/rebase-merge .git/rebase-apply 2>/dev/null  # in-progress op = another actor; do not race
+git worktree list --porcelain
+git rev-parse --git-path MERGE_HEAD                    # in-progress op: test the RESOLVED path
 ```
+
+Four boundaries where the obvious command lies:
+
+- **No upstream** — asking `git rev-list` for counts against `@{u}` exits 128; it does not return zeros. Resolve the upstream first.
+- **Detached HEAD** — the `--show-current` form of `git branch` prints "" and exits 0, indistinguishable from success. `symbolic-ref --quiet` exits non-zero instead. Detached blocks.
+- **Linked worktree** — `.git` is a *file* there, so a `.git/`-relative marker probe exits 2 exactly as it does on a clean tree: a real conflicted merge reads as clean. Use `rev-parse --git-path`.
+- **autocrlf** — `git status` overstates drift. Stage by explicit filename, never `git add -A`.
 
 ## Then act, with gates
 
@@ -51,8 +72,11 @@ gh pr create --fill --base main                      # open one PR, then STOP �
 ## Verify the push landed
 
 ```
-git ls-remote origin refs/heads/<branch>   # remote tip must equal local HEAD, else it did not land
+npx ci-reconcile --verify-push <branch>    # exit 0 only when the remote tip equals local HEAD
+git ls-remote origin refs/heads/<branch>   # by hand: remote tip must equal local HEAD
 ```
+
+Three outcomes, never two: **landed** (tip matches), **not-landed** (probe succeeded, ref absent or different sha), **unverified** (`ls-remote` itself failed — you do not know; retry, and report neither success nor failure).
 
 ## Sync the default branch after the PR merges
 
