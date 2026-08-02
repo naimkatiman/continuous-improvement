@@ -4,6 +4,19 @@ All notable changes to this skill are documented here.
 
 ---
 
+## [3.22.0] — 2026-08-02
+
+### Added
+
+- **`ci-reconcile`**: the `reconcile` ground-truth pass is now a command, not just prose. It spawns `git` argv with no shell — no bash, no coreutils, no `.git/`-relative path — so it behaves the same in PowerShell, cmd, Git Bash and WSL, and stays correct inside a linked worktree. `--json`, `--explain`, `--verify-push <branch>`, and `--snapshot` (field-compatible with `scripts/git-state-snapshot.sh`, plus `contentDrift` and `inProgress`). Exits `0` clear / `1` blocked / `2` not a git repository. (#289)
+- **`verify:reconcile-parity`**, the 16th `verify:all` invariant: a fenced code block in each of `skills/reconcile.md` and `commands/reconcile.md` must prescribe every probe in `GROUND_TRUTH_PROBES` verbatim, and no fenced block may reintroduce a retired form. Fenced-only, so prose stays free to explain *why* a command was retired. (#289)
+
+### Fixed
+
+- **`reconcile` no longer reports a false clean state at four boundaries.** Reproduced against real git: asking `git rev-list` for counts against `@{u}` exits **128** with `fatal: no upstream configured` rather than returning zeros; `git branch --show-current` prints an empty string and exits **0** on a detached HEAD, indistinguishable from a successful read; inside a linked worktree `.git` is a **file**, so listing a `.git/`-relative `MERGE_HEAD` exits **2** exactly as it does on a clean tree, meaning a real conflicted merge read as clean; and `git status` overstates drift on an `autocrlf` tree. The skill and command now document a portable probe for each, plus a compatibility matrix. (#289)
+- **Every `git-state` classifier fails closed.** Unparseable ahead/behind counts read as `unknown` (a blocker), never `even`. A failed `git ls-remote` reads as `unverified` — never `not-landed` and never `landed` — so a network failure can no longer be reported as either outcome. An unprobed in-progress marker reads as `unprobed`, never `absent`. An unparseable branch name never matches an expected one. (#289)
+- Verify-lint count prose corrected across `CLAUDE.md` (claimed 14 and omitted `landing-version`), `CONTRIBUTING.md` (13) and `docs/RELEASING.md` (12); the actual count was 15, now 16. (#289)
+
 ## [3.21.0] — 2026-07-11
 
 ### Added
