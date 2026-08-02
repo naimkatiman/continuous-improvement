@@ -263,6 +263,21 @@ describe("bin/reconcile.mjs --snapshot — envelope parity with the shell script
     }
   });
 
+  it("blocks unborn HEAD instead of emitting an empty-head success envelope", () => {
+    const root = setupUnbornRepo();
+    try {
+      const result = run(root, "--snapshot");
+      assert.equal(result.status, 1, `stdout: ${result.stdout}\nstderr: ${result.stderr}`);
+      const envelope = JSON.parse(result.stdout);
+      assert.equal(envelope.head, "unborn");
+      assert.equal(envelope.branch, "work");
+      assert.equal(envelope.blocked, true);
+      assert.deepEqual(envelope.blockers, ["head-commit"]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("agrees with the shell script on every shared field", { skip: BASH_SKIP }, () => {
     const root = setupRepo();
     try {

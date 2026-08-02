@@ -206,23 +206,39 @@ function main(): void {
     drift.code === 0 ? drift.stdout : null,
   );
 
+  const inProgress = probeInProgress(options.root);
+  const baseFindings: GitStateFinding[] = assessGitState({
+    headCommit: headSha.code === 0 ? headSha.stdout.trim() : null,
+    head,
+    upstreamRef,
+    counts,
+    inProgress,
+    dirty,
+  });
+
   if (options.snapshot) {
-    // Field-compatible with scripts/git-state-snapshot.sh, plus `contentDrift`
-    // and `inProgress`, which the shell version cannot report.
+    // Field-compatible with scripts/git-state-snapshot.sh, plus `contentDrift`,
+    // `inProgress`, and a fail-closed blocker summary the shell version cannot
+    // report. An unborn HEAD is a git repo, but not a usable mutation baseline;
+    // do not emit an empty `head` field that looks like success.
     const upstreamSha =
       upstreamRef === null ? "none" : git(["rev-parse", "--short", "@{u}"], options.root).stdout.trim() || "none";
+    const shortHead = headSha.code === 0 ? git(["rev-parse", "--short", "HEAD"], options.root).stdout.trim() : "";
+    const blockers = baseFindings.filter((finding) => finding.severity === "blocker").map((finding) => finding.id);
     stdout.write(
       `${JSON.stringify({
-        head: git(["rev-parse", "--short", "HEAD"], options.root).stdout.trim(),
+        head: shortHead.length > 0 ? shortHead : "unborn",
         upstream: upstreamSha,
         dirty: dirty.reported,
         root: repoRoot,
         branch: head.branch ?? "detached",
         contentDrift: dirty.contentDrift,
-        inProgress: probeInProgress(options.root),
+        inProgress,
+        blocked: blockers.length > 0,
+        blockers,
       })}\n`,
     );
-    exit(0);
+    exit(blockers.length > 0 ? 1 : 0);
     return;
   }
 
@@ -243,15 +259,7 @@ function main(): void {
     return;
   }
 
-  const inProgress = probeInProgress(options.root);
-  const findings: GitStateFinding[] = assessGitState({
-    headCommit: headSha.code === 0 ? headSha.stdout.trim() : null,
-    head,
-    upstreamRef,
-    counts,
-    inProgress,
-    dirty,
-  });
+  const findings: GitStateFinding[] = [...baseFindings];
 
   const stashes = git(["stash", "list"], options.root);
   const stashCount =
