@@ -221,7 +221,7 @@ npm run build                       # Regenerate bin/*.mjs, hooks/*.mjs, lib/*.m
 npm test                            # Build + run all tests
 node --test test/hook.test.mjs      # Run a single test file
 npm run verify:generated            # Confirm source and generated artifacts are in sync (CI gate)
-npm run verify:all                  # Run all 13 verify lints + typecheck (single contributor gate)
+npm run verify:all                  # Run all 16 verify lints + typecheck (single contributor gate)
 ```
 
 Tests must:

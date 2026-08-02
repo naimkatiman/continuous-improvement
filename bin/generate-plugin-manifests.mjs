@@ -147,6 +147,8 @@ async function writePluginBundle() {
         copyFileTo(join(REPO_ROOT, "bin", "mcp-server.mjs"), join(PLUGIN_BUNDLE_DIR, "bin", "mcp-server.mjs")),
         copyFileTo(join(REPO_ROOT, "bin", "observe.mjs"), join(PLUGIN_BUNDLE_DIR, "bin", "observe.mjs")),
         copyFileTo(join(REPO_ROOT, "bin", "backfill.mjs"), join(PLUGIN_BUNDLE_DIR, "bin", "backfill.mjs")),
+        copyFileTo(join(REPO_ROOT, "bin", "reconcile.mjs"), join(PLUGIN_BUNDLE_DIR, "bin", "reconcile.mjs")),
+        copyFileTo(join(REPO_ROOT, "lib", "git-state.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "git-state.mjs")),
         copyFileTo(join(REPO_ROOT, "bin", "gateguard-clear.mjs"), join(PLUGIN_BUNDLE_DIR, "bin", "gateguard-clear.mjs")),
         copyFileTo(join(REPO_ROOT, "lib", "gateguard-state.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "gateguard-state.mjs")),
         copyFileTo(join(REPO_ROOT, "lib", "plugin-metadata.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "plugin-metadata.mjs")),
