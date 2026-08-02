@@ -78,6 +78,8 @@ export interface DirtyAccounting {
 }
 
 export interface GitStateInput {
+  /** Full commit SHA from `git rev-parse HEAD`; null means HEAD could not be pinned. */
+  headCommit?: string | null;
   head: HeadState;
   upstreamRef: string | null;
   counts: UpstreamCounts | null;
@@ -413,6 +415,18 @@ export function baselineShifted(
 export function assessGitState(input: GitStateInput): GitStateFinding[] {
   const findings: GitStateFinding[] = [];
   const protectedList = input.protectedBranches ?? DEFAULT_PROTECTED_BRANCHES;
+
+  if (Object.hasOwn(input, "headCommit")) {
+    const commit = (input.headCommit ?? "").trim();
+    findings.push({
+      id: "head-commit",
+      label: "HEAD commit",
+      detail: isSha(commit)
+        ? commit.slice(0, 12)
+        : "unborn or not a usable commit — create or verify the first commit before mutating",
+      severity: isSha(commit) ? "ok" : "blocker",
+    });
+  }
 
   if (input.head.kind === "branch") {
     const onProtected = isProtectedBranch(input.head.branch, protectedList);

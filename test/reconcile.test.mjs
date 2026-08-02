@@ -42,6 +42,12 @@ function setupRepo() {
     git(root, "commit", "--quiet", "-m", "init");
     return root;
 }
+/** A git repo before its first commit: branch exists, but HEAD is unborn. */
+function setupUnbornRepo() {
+    const root = mkdtempSync(join(tmpdir(), "ci-reconcile-unborn-"));
+    git(root, "init", "--quiet", "--initial-branch=work");
+    return root;
+}
 function run(cwd, ...args) {
     const result = spawnSync(process.execPath, [CLI, "--cwd", cwd, ...args], {
         encoding: "utf8",
@@ -61,6 +67,21 @@ describe("bin/reconcile.mjs — no configured upstream", () => {
             assert.match(result.stdout, /no configured upstream/);
             assert.doesNotMatch(result.stdout, /BLOCKED/);
             assert.doesNotMatch(result.stderr, /fatal/);
+        }
+        finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+});
+describe("bin/reconcile.mjs — unborn HEAD", () => {
+    it("blocks instead of treating a branch with no commit as safe to mutate", () => {
+        const root = setupUnbornRepo();
+        try {
+            const result = run(root);
+            assert.equal(result.status, 1, `stdout: ${result.stdout}\nstderr: ${result.stderr}`);
+            assert.match(result.stdout, /HEAD commit/);
+            assert.match(result.stdout, /unborn|not a usable commit/i);
+            assert.match(result.stdout, /BLOCKED/);
         }
         finally {
             rmSync(root, { recursive: true, force: true });

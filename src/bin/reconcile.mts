@@ -245,6 +245,7 @@ function main(): void {
 
   const inProgress = probeInProgress(options.root);
   const findings: GitStateFinding[] = assessGitState({
+    headCommit: headSha.code === 0 ? headSha.stdout.trim() : null,
     head,
     upstreamRef,
     counts,
