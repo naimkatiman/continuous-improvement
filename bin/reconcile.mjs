@@ -54,6 +54,7 @@ function parseArgs(args) {
         verifyPush: null,
         root: cwd(),
     };
+    let cwdProvided = false;
     for (let i = 0; i < args.length; i++) {
         const arg = args[i] ?? "";
         if (arg === "--json")
@@ -77,11 +78,15 @@ function parseArgs(args) {
             i++;
         }
         else if (arg === "--cwd") {
+            if (cwdProvided) {
+                throw new Error("--cwd may only be provided once");
+            }
             const value = args[i + 1];
             if (value === undefined || value.startsWith("--")) {
                 throw new Error("--cwd requires a directory");
             }
             options.root = value;
+            cwdProvided = true;
             i++;
         }
         else if (arg === "--help" || arg === "-h") {

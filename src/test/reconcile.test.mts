@@ -224,6 +224,20 @@ describe("bin/reconcile.mjs — exit-code contract", () => {
     }
   });
 
+  it("rejects repeated --cwd flags instead of silently switching target roots", () => {
+    const root = setupRepo();
+    const otherRoot = setupRepo();
+    try {
+      const result = run(root, "--cwd", otherRoot);
+      assert.equal(result.status, 2, `stdout: ${result.stdout}\nstderr: ${result.stderr}`);
+      assert.match(result.stderr, /--cwd may only be provided once/);
+      assert.equal(result.stdout, "");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+      rmSync(otherRoot, { recursive: true, force: true });
+    }
+  });
+
   it("rejects a --verify-push branch that is not a usable ref name", () => {
     const root = setupRepo();
     try {
