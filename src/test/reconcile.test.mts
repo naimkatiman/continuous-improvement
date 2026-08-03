@@ -212,6 +212,18 @@ describe("bin/reconcile.mjs — exit-code contract", () => {
     }
   });
 
+  it("rejects repeated --verify-push flags instead of silently selecting the last branch", () => {
+    const root = setupRepo();
+    try {
+      const result = run(root, "--verify-push", "main", "--verify-push", "feature/retry");
+      assert.equal(result.status, 2, `stdout: ${result.stdout}\nstderr: ${result.stderr}`);
+      assert.match(result.stderr, /--verify-push may only be provided once/);
+      assert.equal(result.stdout, "");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("rejects a --verify-push branch that is not a usable ref name", () => {
     const root = setupRepo();
     try {

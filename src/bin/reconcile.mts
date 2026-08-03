@@ -93,6 +93,9 @@ function parseArgs(args: readonly string[]): Options {
     else if (arg === "--snapshot") options.snapshot = true;
     else if (arg === "--explain") options.explain = true;
     else if (arg === "--verify-push") {
+      if (options.verifyPush !== null) {
+        throw new Error("--verify-push may only be provided once");
+      }
       const value = args[i + 1];
       if (value === undefined || value.startsWith("--")) {
         throw new Error("--verify-push requires a branch name");
