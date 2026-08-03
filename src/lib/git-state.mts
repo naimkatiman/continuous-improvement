@@ -258,8 +258,8 @@ export function classifyHead(
  * Parse `git rev-list --left-right --count @{u}...HEAD` output, which is
  * `"<behind>\t<ahead>"`.
  *
- * Returns null for empty, malformed, negative, or non-integer output. Callers
- * must treat null as "unknown" — never as zero.
+ * Returns null for empty, malformed, negative, non-integer, or unsafe-integer
+ * output. Callers must treat null as "unknown" — never as zero.
  */
 export function parseRevListCounts(
   raw: string | null | undefined,
@@ -271,8 +271,8 @@ export function parseRevListCounts(
   if (parts.length !== 2) return null;
   const behind = Number(parts[0]);
   const ahead = Number(parts[1]);
-  if (!Number.isInteger(behind) || behind < 0) return null;
-  if (!Number.isInteger(ahead) || ahead < 0) return null;
+  if (!Number.isSafeInteger(behind) || behind < 0) return null;
+  if (!Number.isSafeInteger(ahead) || ahead < 0) return null;
   return { behind, ahead };
 }
 

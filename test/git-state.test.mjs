@@ -125,6 +125,10 @@ describe("parseRevListCounts", () => {
             assert.equal(parseRevListCounts(bad), null, JSON.stringify(bad));
         }
     });
+    it("returns null for counts that are outside JavaScript's safe integer range", () => {
+        assert.equal(parseRevListCounts(`${Number.MAX_SAFE_INTEGER + 1}\t0`), null);
+        assert.equal(parseRevListCounts(`0\t${Number.MAX_SAFE_INTEGER + 1}`), null);
+    });
 });
 describe("classifyUpstream — fails closed (defect 1)", () => {
     it("classifies the four normal relations", () => {
