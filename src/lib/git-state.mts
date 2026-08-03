@@ -205,7 +205,8 @@ function isSha(value: string): boolean {
  * comparison that authorizes a mutation.
  *
  * Fails closed: null, empty, surrounding whitespace, shell metacharacters,
- * `..`, refspec syntax (`@{`), a leading `-`, a trailing `/` or `.lock`, and
+ * `..`, refspec syntax (`@{`), a leading `-`, empty path components,
+ * dot-prefixed or dot-suffixed components, components ending `.lock`, and
  * anything over 255 characters all return false rather than being sanitized
  * into something that then looks valid.
  */
@@ -216,6 +217,18 @@ export function isSafeRefName(name: string | null | undefined): boolean {
   if (name.startsWith("-")) return false;
   if (name.endsWith("/") || name.endsWith(".lock")) return false;
   if (name.includes("..") || name.includes("@{")) return false;
+  const components = name.split("/");
+  if (
+    components.some(
+      (component) =>
+        component.length === 0 ||
+        component.startsWith(".") ||
+        component.endsWith(".") ||
+        component.endsWith(".lock"),
+    )
+  ) {
+    return false;
+  }
   return SAFE_REF.test(name);
 }
 
