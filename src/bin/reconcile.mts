@@ -115,6 +115,14 @@ function parseArgs(args: readonly string[]): Options {
       throw new Error(`unknown argument: ${arg}`);
     }
   }
+  const actions = [
+    options.snapshot ? "--snapshot" : null,
+    options.explain ? "--explain" : null,
+    options.verifyPush !== null ? "--verify-push" : null,
+  ].filter((action): action is string => action !== null);
+  if (actions.length > 1) {
+    throw new Error(`mutually exclusive action modes: ${actions.join(", ")}`);
+  }
   return options;
 }
 

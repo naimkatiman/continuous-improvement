@@ -195,6 +195,23 @@ describe("bin/reconcile.mjs — exit-code contract", () => {
     }
   });
 
+  it("rejects mutually exclusive action modes instead of silently preferring one", () => {
+    const root = setupRepo();
+    try {
+      for (const args of [
+        ["--snapshot", "--verify-push", "main"],
+        ["--explain", "--snapshot"],
+      ]) {
+        const result = run(root, ...args);
+        assert.equal(result.status, 2, `${args.join(" ")} stdout: ${result.stdout}`);
+        assert.match(result.stderr, /mutually exclusive/);
+        assert.equal(result.stdout, "");
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("rejects a --verify-push branch that is not a usable ref name", () => {
     const root = setupRepo();
     try {

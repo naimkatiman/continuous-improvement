@@ -88,6 +88,14 @@ function parseArgs(args) {
             throw new Error(`unknown argument: ${arg}`);
         }
     }
+    const actions = [
+        options.snapshot ? "--snapshot" : null,
+        options.explain ? "--explain" : null,
+        options.verifyPush !== null ? "--verify-push" : null,
+    ].filter((action) => action !== null);
+    if (actions.length > 1) {
+        throw new Error(`mutually exclusive action modes: ${actions.join(", ")}`);
+    }
     return options;
 }
 /** Probe each in-progress marker through `--git-path`, which is worktree-correct. */
