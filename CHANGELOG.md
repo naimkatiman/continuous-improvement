@@ -4,6 +4,19 @@ All notable changes to this skill are documented here.
 
 ---
 
+## [3.22.1] — 2026-08-04
+
+### Fixed
+
+- **`ci-reconcile` blocks an unborn HEAD instead of treating it as a usable baseline** — `git init` with no commit yet is a real git repository, but `git rev-parse HEAD` fails there. The runner accepted that as a pinnable state, and `--snapshot` emitted an empty `head` field that reads like success. Now reported as a `head-commit` blocker, with `--snapshot` emitting `head: "unborn"` and `blocked: true`. (#291)
+- **`isSafeRefName` rejects ref shapes git itself rejects** — empty path components (`a//b`), dot-prefixed or dot-suffixed components (`a/.b`, `a/b.`), and a per-component `.lock` suffix (`a/b.lock/c`) previously passed. Validation is now component-by-component, closer to `git check-ref-format`. (#291)
+- **`parseRevListCounts` uses `Number.isSafeInteger`** — `Number.isInteger` accepts values beyond `MAX_SAFE_INTEGER`, where arithmetic silently loses precision. Out-of-range counts now read as `unknown`, consistent with the module's fail-closed stance. (#291)
+- **The CLI rejects malformed argument combinations instead of resolving them silently** — a repeated `--verify-push` or `--cwd` used to be last-wins, an empty or whitespace-only `--cwd` fell back to the process working directory, and `--snapshot` / `--explain` / `--verify-push` together picked one arbitrarily. Each is now an explicit error. (#291)
+
+### Changed
+
+- **`--snapshot` follows the same exit contract as the default mode** (`0` clear / `1` blocked / `2` not a repository) where it previously always exited `0`, and its envelope gains `blocked` and `blockers`. It still writes the JSON on a blocker, so a `set -e` script capturing a baseline must tolerate exit 1. Documented in the skill and command, along with the unborn-HEAD row. (#291)
+
 ## [3.22.0] — 2026-08-02
 
 ### Added
