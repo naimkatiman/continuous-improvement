@@ -42,8 +42,24 @@ function setupRepo() {
     git(root, "commit", "--quiet", "-m", "init");
     return root;
 }
+/** A git repo before its first commit: branch exists, but HEAD is unborn. */
+function setupUnbornRepo() {
+    const root = mkdtempSync(join(tmpdir(), "ci-reconcile-unborn-"));
+    git(root, "init", "--quiet", "--initial-branch=work");
+    return root;
+}
 function run(cwd, ...args) {
     const result = spawnSync(process.execPath, [CLI, "--cwd", cwd, ...args], {
+        encoding: "utf8",
+    });
+    return {
+        status: result.status ?? -1,
+        stdout: result.stdout ?? "",
+        stderr: result.stderr ?? "",
+    };
+}
+function runRaw(...args) {
+    const result = spawnSync(process.execPath, [CLI, ...args], {
         encoding: "utf8",
     });
     return {
@@ -61,6 +77,21 @@ describe("bin/reconcile.mjs — no configured upstream", () => {
             assert.match(result.stdout, /no configured upstream/);
             assert.doesNotMatch(result.stdout, /BLOCKED/);
             assert.doesNotMatch(result.stderr, /fatal/);
+        }
+        finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+});
+describe("bin/reconcile.mjs — unborn HEAD", () => {
+    it("blocks instead of treating a branch with no commit as safe to mutate", () => {
+        const root = setupUnbornRepo();
+        try {
+            const result = run(root);
+            assert.equal(result.status, 1, `stdout: ${result.stdout}\nstderr: ${result.stderr}`);
+            assert.match(result.stdout, /HEAD commit/);
+            assert.match(result.stdout, /unborn|not a usable commit/i);
+            assert.match(result.stdout, /BLOCKED/);
         }
         finally {
             rmSync(root, { recursive: true, force: true });
@@ -158,6 +189,57 @@ describe("bin/reconcile.mjs — exit-code contract", () => {
             rmSync(root, { recursive: true, force: true });
         }
     });
+    it("rejects mutually exclusive action modes instead of silently preferring one", () => {
+        const root = setupRepo();
+        try {
+            for (const args of [
+                ["--snapshot", "--verify-push", "main"],
+                ["--explain", "--snapshot"],
+            ]) {
+                const result = run(root, ...args);
+                assert.equal(result.status, 2, `${args.join(" ")} stdout: ${result.stdout}`);
+                assert.match(result.stderr, /mutually exclusive/);
+                assert.equal(result.stdout, "");
+            }
+        }
+        finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+    it("rejects repeated --verify-push flags instead of silently selecting the last branch", () => {
+        const root = setupRepo();
+        try {
+            const result = run(root, "--verify-push", "main", "--verify-push", "feature/retry");
+            assert.equal(result.status, 2, `stdout: ${result.stdout}\nstderr: ${result.stderr}`);
+            assert.match(result.stderr, /--verify-push may only be provided once/);
+            assert.equal(result.stdout, "");
+        }
+        finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+    it("rejects repeated --cwd flags instead of silently switching target roots", () => {
+        const root = setupRepo();
+        const otherRoot = setupRepo();
+        try {
+            const result = run(root, "--cwd", otherRoot);
+            assert.equal(result.status, 2, `stdout: ${result.stdout}\nstderr: ${result.stderr}`);
+            assert.match(result.stderr, /--cwd may only be provided once/);
+            assert.equal(result.stdout, "");
+        }
+        finally {
+            rmSync(root, { recursive: true, force: true });
+            rmSync(otherRoot, { recursive: true, force: true });
+        }
+    });
+    it("rejects blank --cwd values instead of running against the launcher directory", () => {
+        for (const blankRoot of ["", "   "]) {
+            const result = runRaw("--cwd", blankRoot);
+            assert.equal(result.status, 2, `stdout: ${result.stdout}\nstderr: ${result.stderr}`);
+            assert.match(result.stderr, /--cwd requires a directory/);
+            assert.equal(result.stdout, "");
+        }
+    });
     it("rejects a --verify-push branch that is not a usable ref name", () => {
         const root = setupRepo();
         try {
@@ -221,6 +303,21 @@ describe("bin/reconcile.mjs --snapshot — envelope parity with the shell script
             git(root, "checkout", "--quiet", "--detach", "HEAD");
             const envelope = JSON.parse(run(root, "--snapshot").stdout);
             assert.equal(envelope.branch, "detached");
+        }
+        finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+    it("blocks unborn HEAD instead of emitting an empty-head success envelope", () => {
+        const root = setupUnbornRepo();
+        try {
+            const result = run(root, "--snapshot");
+            assert.equal(result.status, 1, `stdout: ${result.stdout}\nstderr: ${result.stderr}`);
+            const envelope = JSON.parse(result.stdout);
+            assert.equal(envelope.head, "unborn");
+            assert.equal(envelope.branch, "work");
+            assert.equal(envelope.blocked, true);
+            assert.deepEqual(envelope.blockers, ["head-commit"]);
         }
         finally {
             rmSync(root, { recursive: true, force: true });

@@ -42,6 +42,9 @@ Four boundaries where the obvious command lies:
 - **Detached HEAD** — the `--show-current` form of `git branch` prints "" and exits 0, indistinguishable from success. `symbolic-ref --quiet` exits non-zero instead. Detached blocks.
 - **Linked worktree** — `.git` is a *file* there, so a `.git/`-relative marker probe exits 2 exactly as it does on a clean tree: a real conflicted merge reads as clean. Use `rev-parse --git-path`.
 - **autocrlf** — `git status` overstates drift. Stage by explicit filename, never `git add -A`.
+- **Unborn HEAD** — `git init` with no commit is a real repo with no usable baseline; `rev-parse HEAD` fails. Reported as `head: "unborn"` and blocked, never as an empty field that reads like success.
+
+`--snapshot` shares the exit contract (`0` clear / `1` blocked / `2` not a repo) and adds `contentDrift`, `inProgress`, `blocked`, `blockers` to the shell script's envelope. It still writes the JSON on a blocker, so tolerate exit 1 when capturing a baseline under `set -e`.
 
 ## Then act, with gates
 

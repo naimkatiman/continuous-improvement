@@ -84,6 +84,10 @@ describe("isSafeRefName — identity boundary", () => {
             "main;rm -rf /",
             "main branch",
             "refs/heads/main.lock",
+            "feature/main.lock/child",
+            "refs/heads/.hidden",
+            "release/3.21.x.",
+            "feature//double-slash",
             "trailing/",
             "HEAD@{1}",
             "x".repeat(256),
@@ -120,6 +124,10 @@ describe("parseRevListCounts", () => {
         for (const bad of [null, undefined, "", "   ", "44", "44\t6\t9", "a\tb", "-1\t2", "1.5\t2"]) {
             assert.equal(parseRevListCounts(bad), null, JSON.stringify(bad));
         }
+    });
+    it("returns null for counts that are outside JavaScript's safe integer range", () => {
+        assert.equal(parseRevListCounts(`${Number.MAX_SAFE_INTEGER + 1}\t0`), null);
+        assert.equal(parseRevListCounts(`0\t${Number.MAX_SAFE_INTEGER + 1}`), null);
     });
 });
 describe("classifyUpstream — fails closed (defect 1)", () => {

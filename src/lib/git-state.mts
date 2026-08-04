@@ -78,6 +78,8 @@ export interface DirtyAccounting {
 }
 
 export interface GitStateInput {
+  /** Full commit SHA from `git rev-parse HEAD`; null means HEAD could not be pinned. */
+  headCommit?: string | null;
   head: HeadState;
   upstreamRef: string | null;
   counts: UpstreamCounts | null;
@@ -203,7 +205,8 @@ function isSha(value: string): boolean {
  * comparison that authorizes a mutation.
  *
  * Fails closed: null, empty, surrounding whitespace, shell metacharacters,
- * `..`, refspec syntax (`@{`), a leading `-`, a trailing `/` or `.lock`, and
+ * `..`, refspec syntax (`@{`), a leading `-`, empty path components,
+ * dot-prefixed or dot-suffixed components, components ending `.lock`, and
  * anything over 255 characters all return false rather than being sanitized
  * into something that then looks valid.
  */
@@ -214,6 +217,18 @@ export function isSafeRefName(name: string | null | undefined): boolean {
   if (name.startsWith("-")) return false;
   if (name.endsWith("/") || name.endsWith(".lock")) return false;
   if (name.includes("..") || name.includes("@{")) return false;
+  const components = name.split("/");
+  if (
+    components.some(
+      (component) =>
+        component.length === 0 ||
+        component.startsWith(".") ||
+        component.endsWith(".") ||
+        component.endsWith(".lock"),
+    )
+  ) {
+    return false;
+  }
   return SAFE_REF.test(name);
 }
 
@@ -243,8 +258,8 @@ export function classifyHead(
  * Parse `git rev-list --left-right --count @{u}...HEAD` output, which is
  * `"<behind>\t<ahead>"`.
  *
- * Returns null for empty, malformed, negative, or non-integer output. Callers
- * must treat null as "unknown" — never as zero.
+ * Returns null for empty, malformed, negative, non-integer, or unsafe-integer
+ * output. Callers must treat null as "unknown" — never as zero.
  */
 export function parseRevListCounts(
   raw: string | null | undefined,
@@ -256,8 +271,8 @@ export function parseRevListCounts(
   if (parts.length !== 2) return null;
   const behind = Number(parts[0]);
   const ahead = Number(parts[1]);
-  if (!Number.isInteger(behind) || behind < 0) return null;
-  if (!Number.isInteger(ahead) || ahead < 0) return null;
+  if (!Number.isSafeInteger(behind) || behind < 0) return null;
+  if (!Number.isSafeInteger(ahead) || ahead < 0) return null;
   return { behind, ahead };
 }
 
@@ -413,6 +428,18 @@ export function baselineShifted(
 export function assessGitState(input: GitStateInput): GitStateFinding[] {
   const findings: GitStateFinding[] = [];
   const protectedList = input.protectedBranches ?? DEFAULT_PROTECTED_BRANCHES;
+
+  if (Object.hasOwn(input, "headCommit")) {
+    const commit = (input.headCommit ?? "").trim();
+    findings.push({
+      id: "head-commit",
+      label: "HEAD commit",
+      detail: isSha(commit)
+        ? commit.slice(0, 12)
+        : "unborn or not a usable commit — create or verify the first commit before mutating",
+      severity: isSha(commit) ? "ok" : "blocker",
+    });
+  }
 
   if (input.head.kind === "branch") {
     const onProtected = isProtectedBranch(input.head.branch, protectedList);

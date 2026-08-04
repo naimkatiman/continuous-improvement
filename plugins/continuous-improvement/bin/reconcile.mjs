@@ -54,6 +54,7 @@ function parseArgs(args) {
         verifyPush: null,
         root: cwd(),
     };
+    let cwdProvided = false;
     for (let i = 0; i < args.length; i++) {
         const arg = args[i] ?? "";
         if (arg === "--json")
@@ -63,6 +64,9 @@ function parseArgs(args) {
         else if (arg === "--explain")
             options.explain = true;
         else if (arg === "--verify-push") {
+            if (options.verifyPush !== null) {
+                throw new Error("--verify-push may only be provided once");
+            }
             const value = args[i + 1];
             if (value === undefined || value.startsWith("--")) {
                 throw new Error("--verify-push requires a branch name");
@@ -74,11 +78,15 @@ function parseArgs(args) {
             i++;
         }
         else if (arg === "--cwd") {
+            if (cwdProvided) {
+                throw new Error("--cwd may only be provided once");
+            }
             const value = args[i + 1];
-            if (value === undefined || value.startsWith("--")) {
+            if (value === undefined || value.startsWith("--") || value.trim().length === 0) {
                 throw new Error("--cwd requires a directory");
             }
             options.root = value;
+            cwdProvided = true;
             i++;
         }
         else if (arg === "--help" || arg === "-h") {
@@ -87,6 +95,14 @@ function parseArgs(args) {
         else {
             throw new Error(`unknown argument: ${arg}`);
         }
+    }
+    const actions = [
+        options.snapshot ? "--snapshot" : null,
+        options.explain ? "--explain" : null,
+        options.verifyPush !== null ? "--verify-push" : null,
+    ].filter((action) => action !== null);
+    if (actions.length > 1) {
+        throw new Error(`mutually exclusive action modes: ${actions.join(", ")}`);
     }
     return options;
 }
@@ -160,20 +176,35 @@ function main() {
     const status = git(["status", "--porcelain=v1"], options.root);
     const drift = git(["diff", "--name-only", "--ignore-all-space"], options.root);
     const dirty = accountDirty(status.code === 0 ? status.stdout : null, drift.code === 0 ? drift.stdout : null);
+    const inProgress = probeInProgress(options.root);
+    const baseFindings = assessGitState({
+        headCommit: headSha.code === 0 ? headSha.stdout.trim() : null,
+        head,
+        upstreamRef,
+        counts,
+        inProgress,
+        dirty,
+    });
     if (options.snapshot) {
-        // Field-compatible with scripts/git-state-snapshot.sh, plus `contentDrift`
-        // and `inProgress`, which the shell version cannot report.
+        // Field-compatible with scripts/git-state-snapshot.sh, plus `contentDrift`,
+        // `inProgress`, and a fail-closed blocker summary the shell version cannot
+        // report. An unborn HEAD is a git repo, but not a usable mutation baseline;
+        // do not emit an empty `head` field that looks like success.
         const upstreamSha = upstreamRef === null ? "none" : git(["rev-parse", "--short", "@{u}"], options.root).stdout.trim() || "none";
+        const shortHead = headSha.code === 0 ? git(["rev-parse", "--short", "HEAD"], options.root).stdout.trim() : "";
+        const blockers = baseFindings.filter((finding) => finding.severity === "blocker").map((finding) => finding.id);
         stdout.write(`${JSON.stringify({
-            head: git(["rev-parse", "--short", "HEAD"], options.root).stdout.trim(),
+            head: shortHead.length > 0 ? shortHead : "unborn",
             upstream: upstreamSha,
             dirty: dirty.reported,
             root: repoRoot,
             branch: head.branch ?? "detached",
             contentDrift: dirty.contentDrift,
-            inProgress: probeInProgress(options.root),
+            inProgress,
+            blocked: blockers.length > 0,
+            blockers,
         })}\n`);
-        exit(0);
+        exit(blockers.length > 0 ? 1 : 0);
         return;
     }
     if (options.verifyPush !== null) {
@@ -191,14 +222,7 @@ function main() {
         exit(verdict.verdict === "landed" ? 0 : 1);
         return;
     }
-    const inProgress = probeInProgress(options.root);
-    const findings = assessGitState({
-        head,
-        upstreamRef,
-        counts,
-        inProgress,
-        dirty,
-    });
+    const findings = [...baseFindings];
     const stashes = git(["stash", "list"], options.root);
     const stashCount = stashes.code === 0
         ? stashes.stdout.split(/\r?\n/).filter((line) => line.trim().length > 0).length
