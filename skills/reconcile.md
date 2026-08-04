@@ -62,7 +62,11 @@ The ground-truth pass has to work wherever the agent runs, not only in Bash. `ci
 | `scripts/git-state-snapshot.sh` | needs Git Bash | yes | yes | root/branch only | reports `detached` | reports `none` |
 | Hand-run probe list above | yes | yes | yes | correct | non-zero exit | non-zero exit |
 
-Smoke-test on the OS you actually ship on. Both surfaces emit the same `{head, upstream, dirty, root, branch}` envelope — `ci-reconcile --snapshot` adds `contentDrift` and `inProgress` — and a test pins that parity so the two cannot drift apart silently.
+Smoke-test on the OS you actually ship on. Both surfaces emit the same `{head, upstream, dirty, root, branch}` envelope — `ci-reconcile --snapshot` adds `contentDrift`, `inProgress`, `blocked` and `blockers` — and a test pins that parity so the two cannot drift apart silently.
+
+`--snapshot` follows the same exit-code contract as the default mode: `0` clear, `1` at least one blocker, `2` not a git repository. It still writes the envelope on a blocker, so a script that wants the JSON regardless must tolerate exit 1 (`set -e` will otherwise abort on a detached HEAD or an unborn repo).
+
+An **unborn HEAD** — `git init` with no commit yet — is a real git repository with no usable baseline. `git rev-parse HEAD` fails there, so the shell script reports `not-a-git-repo` and the envelope's `head` field would otherwise be empty in a way that reads like success. `ci-reconcile` reports `head: "unborn"` with `blocked: true` and blocks the mutation instead.
 
 ## Detect a Concurrent Writer
 
@@ -75,7 +79,7 @@ When another session/loop may be active, do not assume the tree is yours:
   # ... do work ...
   npx ci-reconcile --snapshot                                   # compare head + branch against the baseline
   ```
-  If either field moved, another writer got there first — re-survey from the top instead of committing onto an unexpected base. A missing or unparseable field counts as *shifted*; "we could not tell" is never "nothing moved".
+  If either field moved, another writer got there first — re-survey from the top instead of committing onto an unexpected base. A missing or unparseable field counts as *shifted*; "we could not tell" is never "nothing moved". Both calls exit 1 if the tree is blocked, so capture the baseline without `set -e` (or guard it) when a blocker is expected.
 - More than one entry in `git worktree list --porcelain` means a sibling checkout exists that another session may be writing to. The runner flags this.
 - If the git index keeps changing while you are idle, a writer is active. Pause and surface it rather than racing.
 - If `gateguard` is installed, its Parallel-Actor Gate already captured this baseline on the session's first mutation by running `bash "${CLAUDE_PLUGIN_ROOT}/scripts/git-state-snapshot.sh"` (source: `scripts/git-state-snapshot.sh`) and divergence-checks every later mutation — `reconcile` complements that gate, it does not replace it. That shell snapshot needs Git Bash and derives its `dirty` count from `git status`, which overstates drift on an `autocrlf` tree; `ci-reconcile --snapshot` is the same envelope without either limitation. Without gateguard, run one of them yourself.
