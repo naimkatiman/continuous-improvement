@@ -82,7 +82,7 @@ function parseArgs(args) {
                 throw new Error("--cwd may only be provided once");
             }
             const value = args[i + 1];
-            if (value === undefined || value.startsWith("--")) {
+            if (value === undefined || value.startsWith("--") || value.trim().length === 0) {
                 throw new Error("--cwd requires a directory");
             }
             options.root = value;

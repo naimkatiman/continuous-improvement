@@ -72,6 +72,17 @@ function run(cwd: string, ...args: string[]): RunResult {
   };
 }
 
+function runRaw(...args: string[]): RunResult {
+  const result = spawnSync(process.execPath, [CLI, ...args], {
+    encoding: "utf8",
+  });
+  return {
+    status: result.status ?? -1,
+    stdout: result.stdout ?? "",
+    stderr: result.stderr ?? "",
+  };
+}
+
 describe("bin/reconcile.mjs — no configured upstream", () => {
   it("warns and exits 0 instead of failing on `fatal: no upstream configured`", () => {
     const root = setupRepo();
@@ -235,6 +246,15 @@ describe("bin/reconcile.mjs — exit-code contract", () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
       rmSync(otherRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects blank --cwd values instead of running against the launcher directory", () => {
+    for (const blankRoot of ["", "   "]) {
+      const result = runRaw("--cwd", blankRoot);
+      assert.equal(result.status, 2, `stdout: ${result.stdout}\nstderr: ${result.stderr}`);
+      assert.match(result.stderr, /--cwd requires a directory/);
+      assert.equal(result.stdout, "");
     }
   });
 
