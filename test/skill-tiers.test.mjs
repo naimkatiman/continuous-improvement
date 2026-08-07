@@ -127,7 +127,7 @@ describe("renderBundledSkillsReadme", () => {
             },
             { name: "gateguard", tier: "1", description: "Fact gate." },
             { name: "verification-loop", tier: "1" },
-            { name: "safety-guard", tier: "2", description: "Runtime guard." },
+            { name: "strategic-compact", tier: "2", description: "Phase-boundary compaction." },
             { name: "ralph", tier: "companion", description: "Autonomous loop." },
         ]);
     }
