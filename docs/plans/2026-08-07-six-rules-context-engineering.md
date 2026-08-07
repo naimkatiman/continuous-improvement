@@ -51,7 +51,9 @@ Meanwhile [`hooks/gateguard.mjs`](../../hooks/gateguard.mjs) **actually does** t
 
 So the skill is not merely redundant — it is a false runtime claim sitting next to a real one. [`skills/gateguard.md:191`](../../skills/gateguard.md) compounds it by asserting `safety-guard` provides *"Runtime safety checks (complementary, not overlapping)"*, which is wrong on both counts.
 
-The one genuinely non-duplicated idea is **Freeze Mode** — declaring a write scope up front. That idea survives; it moves into `gateguard` as a short section. Everything else is deleted.
+The one seemingly non-duplicated idea was **Freeze Mode** — declaring a write scope up front.
+
+**Divergence from this plan, found during implementation:** Freeze Mode needed no porting. `gateguard` already ships `CI_GATEGUARD_TARGET_LOCK=block`, which canonicalizes an absolute write target against the session project root and refuses strays *before* the fact gate and independent of clearance — a stronger guarantee than the checklist ever described. All three safety-guard modes were therefore already implemented for real. What shipped is a **migration map** in `gateguard` (retired mode → what enforces it now), not a ported section. Nothing from `safety-guard` survives as new behaviour.
 
 ## Rule-by-rule mapping
 
@@ -63,6 +65,8 @@ The one genuinely non-duplicated idea is **Freeze Mode** — declaring a write s
 | 4 | Simpler tool descriptions | Trim `ci_distill_from_workflow` (475 chars) and `ci_gateguard_clear` (409 chars). Both restate instructions the block reason and skill file already carry. 19 tools currently total 2,979 chars, avg 157. |
 | 5 | Automatic memory | The `Past Mistakes` router line points at the `recall` skill + observation log as the *first* lookup, with the curated doc as the durable ledger — not a hand-maintained substitute for it. |
 | 6 | Richer references | `docs/skill-catalog.html` — a self-contained, theme-aware HTML reference. Its explicit **Enforcement** column (hook / command / prose-only) is what structurally prevents another `safety-guard`: a prose-only skill can no longer render as a runtime gate. |
+
+**Divergence from this plan (rule 6):** the page was planned as hand-authored. Hand-authoring 27 rows invites exactly the drift this change exists to remove, so it shipped **generated** instead — `src/lib/skill-catalog.mts` renders it, the manifest generator writes it from `skills/*.md` frontmatter plus the live `hooks/` and `commands/` inventory, and `docs/skill-catalog.html` was added to `verify:generated` so it cannot drift. The enforcement mapping fails closed: a skill absent from `HOOK_BY_SKILL` degrades to `command` or `prose`, never to `hook`. 22 tests cover the renderer, and one asserts every `HOOK_BY_SKILL` entry points at a hook file that actually exists.
 
 ## Invariants that constrain this change (all currently green)
 
@@ -86,6 +90,20 @@ Also relevant:
 3. **`CLAUDE.md` progressive disclosure.** `CLAUDE.md` + `docs/past-mistakes.md` + `docs/deferred.md`. 3 files.
 4. **Thin the two MCP tool descriptions.** `src/lib/plugin-metadata.mts` + regenerated output.
 5. **`docs/skill-catalog.html` richer reference** + the pointer to it from `docs/skills.md`.
+
+## Result (recorded 2026-08-07, after the branch was complete)
+
+| Gate | Baseline `188d1e4` | After |
+|---|---|---|
+| `npm run verify:all` | 16 invariants + typecheck, exit 0 | 16 invariants + typecheck, exit 0 |
+| `npm run verify:generated` | exit 0 | exit 0 (now also covers `docs/skill-catalog.html`) |
+| `npm test` | 1116 tests, 1112 pass, **4 fail** | 1138 tests, **1138 pass, 0 fail**, exit 0 |
+
+The 4 baseline failures were all `test/hook.test.mjs` (observe.sh), failing at 3.3–5.0s wall clock under the full parallel run on a loaded Windows host; the suite passed 15/15 in isolation on the same commit. They passed on the final run once the host quieted — environmental, not caused by this branch. Recorded in [past-mistakes.md](../past-mistakes.md).
+
+Derived counts moved as predicted: bundle 28 → 27, breakdown `1 core + 1 featured + 6 tier-1 + 16 tier-2 + 3 always-bundled`, next-ordinal 29th → 28th. MCP tool descriptions 2,979 → 2,573 chars (avg 157 → 135). `CLAUDE.md` 101 → 74 lines.
+
+Enforcement audit surfaced by the new catalog: **6 hook, 13 command, 8 prose**. The 8 prose-only skills (`deploy-receipt`, `tdd-workflow`, `recovery-classification`, `state-reconciliation`, `strategic-compact`, `token-budget-advisor`, `wild-risa-balance`, `worktree-safety`) are correctly labelled and none of them claims a runtime gate — but that list is now visible, which is the point.
 
 ## Verification
 
