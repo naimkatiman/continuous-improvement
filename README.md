@@ -358,6 +358,7 @@ Proof-format templates ship in [templates/](templates/): `release_receipt_templa
 - [QUICKSTART.md](QUICKSTART.md) — 2-minute setup
 - [SKILL.md](SKILL.md) — full 7 Laws spec
 - [docs/skills.md](docs/skills.md) — full 27-skill catalog
+- [docs/skill-catalog.html](docs/skill-catalog.html) — the same catalog with an Enforcement column (hook / command / prose), generated from frontmatter
 - [examples/](examples/) — bug fix, feature build, refactor walkthroughs
 - [templates/insights-claude-md.md](templates/insights-claude-md.md) — paste-in CLAUDE.md blocks for verification discipline, environment notes, think-before-acting, and git/deploy workflow (sourced from the 28-day usage report)
 - [CONTRIBUTING.md](CONTRIBUTING.md) — architecture, repo internals, adding a new skill

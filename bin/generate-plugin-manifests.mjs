@@ -4,6 +4,7 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PACKAGE_NAME, PLUGIN_MODES, getPluginHooksConfig, getClaudePluginManifest, getClaudePluginMarketplaceManifest, getClaudeRepoMarketplaceManifest, getPluginManifest, } from "../lib/plugin-metadata.mjs";
 import { normalizeTier, parseSkillFrontmatter, renderBundledSkillsReadme, } from "../lib/skill-tiers.mjs";
+import { enforcementOf, lawOf, renderSkillCatalogHtml, } from "../lib/skill-catalog.mjs";
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const PLUGINS_DIR = join(REPO_ROOT, "plugins");
 const PLUGIN_BUNDLE_DIR = join(PLUGINS_DIR, PACKAGE_NAME);
@@ -67,6 +68,23 @@ async function writeBundledSkills() {
         });
     }
     await writeFile(join(targetSkillsDir, "README.md"), renderBundledSkillsReadme(skillsForReadme));
+    await writeSkillCatalogHtml(skillsForReadme);
+}
+/**
+ * Generate `docs/skill-catalog.html` from the same frontmatter that feeds the
+ * bundled README, so the catalog's Enforcement badges can never drift from the
+ * shipped file set. Guarded by `verify:generated`.
+ */
+async function writeSkillCatalogHtml(skills) {
+    const commandNames = new Set((await readdir(join(REPO_ROOT, "commands")))
+        .filter((f) => f.endsWith(".md") && f !== "README.md")
+        .map((f) => basename(f, ".md")));
+    const catalog = skills.map((skill) => ({
+        ...skill,
+        ...enforcementOf(skill.name, commandNames),
+        law: lawOf(skill.description),
+    }));
+    await writeFile(join(REPO_ROOT, "docs", "skill-catalog.html"), renderSkillCatalogHtml(catalog));
 }
 async function writePluginBundleReadme() {
     const readme = [

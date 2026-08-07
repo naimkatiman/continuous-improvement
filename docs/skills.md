@@ -4,6 +4,8 @@ The plugin ships **1 core + 1 featured + 6 tier-1 + 16 tier-2 + 3 always-bundled
 
 This page is the full catalog. The [README](../README.md) summarizes; this is the table.
 
+**Want to know what actually backs a skill?** [`skill-catalog.html`](skill-catalog.html) is generated from the same frontmatter and adds an **Enforcement** column derived from the shipped file set — `hook` (fires at the tool boundary), `command` (runs when invoked), or `prose` (model-side discipline only). Today: 6 hook, 13 command, 8 prose. A skill's own prose cannot influence that badge, which is the point — `safety-guard` spent months describing a runtime gate it never shipped.
+
 ## Full table
 
 | # | Skill | Tier | Law | What it does |
