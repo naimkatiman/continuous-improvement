@@ -5,6 +5,7 @@ import { before, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const COMMANDS_DIR = join(__dirname, "..", "commands");
+const SKILLS_DIR = join(__dirname, "..", "skills");
 describe("commands/discipline.md", () => {
     let content = "";
     it("exists", () => {
@@ -86,15 +87,19 @@ describe("commands/planning-with-files.md", () => {
         assert.match(content, /recover/i);
     });
 });
-describe("commands/ship.md", () => {
-    const path = join(COMMANDS_DIR, "ship.md");
+describe("skills/ship.md", () => {
+    const path = join(SKILLS_DIR, "ship.md");
     let content = "";
     before(() => {
-        assert.ok(existsSync(path), "ship.md should exist");
+        assert.ok(existsSync(path), "skills/ship.md should exist");
         content = readFileSync(path, "utf8");
     });
     it("exists", () => {
         assert.ok(content.length > 0, "ship.md should not be empty");
+        assert.match(content, /name: ship/);
+        assert.match(content, /tier: "1"/);
+        assert.match(content, /user-invocable: true/);
+        assert.match(content, /Law 1/);
     });
     it("isolates an unrelated dirty checkout in a clean worktree", () => {
         const isolation = content.slice(content.indexOf("2. **Select a safe checkout**"), content.indexOf("3. **Reproduce (RED)**"));
@@ -146,6 +151,16 @@ describe("commands/ship.md", () => {
         assert.match(cleanup, /never.*foreign lock.*stale/is);
         assert.doesNotMatch(cleanup, /git worktree prune/);
         assert.match(content, /never use `git worktree remove --force`/);
+    });
+});
+describe("commands/ship.md", () => {
+    const path = join(COMMANDS_DIR, "ship.md");
+    it("delegates arguments to the native skill without copying its workflow", () => {
+        assert.ok(existsSync(path), "commands/ship.md should exist");
+        const content = readFileSync(path, "utf8");
+        assert.match(content, /native `ship` skill/);
+        assert.match(content, /\$ARGUMENTS/);
+        assert.doesNotMatch(content, /git worktree add|git switch <base>|git push/);
     });
 });
 describe("commands/verify-install.md", () => {

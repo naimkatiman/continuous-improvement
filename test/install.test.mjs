@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const INSTALL_SCRIPT = join(__dirname, "..", "bin", "install.mjs");
 const SKILL_SOURCE = join(__dirname, "..", "SKILL.md");
+const SHIP_SKILL_SOURCE = join(__dirname, "..", "skills", "ship.md");
+const SHIP_SKILL_OWNER_FILE = ".continuous-improvement-owner";
 const ALL_COMMAND_FILES = [
     "continuous-improvement.md",
     "planning-with-files.md",
@@ -80,6 +82,20 @@ describe("installer", () => {
         const installed = readFileSync(skillPath, "utf8");
         const source = readFileSync(SKILL_SOURCE, "utf8");
         assert.equal(installed, source, "Installed SKILL.md should match source");
+    });
+    it("installs ship as a global Claude Code skill", () => {
+        execFileSync("node", [INSTALL_SCRIPT, "install"], {
+            env: { ...process.env, HOME: tempHome, CLAUDE_CI_UPDATE_CHECK: "off" },
+            encoding: "utf8",
+        });
+        const skillPath = join(tempHome, ".claude", "skills", "ship", "SKILL.md");
+        assert.ok(existsSync(skillPath), "ship/SKILL.md should be installed globally");
+        const installed = readFileSync(skillPath, "utf8");
+        const source = readFileSync(SHIP_SKILL_SOURCE, "utf8");
+        assert.equal(installed, source, "Installed ship skill should match its packaged source");
+        assert.match(installed, /user-invocable: true/, "native skill should expose /ship");
+        assert.equal(readFileSync(join(tempHome, ".claude", "skills", "ship", SHIP_SKILL_OWNER_FILE), "utf8"), "continuous-improvement\n", "global ship skill should carry an ownership marker");
+        assert.equal(existsSync(join(tempHome, ".claude", "commands", "ship.md")), false, "installer should not create a duplicate legacy /ship command");
     });
     it("does not install the legacy observe.sh shim", () => {
         const hookPath = join(tempHome, ".claude", "instincts", "observe.sh");
@@ -179,6 +195,8 @@ describe("installer", () => {
         });
         const skillPath = join(tempHome, ".claude", "skills", "continuous-improvement", "SKILL.md");
         assert.ok(!existsSync(skillPath), "SKILL.md should be removed");
+        const shipSkillPath = join(tempHome, ".claude", "skills", "ship", "SKILL.md");
+        assert.ok(!existsSync(shipSkillPath), "ship/SKILL.md should be removed");
         const hookPath = join(tempHome, ".claude", "instincts", "bin", "observe.mjs");
         assert.ok(!existsSync(hookPath), "observe.mjs should be removed");
         const planningCommandPath = join(tempHome, ".claude", "commands", "planning-with-files.md");
@@ -191,6 +209,35 @@ describe("installer", () => {
                     entry.hooks.some((hook) => /(?:observe\.sh|bin\/observe\.mjs)/.test(hook.command ?? "")));
                 assert.ok(!hasObserveHook, `${hookType} observer hooks should be removed`);
             }
+        }
+    });
+});
+describe("installer - foreign ship skill preservation", () => {
+    it("never overwrites or uninstalls an unowned global ship skill", () => {
+        const tempHome = join(tmpdir(), `ci-test-foreign-ship-${Date.now()}`);
+        const shipDir = join(tempHome, ".claude", "skills", "ship");
+        const shipPath = join(shipDir, "SKILL.md");
+        const foreignContent = "# My existing ship skill\n";
+        mkdirSync(shipDir, { recursive: true });
+        writeFileSync(shipPath, foreignContent);
+        try {
+            const installResult = spawnSync(process.execPath, [INSTALL_SCRIPT, "install"], {
+                env: { ...process.env, HOME: tempHome, USERPROFILE: tempHome, CLAUDE_CI_UPDATE_CHECK: "off" },
+                encoding: "utf8",
+            });
+            const installOutput = `${installResult.stdout ?? ""}${installResult.stderr ?? ""}`;
+            assert.equal(installResult.status, 0, installOutput);
+            assert.match(installOutput, /preserved.*existing.*ship skill/i);
+            assert.equal(readFileSync(shipPath, "utf8"), foreignContent);
+            assert.equal(existsSync(join(shipDir, SHIP_SKILL_OWNER_FILE)), false);
+            execFileSync("node", [INSTALL_SCRIPT, "--uninstall"], {
+                env: { ...process.env, HOME: tempHome, USERPROFILE: tempHome },
+                encoding: "utf8",
+            });
+            assert.equal(readFileSync(shipPath, "utf8"), foreignContent);
+        }
+        finally {
+            rmSync(tempHome, { recursive: true, force: true });
         }
     });
 });

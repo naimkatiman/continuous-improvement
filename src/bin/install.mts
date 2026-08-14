@@ -76,6 +76,7 @@ interface ProjectHash {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const SKILL_SOURCE = join(__dirname, "..", "SKILL.md");
+const SHIP_SKILL_SOURCE = join(__dirname, "..", "skills", "ship.md");
 const SKILL_NAME = "continuous-improvement";
 const REPO_ROOT = join(__dirname, "..");
 const COMMAND_FILES = [
@@ -192,14 +193,44 @@ const requestedMode = modeIndex !== -1 ? rawArgs[modeIndex + 1] : undefined;
 const INSTALL_MODE: InstallMode = isInstallMode(requestedMode) ? requestedMode : "beginner";
 
 const SKILL_DIR = join(getHomeDir(), ".claude", "skills", SKILL_NAME);
+const SHIP_SKILL_DIR = join(getHomeDir(), ".claude", "skills", "ship");
+const SHIP_SKILL_OWNER_FILE = join(SHIP_SKILL_DIR, ".continuous-improvement-owner");
+const SHIP_SKILL_OWNER = `${PACKAGE_NAME}\n`;
+
+function isOwnedShipSkill(): boolean {
+  try {
+    return readFileSync(SHIP_SKILL_OWNER_FILE, "utf8") === SHIP_SKILL_OWNER;
+  } catch {
+    return false;
+  }
+}
+
+function installShipSkill(): boolean {
+  if (existsSync(SHIP_SKILL_DIR) && !isOwnedShipSkill()) {
+    console.warn(`  ! Preserved existing unowned ship skill at ${SHIP_SKILL_DIR}`);
+    return false;
+  }
+
+  try {
+    mkdirSync(SHIP_SKILL_DIR, { recursive: true });
+    copyFileSync(SHIP_SKILL_SOURCE, join(SHIP_SKILL_DIR, "SKILL.md"));
+    writeFileSync(SHIP_SKILL_OWNER_FILE, SHIP_SKILL_OWNER);
+    console.log(`  ✓ Global ship skill → ${SHIP_SKILL_DIR}/SKILL.md`);
+    return true;
+  } catch (error) {
+    console.error(`  ✗ Global ship skill install failed: ${getErrorMessage(error)}`);
+    return false;
+  }
+}
 
 function installSkill(): boolean {
   try {
     mkdirSync(SKILL_DIR, { recursive: true });
     copyFileSync(SKILL_SOURCE, join(SKILL_DIR, "SKILL.md"));
     console.log(`  ✓ Claude Code skill → ${SKILL_DIR}/SKILL.md`);
+    const shipInstalled = installShipSkill();
     setupMulahazah();
-    return true;
+    return shipInstalled;
   } catch (error) {
     console.error(`  ✗ Install failed: ${getErrorMessage(error)}`);
     return false;
@@ -434,7 +465,7 @@ function patchClaudeSettings(observePath: string): void {
 }
 
 function uninstallAll(): void {
-  console.log("\nUninstalling continuous-improvement skill...\n");
+  console.log("\nUninstalling continuous-improvement skills...\n");
   const home = getHomeDir();
   let removed = 0;
 
@@ -445,6 +476,20 @@ function uninstallAll(): void {
       removed++;
     } catch (error) {
       console.error(`  ✗ Skill removal failed: ${getErrorMessage(error)}`);
+    }
+  }
+
+  if (existsSync(SHIP_SKILL_DIR)) {
+    if (!isOwnedShipSkill()) {
+      console.warn(`  ! Preserved existing unowned ship skill at ${SHIP_SKILL_DIR}`);
+    } else {
+      try {
+        rmSync(SHIP_SKILL_DIR, { recursive: true });
+        console.log("  ✓ Removed global ship skill");
+        removed++;
+      } catch (error) {
+        console.error(`  ✗ Global ship skill removal failed: ${getErrorMessage(error)}`);
+      }
     }
   }
 
@@ -589,11 +634,11 @@ Subcommands:
 
 Options for 'install':
   --mode <mode>     Installation mode:
-                      beginner  — hooks + skill + commands (default)
+                      beginner  — hooks + skills + commands (default)
                       expert    — beginner + MCP server + session hooks
   --pack <name>     Load a starter instinct pack (react, python, go, meta)
   --target <names>  Comma-separated platform list (default: claude):
-                      claude    — full install: hooks + skill + commands
+                      claude    — full install: hooks + skills + commands
                       gemini    — GEMINI.md (Gemini CLI)
                       codex     — AGENTS.md (Codex CLI / agents.md standard)
                       cursor    — .cursor/rules/continuous-improvement.mdc
@@ -802,9 +847,10 @@ ${modeInfo[INSTALL_MODE]}
 Next steps:
   1. Start a new Claude Code session
   2. Say: "Use the continuous-improvement framework to [your task]"
-  3. If a task needs persistent planning, run: /planning-with-files
-  4. After your first task, run: /continuous-improvement
-  5. Try: /discipline for quick reference, /dashboard for instinct health
+  3. For one defect, run: /ship [one-line defect description]
+  4. If a task needs persistent planning, run: /planning-with-files
+  5. After your first task, run: /continuous-improvement
+  6. Try: /discipline for quick reference, /dashboard for instinct health
 ${INSTALL_MODE === "expert" ? `\nMCP tools available (${getToolNames("expert").length}): ${getToolNames("expert").join(", ")}` : ""}
 Available instinct packs: npx continuous-improvement install --pack react|python|go|meta
 `);
