@@ -105,13 +105,16 @@ describe("distribution artifacts", () => {
         const packResult = packResults[0];
         assert.ok(packResult, "npm pack result must be present");
         const packedPaths = new Set(packResult.files.map((file) => file.path));
-        const missingPaths = sourceFiles
-            .flatMap((relPath) => [
-            `scripts/${relPath}`,
-            `plugins/continuous-improvement/scripts/${relPath}`,
-        ])
-            .filter((relPath) => !packedPaths.has(relPath));
-        assert.deepEqual(missingPaths, [], `npm package is missing script artifacts: ${missingPaths.join(", ")}`);
+        const requiredPaths = [
+            ...sourceFiles.flatMap((relPath) => [
+                `scripts/${relPath}`,
+                `plugins/continuous-improvement/scripts/${relPath}`,
+            ]),
+            "skills/ship.md",
+            "plugins/continuous-improvement/skills/ship/SKILL.md",
+        ];
+        const missingPaths = requiredPaths.filter((relPath) => !packedPaths.has(relPath));
+        assert.deepEqual(missingPaths, [], `npm package is missing required artifacts: ${missingPaths.join(", ")}`);
     });
     it("executes a bundled helper against the consumer working directory", () => {
         const helper = join(BUNDLED_SCRIPTS, "resolve-verify-ladder.mjs");

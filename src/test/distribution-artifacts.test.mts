@@ -175,17 +175,20 @@ describe("distribution artifacts", () => {
     assert.ok(packResult, "npm pack result must be present");
     const packedPaths = new Set(packResult.files.map((file) => file.path));
 
-    const missingPaths = sourceFiles
-      .flatMap((relPath) => [
+    const requiredPaths = [
+      ...sourceFiles.flatMap((relPath) => [
         `scripts/${relPath}`,
         `plugins/continuous-improvement/scripts/${relPath}`,
-      ])
-      .filter((relPath) => !packedPaths.has(relPath));
+      ]),
+      "skills/ship.md",
+      "plugins/continuous-improvement/skills/ship/SKILL.md",
+    ];
+    const missingPaths = requiredPaths.filter((relPath) => !packedPaths.has(relPath));
 
     assert.deepEqual(
       missingPaths,
       [],
-      `npm package is missing script artifacts: ${missingPaths.join(", ")}`,
+      `npm package is missing required artifacts: ${missingPaths.join(", ")}`,
     );
   });
 

@@ -15,9 +15,12 @@ import {
   chmodSync,
   copyFileSync,
   existsSync,
+  lstatSync,
+  mkdtempSync,
   mkdirSync,
   readFileSync,
   readdirSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -38,6 +41,7 @@ import {
 } from "../lib/version-check.mjs";
 
 type InstallMode = "beginner" | "expert";
+type InstallOutcome = "installed" | "preserved" | "failed";
 type HookType = "PreToolUse" | "PostToolUse" | "SessionStart" | "SessionEnd";
 
 interface HookCommand {
@@ -194,46 +198,110 @@ const INSTALL_MODE: InstallMode = isInstallMode(requestedMode) ? requestedMode :
 
 const SKILL_DIR = join(getHomeDir(), ".claude", "skills", SKILL_NAME);
 const SHIP_SKILL_DIR = join(getHomeDir(), ".claude", "skills", "ship");
+const SHIP_SKILLS_DIR = dirname(SHIP_SKILL_DIR);
 const SHIP_SKILL_OWNER_FILE = join(SHIP_SKILL_DIR, ".continuous-improvement-owner");
 const SHIP_SKILL_OWNER = `${PACKAGE_NAME}\n`;
 
+function pathEntryExists(path: string): boolean {
+  try {
+    lstatSync(path);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
+}
+
 function isOwnedShipSkill(): boolean {
   try {
+    const dir = lstatSync(SHIP_SKILL_DIR);
+    const owner = lstatSync(SHIP_SKILL_OWNER_FILE);
+    if (!dir.isDirectory() || dir.isSymbolicLink()) return false;
+    if (!owner.isFile() || owner.isSymbolicLink() || owner.nlink !== 1) return false;
     return readFileSync(SHIP_SKILL_OWNER_FILE, "utf8") === SHIP_SKILL_OWNER;
   } catch {
     return false;
   }
 }
 
-function installShipSkill(): boolean {
-  if (existsSync(SHIP_SKILL_DIR) && !isOwnedShipSkill()) {
-    console.warn(`  ! Preserved existing unowned ship skill at ${SHIP_SKILL_DIR}`);
-    return false;
-  }
-
+function stageShipSkill(): string {
+  mkdirSync(SHIP_SKILLS_DIR, { recursive: true });
+  const stagingDir = mkdtempSync(join(SHIP_SKILLS_DIR, ".continuous-improvement-ship-"));
   try {
-    mkdirSync(SHIP_SKILL_DIR, { recursive: true });
-    copyFileSync(SHIP_SKILL_SOURCE, join(SHIP_SKILL_DIR, "SKILL.md"));
-    writeFileSync(SHIP_SKILL_OWNER_FILE, SHIP_SKILL_OWNER);
-    console.log(`  ✓ Global ship skill → ${SHIP_SKILL_DIR}/SKILL.md`);
-    return true;
+    copyFileSync(SHIP_SKILL_SOURCE, join(stagingDir, "SKILL.md"));
+    writeFileSync(join(stagingDir, ".continuous-improvement-owner"), SHIP_SKILL_OWNER);
+    return stagingDir;
   } catch (error) {
-    console.error(`  ✗ Global ship skill install failed: ${getErrorMessage(error)}`);
-    return false;
+    rmSync(stagingDir, { recursive: true, force: true });
+    throw error;
   }
 }
 
-function installSkill(): boolean {
+function installShipSkill(): InstallOutcome {
+  const shipSkillExists = pathEntryExists(SHIP_SKILL_DIR);
+  if (shipSkillExists && !isOwnedShipSkill()) {
+    console.warn(`  ! Preserved existing unowned ship skill at ${SHIP_SKILL_DIR}`);
+    return "preserved";
+  }
+
+  let stagingDir = "";
+  try {
+    stagingDir = stageShipSkill();
+    if (shipSkillExists) {
+      const skillPath = join(SHIP_SKILL_DIR, "SKILL.md");
+      const previousSkillPath = join(stagingDir, "previous-SKILL.md");
+      let previousSkillMoved = false;
+      if (pathEntryExists(skillPath)) {
+        const skillEntry = lstatSync(skillPath);
+        if (skillEntry.isDirectory()) {
+          throw new Error(`Refusing to replace directory at ${skillPath}`);
+        }
+        renameSync(skillPath, previousSkillPath);
+        previousSkillMoved = true;
+      }
+      try {
+        renameSync(join(stagingDir, "SKILL.md"), skillPath);
+      } catch (error) {
+        if (previousSkillMoved) {
+          try {
+            renameSync(previousSkillPath, skillPath);
+          } catch (restoreError) {
+            throw new Error(
+              `Ship skill replacement failed (${getErrorMessage(error)}) and rollback failed (${getErrorMessage(restoreError)})`,
+            );
+          }
+        }
+        throw error;
+      }
+      rmSync(stagingDir, { recursive: true });
+      stagingDir = "";
+    } else {
+      renameSync(stagingDir, SHIP_SKILL_DIR);
+      stagingDir = "";
+    }
+    console.log(`  ✓ Global ship skill → ${SHIP_SKILL_DIR}/SKILL.md`);
+    return "installed";
+  } catch (error) {
+    console.error(`  ✗ Global ship skill install failed: ${getErrorMessage(error)}`);
+    return "failed";
+  } finally {
+    if (stagingDir && pathEntryExists(stagingDir)) {
+      rmSync(stagingDir, { recursive: true, force: true });
+    }
+  }
+}
+
+function installSkill(): InstallOutcome {
   try {
     mkdirSync(SKILL_DIR, { recursive: true });
     copyFileSync(SKILL_SOURCE, join(SKILL_DIR, "SKILL.md"));
     console.log(`  ✓ Claude Code skill → ${SKILL_DIR}/SKILL.md`);
-    const shipInstalled = installShipSkill();
+    const shipOutcome = installShipSkill();
     setupMulahazah();
-    return shipInstalled;
+    return shipOutcome;
   } catch (error) {
     console.error(`  ✗ Install failed: ${getErrorMessage(error)}`);
-    return false;
+    return "failed";
   }
 }
 
@@ -464,10 +532,11 @@ function patchClaudeSettings(observePath: string): void {
   }
 }
 
-function uninstallAll(): void {
+function uninstallAll(): boolean {
   console.log("\nUninstalling continuous-improvement skills...\n");
   const home = getHomeDir();
   let removed = 0;
+  let failed = false;
 
   if (existsSync(SKILL_DIR)) {
     try {
@@ -476,6 +545,7 @@ function uninstallAll(): void {
       removed++;
     } catch (error) {
       console.error(`  ✗ Skill removal failed: ${getErrorMessage(error)}`);
+      failed = true;
     }
   }
 
@@ -489,6 +559,7 @@ function uninstallAll(): void {
         removed++;
       } catch (error) {
         console.error(`  ✗ Global ship skill removal failed: ${getErrorMessage(error)}`);
+        failed = true;
       }
     }
   }
@@ -504,6 +575,7 @@ function uninstallAll(): void {
       console.log(`  ✓ Removed /${commandName.replace(".md", "")} command`);
     } catch (error) {
       console.error(`  ✗ ${commandName}: ${getErrorMessage(error)}`);
+      failed = true;
     }
   }
 
@@ -518,6 +590,7 @@ function uninstallAll(): void {
       console.log(`  ✓ Removed ${hookFile}`);
     } catch (error) {
       console.error(`  ✗ ${hookFile}: ${getErrorMessage(error)}`);
+      failed = true;
     }
   }
 
@@ -533,6 +606,7 @@ function uninstallAll(): void {
       console.log(`  ✓ Removed ${observerFile}`);
     } catch (error) {
       console.error(`  ✗ ${observerFile}: ${getErrorMessage(error)}`);
+      failed = true;
     }
   }
 
@@ -600,13 +674,17 @@ function uninstallAll(): void {
       }
     } else {
       console.warn("  ! Could not clean settings.json — remove hooks manually");
+      failed = true;
     }
   }
 
   const desktopConfigPath = join(home, ".claude", "claude_desktop_config.json");
   if (existsSync(desktopConfigPath)) {
     const desktopConfig = readJsonFile<ClaudeSettings>(desktopConfigPath);
-    if (desktopConfig?.mcpServers?.["continuous-improvement"]) {
+    if (!desktopConfig) {
+      console.warn("  ! Could not clean claude_desktop_config.json — remove the MCP server manually");
+      failed = true;
+    } else if (desktopConfig.mcpServers?.["continuous-improvement"]) {
       delete desktopConfig.mcpServers["continuous-improvement"];
       writeFileSync(desktopConfigPath, JSON.stringify(desktopConfig, null, 2) + "\n");
       console.log("  ✓ Removed MCP server from Claude Desktop config");
@@ -621,6 +699,7 @@ function uninstallAll(): void {
     "\n  Note: Instinct data in ~/.claude/instincts/ was preserved.\n" +
       "  To remove learned data too: rm -rf ~/.claude/instincts/\n"
   );
+  return !failed;
 }
 
 function printUsage(): void {
@@ -709,8 +788,7 @@ if (command === "backfill") {
 }
 
 if (args.includes("--uninstall")) {
-  uninstallAll();
-  process.exit(0);
+  process.exit(uninstallAll() ? 0 : 1);
 }
 
 // --target <names>: comma-separated platform list, default claude-only.
@@ -779,7 +857,8 @@ warnOnMarketplaceCollision();
 
 console.log("Installing to Claude Code...\n");
 
-const installed = installSkill() ? 1 : 0;
+const installOutcome = installSkill();
+if (installOutcome === "failed") process.exitCode = 1;
 
 const modeInfo: Record<InstallMode, string> = {
   beginner: "Hooks are capturing silently. System auto-levels as you use it.",
@@ -841,7 +920,7 @@ if (packIndex !== -1 && rawArgs[packIndex + 1]) {
 }
 
 console.log(`
-${installed === 1 ? "Done." : "Failed."}
+${installOutcome === "installed" ? "Done." : installOutcome === "preserved" ? "Done with warning." : "Failed."}
 ${modeInfo[INSTALL_MODE]}
 
 Next steps:
