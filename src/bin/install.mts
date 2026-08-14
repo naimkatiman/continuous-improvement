@@ -19,6 +19,7 @@ import {
   mkdtempSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   readdirSync,
   renameSync,
   rmSync,
@@ -27,7 +28,7 @@ import {
 } from "node:fs";
 import { execSync } from "node:child_process";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { PACKAGE_NAME, VERSION, getToolNames } from "../lib/plugin-metadata.mjs";
@@ -225,16 +226,57 @@ function isOwnedShipSkill(): boolean {
   }
 }
 
+function isSameOrChildPath(parent: string, candidate: string): boolean {
+  const relativePath = relative(parent, candidate);
+  return (
+    relativePath === "" ||
+    (relativePath !== ".." && !relativePath.startsWith(`..${sep}`) && !isAbsolute(relativePath))
+  );
+}
+
+function getSafeShipStagingRoot(): { stagingRoot: string; skillsRoot: string } {
+  mkdirSync(dirname(SHIP_STAGING_ROOT), { recursive: true });
+  try {
+    mkdirSync(SHIP_STAGING_ROOT);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+  }
+
+  const stagingEntry = lstatSync(SHIP_STAGING_ROOT);
+  if (!stagingEntry.isDirectory() || stagingEntry.isSymbolicLink()) {
+    throw new Error(
+      `Ship staging root must be a plain directory, not a link or junction: ${SHIP_STAGING_ROOT}`,
+    );
+  }
+
+  const stagingRoot = realpathSync(SHIP_STAGING_ROOT);
+  const skillsRoot = realpathSync(SHIP_SKILLS_DIR);
+  if (isSameOrChildPath(skillsRoot, stagingRoot)) {
+    throw new Error(`Ship staging root resolves inside skill discovery: ${stagingRoot}`);
+  }
+  return { stagingRoot, skillsRoot };
+}
+
 function stageShipSkill(): string {
   mkdirSync(SHIP_SKILLS_DIR, { recursive: true });
-  mkdirSync(SHIP_STAGING_ROOT, { recursive: true });
-  const stagingDir = mkdtempSync(join(SHIP_STAGING_ROOT, "ship-"));
+  const { stagingRoot, skillsRoot } = getSafeShipStagingRoot();
+  const createdStagingDir = mkdtempSync(join(stagingRoot, "ship-"));
   try {
+    const stagingEntry = lstatSync(createdStagingDir);
+    const stagingDir = realpathSync(createdStagingDir);
+    if (
+      !stagingEntry.isDirectory() ||
+      stagingEntry.isSymbolicLink() ||
+      !isSameOrChildPath(stagingRoot, stagingDir) ||
+      isSameOrChildPath(skillsRoot, stagingDir)
+    ) {
+      throw new Error(`Ship staging directory escaped its safe root: ${stagingDir}`);
+    }
     copyFileSync(SHIP_SKILL_SOURCE, join(stagingDir, "SKILL.md"));
     writeFileSync(join(stagingDir, ".continuous-improvement-owner"), SHIP_SKILL_OWNER);
     return stagingDir;
   } catch (error) {
-    rmSync(stagingDir, { recursive: true, force: true });
+    rmSync(createdStagingDir, { recursive: true, force: true });
     throw error;
   }
 }

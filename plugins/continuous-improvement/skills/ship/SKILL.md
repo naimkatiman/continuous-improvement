@@ -61,17 +61,22 @@ Run these steps in order:
 8. **Return before stopping**:
    - Confirm the fix checkout is clean and every commit is pushed. If the captured `return_allowed` value is true, immediately revalidate that the initiating checkout remains clean, current-session-owned, and unreserved. Freeze the final decision and its reason. Any drift changes the final value to false.
    - Persist a local cleanup receipt at `<git-common-dir>/continuous-improvement/ship-receipts/<pr-number>.json` with the PR URL and number, base, base SHA, feature branch, feature tip SHA, absolute worktree path, owner token, initiating checkout path, and final `return_allowed` decision and reason. Write a sibling temporary file first, atomically rename it into place, then read and parse it back before continuing. Keep the local path and owner token out of the public PR body and comments. If later drift appears before a return mutation, atomically downgrade the receipt to `return_allowed=false`, read it back, and leave the initiating checkout unchanged.
-   - Only when the final `return_allowed=true`, meaning the initiating checkout was clean, owned by the current session, and not reserved by another task, consider returning it. Before switching, prove no other worktree has `<base>` checked out. If local `<base>` exists, require it to be an ancestor of `origin/<base>`, then switch and update it without a merge commit:
+   - Only when the final `return_allowed=true`, meaning the initiating checkout was clean, owned by the current session, and not reserved by another task, consider returning it. Fetch immediately before any switch, revalidate the remote base, and prove no other worktree has `<base>` checked out:
+     ```
+     git fetch --prune origin
+     ```
+     If local `<base>` exists and is not the initiating checkout's current branch, require it to be an ancestor of `origin/<base>`, update that branch ref before switching, then switch only after every network and ref check has passed:
      ```
      git merge-base --is-ancestor "refs/heads/<base>" "origin/<base>"
+     git branch -f "<base>" "origin/<base>"
      git switch "<base>"
-     git pull --ff-only origin "<base>"
      ```
-     If local `<base>` does not exist, create it from the verified remote tracking branch instead:
+     If local `<base>` does not exist, create it without switching, then switch:
      ```
-     git switch --track -c "<base>" "origin/<base>"
+     git branch --track "<base>" "origin/<base>"
+     git switch "<base>"
      ```
-     Verify local `<base>` equals `origin/<base>`. If the branch is checked out by another worktree, the ancestry preflight fails, branch creation fails, or the fast-forward fails, leave the initiating checkout unchanged and report the blocker.
+     If the initiating checkout is already on `<base>`, require ancestry and use `git merge --ff-only "origin/<base>"`; a non-fast-forward halts without switching branches. Verify local `<base>` equals `origin/<base>`. If the fetch, remote-base validation, checked-out-elsewhere check, ancestry preflight, branch update, branch creation, fast-forward, or switch fails, leave the initiating checkout's branch and files unchanged and report the blocker. Never switch first and pull afterward.
    - When `return_allowed=false`, leave the initiating checkout's branch and path unchanged even if it appears clean later. Another task may own that state. Report the recorded reason instead of switching it.
    - A dirty initiating checkout is the exception: leave its branch and files exactly as found. Return the shell to that path, but do not carry its changes onto `<base>`. Report that default-branch return is intentionally blocked by preserved local work.
    - During PR review, only the recorded owner or an explicit operator-confirmed handoff may change the retained fix worktree. After every authorized review-fix commit and push, rerun the verification ladder, require a clean worktree, verify the remote feature tip equals local HEAD, and query the same PR again for base, head, and `headRefOid`. Atomically replace the receipt's feature tip SHA with that verified `headRefOid`, then read and parse the receipt back. Halt and retain the worktree if any verification or receipt refresh fails.
@@ -87,7 +92,7 @@ Run these steps in order:
    git worktree unlock "<worktree-path>"
    git worktree remove "<worktree-path>"
    ```
-   If state shifts or removal fails, halt and re-establish ownership instead of forcing. Do not run repository-wide pruning. Return or refresh the initiating checkout on `<base>` only when its recorded `return_allowed` decision permits it, using the same checked-out-elsewhere, ancestry, create-if-missing, and fast-forward procedure from step 8, then verify local and remote HEADs match. Delete the local feature branch only if `git branch -d "<feature-branch>"` accepts it. Squash merges may make safe deletion refuse; retain and report the branch instead of forcing it. Remove the local receipt only after cleanup and every permitted return check succeeds. A dirty or foreign-owned initiating checkout remains untouched.
+   If state shifts or removal fails, halt and re-establish ownership instead of forcing. Do not run repository-wide pruning. Return or refresh the initiating checkout on `<base>` only when its recorded `return_allowed` decision permits it, using the same fetch-before-switch, checked-out-elsewhere, ancestry, pre-update, create-if-missing, and already-on-base procedures from step 8, then verify local and remote HEADs match. Delete the local feature branch only if `git branch -d "<feature-branch>"` accepts it. Squash merges may make safe deletion refuse; retain and report the branch instead of forcing it. Remove the local receipt only after cleanup and every permitted return check succeeds. A dirty or foreign-owned initiating checkout remains untouched.
 10. **Deploy receipt (advisory)**: after the human merge and deployment, `deploy-receipt` may verify that the deployed SHA matches the merge SHA. This skill does not deploy.
 
 ## Hard stops

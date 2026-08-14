@@ -181,9 +181,10 @@ describe("skills/ship.md", () => {
     const finalDecisionIndex = returnSection.indexOf("Freeze the final decision");
     const receiptIndex = returnSection.indexOf("Persist a local cleanup receipt");
     assert.ok(finalDecisionIndex >= 0 && finalDecisionIndex < receiptIndex, "return authorization should be finalized before the receipt is written");
-    assert.match(returnSection, /return_allowed=true.*clean.*owned by the current session.*not reserved by another task[\s\S]*git switch "<base>"[\s\S]*git pull --ff-only origin "<base>"/i);
+    assert.match(returnSection, /return_allowed=true.*clean.*owned by the current session.*not reserved by another task[\s\S]*git fetch --prune origin[\s\S]*git branch -f "<base>" "origin\/<base>"[\s\S]*git switch "<base>"/i);
     assert.match(content, /authoritative.*lease.*equivalent.*ledger/is);
-    assert.match(returnSection, /git switch --track -c "<base>" "origin\/<base>"/);
+    assert.match(returnSection, /git branch --track "<base>" "origin\/<base>"[\s\S]*git switch "<base>"/);
+    assert.doesNotMatch(returnSection, /git switch "<base>"[\s\S]*git pull/);
     assert.match(returnSection, /ship-receipts\/<pr-number>\.json/);
     assert.match(returnSection, /PR URL.*base.*base SHA.*feature branch.*feature tip.*worktree path.*owner token.*initiating checkout.*return_allowed/is);
     assert.match(returnSection, /atomic.*read.*back/is);

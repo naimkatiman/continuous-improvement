@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, linkSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, } from "node:fs";
+import { existsSync, linkSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync, } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
@@ -304,6 +304,28 @@ describe("installer - global ship skill replacement safety", () => {
             const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
             assert.notEqual(result.status, 0, output);
             assert.match(output, /Could not clean settings\.json/i);
+        }
+        finally {
+            rmSync(tempHome, { recursive: true, force: true });
+        }
+    });
+    it("rejects a staging-root junction redirected into skill discovery", () => {
+        const tempHome = join(tmpdir(), `ci-test-staging-junction-${Date.now()}`);
+        const claudeDir = join(tempHome, ".claude");
+        const skillsDir = join(claudeDir, "skills");
+        const stagingRoot = join(claudeDir, ".continuous-improvement-staging");
+        mkdirSync(skillsDir, { recursive: true });
+        symlinkSync(skillsDir, stagingRoot, process.platform === "win32" ? "junction" : "dir");
+        try {
+            const result = spawnSync(process.execPath, [INSTALL_SCRIPT, "install"], {
+                env: { ...process.env, HOME: tempHome, USERPROFILE: tempHome, CLAUDE_CI_UPDATE_CHECK: "off" },
+                encoding: "utf8",
+            });
+            const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+            assert.notEqual(result.status, 0, output);
+            assert.match(output, /staging.*(?:link|junction|symbolic)/i);
+            assert.equal(existsSync(join(skillsDir, "ship")), false);
+            assert.equal(readdirSync(skillsDir).some((entry) => entry.startsWith("ship-")), false, "failed staging must not create a discoverable ghost skill");
         }
         finally {
             rmSync(tempHome, { recursive: true, force: true });
