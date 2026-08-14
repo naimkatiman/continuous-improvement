@@ -2,7 +2,7 @@
   "name": "continuous-improvement",
   "version": "3.22.1",
   "mode": "beginner",
-  "description": "Beginner mode: see what your agent learned, list its instincts, and request a session reflection. Bundles three grounding skills (gateguard, tdd-workflow, verification-loop) so research, memory, tests, and verification happen by default — every edit starts from facts, not guesses.",
+  "description": "Beginner mode: see what your agent learned, list its instincts, and request a session reflection. Bundles the ship fast path plus grounding skills (gateguard, tdd-workflow, verification-loop) so one-defect delivery, research, tests, and verification happen by default — every edit starts from facts, not guesses.",
   "tools": [
     {
       "name": "ci_status",
