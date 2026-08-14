@@ -159,6 +159,7 @@ describe("skills/ship.md", () => {
         assert.match(returnSection, /PR URL.*base.*base SHA.*feature branch.*feature tip.*worktree path.*owner token.*initiating checkout.*return_allowed/is);
         assert.match(returnSection, /atomic.*read.*back/is);
         assert.match(returnSection, /later drift.*atomically downgrade.*return_allowed=false/is);
+        assert.match(returnSection, /after every authorized review-fix commit and push.*remote feature tip.*local HEAD.*same PR.*headRefOid.*atomically replace.*receipt.*feature tip/is);
         assert.match(returnSection, /return_allowed.*false.*leave.*branch.*unchanged/is);
         assert.match(returnSection, /dirty initiating checkout.*leave.*exactly as found/is);
     });

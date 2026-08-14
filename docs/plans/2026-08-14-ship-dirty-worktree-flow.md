@@ -36,11 +36,12 @@ Allow `/ship` to fix one urgent defect without disturbing unrelated local work. 
 7. Persist and read back an atomic local cleanup receipt containing PR identity, refs, paths, owner, and return authorization.
 8. Return only clean, current-session-owned, unreserved initiating checkouts to the detected default branch. Create the local default branch from its verified remote when it does not exist; otherwise require ancestry and use a fast-forward-only pull.
 9. Require the original owner or an explicit operator-confirmed handoff for later cleanup.
-10. After human merge, read the receipt, fetch again, verify PR identity and merge ancestry, and remove only the named clean worktree without force.
-11. Add command-contract tests for ordering, branch isolation, owner locking, PR identity, durable receipts, return conditions, cleanup boundaries, and Markdown fence validity.
-12. Add a native tier-1 `ship` skill with the same dirty-worktree, safe-return, and cleanup boundaries.
-13. Make `continuous-improvement install` stage the global skill safely, preserve foreign paths, replace owned linked files without following them, and return honest installed, preserved, or failed outcomes. Do not install a same-named legacy command into the personal scope.
-14. Update the derived 29-skill catalog and release-facing metadata, then regenerate plugin mirrors.
+10. After every authorized review-fix push, reverify the same PR tip and atomically refresh the local receipt.
+11. After human merge, read the receipt, fetch again, verify PR identity and merge ancestry, and remove only the named clean worktree without force.
+12. Add command-contract tests for ordering, branch isolation, owner locking, PR identity, durable receipts, return conditions, cleanup boundaries, and Markdown fence validity.
+13. Add a native tier-1 `ship` skill with the same dirty-worktree, safe-return, and cleanup boundaries.
+14. Make `continuous-improvement install` stage the global skill outside personal-skill discovery, preserve foreign paths, replace owned linked files without following them, and return honest installed, preserved, or failed outcomes. Do not install a same-named legacy command into the personal scope.
+15. Update the derived 29-skill catalog and release-facing metadata, then regenerate plugin mirrors.
 
 ## Verification
 

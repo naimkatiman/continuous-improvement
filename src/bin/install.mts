@@ -199,6 +199,7 @@ const INSTALL_MODE: InstallMode = isInstallMode(requestedMode) ? requestedMode :
 const SKILL_DIR = join(getHomeDir(), ".claude", "skills", SKILL_NAME);
 const SHIP_SKILL_DIR = join(getHomeDir(), ".claude", "skills", "ship");
 const SHIP_SKILLS_DIR = dirname(SHIP_SKILL_DIR);
+const SHIP_STAGING_ROOT = join(getHomeDir(), ".claude", ".continuous-improvement-staging");
 const SHIP_SKILL_OWNER_FILE = join(SHIP_SKILL_DIR, ".continuous-improvement-owner");
 const SHIP_SKILL_OWNER = `${PACKAGE_NAME}\n`;
 
@@ -226,7 +227,8 @@ function isOwnedShipSkill(): boolean {
 
 function stageShipSkill(): string {
   mkdirSync(SHIP_SKILLS_DIR, { recursive: true });
-  const stagingDir = mkdtempSync(join(SHIP_SKILLS_DIR, ".continuous-improvement-ship-"));
+  mkdirSync(SHIP_STAGING_ROOT, { recursive: true });
+  const stagingDir = mkdtempSync(join(SHIP_STAGING_ROOT, "ship-"));
   try {
     copyFileSync(SHIP_SKILL_SOURCE, join(stagingDir, "SKILL.md"));
     writeFileSync(join(stagingDir, ".continuous-improvement-owner"), SHIP_SKILL_OWNER);
@@ -268,8 +270,17 @@ function installShipSkill(): InstallOutcome {
             renameSync(previousSkillPath, skillPath);
           } catch (restoreError) {
             preserveStagingDir = true;
+            let recoveryRenameError = "";
+            const stagedSkillPath = join(stagingDir, "SKILL.md");
+            if (pathEntryExists(stagedSkillPath)) {
+              try {
+                renameSync(stagedSkillPath, join(stagingDir, "new-SKILL.md"));
+              } catch (recoveryError) {
+                recoveryRenameError = ` Recovery artifact rename also failed (${getErrorMessage(recoveryError)}).`;
+              }
+            }
             throw new Error(
-              `Ship skill replacement failed (${getErrorMessage(error)}) and rollback failed (${getErrorMessage(restoreError)}). Recovery files retained at ${stagingDir}`,
+              `Ship skill replacement failed (${getErrorMessage(error)}) and rollback failed (${getErrorMessage(restoreError)}).${recoveryRenameError} Recovery files retained outside skill discovery at ${stagingDir}`,
             );
           }
         }
