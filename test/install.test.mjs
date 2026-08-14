@@ -230,6 +230,8 @@ describe("installer - foreign ship skill preservation", () => {
             assert.match(installOutput, /preserved.*existing.*ship skill/i);
             assert.match(installOutput, /Done with warning\./);
             assert.doesNotMatch(installOutput, /\nFailed\.\n/);
+            assert.match(installOutput, /package \/ship was not installed/i);
+            assert.doesNotMatch(installOutput, /For one defect, run: \/ship/);
             assert.equal(readFileSync(shipPath, "utf8"), foreignContent);
             assert.equal(existsSync(join(shipDir, SHIP_SKILL_OWNER_FILE)), false);
             execFileSync("node", [INSTALL_SCRIPT, "--uninstall"], {
@@ -282,6 +284,8 @@ describe("installer - global ship skill replacement safety", () => {
             assert.notEqual(result.status, 0, output);
             assert.match(output, /Install failed/i);
             assert.match(output, /\nFailed\.\n/);
+            assert.match(output, /Installation incomplete/i);
+            assert.doesNotMatch(output, /Hooks are capturing silently|Next steps:|For one defect, run: \/ship/);
         }
         finally {
             rmSync(tempHome, { recursive: true, force: true });

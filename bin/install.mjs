@@ -174,6 +174,7 @@ function installShipSkill() {
         return "preserved";
     }
     let stagingDir = "";
+    let preserveStagingDir = false;
     try {
         stagingDir = stageShipSkill();
         if (shipSkillExists) {
@@ -197,7 +198,8 @@ function installShipSkill() {
                         renameSync(previousSkillPath, skillPath);
                     }
                     catch (restoreError) {
-                        throw new Error(`Ship skill replacement failed (${getErrorMessage(error)}) and rollback failed (${getErrorMessage(restoreError)})`);
+                        preserveStagingDir = true;
+                        throw new Error(`Ship skill replacement failed (${getErrorMessage(error)}) and rollback failed (${getErrorMessage(restoreError)}). Recovery files retained at ${stagingDir}`);
                     }
                 }
                 throw error;
@@ -217,8 +219,15 @@ function installShipSkill() {
         return "failed";
     }
     finally {
-        if (stagingDir && pathEntryExists(stagingDir)) {
-            rmSync(stagingDir, { recursive: true, force: true });
+        if (stagingDir && !preserveStagingDir) {
+            try {
+                if (pathEntryExists(stagingDir)) {
+                    rmSync(stagingDir, { recursive: true, force: true });
+                }
+            }
+            catch (cleanupError) {
+                console.error(`  ! Staged ship skill cleanup failed at ${stagingDir}: ${getErrorMessage(cleanupError)}`);
+            }
         }
     }
 }
@@ -778,9 +787,7 @@ if (packIndex !== -1 && rawArgs[packIndex + 1]) {
         console.error(`  ✗ Unknown pack: ${packName}. Available: ${available.join(", ")}`);
     }
 }
-console.log(`
-${installOutcome === "installed" ? "Done." : installOutcome === "preserved" ? "Done with warning." : "Failed."}
-${modeInfo[INSTALL_MODE]}
+const installedNextSteps = `${modeInfo[INSTALL_MODE]}
 
 Next steps:
   1. Start a new Claude Code session
@@ -790,8 +797,13 @@ Next steps:
   5. After your first task, run: /continuous-improvement
   6. Try: /discipline for quick reference, /dashboard for instinct health
 ${INSTALL_MODE === "expert" ? `\nMCP tools available (${getToolNames("expert").length}): ${getToolNames("expert").join(", ")}` : ""}
-Available instinct packs: npx continuous-improvement install --pack react|python|go|meta
-`);
+Available instinct packs: npx continuous-improvement install --pack react|python|go|meta`;
+const installSummary = installOutcome === "installed"
+    ? `Done.\n${installedNextSteps}`
+    : installOutcome === "preserved"
+        ? `Done with warning.\n${modeInfo[INSTALL_MODE]}\n\nPackage /ship was not installed because an existing unowned ship skill was preserved. Resolve that collision, then reinstall before using the package workflow.`
+        : "Failed.\nInstallation incomplete. Fix the errors above and rerun the installer. Do not assume hooks, skills, or commands are ready.";
+console.log(`\n${installSummary}\n`);
 // Update-available nudge for the npm/CLI install path (the marketplace path is
 // covered by Claude Code's native plugin auto-update). Reads the public npm
 // registry only — no telemetry. Throttled, default-on, off via

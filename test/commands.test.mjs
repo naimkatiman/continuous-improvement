@@ -101,6 +101,14 @@ describe("skills/ship.md", () => {
         assert.match(content, /user-invocable: true/);
         assert.match(content, /disable-model-invocation: true/);
         assert.match(content, /Law 1/);
+        const fenceIndents = content
+            .split(/\r?\n/)
+            .filter((line) => /^\s*```/.test(line))
+            .map((line) => line.length - line.trimStart().length);
+        assert.equal(fenceIndents.length % 2, 0, "ship skill should have balanced code fences");
+        for (let index = 0; index < fenceIndents.length; index += 2) {
+            assert.equal(fenceIndents[index + 1], fenceIndents[index], `ship skill fence pair ${index / 2 + 1} should use matching indentation`);
+        }
     });
     it("isolates an unrelated dirty checkout in a clean worktree", () => {
         const isolation = content.slice(content.indexOf("2. **Select a safe checkout**"), content.indexOf("3. **Reproduce (RED)**"));
@@ -141,12 +149,16 @@ describe("skills/ship.md", () => {
     });
     it("returns only a clean checkout to the detected default branch", () => {
         const returnSection = content.slice(content.indexOf("8. **Return before stopping**"), content.indexOf("9. **Clean up after the PR merges**"));
+        const finalDecisionIndex = returnSection.indexOf("Freeze the final decision");
+        const receiptIndex = returnSection.indexOf("Persist a local cleanup receipt");
+        assert.ok(finalDecisionIndex >= 0 && finalDecisionIndex < receiptIndex, "return authorization should be finalized before the receipt is written");
         assert.match(returnSection, /return_allowed=true.*clean.*owned by the current session.*not reserved by another task[\s\S]*git switch "<base>"[\s\S]*git pull --ff-only origin "<base>"/i);
         assert.match(content, /authoritative.*lease.*equivalent.*ledger/is);
         assert.match(returnSection, /git switch --track -c "<base>" "origin\/<base>"/);
         assert.match(returnSection, /ship-receipts\/<pr-number>\.json/);
         assert.match(returnSection, /PR URL.*base.*base SHA.*feature branch.*feature tip.*worktree path.*owner token.*initiating checkout.*return_allowed/is);
         assert.match(returnSection, /atomic.*read.*back/is);
+        assert.match(returnSection, /later drift.*atomically downgrade.*return_allowed=false/is);
         assert.match(returnSection, /return_allowed.*false.*leave.*branch.*unchanged/is);
         assert.match(returnSection, /dirty initiating checkout.*leave.*exactly as found/is);
     });
@@ -160,9 +172,11 @@ describe("skills/ship.md", () => {
         assert.ok(fetchIndex >= 0 && fetchIndex < verifyIndex, "post-merge fetch should precede merge verification");
         assert.ok(ownerGateIndex >= 0 && verifyIndex < ownerGateIndex && ownerGateIndex < unlockIndex, "owner or handoff validation should precede unlock");
         assert.ok(verifyIndex < unlockIndex && unlockIndex < removeIndex, "verification and unlock should precede removal");
-        assert.match(cleanup, /isolated worktree is clean.*no unpushed commits/is);
+        assert.match(cleanup, /isolated worktree is clean.*HEAD equals.*receipt.*feature tip.*headRefOid/is);
         assert.match(cleanup, /original owner.*explicit operator-confirmed handoff/is);
         assert.match(cleanup, /read.*ship-receipts\/<pr-number>\.json.*compare/is);
+        assert.match(cleanup, /missing remote feature ref.*expected.*deleted.*branch/is);
+        assert.match(cleanup, /if that ref still exists.*tip.*receipt.*feature tip/is);
         assert.match(cleanup, /never.*foreign lock.*stale/is);
         assert.doesNotMatch(cleanup, /git worktree prune/);
         assert.match(content, /never use `git worktree remove --force`/);
