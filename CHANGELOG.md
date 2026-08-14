@@ -4,6 +4,12 @@ All notable changes to this skill are documented here.
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **`ship` is now a native tier-1 global skill** — the full single-defect workflow lives in `skills/ship.md`: detect `main` or `master` from the live remote, preserve unrelated dirty work in an owner-locked clean worktree, enforce RED/GREEN verification, open one PR, and return only eligible clean checkouts to the default branch. The legacy `/ship` command is now a thin argument-forwarding compatibility entry point, and the npm installer writes the user-invocable skill to `~/.claude/skills/ship/SKILL.md` without overwriting or removing an unowned skill at that generic path. Brings the bundle to 29 skills.
+
 ## [3.22.1] — 2026-08-04
 
 ### Fixed

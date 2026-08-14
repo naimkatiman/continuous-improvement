@@ -270,7 +270,7 @@ Hooks capture every tool call. After ~20 observations Claude analyzes patterns a
 ## Slash commands
 
 <details>
-<summary><b>All 29 commands (Beginner gets every one)</b></summary>
+<summary><b>All 29 commands (marketplace bundle)</b></summary>
 
 `/seven-laws` is the canonical reflect-and-learn command. `/continuous-improvement` is kept as an alias for backward compatibility — both run the same workflow.
 
@@ -306,7 +306,7 @@ Hooks capture every tool call. After ~20 observations Claude analyzes patterns a
 /swarm                            Fan-out coordination across parallel sub-agents
 ```
 
-All 29 ship in the marketplace bundle. The Beginner install gets all of them — with one caveat: `/learn-eval`, `/harvest`, and `/distill` only produce useful output once Mulahazah has accumulated observation history (~20 observations), so running them on day 1 returns an empty result, not a broken command. `/swarm` and `/release-train` are orchestration commands aimed at larger multi-agent or multi-PR work. In Expert (`npx`) mode, the installer mirrors the full set into `~/.claude/commands/` and additionally exposes the planning workflow through the MCP tools `ci_plan_init` (initialize `task_plan.md`, `findings.md`, `progress.md` in the project root) and `ci_plan_status` (summarize their current contents).
+All 29 legacy commands ship in the marketplace bundle. The marketplace Beginner install gets all of them, with one caveat: `/learn-eval`, `/harvest`, and `/distill` only produce useful output once Mulahazah has accumulated observation history (~20 observations), so running them on day 1 returns an empty result, not a broken command. `/swarm` and `/release-train` are orchestration commands aimed at larger multi-agent or multi-PR work. The npm installer writes its curated command set and installs the native `ship` skill at `~/.claude/skills/ship/SKILL.md`; that user-invocable skill supplies `/ship` without creating a duplicate personal command. Expert npm mode additionally exposes the planning workflow through the MCP tools `ci_plan_init` (initialize `task_plan.md`, `findings.md`, `progress.md` in the project root) and `ci_plan_status` (summarize their current contents).
 
 </details>
 
@@ -314,7 +314,7 @@ All 29 ship in the marketplace bundle. The Beginner install gets all of them —
 
 ## Skills
 
-The plugin ships **28 skills** — 1 core + 1 featured + 6 tier-1 + 17 tier-2 + 3 always-bundled. Beginner install gets tier-1, featured, and the always-bundled companion; Expert adds tier-2, the MCP server, and observation hooks. Full catalog with per-skill descriptions, Law tagging, and drop-in single-file install: [docs/skills.md](docs/skills.md). Adding a 29th skill: [CONTRIBUTING.md § Evolution — adding a new skill](CONTRIBUTING.md#evolution--adding-a-new-skill).
+The plugin ships **29 skills** — 1 core + 1 featured + 7 tier-1 + 17 tier-2 + 3 always-bundled. Beginner install gets tier-1, featured, and the always-bundled companion; Expert adds tier-2, the MCP server, and observation hooks. The tier-1 `ship` skill is the single source for the `/ship` workflow and the npm installer makes it global across Claude Code projects. Full catalog with per-skill descriptions, Law tagging, and drop-in single-file install: [docs/skills.md](docs/skills.md). Adding a 30th skill: [CONTRIBUTING.md § Evolution — adding a new skill](CONTRIBUTING.md#evolution--adding-a-new-skill).
 
 ---
 
@@ -357,7 +357,7 @@ Proof-format templates ship in [templates/](templates/): `release_receipt_templa
 
 - [QUICKSTART.md](QUICKSTART.md) — 2-minute setup
 - [SKILL.md](SKILL.md) — full 7 Laws spec
-- [docs/skills.md](docs/skills.md) — full 28-skill catalog
+- [docs/skills.md](docs/skills.md) — full 29-skill catalog
 - [examples/](examples/) — bug fix, feature build, refactor walkthroughs
 - [templates/insights-claude-md.md](templates/insights-claude-md.md) — paste-in CLAUDE.md blocks for verification discipline, environment notes, think-before-acting, and git/deploy workflow (sourced from the 28-day usage report)
 - [CONTRIBUTING.md](CONTRIBUTING.md) — architecture, repo internals, adding a new skill

@@ -72,15 +72,15 @@ function goodDocs(): Record<string, string> {
 }
 
 describe("check-skill-count-prose — deriveCounts", () => {
-  it("derives 28 total / 17 tier-2 / next 29 from the live repo", () => {
+  it("derives 29 total / 7 tier-1 / 17 tier-2 / next 30 from the live repo", () => {
     const c = deriveCounts(REPO_ROOT);
-    assert.equal(c.total, 28, `expected total 28, got ${c.total}`);
+    assert.equal(c.total, 29, `expected total 29, got ${c.total}`);
     assert.equal(c.core, 1);
     assert.equal(c.featured, 1);
-    assert.equal(c.tier1, 6);
+    assert.equal(c.tier1, 7);
     assert.equal(c.tier2, 17);
     assert.equal(c.companion, 3);
-    assert.equal(c.next, 29);
+    assert.equal(c.next, 30);
   });
 
   it("derives the breakdown from frontmatter on a fixture", () => {
