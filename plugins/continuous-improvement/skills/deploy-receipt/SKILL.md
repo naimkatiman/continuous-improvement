@@ -157,7 +157,7 @@ The rollback command is **printed**, not run. The skill's job is to give the ope
 - `finishing-a-development-branch` (vendored, third-party/superpowers/) — runs first; reports the merge. This skill runs after.
 - `verification-loop` — same Law 4 family; this skill is the deploy-seam specialization
 - `proceed-with-the-recommendation` — routing-table row for "Merge / close branch" should pair `finishing-a-development-branch` with this skill when the project is auto-deploy
-- `safety-guard` — orthogonal; safety-guard prevents destructive ops, this verifies post-deploy state
+- `gateguard` — orthogonal; gateguard gates the destructive op, this verifies post-deploy state
 
 ## Close-the-Loop Rule
 

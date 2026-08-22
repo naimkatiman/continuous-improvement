@@ -52,46 +52,19 @@ Project-local rules for AI coding agents. Global rules live in `~/.claude/CLAUDE
 - Exactly one `CLAUDE.md` at repo root (this file). Do not create `claude.md` (lowercase) — Windows treats them as the same file but Git treats them as distinct.
 - Plugin manifests at `.claude-plugin/marketplace.json` and `plugins/continuous-improvement/.claude-plugin/plugin.json` are **generated** by `bin/generate-plugin-manifests.mjs`. Source is `package.json` + `marketplace.json` plus discovery walk.
 
-## Past Mistakes
+## Past Mistakes → [docs/past-mistakes.md](docs/past-mistakes.md)
 
-Dated entries. Roll older than 60 days into `docs/audits/archive-<quarter>.md`.
+Ask `recall` first — it searches the observation log across all sessions and finds matching past failures without anyone having curated them. The doc is the curated subset: each mistake paired with the invariant that now enforces it. Newest entry 2026-08-07 (`safety-guard` claimed enforcement it never shipped).
 
-| Date | Mistake | Lesson | Enforcement |
-|---|---|---|---|
-| 2026-05-06 | Observer field-name bug — pre-2026-05-06T00:38Z `observations.jsonl` rows have empty `output_summary` because the field was named `tool_output` instead of `tool_response`. | Live-patched on host, PR #67 merged as a477ec1. | Ignore historical `event` field on rows before that timestamp. |
-| 2026-05-08 | Direct `.mjs` edit (PR #66) — bypassed the `.mts` source, was wiped by tsc, failed `verify:generated`. | `.mts` is source; `.mjs` is generated. | `verify:generated` invariant + this file's "Build pipeline" section. |
-| 2026-05-08 | Auto-merge ordering hazard during release train — GitHub orders by CI completion time, not PR number; release PR landed before its dependency lockfile PR, left base stale. | Gate the release PR on dependency PRs completing first. | This file's "Git & Release Workflow" section. |
-| 2026-05-09 | `agent-skills/` stray full-clone at repo root duplicated `third-party/addy-agent-skills/`. | Vendored snapshots are the single source of truth; never re-clone upstream at repo root. | `.gitignore` rule + this file's "third-party vendoring contract" section. |
-| 2026-05-17 | PR #151 first commit shipped a stale `test/run-synthetic.test.mjs` because the `.mts` source had its `mkdirSync` import removed during code-review cleanup but the previously-built `.mjs` was already staged. CI's `verify:generated` caught it; fix shipped as follow-up commit 3eedea3. | "Build once at the start" is a trap when the `.mts` is edited again post-build. Treat `npm run build` + `git add` as one atomic step — rerun the build before every stage of `.mts` changes, even tiny ones like dropping an unused import. | `verify:generated` invariant (Linux CI) + this file's "Build pipeline" section + memory `feedback_mts_is_source.md` rebuild-before-stage section. |
-| 2026-05-17 | PR #151 plan doc claimed the runner pre-flights `BASE_URL`/`BASELINE_URL` and exits 2 if unset; the implementation instead chose a pure-aggregator design (checks self-report exit 2). The code-reviewer subagent flagged the divergence as HIGH. | When implementation diverges from the spec-subagent's plan mid-build, update the plan doc to match the shipped code — do not back-fit code to the stale plan. Surface the divergence explicitly in the PR description. | Stage 2 code-reviewer subagent under subagent-driven-development + memory `feedback_plan_doc_matches_impl.md`. |
-| 2026-06-03 | Adversarial audit of the 3 new Law-7 features (goal-monitor, recall, skill-distillation) on the PR #154 branch found 14 verified defects (3 HIGH) that passed `verify:all` + the 715-test suite — all input-validation / fail-open boundary gaps: an empty `## Goal Keywords` section forced false drift; the recall `since` filter leaked undated rows; a distill candidate id built from raw tool names flowed into a draft path (traversal). | Green gates do not prove boundary safety. New parser/scorer/index code needs explicit edge-case tests for empty/malformed/undated input and must fail closed on time and identity boundaries. | Regression tests in the goal-state/recall-index/skill-distill/mcp-server suites + audit doc `docs/audits/2026-06-03-new-feature-audit.md` + the Deferred list below. |
+## Deferred → [docs/deferred.md](docs/deferred.md)
 
-## Deferred
-
-⚠️ Logged, not dropped. Action or close each explicitly.
-
-### 2026-06-03 — new-feature audit (`docs/audits/2026-06-03-new-feature-audit.md`)
-
-Four verified-but-unfixed findings remain from the PR #154 feature audit, left to the feature owner — each is a design choice, a latent gap with no live bug, or broader than a surgical fix. (NaN threshold #2 closed via `4ef2e83`; overlapping n-gram #10 closed via `c19e9f3`; window:0 #3, ASCII-tokenizer #6, and limit:0 #13 closed 2026-06-03 via `/proceed` on branch `fix/goal-monitor-boundary-edges` — see annotations below.) Two new follow-ups added by the completeness sweep.
-
-- **goal-state window:0/negative → default 30 (MED):** treats an explicit out-of-range window as "unset". Defensible as invalid→default; decide clamp vs reject. — **CLOSED** by `6207648`: `scoreObservations` now throws `RangeError` on a non-positive-integer window (reject chosen over clamp); `ci_goal_check` pre-validates `limit`.
-- **goal-state keyword substring match (LOW):** `.includes` matches `test` inside `latest`. Intentional fuzzy heuristic (4-char min + stopwords).
-- **recall tokenize ASCII-only (MED):** `/[^a-z0-9]+/` drops CJK/Cyrillic/accents; same pattern in goal-state. Switch both to `/[^\p{L}\p{N}]+/u` together. — **CLOSED** by `d2001ac`: both scorers now split on `/[^\p{L}\p{N}]+/u`; the goal-state pure-digit filter was hardened to `/^\p{N}+$/u` in `0161b80`.
-- **skill-distill empty verify output = success (MED):** `output === ""` counts as a pass. NOT a clean fix — silent-success commands (`tsc --noEmit`) legitimately emit nothing; needs a data-model decision.
-- **skill-distill NaN-ts gap split (MED):** unparseable timestamps suppress the time-gap split, merging unrelated runs. Degrades draft mining only (drafts never auto-apply). — **CLOSED** by `b4f2eaf` (PR #189): `extractTrajectories` now treats a valid→invalid or invalid→valid timestamp pair as a trajectory boundary (fail-closed); consecutive invalid timestamps stay together. Regression tests in `src/test/skill-distill.test.mts`.
-- **skill-distill overlapping n-gram count (LOW):** `occurrences` counts windows, not distinct runs; `minSessions` is the real guard. Add a contract-pinning test. — **CLOSED** by `c19e9f3`: regression test pins that `occurrences` counts every matching window; `minSessions` stays the single-session guard.
-- **mcp getRecentObservations limit:0 (LOW):** `slice(-0)` reads the whole history; output stays bounded downstream. Clamp `limit<=0`. Confirmed not unit-testable as-is: `mcp-server.mts` has no `import.meta` main guard, so importing it to test the internal fn would start the server — needs an entry-point refactor (guard + export) or handler seeding first. — **CLOSED** by `08cdbae` (clamp inside `getRecentObservations`, covers all callers incl. `ci_observations`) + `6207648` (`ci_goal_check` guard); integration-tested through `tools/call` in `cc265e8` (the entry-point-refactor blocker was sidestepped by driving the spawned server, not importing it).
-- **manifest generator skill-discovery glob (MED):** `/^[a-z][a-z0-9-]*\.md$/` would silently drop a future skill with an uppercase/underscore/leading-digit name while `verify:all` stays green. No live bug (3 new skills compliant). Align with the tier-lint filter. — **CLOSED** by `2fde059`: generator now uses the same loose filter `file.endsWith(".md") && file !== "README.md"` as the tier-lint discovery.
-- **goal-state KEYWORD_MIN_LENGTH=4 vs short-word scripts (MED):** the unicode tokenizer (`d2001ac`) now keeps Korean/Thai tokens, but the 4-char floor drops them anyway (Korean technical words are ~2 chars), so a Korean/Thai goal still extracts zero keywords and scores all work as drift. Lower the floor for those scripts or add a script-aware threshold. New follow-up from the 2026-06-03 completeness sweep. — **CLOSED `c71a6b9`**: `keywordMinLengthFor()` returns 2 for tokens containing Hangul syllables (`\p{Script=Hangul}`), keeping the global 4-char floor for all other scripts. Regression test in `src/test/goal-state.test.mts` pins 2-char and 3-char Hangul keywords.
-- **recall Thai combining-mark fragmentation (LOW):** `/[^\p{L}\p{N}]+/u` treated Thai combining marks (Unicode `\p{M}`) as delimiters, fracturing Thai words into garbled length-2/3 fragments that recall then indexed. — **CLOSED `747451a`**: both `recall-index` and `goal-state` now split on `/[^\p{L}\p{N}\p{M}]+/u`; regression tests in `src/test/recall-index.test.mts` and `src/test/goal-state.test.mts` pin Thai words with tone/vowel marks. Goal-state's 4-char floor now accepts length-4+ Thai keywords.
-
-Flaky (not a regression): `test/hook.test.mjs` "completes within 2000ms" is an environmental wall-clock flake on a loaded Windows host (2.5–4.2s under heavy concurrent load; passes at 725/725 when the host is quiet). Do not inflate the budget to mask it.
+⚠️ Logged, not dropped. Open items: `token-budget-advisor` / `strategic-compact` / `handoff` / `superpowers` retirement decisions, and the `skill-distill` empty-verify-output data-model call.
 
 ## Companion skills (enforce these rules at the tool boundary)
 
 | Rule | Enforcing skill |
 |---|---|
-| Think Before Acting | [gateguard](skills/gateguard.md) — blocks Edit/Write/Bash before grounding |
+| Think Before Acting | [gateguard](skills/gateguard.md) — blocks Edit/Write/Bash before grounding; `CI_GATEGUARD_TARGET_LOCK=block` also refuses writes outside the project root |
 | Verification Discipline | [verification-loop](skills/verification-loop.md) — per-project ladder via `templates/verify-ladder.example.json`; `hooks/typecheck-stop.mjs` — opt-in Stop-boundary typecheck gate (off by default; `CLAUDE_TYPECHECK_GATE=block` re-prompts the model with tsc failures) |
 | Build pipeline | `bin/check-everything-mirror.mjs` + `verify:generated` script |
 | 7 Laws routing | [proceed-with-the-recommendation](skills/proceed-with-the-recommendation.md) — walks recommendation lists under all 7 Laws |

@@ -44,7 +44,7 @@ If you do nothing else, do this:
 | Many agents working in parallel | `dispatching-parallel-agents`, `team-builder`, the Workflow tool, `swarm` |
 | Hand the build to Codex, keep taste in Claude | `codex:rescue` — Claude plans and reviews, Codex implements |
 | Keep the human in the loop as the signal | the 7 Laws + `gateguard` are built for agent volume under human gating |
-| Run trusted sessions without prompt friction | `dangerously-skip-permissions` is allowed for trusted, sandboxed sessions (autonomous loops, isolated worktrees), paired with `safety-guard`. Never on a shared tree or production. |
+| Run trusted sessions without prompt friction | `dangerously-skip-permissions` is allowed for trusted, sandboxed sessions (autonomous loops, isolated worktrees), paired with `gateguard` set to `CI_GATEGUARD_TARGET_LOCK=block`. Never on a shared tree or production. |
 | Drive long-running / scheduled work | `schedule` (cloud agents), `/loop`, `autonomous-loops` |
 
 ## Compound the system
@@ -55,7 +55,7 @@ If you do nothing else, do this:
 | Turn a repeated workflow into a command | `writing-skills`, `skill-create`, `skill-distillation` |
 | Contribute back to open source | `opensource-pipeline`, `github-ops`, the commit / PR skills |
 | Generate CLIs that run real work | `ci generate` (CLI-Anything) |
-| Stay honest about the addictive loop | `safety-guard` for destructive-op and autonomy guards |
+| Stay honest about the addictive loop | `gateguard` for destructive-op and autonomy guards |
 
 ## Full mapping (updated 2026-06-27)
 
@@ -74,7 +74,7 @@ The 21 habits of the agentic-engineering system, scored against what this plugin
 | 9 | Many parallel agents | Have | `dispatching-parallel-agents`, `team-builder`, Workflow, `swarm` |
 | 10 | Terminal defaults to an agent | Out of scope | environment setup; `codex:setup` exists |
 | 11 | Remote control + email-in | Partial | `schedule`, cloud agents, push notifications; no email-in |
-| 12 | Skip permissions in trusted sessions | **Have (allowed)** | rule updated to allow `dangerously-skip-permissions` for sandboxed sessions + `safety-guard` |
+| 12 | Skip permissions in trusted sessions | **Have (allowed)** | rule updated to allow `dangerously-skip-permissions` for sandboxed sessions + `gateguard` target-lock |
 | 13 | Codex builds, Claude plans / taste-checks | Have | `codex:rescue` |
 | 14 | Human is the signal | Have (philosophy) | 7 Laws + `gateguard` |
 | 15 | Work from a remote machine | Out of scope | infra |
@@ -83,7 +83,7 @@ The 21 habits of the agentic-engineering system, scored against what this plugin
 | 18 | Write your own skills | Have (core) | `writing-skills`, `skill-create`, `skill-distillation` |
 | 19 | Contribute to open source | Have | `opensource-pipeline`, `github-ops`, commit/PR skills |
 | 20 | CLIs that run real work | Have | `ci generate` (CLI-Anything) |
-| 21 | Stay honest about the addictive loop | Partial | `safety-guard`; no dedicated wellbeing guardrail |
+| 21 | Stay honest about the addictive loop | Partial | `gateguard`; no dedicated wellbeing guardrail |
 
 Tally: 15 Have, 2 Partial, 4 out of scope, 0 missing, 0 conflicts.
 
@@ -96,5 +96,5 @@ The point of the plugin is not to cover all 21 — it is to make the discipline 
 
 ## See also
 
-- [skills.md](skills.md) — the full 29-skill catalog with per-skill descriptions and Law tagging
+- [skills.md](skills.md) — the full 28-skill catalog with per-skill descriptions and Law tagging
 - [skill-use-cases.md](skill-use-cases.md) — the decision guide: the must-use spine, a unique trigger + boundary per skill, and how to tell similar-sounding skills apart

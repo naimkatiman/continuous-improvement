@@ -158,6 +158,18 @@ Set the `CI_GATEGUARD_EXCLUDE` environment variable to opt specific low-risk pat
 
 A fact-list can't catch a wrong-repo or wrong-worktree write — you can present perfect facts about the wrong file, in the wrong checkout. Set `CI_GATEGUARD_TARGET_LOCK=block` to make the runtime hook (`hooks/gateguard.mjs`) refuse any mutating call whose **absolute** target canonicalizes outside the session project root (`CLAUDE_PROJECT_DIR`, or the git toplevel). Relative paths resolve under the current directory (= the root) and always pass; only an absolute path into a different tree is denied, and the deny reason names both the stray target and the expected root. This runs before the fact gate and independent of clearance — a wrong-repo write is wrong even with facts. Unset (the default) checks nothing, so legitimate out-of-root edits (`~/.claude`, a `/tmp` scratch file, a sibling repo) are unaffected; turn it on per session in a multi-worktree or headless run where cross-repo writes are the real risk. Paths already covered by `CI_GATEGUARD_EXCLUDE` are never target-locked.
 
+### Migrating from `safety-guard` (retired 2026-08-07)
+
+`safety-guard` was a prose-only tier-2 skill describing three "modes" it never implemented — no hook, no command, no logger ever shipped with it. Every mode it described is already enforced here by the runtime hook (`hooks/gateguard.mjs`):
+
+| Retired `safety-guard` mode | What enforces it now |
+|---|---|
+| Careful — warn on `rm -rf`, `git push --force`, `git reset --hard`, `DROP TABLE`, `chmod 777`, `--no-verify` … | [Destructive Bash Gate](#destructive-bash-gate-every-destructive-command). Its pattern set is a superset of the retired watch list, and it blocks rather than warns. |
+| Freeze — restrict writes to one directory tree | `CI_GATEGUARD_TARGET_LOCK=block` (above). Canonicalizes the absolute target against the session project root and refuses strays — before the fact gate, independent of clearance. |
+| Guard — careful + freeze together | Both of the above; they compose. Narrow the surface further with `CI_GATEGUARD_EXCLUDE`. |
+
+If you previously opted into `safety-guard` for autonomous or production-adjacent runs, set `CI_GATEGUARD_TARGET_LOCK=block` for that session instead. That is a real refusal, not a checklist the agent can talk itself out of.
+
 ### Limitations and guarantees
 
 - **Honor system.** Clearance is recorded by `ci_gateguard_clear`, the `gateguard-clear.mjs` CLI, a manual state-file write, or the inline `_gateguard_facts_presented` flag where the harness allows it (see "Clearing the gate" above). The hook can't verify the investigation actually happened; the 50-file cap — counted per session — bounds damage from stuck loops or rogue agents.
@@ -188,5 +200,6 @@ The standalone `gateguard-ai` Python/CLI package referenced in earlier drafts of
 
 ## Related Skills
 
-- `safety-guard` — Runtime safety checks (complementary, not overlapping)
+- `worktree-safety` — validates the worktree root before a source write; this skill gates the write itself
+- `reconcile` — git ground truth before a destructive git action
 - `code-reviewer` — Post-edit review (GateGuard is pre-edit investigation)

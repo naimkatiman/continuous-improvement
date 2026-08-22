@@ -95,7 +95,7 @@ git branch -d <type>/<slug>            # delete the merged feature branch (safe 
 ## Pairs with
 
 - **`reconcile`** skill — the discipline this command runs.
-- **`gateguard`** / **`safety-guard`** — runtime + destructive-op guardrails.
+- **`gateguard`** — the runtime gate for mutating tool calls and destructive shell.
 - **`recall`** — recall whether the same git op failed here before.
 - **`audit`** — the loop that often produces the fix `/reconcile` then ships.
 - **`/ship`** — the TDD-gated single-defect variant; `commit-commands:commit-push-pr` is the external-plugin equivalent of the commit → PR tail.

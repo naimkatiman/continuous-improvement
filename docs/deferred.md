@@ -1,0 +1,28 @@
+# Deferred
+
+⚠️ Logged, not dropped. Action or close each explicitly. Referenced from [CLAUDE.md](../CLAUDE.md).
+
+## 2026-06-03 — new-feature audit (`docs/audits/2026-06-03-new-feature-audit.md`)
+
+Four verified-but-unfixed findings remain from the PR #154 feature audit, left to the feature owner — each is a design choice, a latent gap with no live bug, or broader than a surgical fix. (NaN threshold #2 closed via `4ef2e83`; overlapping n-gram #10 closed via `c19e9f3`; window:0 #3, ASCII-tokenizer #6, and limit:0 #13 closed 2026-06-03 via `/proceed` on branch `fix/goal-monitor-boundary-edges` — see annotations below.) Two new follow-ups added by the completeness sweep.
+
+- **goal-state window:0/negative → default 30 (MED):** treats an explicit out-of-range window as "unset". Defensible as invalid→default; decide clamp vs reject. — **CLOSED** by `6207648`: `scoreObservations` now throws `RangeError` on a non-positive-integer window (reject chosen over clamp); `ci_goal_check` pre-validates `limit`.
+- **goal-state keyword substring match (LOW):** `.includes` matches `test` inside `latest`. Intentional fuzzy heuristic (4-char min + stopwords).
+- **recall tokenize ASCII-only (MED):** `/[^a-z0-9]+/` drops CJK/Cyrillic/accents; same pattern in goal-state. Switch both to `/[^\p{L}\p{N}]+/u` together. — **CLOSED** by `d2001ac`: both scorers now split on `/[^\p{L}\p{N}]+/u`; the goal-state pure-digit filter was hardened to `/^\p{N}+$/u` in `0161b80`.
+- **skill-distill empty verify output = success (MED):** `output === ""` counts as a pass. NOT a clean fix — silent-success commands (`tsc --noEmit`) legitimately emit nothing; needs a data-model decision.
+- **skill-distill NaN-ts gap split (MED):** unparseable timestamps suppress the time-gap split, merging unrelated runs. Degrades draft mining only (drafts never auto-apply). — **CLOSED** by `b4f2eaf` (PR #189): `extractTrajectories` now treats a valid→invalid or invalid→valid timestamp pair as a trajectory boundary (fail-closed); consecutive invalid timestamps stay together. Regression tests in `src/test/skill-distill.test.mts`.
+- **skill-distill overlapping n-gram count (LOW):** `occurrences` counts windows, not distinct runs; `minSessions` is the real guard. Add a contract-pinning test. — **CLOSED** by `c19e9f3`: regression test pins that `occurrences` counts every matching window; `minSessions` stays the single-session guard.
+- **mcp getRecentObservations limit:0 (LOW):** `slice(-0)` reads the whole history; output stays bounded downstream. Clamp `limit<=0`. Confirmed not unit-testable as-is: `mcp-server.mts` has no `import.meta` main guard, so importing it to test the internal fn would start the server — needs an entry-point refactor (guard + export) or handler seeding first. — **CLOSED** by `08cdbae` (clamp inside `getRecentObservations`, covers all callers incl. `ci_observations`) + `6207648` (`ci_goal_check` guard); integration-tested through `tools/call` in `cc265e8` (the entry-point-refactor blocker was sidestepped by driving the spawned server, not importing it).
+- **manifest generator skill-discovery glob (MED):** `/^[a-z][a-z0-9-]*\.md$/` would silently drop a future skill with an uppercase/underscore/leading-digit name while `verify:all` stays green. No live bug (3 new skills compliant). Align with the tier-lint filter. — **CLOSED** by `2fde059`: generator now uses the same loose filter `file.endsWith(".md") && file !== "README.md"` as the tier-lint discovery.
+- **goal-state KEYWORD_MIN_LENGTH=4 vs short-word scripts (MED):** the unicode tokenizer (`d2001ac`) now keeps Korean/Thai tokens, but the 4-char floor drops them anyway (Korean technical words are ~2 chars), so a Korean/Thai goal still extracts zero keywords and scores all work as drift. Lower the floor for those scripts or add a script-aware threshold. New follow-up from the 2026-06-03 completeness sweep. — **CLOSED `c71a6b9`**: `keywordMinLengthFor()` returns 2 for tokens containing Hangul syllables (`\p{Script=Hangul}`), keeping the global 4-char floor for all other scripts. Regression test in `src/test/goal-state.test.mts` pins 2-char and 3-char Hangul keywords.
+- **recall Thai combining-mark fragmentation (LOW):** `/[^\p{L}\p{N}]+/u` treated Thai combining marks (Unicode `\p{M}`) as delimiters, fracturing Thai words into garbled length-2/3 fragments that recall then indexed. — **CLOSED `747451a`**: both `recall-index` and `goal-state` now split on `/[^\p{L}\p{N}\p{M}]+/u`; regression tests in `src/test/recall-index.test.mts` and `src/test/goal-state.test.mts` pin Thai words with tone/vowel marks. Goal-state's 4-char floor now accepts length-4+ Thai keywords.
+
+## 2026-06-18 — model-forward retirement candidates (`docs/plans/2026-06-18-model-forward-retirement-candidates.md`)
+
+Remaining skills that note flagged as retirement/slimming candidates. Each needs its own operator decision and its own PR — do not batch them.
+
+- **`safety-guard`** — **CLOSED 2026-08-07**: retired with operator approval. See `docs/plans/2026-08-07-six-rules-context-engineering.md` and the 2026-08-07 row in [past-mistakes.md](past-mistakes.md).
+- **`token-budget-advisor`** — still the smallest-dependency-surface candidate; asking a depth menu can be worse than honoring an already-stated brevity preference. Open.
+- **`strategic-compact`** — keep unless a broader tier-2 slimming pass happens; if slimmed, decide whether its core guidance merges into `handoff` or `verification-loop` first. Open.
+- **`handoff`** — keep unless native resume/memory demonstrably covers cross-harness handoffs. Open.
+- **`superpowers`** — keep; retiring it requires a replacement home for stacked-PR preconditions, companion preference, and routing docs. Open.

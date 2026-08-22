@@ -265,7 +265,7 @@ You have used Claude Code (or any agentic coding tool) long enough to recognize 
 | 1 | **Misalignment** | The agent doesn't do what you want — invents requirements, reinvents helpers that already exist, or builds the wrong thing before anyone challenged the idea | Law 1 (Research) | [`roast`](skills/roast.md), [`grill-me`](skills/grill-me.md), [`grill-with-docs`](skills/grill-with-docs.md), [`gateguard`](skills/gateguard.md), [`workspace-surface-audit`](skills/workspace-surface-audit.md) |
 | 2 | **No shared language** | The agent uses 20 words where 1 would do; jargon decoded fresh every session; variable names drift from domain terms | Law 2 (Plan), Law 7 (Learn) | [`grill-with-docs`](skills/grill-with-docs.md) (writes & maintains `CONTEXT.md`), [`token-budget-advisor`](skills/token-budget-advisor.md), [`strategic-compact`](skills/strategic-compact.md) |
 | 3 | **No feedback loop** | The code doesn't work — agent claims "done" without running build, tests, or healthcheck | Law 4 (Verify) | [`tdd-workflow`](skills/tdd-workflow.md), [`verification-loop`](skills/verification-loop.md), [`deploy-receipt`](skills/deploy-receipt.md) |
-| 4 | **Design rot** | Ball-of-mud accelerates — agent bundles three concerns into one PR, stacks untested changes, ignores prior architectural decisions | Law 2 (Plan), Law 3 (One Thing) | [`superpowers:writing-plans`](https://github.com/obra/superpowers/blob/main/skills/writing-plans/SKILL.md), [`safety-guard`](skills/safety-guard.md), [`worktree-safety`](skills/worktree-safety.md), [`wild-risa-balance`](skills/wild-risa-balance.md) |
+| 4 | **Design rot** | Ball-of-mud accelerates — agent bundles three concerns into one PR, stacks untested changes, ignores prior architectural decisions | Law 2 (Plan), Law 3 (One Thing) | [`superpowers:writing-plans`](https://github.com/obra/superpowers/blob/main/skills/writing-plans/SKILL.md), [`gateguard`](skills/gateguard.md), [`worktree-safety`](skills/worktree-safety.md), [`wild-risa-balance`](skills/wild-risa-balance.md) |
 | 5 | **Forgotten lessons** | Next session starts from zero — prior corrections, decisions, instincts are lost; the same mistake repeats next week | Law 5 (Reflect), Law 7 (Learn) | [`handoff`](skills/handoff.md), Mulahazah instinct engine |
 
 Three of those alignment + reflection skills (`grill-me`, `grill-with-docs`, `handoff`) are MIT-licensed ports from mattpocock/skills; the rest are continuous-improvement-native. Every failure mode has at least one runtime hook or model-side skill that catches it before it lands in the diff.
@@ -336,7 +336,7 @@ All 29 legacy commands ship in the marketplace bundle. The marketplace Beginner 
 
 ## Skills
 
-The plugin ships **29 skills** — 1 core + 1 featured + 7 tier-1 + 17 tier-2 + 3 always-bundled. Beginner install gets tier-1, featured, and the always-bundled companion; Expert adds tier-2, the MCP server, and observation hooks. The tier-1 `ship` skill is the single source for the `/ship` workflow and the npm installer makes it global across Claude Code projects. Full catalog with per-skill descriptions, Law tagging, and drop-in single-file install: [docs/skills.md](docs/skills.md). Adding a 30th skill: [CONTRIBUTING.md § Evolution — adding a new skill](CONTRIBUTING.md#evolution--adding-a-new-skill).
+The plugin ships **28 skills** — 1 core + 1 featured + 7 tier-1 + 16 tier-2 + 3 always-bundled. Beginner install gets tier-1, featured, and the always-bundled companion; Expert adds tier-2, the MCP server, and observation hooks. The tier-1 `ship` skill is the single source for the `/ship` workflow and the npm installer makes it global across Claude Code projects. Full catalog with per-skill descriptions, Law tagging, and drop-in single-file install: [docs/skills.md](docs/skills.md). Adding a 29th skill: [CONTRIBUTING.md § Evolution — adding a new skill](CONTRIBUTING.md#evolution--adding-a-new-skill).
 
 ---
 
@@ -380,7 +380,7 @@ Proof-format templates ship in [templates/](templates/): `release_receipt_templa
 - [QUICKSTART.md](QUICKSTART.md) — 2-minute setup
 - [SKILL.md](SKILL.md) — full 7 Laws spec
 - [skills/model-forward.md](skills/model-forward.md) — what stays valuable as models improve
-- [docs/skills.md](docs/skills.md) — full 29-skill catalog
+- [docs/skills.md](docs/skills.md) — full 28-skill catalog
 - [examples/](examples/) — bug fix, feature build, refactor walkthroughs
 - [templates/insights-claude-md.md](templates/insights-claude-md.md) — paste-in CLAUDE.md blocks for verification discipline, environment notes, think-before-acting, and git/deploy workflow (sourced from the 28-day usage report)
 - [CONTRIBUTING.md](CONTRIBUTING.md) — architecture, repo internals, adding a new skill

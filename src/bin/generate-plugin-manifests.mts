@@ -27,6 +27,12 @@ import {
   renderBundledSkillsReadme,
   type SkillMeta,
 } from "../lib/skill-tiers.mjs";
+import {
+  enforcementOf,
+  lawOf,
+  renderSkillCatalogHtml,
+  type CatalogSkill,
+} from "../lib/skill-catalog.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const PLUGINS_DIR = join(REPO_ROOT, "plugins");
@@ -112,6 +118,29 @@ async function writeBundledSkills(): Promise<void> {
     join(targetSkillsDir, "README.md"),
     renderBundledSkillsReadme(skillsForReadme),
   );
+
+  await writeSkillCatalogHtml(skillsForReadme);
+}
+
+/**
+ * Generate `docs/skill-catalog.html` from the same frontmatter that feeds the
+ * bundled README, so the catalog's Enforcement badges can never drift from the
+ * shipped file set. Guarded by `verify:generated`.
+ */
+async function writeSkillCatalogHtml(skills: readonly SkillMeta[]): Promise<void> {
+  const commandNames = new Set(
+    (await readdir(join(REPO_ROOT, "commands")))
+      .filter((f) => f.endsWith(".md") && f !== "README.md")
+      .map((f) => basename(f, ".md")),
+  );
+
+  const catalog: CatalogSkill[] = skills.map((skill) => ({
+    ...skill,
+    ...enforcementOf(skill.name, commandNames),
+    law: lawOf(skill.description),
+  }));
+
+  await writeFile(join(REPO_ROOT, "docs", "skill-catalog.html"), renderSkillCatalogHtml(catalog));
 }
 
 async function writePluginBundleReadme(): Promise<void> {
@@ -154,8 +183,7 @@ async function writePluginBundleReadme(): Promise<void> {
     "- `tdd-workflow` — RED/GREEN/REFACTOR + 80% coverage gate",
     "- `workspace-surface-audit` — environment + capability audit",
     "- Tier-1/Tier-2 enforcement skills (`gateguard`, `verification-loop`,",
-    "  `safety-guard`, `token-budget-advisor`,",
-    "  `strategic-compact`, `wild-risa-balance`)",
+    "  `token-budget-advisor`, `strategic-compact`, `wild-risa-balance`)",
     "",
     "**Optional companions the orchestrator routes to (install separately if",
     "you want the dedicated skill instead of the inline fallback):**",

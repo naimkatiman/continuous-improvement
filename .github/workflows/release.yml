@@ -42,7 +42,7 @@ jobs:
         run: npm run build
 
       - name: Verify generated artifacts are committed
-        run: git diff --exit-code -- .claude-plugin bin hooks test lib plugins
+        run: git diff --exit-code -- .claude-plugin bin hooks test lib plugins docs/skill-catalog.html
 
       - name: Run verify:all
         run: npm run verify:all
