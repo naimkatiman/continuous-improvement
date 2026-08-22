@@ -8,12 +8,12 @@
 // every path exits 0 and never blocks.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
+import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const HOOK_PATH = join(__dirname, "..", "hooks", "workflow-distill.mjs");
 const WORKFLOW_SCRIPT = "export const meta = { name: 'demo-flow', description: 'fan out three readers', " +
@@ -21,8 +21,7 @@ const WORKFLOW_SCRIPT = "export const meta = { name: 'demo-flow', description: '
 let home = "";
 let project = "";
 function instinctsDirFor(projectRoot) {
-    const hash = createHash("sha256").update(projectRoot).digest("hex").slice(0, 12);
-    return join(home, ".claude", "instincts", hash);
+    return join(home, ".claude", "instincts", hashProjectRoot(projectRoot));
 }
 function workflowRow(session) {
     return JSON.stringify({

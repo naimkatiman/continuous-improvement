@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import {
   chmodSync,
   existsSync,
@@ -14,6 +13,7 @@ import { platform, tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
+import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 // __dirname resolves to <repo>/test/ at runtime (compiled .mjs lives under
@@ -214,16 +214,12 @@ interface TelemetryLine {
   companion_installed: boolean;
 }
 
-function projectHash(projectRoot: string): string {
-  return createHash("sha256").update(projectRoot).digest("hex").slice(0, 12);
-}
-
 function telemetryPath(home: string, projectRoot: string): string {
   return join(
     home,
     ".claude",
     "instincts",
-    projectHash(projectRoot),
+    hashProjectRoot(projectRoot),
     "companion-preference.jsonl",
   );
 }
@@ -415,7 +411,7 @@ describe("companion-preference hook telemetry", () => {
         isolated,
         ".claude",
         "instincts",
-        projectHash(isolatedProject),
+        hashProjectRoot(isolatedProject),
       );
       mkdirSync(sessionDir, { recursive: true });
       chmodSync(sessionDir, 0o500);

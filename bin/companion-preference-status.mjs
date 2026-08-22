@@ -19,9 +19,9 @@
  *   1 — argument parse error or unexpected runtime failure
  */
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
+import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 import { join } from "node:path";
 import { argv, exit, stdout } from "node:process";
 const ACTIONS = [
@@ -99,10 +99,7 @@ function resolveProjectRoot() {
 }
 function defaultJsonlPath() {
     const home = process.env.HOME ?? process.env.USERPROFILE ?? homedir();
-    const hash = createHash("sha256")
-        .update(resolveProjectRoot())
-        .digest("hex")
-        .slice(0, 12);
+    const hash = hashProjectRoot(resolveProjectRoot());
     return join(home, ".claude", "instincts", hash, "companion-preference.jsonl");
 }
 function parseJsonl(raw) {

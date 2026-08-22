@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, } from "node:fs";
 import { platform, tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
+import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 // __dirname resolves to <repo>/test/ at runtime (compiled .mjs lives under
 // test/ per tsconfig outDir). Hook lives under <repo>/hooks/.
@@ -143,11 +143,8 @@ describe("companion-preference hook", () => {
         assert.equal(decision(r).decision, "allow");
     });
 });
-function projectHash(projectRoot) {
-    return createHash("sha256").update(projectRoot).digest("hex").slice(0, 12);
-}
 function telemetryPath(home, projectRoot) {
-    return join(home, ".claude", "instincts", projectHash(projectRoot), "companion-preference.jsonl");
+    return join(home, ".claude", "instincts", hashProjectRoot(projectRoot), "companion-preference.jsonl");
 }
 function runHookWithProject(payload, home, projectRoot) {
     const input = typeof payload === "string" ? payload : JSON.stringify(payload);
@@ -296,7 +293,7 @@ describe("companion-preference hook telemetry", () => {
             });
             // Pre-create the session dir as read-only so appendFileSync inside the
             // hook fails. The decision must still succeed.
-            const sessionDir = join(isolated, ".claude", "instincts", projectHash(isolatedProject));
+            const sessionDir = join(isolated, ".claude", "instincts", hashProjectRoot(isolatedProject));
             mkdirSync(sessionDir, { recursive: true });
             chmodSync(sessionDir, 0o500);
             const r = runHookWithProject({ tool_name: "Skill", tool_input: { skill: "tdd-workflow" } }, isolated, isolatedProject);

@@ -17,6 +17,7 @@ import {
   canonicalizeFileKey,
   canonicalizeProjectRoot,
   clearFiles,
+  hashProjectRoot,
   isFileCleared,
   loadState,
   markFileCleared,
@@ -51,6 +52,17 @@ describe("canonicalizeProjectRoot", () => {
 
   it("leaves a relative path unchanged", () => {
     assert.equal(canonicalizeProjectRoot("x"), "x");
+  });
+});
+
+describe("hashProjectRoot", () => {
+  it("hashes C:/, c:/, and backslash forms to the same id", () => {
+    const a = hashProjectRoot("C:/Ai/DrSaid-standup");
+    const b = hashProjectRoot("c:/Ai/DrSaid-standup");
+    const c = hashProjectRoot("C:\\Ai\\DrSaid-standup");
+    assert.equal(a, b);
+    assert.equal(a, c);
+    assert.match(a, /^[0-9a-f]{12}$/);
   });
 });
 

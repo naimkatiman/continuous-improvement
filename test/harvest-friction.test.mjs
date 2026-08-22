@@ -96,6 +96,30 @@ describe("classifyObservation", () => {
         const c = classifyObservation(r);
         assert.equal(c?.type, "permission_block");
     });
+    it("does not treat a filename containing sandbox as permission_block", () => {
+        const r = row({
+            tool: "Glob",
+            input_summary: "docs/plans/*sandbox*",
+            output_summary: '{"filenames":["docs\\\\plans\\\\2026-07-18-slow-regime-gate-sandbox.md"],"durationMs":12}',
+        });
+        assert.equal(classifyObservation(r), null);
+    });
+    it("does not treat a title like Sandbox Study as permission_block", () => {
+        const r = row({
+            tool: "Read",
+            input_summary: "docs/plans/2026-07-18-slow-regime-gate-sandbox.md",
+            output_summary: "1:# Slow Regime-Gate Sandbox Study (2026-07-18)\n3:## Goal",
+        });
+        assert.equal(classifyObservation(r), null);
+    });
+    it("still classifies an actual sandbox denial as permission_block", () => {
+        const r = row({
+            tool: "Bash",
+            input_summary: "rm -rf /tmp/x",
+            output_summary: "blocked by the sandbox: rm -rf is not permitted",
+        });
+        assert.equal(classifyObservation(r)?.type, "permission_block");
+    });
 });
 describe("computeDedupKey", () => {
     it("is stable across re-runs for identical (type, tool, summary)", () => {

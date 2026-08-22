@@ -54,7 +54,7 @@ export function resolveSessionDir(sessionId?: string): string {
   const fromEnv = process.env.GATEGUARD_SESSION_DIR;
   if (fromEnv) return fromEnv;
   const projectRoot = resolveProjectRoot();
-  const projectHash = createHash("sha256").update(canonicalizeProjectRoot(projectRoot)).digest("hex").slice(0, 12);
+  const projectHash = hashProjectRoot(projectRoot);
   const base = join(resolveInstinctsRoot(), projectHash);
   const scoped = sanitizeSessionId(sessionId);
   return scoped ? join(base, "sessions", scoped) : base;
@@ -175,6 +175,11 @@ export function canonicalizeProjectRoot(p: string): string {
 
 export function canonicalizeFileKey(p: string): string {
   return canonicalizePath(p);
+}
+
+/** SHA-256[:12] of the canonical project root. C:/x, c:/x, and C:\\x share a bucket. */
+export function hashProjectRoot(projectRoot: string): string {
+  return createHash("sha256").update(canonicalizeProjectRoot(projectRoot)).digest("hex").slice(0, 12);
 }
 
 export function isFileCleared(state: GateguardState, filePath: string): boolean {

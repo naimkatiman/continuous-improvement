@@ -16,10 +16,10 @@
 //
 // See docs/plans/2026-05-05-node-observer-rich-schema.md for the full design.
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
+import { canonicalizeProjectRoot, hashProjectRoot } from "../lib/gateguard-state.mjs";
 import { parseHookPayload, summariseInput, summariseOutput } from "../lib/observe-event.mjs";
 const ROTATION_LINE_THRESHOLD = 10_000;
 const ARCHIVE_RETENTION = 10;
@@ -40,8 +40,8 @@ function runObserver() {
     const payload = parseHookPayload(raw);
     if (!payload)
         return;
-    const projectRoot = resolveProjectRoot();
-    const projectHash = createHash("sha256").update(projectRoot).digest("hex").slice(0, 12);
+    const projectRoot = canonicalizeProjectRoot(resolveProjectRoot());
+    const projectHash = hashProjectRoot(projectRoot);
     const projectName = basename(projectRoot.replace(/\.git$/, ""));
     const instinctsDir = join(getHomeDir(), ".claude", "instincts");
     const projectDir = join(instinctsDir, projectHash);
