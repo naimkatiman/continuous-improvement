@@ -1,4 +1,4 @@
-<!-- README landing-page structure rationale: docs/plans/2026-06-28-readme-progressive-disclosure.md (supersedes docs/plans/2026-05-14-readme-landing-rewrite.md) -->
+<!-- README landing-page structure rationale: docs/plans/2026-08-22-readme-still-useful.md (adds model-forward + benefit rungs; prior: docs/plans/2026-06-28-readme-progressive-disclosure.md, docs/plans/2026-05-14-readme-landing-rewrite.md) -->
 
 <p align="center">
   <img src="assets/combined.gif" alt="Before vs After — The 7 Laws of AI Agent Discipline" width="700" />
@@ -50,6 +50,34 @@ Claude Code is powerful but leaves intelligence on the table: it edits before re
 1. **Before an edit** — [`gateguard`](skills/gateguard.md) ships as a `PreToolUse` hook (`hooks/gateguard.mjs`) that physically blocks `Edit` / `Write` / `MultiEdit` and destructive `Bash` until the agent presents a fact-list investigation.
 2. **During work** — bundled skills enforce planning, one-thing-at-a-time execution, TDD ([`tdd-workflow`](skills/tdd-workflow.md)), and a six-phase verification ladder ([`verification-loop`](skills/verification-loop.md)) before "done".
 3. **After work** — `/seven-laws` reflection plus the Mulahazah instinct engine capture lessons, and the opt-in [`recall-briefing`](hooks/recall-briefing.mjs) hook resurfaces the most relevant past fix on the next related prompt, so the same mistake does not repeat next session.
+
+---
+
+## As models get better
+
+Yes. This is still worth installing. Smarter models write more plausible code, faster. They still skip the helper that already exists in *your* repo, say "done" without the test output, and forget last Tuesday's correction. Those are harness problems, not IQ problems.
+
+| Merges into the model over time | Does not merge — this is the product |
+|---|---|
+| Planning etiquette, "remember to verify" reminders, routing flavor | The runtime gate (`hooks/gateguard.mjs`) that physically blocks an unresearched `Edit` |
+| Generic coding taste | *This repo's* past fixes, refusals, and instincts |
+| Sounding sure | Proof: the command you ran, the SHA that deployed, the test that failed then passed |
+
+The standing stance is [`model-forward`](skills/model-forward.md): go with the model, retire scaffolding when the native harness covers it, keep the two invariants — goal-driven execution, and research / verify / learn guardrails. Skills are disposable. The gate and the memory are not.
+
+---
+
+## How you actually benefit
+
+Three rungs. Most people stop at 1, never run `/seven-laws`, and conclude "it didn't learn." Capture is silent. Instincts form when you close the loop.
+
+| Rung | What you do | What you get | When |
+|---|---|---|---|
+| **1. Same session** | Beginner install (Quick start above). Give the agent a real task. Do not prefix every prompt — `hooks/gateguard.mjs` fires on `Edit` / `Write` / destructive `Bash`. | Reckless edits get blocked. Fake "done" has nowhere to hide once [`verification-loop`](skills/verification-loop.md) / [`tdd-workflow`](skills/tdd-workflow.md) run. | First hour. No memory required. |
+| **2. Close the loop** | After a non-trivial session: `/seven-laws`. When a bug feels familiar: `/recall <the error>`. One defect, one PR: `/ship`. Long task: `/planning-with-files` (writes `task_plan.md`). | Observations become instincts. Yesterday's correction survives into today. | After the first real task, then at session end. |
+| **3. Memory that fires without asking** | Expert install (`npx`, below). Optional: `CLAUDE_RECALL_BRIEFING=1`. After ~20 observations: `/harvest` and `/distill`. | Starter instincts, MCP tools (`ci_plan_init` / `ci_recall` / distill), a briefing of the last relevant fix on the next related prompt. | When you want compounding, not just a seatbelt. |
+
+`/learn-eval`, `/harvest`, and `/distill` return empty on day 1 if observation history is missing. That is not a broken command — it is rung 3 without rung 2. Check `/dashboard`: a zero `Total` under Observations means capture is not wired; a high Total and zero instincts means you have not run `/seven-laws` yet.
 
 ---
 
@@ -208,9 +236,6 @@ Shared files (`GEMINI.md`, `AGENTS.md`, `.rules`, `CONVENTIONS.md`, `copilot-ins
 
 ## Who this is for
 
-<details>
-<summary><b>Use it if you ship from real repos — skip it if you only do one-off prompts</b></summary>
-
 Use this if you:
 
 - ship from real repositories with real consequences
@@ -221,13 +246,10 @@ Use this if you:
 Skip it if you:
 
 - only do one-off prompts (no edits, no commits)
-- do not use Claude Code
 - dislike *any* friction before agent edits
-- want a prompt template, not a runtime gate
+- want a prompt template, not a runtime gate (`hooks/gateguard.mjs`)
 
-(The runtime gate is `hooks/gateguard.mjs`; full mechanics in [How enforcement works](#install) above.)
-
-</details>
+Claude Code gets the full install (hooks, MCP, instincts). Other agents can still load the 7 Laws as a rules file — see [Works with other agents](#install).
 
 ---
 
@@ -357,6 +379,7 @@ Proof-format templates ship in [templates/](templates/): `release_receipt_templa
 
 - [QUICKSTART.md](QUICKSTART.md) — 2-minute setup
 - [SKILL.md](SKILL.md) — full 7 Laws spec
+- [skills/model-forward.md](skills/model-forward.md) — what stays valuable as models improve
 - [docs/skills.md](docs/skills.md) — full 29-skill catalog
 - [examples/](examples/) — bug fix, feature build, refactor walkthroughs
 - [templates/insights-claude-md.md](templates/insights-claude-md.md) — paste-in CLAUDE.md blocks for verification discipline, environment notes, think-before-acting, and git/deploy workflow (sourced from the 28-day usage report)
