@@ -33,7 +33,8 @@ import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { argv, cwd, exit } from "node:process";
+import { argv, exit } from "node:process";
+import { hashProjectRoot, resolveProjectRoot } from "../lib/gateguard-state.mjs";
 const SUMMARY_TRUNCATE = 120;
 const DEDUP_KEY_INPUT_TRUNCATE = 120;
 /**
@@ -74,10 +75,13 @@ export function classifyObservation(row) {
         return build("env_issue", tool, summary, row.ts);
     }
     // permission_block — harness, sandbox, or OS denied the action.
+    // Do not match the substring "sandbox" alone: a plan file named
+    // slow-regime-gate-sandbox.md is not a denial (2026-08-22 false positive).
     if (/permission denied/i.test(out) ||
         /harness[- ]blocked/i.test(out) ||
-        /sandbox/i.test(out) ||
-        /operation not permitted/i.test(out)) {
+        /operation not permitted/i.test(out) ||
+        /\bblocked by (?:the )?sandbox\b/i.test(out) ||
+        /\bsandbox(?:ed)?[- ](?:denied|blocked|restrict(?:ed|ion)|violation)\b/i.test(out)) {
         return build("permission_block", tool, summary, row.ts);
     }
     // wrong_approach — agent acted on stale state. The "file changed since last
@@ -219,11 +223,9 @@ export function harvest(observationsPath, instinctsPath) {
     };
 }
 function defaultProjectHash() {
-    // Mirror the bash hook's hashing rule: sha256(project_root) → first 12 hex chars.
-    // Keeps the CLI compatible with whatever directory the bash hook was already
-    // populating, without re-implementing project-root detection here.
-    const root = cwd();
-    return createHash("sha256").update(root).digest("hex").slice(0, 12);
+    // Same root + canonical hash as observe/gateguard so `harvest-friction` from
+    // this repo reads the bucket the hook writes (C:/ vs c:/ vs cwd backslashes).
+    return hashProjectRoot(resolveProjectRoot());
 }
 function main() {
     const args = argv.slice(2);

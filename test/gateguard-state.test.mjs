@@ -9,7 +9,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
-import { MAX_CLEARED_FILES, STATE_TTL_MS, canonicalizeFileKey, canonicalizeProjectRoot, clearFiles, isFileCleared, loadState, markFileCleared, resolveSessionDir, } from "../lib/gateguard-state.mjs";
+import { MAX_CLEARED_FILES, STATE_TTL_MS, canonicalizeFileKey, canonicalizeProjectRoot, clearFiles, hashProjectRoot, isFileCleared, loadState, markFileCleared, resolveSessionDir, } from "../lib/gateguard-state.mjs";
 describe("canonicalizeProjectRoot", () => {
     it("lowercases a Windows drive letter", () => {
         assert.equal(canonicalizeProjectRoot("D:/Ai/x"), "d:/Ai/x");
@@ -32,6 +32,16 @@ describe("canonicalizeProjectRoot", () => {
     });
     it("leaves a relative path unchanged", () => {
         assert.equal(canonicalizeProjectRoot("x"), "x");
+    });
+});
+describe("hashProjectRoot", () => {
+    it("hashes C:/, c:/, and backslash forms to the same id", () => {
+        const a = hashProjectRoot("C:/Ai/DrSaid-standup");
+        const b = hashProjectRoot("c:/Ai/DrSaid-standup");
+        const c = hashProjectRoot("C:\\Ai\\DrSaid-standup");
+        assert.equal(a, b);
+        assert.equal(a, c);
+        assert.match(a, /^[0-9a-f]{12}$/);
     });
 });
 describe("canonicalizeFileKey", () => {
