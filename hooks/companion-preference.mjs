@@ -30,10 +30,10 @@
  * suite or a follow-up audit walks the table against this map.
  */
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 const OVERRIDES = {
     "tdd-workflow": {
         companion: "superpowers:test-driven-development",
@@ -125,10 +125,7 @@ function resolveProjectRoot() {
     return "global";
 }
 function telemetryPath(home) {
-    const hash = createHash("sha256")
-        .update(resolveProjectRoot())
-        .digest("hex")
-        .slice(0, 12);
+    const hash = hashProjectRoot(resolveProjectRoot());
     return join(home, ".claude", "instincts", hash, "companion-preference.jsonl");
 }
 /**

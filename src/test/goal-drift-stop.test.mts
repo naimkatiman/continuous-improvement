@@ -7,12 +7,12 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
+import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const HOOK_PATH = join(__dirname, "..", "hooks", "goal-drift-stop.mjs");
@@ -35,8 +35,7 @@ let project = "";
 let transcriptPath = "";
 
 function instinctsDirFor(projectRoot: string): string {
-  const hash = createHash("sha256").update(projectRoot).digest("hex").slice(0, 12);
-  return join(home, ".claude", "instincts", hash);
+  return join(home, ".claude", "instincts", hashProjectRoot(projectRoot));
 }
 
 function seedObservations(projectRoot: string, inputs: string[]): void {

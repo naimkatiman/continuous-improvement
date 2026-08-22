@@ -18,12 +18,12 @@
 // never blocks. No network. 5s hook budget.
 
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { evaluateGoalDrift, type GoalDriftMode } from "../lib/goal-drift-gate.mjs";
 import type { GoalObservation } from "../lib/goal-state.mjs";
+import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 
 interface Payload {
@@ -69,7 +69,7 @@ function resolveProjectRoot(): string {
 }
 
 function projectHash(root: string): string {
-  return createHash("sha256").update(root).digest("hex").slice(0, 12);
+  return hashProjectRoot(root);
 }
 
 function readGoalMarkdown(projectRoot: string, instinctsProjectDir: string): string {

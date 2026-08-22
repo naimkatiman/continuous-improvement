@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, } from "node:fs";
+import { existsSync, linkSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync, } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const INSTALL_SCRIPT = join(__dirname, "..", "bin", "install.mjs");
 const SKILL_SOURCE = join(__dirname, "..", "SKILL.md");
+const SHIP_SKILL_SOURCE = join(__dirname, "..", "skills", "ship.md");
+const SHIP_SKILL_OWNER_FILE = ".continuous-improvement-owner";
 const ALL_COMMAND_FILES = [
     "continuous-improvement.md",
     "planning-with-files.md",
@@ -80,6 +82,20 @@ describe("installer", () => {
         const installed = readFileSync(skillPath, "utf8");
         const source = readFileSync(SKILL_SOURCE, "utf8");
         assert.equal(installed, source, "Installed SKILL.md should match source");
+    });
+    it("installs ship as a global Claude Code skill", () => {
+        execFileSync("node", [INSTALL_SCRIPT, "install"], {
+            env: { ...process.env, HOME: tempHome, CLAUDE_CI_UPDATE_CHECK: "off" },
+            encoding: "utf8",
+        });
+        const skillPath = join(tempHome, ".claude", "skills", "ship", "SKILL.md");
+        assert.ok(existsSync(skillPath), "ship/SKILL.md should be installed globally");
+        const installed = readFileSync(skillPath, "utf8");
+        const source = readFileSync(SHIP_SKILL_SOURCE, "utf8");
+        assert.equal(installed, source, "Installed ship skill should match its packaged source");
+        assert.match(installed, /user-invocable: true/, "native skill should expose /ship");
+        assert.equal(readFileSync(join(tempHome, ".claude", "skills", "ship", SHIP_SKILL_OWNER_FILE), "utf8"), "continuous-improvement\n", "global ship skill should carry an ownership marker");
+        assert.equal(existsSync(join(tempHome, ".claude", "commands", "ship.md")), false, "installer should not create a duplicate legacy /ship command");
     });
     it("does not install the legacy observe.sh shim", () => {
         const hookPath = join(tempHome, ".claude", "instincts", "observe.sh");
@@ -179,6 +195,8 @@ describe("installer", () => {
         });
         const skillPath = join(tempHome, ".claude", "skills", "continuous-improvement", "SKILL.md");
         assert.ok(!existsSync(skillPath), "SKILL.md should be removed");
+        const shipSkillPath = join(tempHome, ".claude", "skills", "ship", "SKILL.md");
+        assert.ok(!existsSync(shipSkillPath), "ship/SKILL.md should be removed");
         const hookPath = join(tempHome, ".claude", "instincts", "bin", "observe.mjs");
         assert.ok(!existsSync(hookPath), "observe.mjs should be removed");
         const planningCommandPath = join(tempHome, ".claude", "commands", "planning-with-files.md");
@@ -191,6 +209,126 @@ describe("installer", () => {
                     entry.hooks.some((hook) => /(?:observe\.sh|bin\/observe\.mjs)/.test(hook.command ?? "")));
                 assert.ok(!hasObserveHook, `${hookType} observer hooks should be removed`);
             }
+        }
+    });
+});
+describe("installer - foreign ship skill preservation", () => {
+    it("never overwrites or uninstalls an unowned global ship skill", () => {
+        const tempHome = join(tmpdir(), `ci-test-foreign-ship-${Date.now()}`);
+        const shipDir = join(tempHome, ".claude", "skills", "ship");
+        const shipPath = join(shipDir, "SKILL.md");
+        const foreignContent = "# My existing ship skill\n";
+        mkdirSync(shipDir, { recursive: true });
+        writeFileSync(shipPath, foreignContent);
+        try {
+            const installResult = spawnSync(process.execPath, [INSTALL_SCRIPT, "install"], {
+                env: { ...process.env, HOME: tempHome, USERPROFILE: tempHome, CLAUDE_CI_UPDATE_CHECK: "off" },
+                encoding: "utf8",
+            });
+            const installOutput = `${installResult.stdout ?? ""}${installResult.stderr ?? ""}`;
+            assert.equal(installResult.status, 0, installOutput);
+            assert.match(installOutput, /preserved.*existing.*ship skill/i);
+            assert.match(installOutput, /Done with warning\./);
+            assert.doesNotMatch(installOutput, /\nFailed\.\n/);
+            assert.match(installOutput, /package \/ship was not installed/i);
+            assert.doesNotMatch(installOutput, /For one defect, run: \/ship/);
+            assert.equal(readFileSync(shipPath, "utf8"), foreignContent);
+            assert.equal(existsSync(join(shipDir, SHIP_SKILL_OWNER_FILE)), false);
+            execFileSync("node", [INSTALL_SCRIPT, "--uninstall"], {
+                env: { ...process.env, HOME: tempHome, USERPROFILE: tempHome },
+                encoding: "utf8",
+            });
+            assert.equal(readFileSync(shipPath, "utf8"), foreignContent);
+        }
+        finally {
+            rmSync(tempHome, { recursive: true, force: true });
+        }
+    });
+});
+describe("installer - global ship skill replacement safety", () => {
+    it("breaks an owned hard link without overwriting its external target", () => {
+        const tempHome = join(tmpdir(), `ci-test-linked-ship-${Date.now()}`);
+        const shipDir = join(tempHome, ".claude", "skills", "ship");
+        const shipPath = join(shipDir, "SKILL.md");
+        const externalPath = join(tempHome, "external-ship.md");
+        const externalContent = "# External file must remain unchanged\n";
+        mkdirSync(shipDir, { recursive: true });
+        writeFileSync(join(shipDir, SHIP_SKILL_OWNER_FILE), "continuous-improvement\n");
+        writeFileSync(externalPath, externalContent);
+        linkSync(externalPath, shipPath);
+        try {
+            const result = spawnSync(process.execPath, [INSTALL_SCRIPT, "install"], {
+                env: { ...process.env, HOME: tempHome, USERPROFILE: tempHome, CLAUDE_CI_UPDATE_CHECK: "off" },
+                encoding: "utf8",
+            });
+            const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+            assert.equal(result.status, 0, output);
+            assert.equal(readFileSync(externalPath, "utf8"), externalContent);
+            assert.equal(readFileSync(shipPath, "utf8"), readFileSync(SHIP_SKILL_SOURCE, "utf8"));
+        }
+        finally {
+            rmSync(tempHome, { recursive: true, force: true });
+        }
+    });
+    it("exits nonzero when the requested installation cannot be written", () => {
+        const tempHome = join(tmpdir(), `ci-test-install-failure-${Date.now()}`);
+        const skillsDir = join(tempHome, ".claude", "skills");
+        mkdirSync(skillsDir, { recursive: true });
+        writeFileSync(join(skillsDir, "continuous-improvement"), "path collision\n");
+        try {
+            const result = spawnSync(process.execPath, [INSTALL_SCRIPT, "install"], {
+                env: { ...process.env, HOME: tempHome, USERPROFILE: tempHome, CLAUDE_CI_UPDATE_CHECK: "off" },
+                encoding: "utf8",
+            });
+            const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+            assert.notEqual(result.status, 0, output);
+            assert.match(output, /Install failed/i);
+            assert.match(output, /\nFailed\.\n/);
+            assert.match(output, /Installation incomplete/i);
+            assert.doesNotMatch(output, /Hooks are capturing silently|Next steps:|For one defect, run: \/ship/);
+        }
+        finally {
+            rmSync(tempHome, { recursive: true, force: true });
+        }
+    });
+    it("exits nonzero when uninstall cannot safely clean owned settings", () => {
+        const tempHome = join(tmpdir(), `ci-test-uninstall-failure-${Date.now()}`);
+        const claudeDir = join(tempHome, ".claude");
+        mkdirSync(claudeDir, { recursive: true });
+        writeFileSync(join(claudeDir, "settings.json"), "{not-json\n");
+        try {
+            const result = spawnSync(process.execPath, [INSTALL_SCRIPT, "--uninstall"], {
+                env: { ...process.env, HOME: tempHome, USERPROFILE: tempHome },
+                encoding: "utf8",
+            });
+            const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+            assert.notEqual(result.status, 0, output);
+            assert.match(output, /Could not clean settings\.json/i);
+        }
+        finally {
+            rmSync(tempHome, { recursive: true, force: true });
+        }
+    });
+    it("rejects a staging-root junction redirected into skill discovery", () => {
+        const tempHome = join(tmpdir(), `ci-test-staging-junction-${Date.now()}`);
+        const claudeDir = join(tempHome, ".claude");
+        const skillsDir = join(claudeDir, "skills");
+        const stagingRoot = join(claudeDir, ".continuous-improvement-staging");
+        mkdirSync(skillsDir, { recursive: true });
+        symlinkSync(skillsDir, stagingRoot, process.platform === "win32" ? "junction" : "dir");
+        try {
+            const result = spawnSync(process.execPath, [INSTALL_SCRIPT, "install"], {
+                env: { ...process.env, HOME: tempHome, USERPROFILE: tempHome, CLAUDE_CI_UPDATE_CHECK: "off" },
+                encoding: "utf8",
+            });
+            const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+            assert.notEqual(result.status, 0, output);
+            assert.match(output, /staging.*(?:link|junction|symbolic)/i);
+            assert.equal(existsSync(join(skillsDir, "ship")), false);
+            assert.equal(readdirSync(skillsDir).some((entry) => entry.startsWith("ship-")), false, "failed staging must not create a discoverable ghost skill");
+        }
+        finally {
+            rmSync(tempHome, { recursive: true, force: true });
         }
     });
 });

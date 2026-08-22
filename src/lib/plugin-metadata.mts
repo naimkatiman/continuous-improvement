@@ -146,7 +146,7 @@ const KEYWORDS = [
 ];
 const CLAUDE_PLUGIN_CATEGORY = "productivity";
 const SHARED_PLUGIN_DESCRIPTION =
-  "The persistent-memory and runtime-discipline layer for Claude Code. It remembers the corrections you already gave, grounds every edit in real facts before it lands, and — through the Mulahazah engine — turns each fix into a reusable instinct, so a lesson learned once is applied automatically next time with no re-teaching. Built on the 7 Laws of AI Agent Discipline (research, plan, verify, reflect, learn) and shipped as 27 bundled skills, instinct-aware hooks, an MCP toolset for recall and reflection, and a GitHub Action transcript linter that feeds real work history back into sharper instincts.";
+  "The persistent-memory and runtime-discipline layer for Claude Code. It remembers the corrections you already gave, grounds every edit in real facts before it lands, and — through the Mulahazah engine — turns each fix into a reusable instinct, so a lesson learned once is applied automatically next time with no re-teaching. Built on the 7 Laws of AI Agent Discipline (research, plan, verify, reflect, learn) and shipped as 28 bundled skills, instinct-aware hooks, an MCP toolset for recall and reflection, and a GitHub Action transcript linter that feeds real work history back into sharper instincts.";
 
 // Four vendored upstream companions registered alongside the CI plugin.
 // Each entry points at a pinned-SHA snapshot under third-party/<name>/.
@@ -260,7 +260,7 @@ const BEGINNER_TOOL_ENTRIES: ToolCatalogEntry[] = [
   {
     name: "ci_gateguard_clear",
     description:
-      "Clear the GateGuard gate for the given files after presenting the facts its block reason asked for, allowing the next Edit/Write to those paths. Paths are canonicalized, so drive-letter case and separators do not matter.",
+      "Clear the GateGuard gate for one or more files after presenting the required facts (importers, affected APIs, data schema, the user's instruction). Records canonical per-file clearance in the session state the hook reads, so the next Edit/Write to those paths is allowed. Clearance matches regardless of drive-letter case or path separator. Available in beginner mode because the gate fires for every install.",
     manifestWhat: "Clear the GateGuard gate for files after presenting facts",
     inputSchema: {
       type: "object",
@@ -527,7 +527,7 @@ const EXPERT_TOOL_ENTRIES: ToolCatalogEntry[] = [
   {
     name: "ci_distill_from_workflow",
     description:
-      "Draft a reusable instinct from the most recent verified native Workflow run in this project. One run is enough here, unlike ci_distill_candidates, which needs a pattern repeated across sessions. Writes a DRAFT only — nothing changes until ci_distill_promote.",
+      "Draft a reusable instinct from the most recent completed-and-verified native Workflow run in this project's observation feed. A Workflow script is an authored recipe, so a single run whose output passed verification is enough — unlike ci_distill_candidates, which needs a pattern repeated across sessions. Writes a DRAFT to drafts/ (a skeleton you edit); it changes no behavior until promoted with ci_distill_promote. Returns a message when no verified workflow run is found.",
     manifestWhat: "Draft a reusable instinct from a verified Workflow run",
     inputSchema: { type: "object", properties: {}, required: [] },
   },
@@ -536,7 +536,7 @@ const EXPERT_TOOL_ENTRIES: ToolCatalogEntry[] = [
 const MODE_METADATA: Record<PluginMode, ModeMetadata> = {
   beginner: {
     description:
-      "Beginner mode: see what your agent learned, list its instincts, and request a session reflection. Bundles three grounding skills (gateguard, tdd-workflow, verification-loop) so research, memory, tests, and verification happen by default — every edit starts from facts, not guesses.",
+      "Beginner mode: see what your agent learned, list its instincts, and request a session reflection. Bundles the ship fast path plus grounding skills (gateguard, tdd-workflow, verification-loop) so one-defect delivery, research, tests, and verification happen by default — every edit starts from facts, not guesses.",
     hooks: ["PreToolUse", "PostToolUse", "UserPromptSubmit"],
     hookDescription:
       "Silently captures every tool call as observations and routes prompts to the matching skill via the route table. Lightweight and non-blocking.",

@@ -2,26 +2,27 @@
 
 [`docs/skills.md`](skills.md) is the **catalog** (what each skill *is*). This page is the **decision guide** (when to *reach for it*, and how to tell two similar-sounding skills apart).
 
-The plugin ships **27 skills** (1 core + 1 featured + 6 tier-1 + 16 tier-2 + 3 always-bundled companions). Most confusion is not "what does this skill do" — it is "I have five skills that all sound like *stop and check first*; which one is this situation?" The [disambiguation section](#4-disambiguation--this-not-that) is the answer to that.
+The plugin ships **28 skills** (1 core + 1 featured + 7 tier-1 + 16 tier-2 + 3 always-bundled companions). Most confusion is not "what does this skill do" — it is "I have five skills that all sound like *stop and check first*; which one is this situation?" The [disambiguation section](#4-disambiguation--this-not-that) is the answer to that.
 
 ---
 
 ## 1. The must-use set (the spine)
 
-These **8 skills are the always-on minimum** — the repo's tier-1 + the featured orchestrator + the core spec. They ship and load by default in **Beginner** install; you do not pick them per task, they are simply *on*. If you adopt nothing else, adopt these.
+These **9 skills are the always-on minimum** — the repo's tier-1 + the featured orchestrator + the core spec. They ship and load by default in **Beginner** install; you do not pick them per task, they are simply *on*. If you adopt nothing else, adopt these.
 
 | Skill | Tier | Law | The one job it does | You reach for it when… |
 |---|---|---|---|---|
-| `continuous-improvement` (core) | core | all 7 | The 7 Laws operating system — research → plan → execute → verify → reflect → learn → iterate | Always loaded. It is the frame the other 24 plug into. |
+| `continuous-improvement` (core) | core | all 7 | The 7 Laws operating system — research → plan → execute → verify → reflect → learn → iterate | Always loaded. It is the frame the other 28 plug into. |
 | `proceed-with-the-recommendation` ⭐ | featured | all 7 | Execution arm — walks any numbered recommendation list top-to-bottom, one concern at a time, verifying per item | Any agent (or you) emits a list of next steps and you want them *done*, not just listed |
 | `gateguard` | 1 | 1 | Runtime gate that blocks `Edit`/`Write`/destructive `Bash` until you present investigation facts | **Automatic** — it fires the instant you try to mutate a file. You answer it, you do not invoke it |
 | `recall` | 1 | 1 | BM25 search over past sessions — "have I hit this before?" | The start of a task that smells familiar, *before* re-deriving a fix or repeating a mistake |
 | `tdd-workflow` | 1 | 3 + 4 | RED → GREEN → REFACTOR with 80%+ coverage | Writing a new feature, fixing a bug, or refactoring — anything that changes behavior |
 | `verification-loop` | 1 | 4 | Six-phase gate: build, types, lint, tests, security, diff → PASS/FAIL | You are about to say "done." This is the proof |
 | `deploy-receipt` | 1 | 4 | "Merged ≠ live" — proves the deployed SHA matches merged HEAD + healthcheck 200 | The merge target **auto-deploys** (Railway, Vercel, Netlify, Cloudflare Workers, Fly.io). Skip it otherwise |
+| `ship` | 1 | 1 + 3 + 4 | One-defect delivery path through clean-worktree isolation, TDD, verification, and one open PR | An urgent bug must ship while the primary checkout contains unrelated work, or a clean checkout must return safely to `main` or `master` |
 | `model-forward` | 1 | all 7 | Standing stance: go *with* the model; skills are scaffolding that fades as the model internalizes them | Background posture — not a per-task action |
 
-**Read the spine as a loop:** `recall` (have I done this?) → `gateguard` (research before I edit) → `tdd-workflow` (build it test-first) → `verification-loop` (prove it) → `deploy-receipt` (prove it shipped) → `proceed-with-the-recommendation` keeps every item on that rail. `model-forward` is the attitude underneath all of it.
+**Read the spine as a loop:** `recall` (have I done this?) → `gateguard` (research before I edit) → `ship` (isolate one defect) → `tdd-workflow` (build it test-first) → `verification-loop` (prove it) → `deploy-receipt` (prove it shipped) → `proceed-with-the-recommendation` keeps every item on that rail. `model-forward` is the attitude underneath all of it.
 
 ---
 
@@ -31,7 +32,7 @@ The marketplace ships **5 plugins**: 1 native + 4 vendored, pinned-SHA snapshots
 
 | Plugin | Verdict | Install it when… |
 |---|---|---|
-| **`continuous-improvement`** (native) | **MUST** | Always. This is the framework — the 8-skill spine, the hooks, the MCP tools, the GitHub Action |
+| **`continuous-improvement`** (native) | **MUST** | Always. This is the framework — the 9-skill spine, the hooks, the MCP tools, the GitHub Action |
 | **`superpowers`** (obra, v5.1.0) | **Strongly recommended** | You want dedicated specialists behind the `/superpowers` router (TDD, debugging, writing-plans, git-worktrees, parallel agents) instead of the inline fallbacks. The router works without it — just at fallback quality |
 | `agent-skills` (Addy Osmani, v1.0.0) | Situational | You want the 21-skill SDLC set: spec-driven-development, performance-optimization, security-and-hardening, frontend-ui-engineering, browser-testing, CI/CD, migrations |
 | `ruflo-swarm` (ruvnet, v0.2.0) | Situational | You need multi-agent **swarm** coordination — `swarm_*`/`agent_*` MCP tools, Monitor streams, worktree isolation, `/swarm` + `/watch` |
@@ -86,6 +87,7 @@ Bounded blast radius is not a separate skill: set `CI_GATEGUARD_TARGET_LOCK=bloc
 | `recovery-classification` | A verification-ladder or auto-loop step **just failed** and you need to classify *why* (provider / tool-schema / policy / git / worktree / runtime) before retrying | A first attempt — this is the retry-decision layer |
 | `state-reconciliation` | Before dispatching a unit of work, to reconcile DB-vs-disk-vs-memory so a stale flag never re-runs completed work | Single-shot edits with no dispatch/queue |
 | `worktree-safety` | Before a source-writing call **inside a git worktree** — validates the worktree root, leases, ownership | Plain single-checkout repos (use `reconcile` for general git truth) |
+| `ship` | You need one defect taken from current state through TDD and one open PR without disturbing unrelated local work | Multi-PR coordination (use `release-train`) or a review-only pass (use `audit`) |
 
 ### Iterate at scale (Law 6)
 
@@ -112,7 +114,7 @@ Bounded blast radius is not a separate skill: set `CI_GATEGUARD_TARGET_LOCK=bloc
 
 | Skill | Reach for it when… | Not for… |
 |---|---|---|
-| `model-forward` | Never invoked per task — it is the background posture: go *with* the model, treat skills as scaffolding that fades as the model internalizes them | A concrete action; it frames *how* you use the other 24, it does not do work itself |
+| `model-forward` | Never invoked per task — it is the background posture: go *with* the model, treat skills as scaffolding that fades as the model internalizes them | A concrete action; it frames *how* you use the other 28, it does not do work itself |
 
 ---
 
@@ -126,7 +128,7 @@ The skills that get confused, separated by the one word that distinguishes them.
 
 | Skill | Guards… | Fires… |
 |---|---|---|
-| `gateguard` | your **understanding** — no edit without facts; and your **blast radius** — destructive shell blocked, writes lockable to the project root via `CI_GATEGUARD_TARGET_LOCK=block` | automatically, on every first mutation per file |
+| `gateguard` | your **understanding** — no edit without facts | automatically, on every first mutation per file |
 | `reconcile` | **git truth** — right branch, push actually landed | when you ask, before a mutation |
 | `worktree-safety` | the **worktree** — valid root, no stale lease, no foreign owner | before a write inside a multi-worktree setup |
 | `state-reconciliation` | the **work-queue** — DB/disk/memory agree before dispatch | before re-dispatching a unit of work |

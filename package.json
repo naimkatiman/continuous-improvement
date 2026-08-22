@@ -1,7 +1,7 @@
 {
   "name": "continuous-improvement",
-  "version": "3.22.1",
-  "description": "Claude Code that gets sharper every session: the persistent-memory and runtime-discipline layer built on the 7 Laws of AI Agent Discipline. It grounds every edit in real facts before it lands and, through the Mulahazah engine, turns each fix into a reusable instinct, so a lesson learned once is applied automatically next time with no re-teaching. Shipped as 27 bundled skills, instinct-aware hooks, an MCP toolset for recall and reflection, and a GitHub Action transcript linter that feeds real work history back into sharper instincts. Beginner: one /plugin install command. Expert: adds MCP tools and session hooks.",
+  "version": "3.23.0",
+  "description": "Claude Code that gets sharper every session: the persistent-memory and runtime-discipline layer built on the 7 Laws of AI Agent Discipline. It grounds every edit in real facts before it lands and, through the Mulahazah engine, turns each fix into a reusable instinct, so a lesson learned once is applied automatically next time with no re-teaching. Shipped as 28 bundled skills, instinct-aware hooks, an MCP toolset for recall and reflection, and a GitHub Action transcript linter that feeds real work history back into sharper instincts. Beginner: one /plugin install command. Expert: adds MCP tools and session hooks.",
   "keywords": [
     "claude-code",
     "claude-code-plugin",
@@ -45,7 +45,7 @@
     "hooks:stats": "node bin/hook-stats.mjs",
     "test": "npm run build && node --test test/*.test.mjs",
     "lint": "node bin/lint-transcript.mjs --help",
-    "verify:generated": "npm run build && git diff --exit-code -- .claude-plugin bin hooks test lib plugins docs/skill-catalog.html",
+    "verify:generated": "npm run build && git diff --exit-code -- .claude-plugin bin hooks test lib plugins",
     "verify:skill-mirror": "node bin/check-skill-mirror.mjs",
     "verify:skill-tiers": "node bin/check-skill-tiers.mjs",
     "verify:skill-law-tag": "node bin/check-skill-law-tag.mjs",

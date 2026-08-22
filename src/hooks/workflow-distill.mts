@@ -25,10 +25,10 @@
 // construction: any error exits 0 and never blocks. No network. 5s hook budget.
 
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 import { workflowRunFromObservations, type DistillObservation } from "../lib/skill-distill.mjs";
 
@@ -62,7 +62,7 @@ function resolveProjectRoot(): string {
 }
 
 function projectHash(root: string): string {
-  return createHash("sha256").update(root).digest("hex").slice(0, 12);
+  return hashProjectRoot(root);
 }
 
 function readObservations(instinctsProjectDir: string): DistillObservation[] {

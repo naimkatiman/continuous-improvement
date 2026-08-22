@@ -1,10 +1,17 @@
 # continuous-improvement
 
-> The persistent-memory and runtime-discipline layer for Claude Code. It remembers the corrections you already gave, grounds every edit in real facts before it lands, and — through the Mulahazah engine — turns each fix into a reusable instinct, so a lesson learned once is applied automatically next time with no re-teaching. Built on the 7 Laws of AI Agent Discipline (research, plan, verify, reflect, learn) and shipped as 27 bundled skills, instinct-aware hooks, an MCP toolset for recall and reflection, and a GitHub Action transcript linter that feeds real work history back into sharper instincts.
+> The persistent-memory and runtime-discipline layer for Claude Code. It remembers the corrections you already gave, grounds every edit in real facts before it lands, and — through the Mulahazah engine — turns each fix into a reusable instinct, so a lesson learned once is applied automatically next time with no re-teaching. Built on the 7 Laws of AI Agent Discipline (research, plan, verify, reflect, learn) and shipped as 28 bundled skills, instinct-aware hooks, an MCP toolset for recall and reflection, and a GitHub Action transcript linter that feeds real work history back into sharper instincts.
 
 ## What This Is
 
 The persistent-memory and discipline layer for AI coding agents. It carries the corrections Claude has already received from one session into the next, grounds each edit in real facts before it lands, and learns from every session so its competence compounds over time — research, plan, execute one thing at a time, verify, reflect, iterate, learn — building behavioral instincts via the Mulahazah learning system, so the same correction never has to be given twice and each run starts smarter than the last. Orchestration tools run a task; this is the layer that makes the lessons survive the run.
+
+Smarter models do not retire this product. Planning etiquette and "remember to verify" reminders merge into the model over time. The runtime gate, this-repo memory, and proof that a change worked do not. Keep goal-driven execution plus research / verify / learn guardrails; retire scaffolding when the native harness covers it (see skills/model-forward.md).
+
+How you actually benefit:
+1. Beginner install (or `npx continuous-improvement install`) — gateguard fires on Edit/Write; no prompt prefix required.
+2. After a real session run `/seven-laws` — capture is silent; instincts form when you close the loop. `/recall` for "have I hit this before?". `/planning-with-files` writes `task_plan.md`.
+3. Expert mode for MCP tools, `/harvest`, `/distill`, and optional `CLAUDE_RECALL_BRIEFING=1`. Empty harvest/distill on day 1 means missing observation history, not a broken command.
 
 ## Install
 

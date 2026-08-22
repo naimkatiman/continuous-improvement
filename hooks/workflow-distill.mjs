@@ -24,9 +24,9 @@
 // name + verify command, so a run is nudged at most once. Fail-open by
 // construction: any error exits 0 and never blocks. No network. 5s hook budget.
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 import { workflowRunFromObservations } from "../lib/skill-distill.mjs";
 function safeJsonParse(text) {
@@ -60,7 +60,7 @@ function resolveProjectRoot() {
     return "global";
 }
 function projectHash(root) {
-    return createHash("sha256").update(root).digest("hex").slice(0, 12);
+    return hashProjectRoot(root);
 }
 function readObservations(instinctsProjectDir) {
     const file = join(instinctsProjectDir, "observations.jsonl");

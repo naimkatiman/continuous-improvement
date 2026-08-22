@@ -24,7 +24,6 @@
  * session_ids have been briefed so each session is briefed at most once.
  */
 
-import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -32,6 +31,7 @@ import { execFileSync } from "node:child_process";
 
 import { buildIndex, query, type RecallObservation } from "../lib/recall-index.mjs";
 import { DEFAULT_MAX_HITS, decideBriefing } from "../lib/recall-briefing.mjs";
+import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 
 interface Payload {
   prompt?: unknown;
@@ -78,7 +78,7 @@ function resolveProjectRoot(): string {
 }
 
 function instinctsDir(home: string): string {
-  const hash = createHash("sha256").update(resolveProjectRoot()).digest("hex").slice(0, 12);
+  const hash = hashProjectRoot(resolveProjectRoot());
   return join(home, ".claude", "instincts", hash);
 }
 

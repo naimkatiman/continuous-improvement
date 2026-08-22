@@ -215,6 +215,41 @@ describe("observe.mjs (Node observer entrypoint)", () => {
             rmSync(isolatedHome, { recursive: true, force: true });
         }
     });
+    it("writes C:/ and c:/ project dirs into one hash bucket", () => {
+        const isolatedHome = join(tmpdir(), `ci-node-observe-canon-${Date.now()}`);
+        mkdirSync(isolatedHome, { recursive: true });
+        try {
+            const payload = JSON.stringify({
+                tool_name: "Read",
+                session_id: "canon-case",
+                tool_input: { file_path: "README.md" },
+            });
+            const first = runObserve(payload, {
+                HOME: isolatedHome,
+                USERPROFILE: isolatedHome,
+                CLAUDE_PROJECT_DIR: "C:/Ai/continuous-improvement",
+            });
+            const second = runObserve(payload, {
+                HOME: isolatedHome,
+                USERPROFILE: isolatedHome,
+                CLAUDE_PROJECT_DIR: "c:/Ai/continuous-improvement",
+            });
+            assert.equal(first.status, 0, `stderr: ${first.stderr}`);
+            assert.equal(second.status, 0, `stderr: ${second.stderr}`);
+            const dirs = readdirSync(instinctsDirOf(isolatedHome)).filter((d) => d !== "global");
+            assert.equal(dirs.length, 1, `expected one bucket, got ${dirs.join(",")}`);
+            const projectDir = join(instinctsDirOf(isolatedHome), dirs[0]);
+            const rows = readFileSync(join(projectDir, "observations.jsonl"), "utf8")
+                .trim()
+                .split("\n");
+            assert.equal(rows.length, 2);
+            const project = JSON.parse(readFileSync(join(projectDir, "project.json"), "utf8"));
+            assert.equal(project.root, "c:/Ai/continuous-improvement");
+        }
+        finally {
+            rmSync(isolatedHome, { recursive: true, force: true });
+        }
+    });
     it("completes a single invocation in under 500ms (Windows budget)", () => {
         const start = Date.now();
         runObserve(JSON.stringify({

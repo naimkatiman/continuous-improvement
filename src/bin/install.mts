@@ -15,19 +15,23 @@ import {
   chmodSync,
   copyFileSync,
   existsSync,
+  lstatSync,
+  mkdtempSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   readdirSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
 import { execSync } from "node:child_process";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createHash } from "node:crypto";
 import { PACKAGE_NAME, VERSION, getToolNames } from "../lib/plugin-metadata.mjs";
+import { hashProjectRoot, resolveProjectRoot } from "../lib/gateguard-state.mjs";
 import { TARGET_IDS, planTargetWrites, resolveTargets } from "../lib/install-targets.mjs";
 import {
   type UpdateCache,
@@ -38,6 +42,7 @@ import {
 } from "../lib/version-check.mjs";
 
 type InstallMode = "beginner" | "expert";
+type InstallOutcome = "installed" | "preserved" | "failed";
 type HookType = "PreToolUse" | "PostToolUse" | "SessionStart" | "SessionEnd";
 
 interface HookCommand {
@@ -76,6 +81,7 @@ interface ProjectHash {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const SKILL_SOURCE = join(__dirname, "..", "SKILL.md");
+const SHIP_SKILL_SOURCE = join(__dirname, "..", "skills", "ship.md");
 const SKILL_NAME = "continuous-improvement";
 const REPO_ROOT = join(__dirname, "..");
 const COMMAND_FILES = [
@@ -192,17 +198,173 @@ const requestedMode = modeIndex !== -1 ? rawArgs[modeIndex + 1] : undefined;
 const INSTALL_MODE: InstallMode = isInstallMode(requestedMode) ? requestedMode : "beginner";
 
 const SKILL_DIR = join(getHomeDir(), ".claude", "skills", SKILL_NAME);
+const SHIP_SKILL_DIR = join(getHomeDir(), ".claude", "skills", "ship");
+const SHIP_SKILLS_DIR = dirname(SHIP_SKILL_DIR);
+const SHIP_STAGING_ROOT = join(getHomeDir(), ".claude", ".continuous-improvement-staging");
+const SHIP_SKILL_OWNER_FILE = join(SHIP_SKILL_DIR, ".continuous-improvement-owner");
+const SHIP_SKILL_OWNER = `${PACKAGE_NAME}\n`;
 
-function installSkill(): boolean {
+function pathEntryExists(path: string): boolean {
+  try {
+    lstatSync(path);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+function isOwnedShipSkill(): boolean {
+  try {
+    const dir = lstatSync(SHIP_SKILL_DIR);
+    const owner = lstatSync(SHIP_SKILL_OWNER_FILE);
+    if (!dir.isDirectory() || dir.isSymbolicLink()) return false;
+    if (!owner.isFile() || owner.isSymbolicLink() || owner.nlink !== 1) return false;
+    return readFileSync(SHIP_SKILL_OWNER_FILE, "utf8") === SHIP_SKILL_OWNER;
+  } catch {
+    return false;
+  }
+}
+
+function isSameOrChildPath(parent: string, candidate: string): boolean {
+  const relativePath = relative(parent, candidate);
+  return (
+    relativePath === "" ||
+    (relativePath !== ".." && !relativePath.startsWith(`..${sep}`) && !isAbsolute(relativePath))
+  );
+}
+
+function getSafeShipStagingRoot(): { stagingRoot: string; skillsRoot: string } {
+  mkdirSync(dirname(SHIP_STAGING_ROOT), { recursive: true });
+  try {
+    mkdirSync(SHIP_STAGING_ROOT);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+  }
+
+  const stagingEntry = lstatSync(SHIP_STAGING_ROOT);
+  if (!stagingEntry.isDirectory() || stagingEntry.isSymbolicLink()) {
+    throw new Error(
+      `Ship staging root must be a plain directory, not a link or junction: ${SHIP_STAGING_ROOT}`,
+    );
+  }
+
+  const stagingRoot = realpathSync(SHIP_STAGING_ROOT);
+  const skillsRoot = realpathSync(SHIP_SKILLS_DIR);
+  if (isSameOrChildPath(skillsRoot, stagingRoot)) {
+    throw new Error(`Ship staging root resolves inside skill discovery: ${stagingRoot}`);
+  }
+  return { stagingRoot, skillsRoot };
+}
+
+function stageShipSkill(): string {
+  mkdirSync(SHIP_SKILLS_DIR, { recursive: true });
+  const { stagingRoot, skillsRoot } = getSafeShipStagingRoot();
+  const createdStagingDir = mkdtempSync(join(stagingRoot, "ship-"));
+  try {
+    const stagingEntry = lstatSync(createdStagingDir);
+    const stagingDir = realpathSync(createdStagingDir);
+    if (
+      !stagingEntry.isDirectory() ||
+      stagingEntry.isSymbolicLink() ||
+      !isSameOrChildPath(stagingRoot, stagingDir) ||
+      isSameOrChildPath(skillsRoot, stagingDir)
+    ) {
+      throw new Error(`Ship staging directory escaped its safe root: ${stagingDir}`);
+    }
+    copyFileSync(SHIP_SKILL_SOURCE, join(stagingDir, "SKILL.md"));
+    writeFileSync(join(stagingDir, ".continuous-improvement-owner"), SHIP_SKILL_OWNER);
+    return stagingDir;
+  } catch (error) {
+    rmSync(createdStagingDir, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+function installShipSkill(): InstallOutcome {
+  const shipSkillExists = pathEntryExists(SHIP_SKILL_DIR);
+  if (shipSkillExists && !isOwnedShipSkill()) {
+    console.warn(`  ! Preserved existing unowned ship skill at ${SHIP_SKILL_DIR}`);
+    return "preserved";
+  }
+
+  let stagingDir = "";
+  let preserveStagingDir = false;
+  try {
+    stagingDir = stageShipSkill();
+    if (shipSkillExists) {
+      const skillPath = join(SHIP_SKILL_DIR, "SKILL.md");
+      const previousSkillPath = join(stagingDir, "previous-SKILL.md");
+      let previousSkillMoved = false;
+      if (pathEntryExists(skillPath)) {
+        const skillEntry = lstatSync(skillPath);
+        if (skillEntry.isDirectory()) {
+          throw new Error(`Refusing to replace directory at ${skillPath}`);
+        }
+        renameSync(skillPath, previousSkillPath);
+        previousSkillMoved = true;
+      }
+      try {
+        renameSync(join(stagingDir, "SKILL.md"), skillPath);
+      } catch (error) {
+        if (previousSkillMoved) {
+          try {
+            renameSync(previousSkillPath, skillPath);
+          } catch (restoreError) {
+            preserveStagingDir = true;
+            let recoveryRenameError = "";
+            const stagedSkillPath = join(stagingDir, "SKILL.md");
+            if (pathEntryExists(stagedSkillPath)) {
+              try {
+                renameSync(stagedSkillPath, join(stagingDir, "new-SKILL.md"));
+              } catch (recoveryError) {
+                recoveryRenameError = ` Recovery artifact rename also failed (${getErrorMessage(recoveryError)}).`;
+              }
+            }
+            throw new Error(
+              `Ship skill replacement failed (${getErrorMessage(error)}) and rollback failed (${getErrorMessage(restoreError)}).${recoveryRenameError} Recovery files retained outside skill discovery at ${stagingDir}`,
+            );
+          }
+        }
+        throw error;
+      }
+      rmSync(stagingDir, { recursive: true });
+      stagingDir = "";
+    } else {
+      renameSync(stagingDir, SHIP_SKILL_DIR);
+      stagingDir = "";
+    }
+    console.log(`  ✓ Global ship skill → ${SHIP_SKILL_DIR}/SKILL.md`);
+    return "installed";
+  } catch (error) {
+    console.error(`  ✗ Global ship skill install failed: ${getErrorMessage(error)}`);
+    return "failed";
+  } finally {
+    if (stagingDir && !preserveStagingDir) {
+      try {
+        if (pathEntryExists(stagingDir)) {
+          rmSync(stagingDir, { recursive: true, force: true });
+        }
+      } catch (cleanupError) {
+        console.error(
+          `  ! Staged ship skill cleanup failed at ${stagingDir}: ${getErrorMessage(cleanupError)}`,
+        );
+      }
+    }
+  }
+}
+
+function installSkill(): InstallOutcome {
   try {
     mkdirSync(SKILL_DIR, { recursive: true });
     copyFileSync(SKILL_SOURCE, join(SKILL_DIR, "SKILL.md"));
     console.log(`  ✓ Claude Code skill → ${SKILL_DIR}/SKILL.md`);
+    const shipOutcome = installShipSkill();
     setupMulahazah();
-    return true;
+    return shipOutcome;
   } catch (error) {
     console.error(`  ✗ Install failed: ${getErrorMessage(error)}`);
-    return false;
+    return "failed";
   }
 }
 
@@ -433,10 +595,11 @@ function patchClaudeSettings(observePath: string): void {
   }
 }
 
-function uninstallAll(): void {
-  console.log("\nUninstalling continuous-improvement skill...\n");
+function uninstallAll(): boolean {
+  console.log("\nUninstalling continuous-improvement skills...\n");
   const home = getHomeDir();
   let removed = 0;
+  let failed = false;
 
   if (existsSync(SKILL_DIR)) {
     try {
@@ -445,6 +608,22 @@ function uninstallAll(): void {
       removed++;
     } catch (error) {
       console.error(`  ✗ Skill removal failed: ${getErrorMessage(error)}`);
+      failed = true;
+    }
+  }
+
+  if (existsSync(SHIP_SKILL_DIR)) {
+    if (!isOwnedShipSkill()) {
+      console.warn(`  ! Preserved existing unowned ship skill at ${SHIP_SKILL_DIR}`);
+    } else {
+      try {
+        rmSync(SHIP_SKILL_DIR, { recursive: true });
+        console.log("  ✓ Removed global ship skill");
+        removed++;
+      } catch (error) {
+        console.error(`  ✗ Global ship skill removal failed: ${getErrorMessage(error)}`);
+        failed = true;
+      }
     }
   }
 
@@ -459,6 +638,7 @@ function uninstallAll(): void {
       console.log(`  ✓ Removed /${commandName.replace(".md", "")} command`);
     } catch (error) {
       console.error(`  ✗ ${commandName}: ${getErrorMessage(error)}`);
+      failed = true;
     }
   }
 
@@ -473,6 +653,7 @@ function uninstallAll(): void {
       console.log(`  ✓ Removed ${hookFile}`);
     } catch (error) {
       console.error(`  ✗ ${hookFile}: ${getErrorMessage(error)}`);
+      failed = true;
     }
   }
 
@@ -488,6 +669,7 @@ function uninstallAll(): void {
       console.log(`  ✓ Removed ${observerFile}`);
     } catch (error) {
       console.error(`  ✗ ${observerFile}: ${getErrorMessage(error)}`);
+      failed = true;
     }
   }
 
@@ -555,13 +737,17 @@ function uninstallAll(): void {
       }
     } else {
       console.warn("  ! Could not clean settings.json — remove hooks manually");
+      failed = true;
     }
   }
 
   const desktopConfigPath = join(home, ".claude", "claude_desktop_config.json");
   if (existsSync(desktopConfigPath)) {
     const desktopConfig = readJsonFile<ClaudeSettings>(desktopConfigPath);
-    if (desktopConfig?.mcpServers?.["continuous-improvement"]) {
+    if (!desktopConfig) {
+      console.warn("  ! Could not clean claude_desktop_config.json — remove the MCP server manually");
+      failed = true;
+    } else if (desktopConfig.mcpServers?.["continuous-improvement"]) {
       delete desktopConfig.mcpServers["continuous-improvement"];
       writeFileSync(desktopConfigPath, JSON.stringify(desktopConfig, null, 2) + "\n");
       console.log("  ✓ Removed MCP server from Claude Desktop config");
@@ -576,6 +762,7 @@ function uninstallAll(): void {
     "\n  Note: Instinct data in ~/.claude/instincts/ was preserved.\n" +
       "  To remove learned data too: rm -rf ~/.claude/instincts/\n"
   );
+  return !failed;
 }
 
 function printUsage(): void {
@@ -589,11 +776,11 @@ Subcommands:
 
 Options for 'install':
   --mode <mode>     Installation mode:
-                      beginner  — hooks + skill + commands (default)
+                      beginner  — hooks + skills + commands (default)
                       expert    — beginner + MCP server + session hooks
   --pack <name>     Load a starter instinct pack (react, python, go, meta)
   --target <names>  Comma-separated platform list (default: claude):
-                      claude    — full install: hooks + skill + commands
+                      claude    — full install: hooks + skills + commands
                       gemini    — GEMINI.md (Gemini CLI)
                       codex     — AGENTS.md (Codex CLI / agents.md standard)
                       cursor    — .cursor/rules/continuous-improvement.mdc
@@ -621,18 +808,9 @@ Examples:
 }
 
 function getProjectHashSync(): ProjectHash {
-  try {
-    // No shell redirect — `2>/dev/null` breaks under cmd.exe (tries to open a
-    // file literally named /dev/null); ignore stderr via stdio instead.
-    const root = execSync("git rev-parse --show-toplevel", {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-    const hash = createHash("sha256").update(root).digest("hex").slice(0, 12);
-    return { root, hash };
-  } catch {
-    return { root: "global", hash: "global" };
-  }
+  const root = resolveProjectRoot();
+  if (root === "global") return { root: "global", hash: "global" };
+  return { root, hash: hashProjectRoot(root) };
 }
 
 const args = process.argv.slice(2);
@@ -664,8 +842,7 @@ if (command === "backfill") {
 }
 
 if (args.includes("--uninstall")) {
-  uninstallAll();
-  process.exit(0);
+  process.exit(uninstallAll() ? 0 : 1);
 }
 
 // --target <names>: comma-separated platform list, default claude-only.
@@ -734,7 +911,8 @@ warnOnMarketplaceCollision();
 
 console.log("Installing to Claude Code...\n");
 
-const installed = installSkill() ? 1 : 0;
+const installOutcome = installSkill();
+if (installOutcome === "failed") process.exitCode = 1;
 
 const modeInfo: Record<InstallMode, string> = {
   beginner: "Hooks are capturing silently. System auto-levels as you use it.",
@@ -795,19 +973,25 @@ if (packIndex !== -1 && rawArgs[packIndex + 1]) {
   }
 }
 
-console.log(`
-${installed === 1 ? "Done." : "Failed."}
-${modeInfo[INSTALL_MODE]}
+const installedNextSteps = `${modeInfo[INSTALL_MODE]}
 
 Next steps:
   1. Start a new Claude Code session
   2. Say: "Use the continuous-improvement framework to [your task]"
-  3. If a task needs persistent planning, run: /planning-with-files
-  4. After your first task, run: /continuous-improvement
-  5. Try: /discipline for quick reference, /dashboard for instinct health
+  3. For one defect, run: /ship [one-line defect description]
+  4. If a task needs persistent planning, run: /planning-with-files
+  5. After your first task, run: /continuous-improvement
+  6. Try: /discipline for quick reference, /dashboard for instinct health
 ${INSTALL_MODE === "expert" ? `\nMCP tools available (${getToolNames("expert").length}): ${getToolNames("expert").join(", ")}` : ""}
-Available instinct packs: npx continuous-improvement install --pack react|python|go|meta
-`);
+Available instinct packs: npx continuous-improvement install --pack react|python|go|meta`;
+const installSummary =
+  installOutcome === "installed"
+    ? `Done.\n${installedNextSteps}`
+    : installOutcome === "preserved"
+      ? `Done with warning.\n${modeInfo[INSTALL_MODE]}\n\nPackage /ship was not installed because an existing unowned ship skill was preserved. Resolve that collision, then reinstall before using the package workflow.`
+      : "Failed.\nInstallation incomplete. Fix the errors above and rerun the installer. Do not assume hooks, skills, or commands are ready.";
+
+console.log(`\n${installSummary}\n`);
 
 // Update-available nudge for the npm/CLI install path (the marketplace path is
 // covered by Claude Code's native plugin auto-update). Reads the public npm

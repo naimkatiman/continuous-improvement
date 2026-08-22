@@ -16,12 +16,11 @@ import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
-import { createHash } from "node:crypto";
 import { PACKAGE_NAME, VERSION, getToolDefinitions, isPluginMode, } from "../lib/plugin-metadata.mjs";
 import { formatDriftReport, parseGoalFromPlan, scoreObservations, } from "../lib/goal-state.mjs";
 import { buildIndex, formatRecallHits, parseSince, query as queryRecall, } from "../lib/recall-index.mjs";
 import { draftFromCandidate, draftFromWorkflowRun, extractTrajectories, findCandidates, formatCandidates, serializeDraft, workflowRunFromObservations, } from "../lib/skill-distill.mjs";
-import { MAX_CLEARED_FILES, canonicalizeFileKey, clearFiles, resolveInstinctsRoot, resolveSessionDir, } from "../lib/gateguard-state.mjs";
+import { MAX_CLEARED_FILES, canonicalizeFileKey, clearFiles, hashProjectRoot, resolveInstinctsRoot, resolveProjectRoot, resolveSessionDir, } from "../lib/gateguard-state.mjs";
 function getHomeDir() {
     return process.env.HOME || process.env.USERPROFILE || homedir();
 }
@@ -93,14 +92,10 @@ const modeIndex = args.indexOf("--mode");
 const requestedMode = args[modeIndex + 1];
 const MODE = isPluginMode(requestedMode) ? requestedMode : "beginner";
 function getProjectHash() {
-    try {
-        const root = execSync("git rev-parse --show-toplevel 2>/dev/null", { encoding: "utf8" }).trim();
-        const hash = createHash("sha256").update(root).digest("hex").slice(0, 12);
-        return { root, hash, name: basename(root) };
-    }
-    catch {
+    const root = resolveProjectRoot();
+    if (root === "global")
         return { root: "global", hash: "global", name: "global" };
-    }
+    return { root, hash: hashProjectRoot(root), name: basename(root) };
 }
 function readInstincts(projectHash) {
     const instincts = [];

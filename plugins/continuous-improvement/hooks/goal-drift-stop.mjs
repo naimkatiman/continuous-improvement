@@ -17,10 +17,10 @@
 // construction: any error / missing goal / unreadable observations exits 0 and
 // never blocks. No network. 5s hook budget.
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { evaluateGoalDrift } from "../lib/goal-drift-gate.mjs";
+import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 function readStdinSync() {
     try {
@@ -62,7 +62,7 @@ function resolveProjectRoot() {
     return "global";
 }
 function projectHash(root) {
-    return createHash("sha256").update(root).digest("hex").slice(0, 12);
+    return hashProjectRoot(root);
 }
 function readGoalMarkdown(projectRoot, instinctsProjectDir) {
     const candidates = [join(projectRoot, "task_plan.md"), join(instinctsProjectDir, "goal.md")];

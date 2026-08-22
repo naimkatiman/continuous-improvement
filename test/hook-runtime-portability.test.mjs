@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
+import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 import { getPluginHooksConfig } from "../lib/plugin-metadata.mjs";
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const REPO_ROOT = join(__dirname, "..");
@@ -63,10 +63,7 @@ describe("plugin-managed hook runtime portability", () => {
         const fixture = join(tmpdir(), `ci-session-hook-${Date.now()}`);
         const home = join(fixture, "home");
         const projectRoot = join(fixture, "project");
-        const projectHash = createHash("sha256")
-            .update(projectRoot)
-            .digest("hex")
-            .slice(0, 12);
+        const projectHash = hashProjectRoot(projectRoot);
         const projectDir = join(home, ".claude", "instincts", projectHash);
         try {
             mkdirSync(projectDir, { recursive: true });
