@@ -23,13 +23,13 @@
  * ~/.claude/instincts/<project-hash>/recall-briefing-session.json records which
  * session_ids have been briefed so each session is briefed at most once.
  */
-import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { buildIndex, query } from "../lib/recall-index.mjs";
 import { DEFAULT_MAX_HITS, decideBriefing } from "../lib/recall-briefing.mjs";
+import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 const ENABLED_VALUES = new Set(["1", "on", "true", "yes"]);
 const MAX_BRIEFED_KEYS = 1000;
 function isEnabled() {
@@ -65,7 +65,7 @@ function resolveProjectRoot() {
     return "global";
 }
 function instinctsDir(home) {
-    const hash = createHash("sha256").update(resolveProjectRoot()).digest("hex").slice(0, 12);
+    const hash = hashProjectRoot(resolveProjectRoot());
     return join(home, ".claude", "instincts", hash);
 }
 function readObservations(dir) {

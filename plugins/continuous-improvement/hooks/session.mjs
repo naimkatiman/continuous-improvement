@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 function read(path) {
     try {
@@ -62,7 +62,7 @@ function main() {
     if (!home)
         return;
     const instinctsRoot = join(home, ".claude", "instincts");
-    const hash = createHash("sha256").update(projectRoot()).digest("hex").slice(0, 12);
+    const hash = hashProjectRoot(projectRoot());
     const projectDir = join(instinctsRoot, hash);
     const files = [...yamlFiles(projectDir), ...yamlFiles(join(instinctsRoot, "global"))];
     const observations = read(join(projectDir, "observations.jsonl")).split(/\r?\n/).filter(Boolean).length;

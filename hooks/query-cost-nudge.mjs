@@ -16,7 +16,7 @@
  * the DB files stay dirty. Never blocks; fail-open on any error.
  */
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -71,7 +71,7 @@ function markerKey(sessionId) {
     return sanitized || `day-${new Date().toISOString().slice(0, 10)}`;
 }
 function markerPath(home, projectRoot, sessionId) {
-    const hash = createHash("sha256").update(projectRoot).digest("hex").slice(0, 12);
+    const hash = hashProjectRoot(projectRoot);
     return join(home, ".claude", "instincts", hash, "query-cost-nudge", `${markerKey(sessionId)}.nudged`);
 }
 function main() {

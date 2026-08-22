@@ -30,8 +30,8 @@ import { execSync } from "node:child_process";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createHash } from "node:crypto";
 import { PACKAGE_NAME, VERSION, getToolNames } from "../lib/plugin-metadata.mjs";
+import { hashProjectRoot, resolveProjectRoot } from "../lib/gateguard-state.mjs";
 import { TARGET_IDS, planTargetWrites, resolveTargets } from "../lib/install-targets.mjs";
 import {
   type UpdateCache,
@@ -808,18 +808,9 @@ Examples:
 }
 
 function getProjectHashSync(): ProjectHash {
-  try {
-    // No shell redirect — `2>/dev/null` breaks under cmd.exe (tries to open a
-    // file literally named /dev/null); ignore stderr via stdio instead.
-    const root = execSync("git rev-parse --show-toplevel", {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-    const hash = createHash("sha256").update(root).digest("hex").slice(0, 12);
-    return { root, hash };
-  } catch {
-    return { root: "global", hash: "global" };
-  }
+  const root = resolveProjectRoot();
+  if (root === "global") return { root: "global", hash: "global" };
+  return { root, hash: hashProjectRoot(root) };
 }
 
 const args = process.argv.slice(2);
