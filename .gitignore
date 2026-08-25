@@ -4,8 +4,13 @@ node_modules/
 .tmp-stop-e2e/
 nanobanana-output/
 .playwright-mcp/
+graphify-out/
 *.tmp
 dist/
+
+# Windows reserved-device redirect artifact: a stray `> NUL` in a Git Bash
+# command writes a real file named NUL at the repo root instead of discarding.
+NUL
 
 # Host-local Claude Code runtime state (scheduled_tasks.lock, worktrees/).
 # Recreated per session by the local harness; never source.
