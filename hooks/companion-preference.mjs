@@ -48,11 +48,7 @@ const OVERRIDES = {
         plugin: "agent-skills",
     },
     ralph: {
-        companion: "oh-my-claudecode:ultrawork",
-        plugin: "oh-my-claudecode",
-    },
-    "learn-eval": {
-        companion: "oh-my-claudecode:retrospective",
+        companion: "oh-my-claudecode:ultragoal",
         plugin: "oh-my-claudecode",
     },
 };
