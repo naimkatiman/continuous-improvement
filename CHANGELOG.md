@@ -4,6 +4,26 @@ All notable changes to this skill are documented here.
 
 ---
 
+## [3.25.0] — 2026-09-07
+
+### Added
+
+- **Tagged releases now deploy continuous-improvement.dev** — after npm publish, `release.yml` deploys `docs/landing` to the Cloudflare Pages project and re-reads the live domain so a missed deploy fails the release instead of turning `landing-drift.yml` red the next morning. Gated on `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`: without them the step warns and skips, so a fork still gets a complete publish. Last in the job, so a Cloudflare outage cannot block npm. (#307)
+- **`verify:test-count`** — every surface that states the suite size must agree, and CI tees `npm test` then asserts the claimed count against the real run. The filesystem cannot derive the number (generated cases in loops), so the docs stay the source of truth and the live run is the check. (#306)
+- **`verify:invariant-count`** — derives the invariant list from the `verify:all` script and fails if `CLAUDE.md`, `AGENTS.md`, or `docs/RELEASING.md` claim a different count or a different ordered name list. (#312)
+
+### Changed
+
+- **oh-my-claudecode snapshot 4.13.6 → 5.3.0** — `ultrawork` is gone upstream; the autonomous-run row now routes to `ultragoal`. The never-existent `oh-my-claudecode:retrospective` target is dropped rather than substituted. (#308, #309)
+- **obra/superpowers snapshot 5.1.0 → 6.3.0**. (#304)
+- **`verify:routing-targets` checks the vendored snapshot**, not just the declaration in `optional-companions.json`. A declared `oh-my-claudecode:` / `superpowers:` / `agent-skills:` / `ruflo-swarm:` target must exist at `third-party/<snapshot>/skills/<name>/`. (#311)
+
+### Fixed
+
+- **`refresh-third-party.mjs` keeps `OUR_NOTES.md` and `.fork-only-skills.txt`** across the wipe, and reports how many of ours were preserved. (#310)
+- **Refresh aborts before the wipe** if upstream removed a skill our flat source still routes to, naming the skills and files. Bypass is `--allow-stale-refs`, not `--force`. (#313)
+- **Brainstorming dispatcher wording** now describes the three-path router, not just the architectural path. (#305)
+
 ## [3.24.0] — 2026-09-06
 
 ### Added
