@@ -87,8 +87,8 @@ When a task trigger fires, the dispatcher resolves to the first available skill 
 | Simplify code, remove duplication | 6 | `agent-skills:code-simplification` → `simplify` |
 | Security review for auth/input/secrets | 4 | `agent-skills:security-and-hardening` → `security-review` |
 | Browser-level visual regression | 4 | `oh-my-claudecode:visual-verdict` (only source) |
-| Reflect after session, extract patterns | 5+7 | `ci:learn-eval` → `oh-my-claudecode:retrospective` |
-| Long autonomous run with quality gates | 6 | `oh-my-claudecode:ultrawork` → `ci:ralph` |
+| Reflect after session, extract patterns | 5+7 | `ci:learn-eval` |
+| Long autonomous run with quality gates | 6 | `oh-my-claudecode:ultragoal` → `ci:ralph` |
 | Coordinator role for staged hand-off | 3 | `ruflo-swarm:agents/coordinator` (when ruflo installed) |
 | Product-management work (PRD, OKRs, personas, GTM, growth, market research, analytics) | 1+2+5 | Install `phuryn/pm-skills` via Claude Code marketplace — see docs/THIRD_PARTY.md. Eight installable plugins (`pm-toolkit`, `pm-product-strategy`, `pm-product-discovery`, `pm-market-research`, `pm-data-analytics`, `pm-marketing-growth`, `pm-go-to-market`, `pm-execution`) cover the full lifecycle. Out of band — not a `/plugin install <name>@continuous-improvement` target. |
 
@@ -122,15 +122,14 @@ Valid values:
 
 ### Which rows the override affects
 
-These are the routing rows where the override changes the resolved target. Rows not listed here are CI-only or companion-only and route the same under any setting.
+These are the routing rows where the override changes the resolved target. Rows not listed here are CI-only or companion-only and route the same under any setting. `ci:learn-eval` was listed here until OMC 5.x: its companion `oh-my-claudecode:retrospective` never existed upstream, so the row is CI-only and the override cannot change it.
 
 | Trigger | `ci-first` (default) | `companions-first` |
 |---|---|---|
 | Write a failing test before code | `ci:tdd-workflow` | `superpowers:test-driven-development`, then `agent-skills:test-driven-development` |
 | Verify before declaring done | `ci:verification-loop` | `superpowers:verification-before-completion` |
 | Curate the right context window | `ci:context-budget` | `agent-skills:context-engineering` |
-| Long autonomous run with quality gates | `ci:ralph` | `oh-my-claudecode:ultrawork`, then `ci:ralph` |
-| Reflect after session, extract patterns | `ci:learn-eval` | `oh-my-claudecode:retrospective` |
+| Long autonomous run with quality gates | `ci:ralph` | `oh-my-claudecode:ultragoal`, then `ci:ralph` |
 
 `superpowers:writing-plans` already wins the planning chain under both settings — it is the first entry, with `ci:planning-with-files` as the third fallback — so that row is unchanged.
 

@@ -191,14 +191,14 @@
     {
       "name": "Multi-session retrospective across a sprint",
       "patterns": ["retrospective", "sprint review", "multi.session review", "what worked.*what failed"],
-      "preferred": ["oh-my-claudecode:retrospective", "learn-eval"],
+      "preferred": ["learn-eval"],
       "fallback": "What worked / what failed / what to do differently / 3 ranked next moves.",
       "marker": "oh-my-claudecode"
     },
     {
       "name": "Long autonomous run with quality gates",
       "patterns": ["long autonomous", "ultrawork", "quality gates? (between|per) iteration"],
-      "preferred": ["oh-my-claudecode:ultrawork", "ralph"],
+      "preferred": ["oh-my-claudecode:ultragoal", "ralph"],
       "fallback": "PRD-shaped autonomous loop with verify-between-iterations.",
       "marker": "oh-my-claudecode"
     },
