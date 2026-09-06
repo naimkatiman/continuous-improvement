@@ -22,7 +22,10 @@
  *       wipe the local path, recreate it, copy the selective surface
  *       verbatim, strip every CLAUDE.md inside the snapshot, print a diff
  *       stat. Aborts if the local snapshot path has uncommitted changes
- *       unless --force is passed.
+ *       unless --force is passed, and aborts BEFORE the wipe if upstream
+ *       removed a skill this repo still routes to, unless --allow-stale-refs
+ *       is passed. The two flags are separate on purpose: a dirty-tree
+ *       refresh must not silently disable the stale-reference gate.
  *
  *   node bin/refresh-third-party.mjs --all
  *   node bin/refresh-third-party.mjs --all --check
@@ -38,8 +41,9 @@
  */
 import { spawnSync } from "node:child_process";
 import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { argv, exit, stderr, stdout } from "node:process";
 import { fileURLToPath } from "node:url";
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
@@ -56,6 +60,7 @@ const SNAPSHOTS = [
         manifestHeading: "oh-my-claudecode",
         upstream: "https://github.com/Yeachan-Heo/oh-my-claudecode.git",
         localPath: "third-party/oh-my-claudecode",
+        routingPrefix: "oh-my-claudecode",
         selectiveDirs: [
             "agents",
             "skills",
@@ -94,6 +99,7 @@ const SNAPSHOTS = [
         manifestHeading: "obra/superpowers",
         upstream: "https://github.com/obra/superpowers.git",
         localPath: "third-party/superpowers",
+        routingPrefix: "superpowers",
         selectiveDirs: ["skills", "hooks", "docs", "assets", ".claude-plugin"],
         selectiveFiles: [
             "LICENSE",
@@ -116,7 +122,7 @@ function usage() {
         "Usage:",
         "  node bin/refresh-third-party.mjs --list",
         "  node bin/refresh-third-party.mjs <name> --check",
-        "  node bin/refresh-third-party.mjs <name> [--force]",
+        "  node bin/refresh-third-party.mjs <name> [--force] [--allow-stale-refs]",
         "  node bin/refresh-third-party.mjs --all [--check] [--force]",
         "  node bin/refresh-third-party.mjs --help",
         "",
@@ -241,6 +247,103 @@ async function checkOne(snapshot) {
     }
 }
 /**
+ * Flat-source files and directories that can name a companion skill. Deliberately
+ * excludes `third-party/` — scanning the snapshot being replaced would match the
+ * very copy we are about to overwrite and report every removal as still-referenced.
+ * The `plugins/` tree is excluded too: it is a build mirror of these files.
+ */
+export const REFERENCE_SOURCES = [
+    "optional-companions.json",
+    "skills",
+    "commands",
+    "scripts",
+    join("src", "hooks"),
+];
+/** Skill directory names inside a snapshot, sorted. Empty if there is no skills/ dir. */
+export function listSkillDirs(snapshotRoot) {
+    try {
+        return readdirSync(join(snapshotRoot, "skills"), { withFileTypes: true })
+            .filter((e) => e.isDirectory())
+            .map((e) => e.name)
+            .sort();
+    }
+    catch {
+        return [];
+    }
+}
+/** Skills the old snapshot had that the incoming one does not. */
+export function findRemovedSkills(oldSkills, newSkills) {
+    const incoming = new Set(newSkills);
+    return oldSkills.filter((s) => !incoming.has(s));
+}
+function walkFiles(abs, out) {
+    let entries;
+    try {
+        entries = readdirSync(abs, { withFileTypes: true });
+    }
+    catch {
+        return;
+    }
+    for (const e of entries) {
+        const full = join(abs, e.name);
+        if (e.isDirectory())
+            walkFiles(full, out);
+        else
+            out.push(full);
+    }
+}
+/**
+ * Removed skills that our own source still routes to, with the files naming them.
+ *
+ * This is the check that turns a refresh into a loud failure instead of a silent
+ * one: when OMC 5.x deleted `ultrawork`, the snapshot became honest while our
+ * routing table kept pointing at it, and every gate stayed green. Matching is on
+ * the prefixed `<plugin>:<skill>` form with a boundary, so a bare English word
+ * ("release", "review") in prose is not a false positive and `omc:ultrawork-plus`
+ * does not match `omc:ultrawork`.
+ */
+export function findStaleReferences(repoRoot, routingPrefix, removedSkills) {
+    if (removedSkills.length === 0)
+        return [];
+    const files = [];
+    for (const rel of REFERENCE_SOURCES) {
+        const abs = join(repoRoot, rel);
+        let isDir = false;
+        try {
+            isDir = statSync(abs).isDirectory();
+        }
+        catch {
+            continue;
+        }
+        if (isDir)
+            walkFiles(abs, files);
+        else
+            files.push(abs);
+    }
+    const stale = [];
+    for (const skill of removedSkills) {
+        const re = new RegExp(`${escapeRegExp(routingPrefix)}:${escapeRegExp(skill)}(?![A-Za-z0-9_-])`);
+        const hits = [];
+        for (const file of files) {
+            let text;
+            try {
+                text = readFileSync(file, "utf8");
+            }
+            catch {
+                continue;
+            }
+            if (re.test(text))
+                hits.push(relative(repoRoot, file));
+        }
+        if (hits.length > 0)
+            stale.push({ skill, files: hits.sort() });
+    }
+    return stale;
+}
+function escapeRegExp(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+/**
  * Files inside a snapshot directory that we author, not upstream. The refresh
  * wipes the directory wholesale, so these have to be carried across it by hand.
  * `OUR_NOTES.md` is the drift radar the vendoring contract requires;
@@ -266,7 +369,7 @@ export async function restoreOurFiles(localAbs, saved) {
         await writeFile(join(localAbs, name), body);
     return saved.size;
 }
-async function refreshOne(snapshot, { force }) {
+async function refreshOne(snapshot, { force, allowStaleRefs }) {
     const pinned = await readPinnedSha(snapshot);
     const localAbs = join(REPO_ROOT, snapshot.localPath);
     if (!force && (await pathExists(localAbs))) {
@@ -280,6 +383,25 @@ async function refreshOne(snapshot, { force }) {
         if (headSha.toLowerCase() !== pinned.toLowerCase()) {
             throw new Error(`[${snapshot.name}] upstream HEAD ${headSha} != pinned ${pinned}; ` +
                 `bump the pinned SHA in third-party/MANIFEST.md first`);
+        }
+        // Refuse to land a snapshot that would make our own routing table lie.
+        // When OMC 5.x deleted `ultrawork`, refreshing made the snapshot honest while
+        // optional-companions.json, two skills/superpowers.md tables and the
+        // companion-preference OVERRIDES map kept naming it — and every gate stayed
+        // green, because nothing compared the two. Checked BEFORE the wipe, so a
+        // failure leaves the snapshot untouched and the operator retargets first.
+        const removedSkills = findRemovedSkills(listSkillDirs(localAbs), listSkillDirs(dir));
+        const staleRefs = findStaleReferences(REPO_ROOT, snapshot.routingPrefix, removedSkills);
+        if (staleRefs.length > 0) {
+            const detail = staleRefs
+                .map((r) => `    ${snapshot.routingPrefix}:${r.skill}\n      ${r.files.join("\n      ")}`)
+                .join("\n");
+            const message = `[${snapshot.name}] upstream removed ${staleRefs.length} skill(s) this repo still routes to:\n${detail}\n` +
+                `  Retarget or drop these references first, then re-run the refresh. ` +
+                `Pass --allow-stale-refs to land the snapshot anyway and fix them afterwards.`;
+            if (!allowStaleRefs)
+                throw new Error(message);
+            err(`  WARNING: ${message}`);
         }
         // Our own annotations live inside the snapshot directory, so the wipe below
         // destroys them along with the upstream copy. That silently deleted
@@ -405,6 +527,10 @@ async function main() {
         exit(0);
     }
     const force = args.includes("--force");
+    // Deliberately NOT --force: that means "my tree is dirty, proceed", and a
+    // routine dirty-tree refresh must not silently switch off the stale-reference
+    // gate as a side effect.
+    const allowStaleRefs = args.includes("--allow-stale-refs");
     const check = args.includes("--check");
     const all = args.includes("--all");
     const positional = args.filter((a) => !a.startsWith("--"));
@@ -434,7 +560,7 @@ async function main() {
                     allUpToDate = false;
             }
             else {
-                await refreshOne(snap, { force });
+                await refreshOne(snap, { force, allowStaleRefs });
             }
         }
         catch (e) {
