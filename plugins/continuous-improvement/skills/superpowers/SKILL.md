@@ -122,7 +122,7 @@ Valid values:
 
 ### Which rows the override affects
 
-These are the routing rows where the override changes the resolved target. Rows not listed here are CI-only or companion-only and route the same under any setting.
+These are the routing rows where the override changes the resolved target. Rows not listed here are CI-only or companion-only and route the same under any setting. `ci:learn-eval` was listed here until OMC 5.x: its companion `oh-my-claudecode:retrospective` never existed upstream, so the row is CI-only and the override cannot change it.
 
 | Trigger | `ci-first` (default) | `companions-first` |
 |---|---|---|
@@ -130,7 +130,6 @@ These are the routing rows where the override changes the resolved target. Rows 
 | Verify before declaring done | `ci:verification-loop` | `superpowers:verification-before-completion` |
 | Curate the right context window | `ci:context-budget` | `agent-skills:context-engineering` |
 | Long autonomous run with quality gates | `ci:ralph` | `oh-my-claudecode:ultragoal`, then `ci:ralph` |
-| Reflect after session, extract patterns | `ci:learn-eval` | `ci:learn-eval` (no upstream equivalent) |
 
 `superpowers:writing-plans` already wins the planning chain under both settings — it is the first entry, with `ci:planning-with-files` as the third fallback — so that row is unchanged.
 
