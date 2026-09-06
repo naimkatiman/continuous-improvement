@@ -301,7 +301,7 @@
           </svg>
           <span class="name">continuous-improvement</span>
         </a>
-        <a class="ver-link" href="https://github.com/naimkatiman/continuous-improvement/blob/main/CHANGELOG.md" title="New in 3.23.0: /ship is a global tier-1 skill. Read the changelog."><span class="ver">v3.23.0</span></a>
+        <a class="ver-link" href="https://github.com/naimkatiman/continuous-improvement/blob/main/CHANGELOG.md" title="New in 3.24.0: config-guard protects the files that wire the gates. Read the changelog."><span class="ver">v3.24.0</span></a>
       </div>
       <div class="nav-links">
         <a href="#why">Why</a>
@@ -318,7 +318,7 @@
     <section class="hero">
       <div class="container hero-grid">
         <div class="hero-lead">
-          <span class="kicker reveal">SPEC <b>/</b> AI AGENT DISCIPLINE <b>/</b> REV 3.23.0</span>
+          <span class="kicker reveal">SPEC <b>/</b> AI AGENT DISCIPLINE <b>/</b> REV 3.24.0</span>
           <h1 class="display reveal" style="--i:1">Claude Code that gets <span class="belt draw">sharper every session</span></h1>
           <p class="hero-sub reveal" style="--i:2">Your agent edits before it reads, says "done" without running the test, and forgets yesterday's correction. continuous-improvement puts <b>a gate before the edit</b>, demands <b>proof before "done"</b>, and keeps <b>a ledger across sessions</b> so a lesson learned once is not taught twice.</p>
           <div class="reveal" style="--i:3">
@@ -339,7 +339,7 @@
           </div>
         </div>
         <div class="proof reveal" style="--i:2" aria-label="Captured output of the gateguard hook">
-          <div class="proof-head"><span><span class="tag">hooks/gateguard.mjs</span> · PreToolUse · v3.23.0</span><span>captured, not mocked</span></div>
+          <div class="proof-head"><span><span class="tag">hooks/gateguard.mjs</span> · PreToolUse · v3.24.0</span><span>captured, not mocked</span></div>
 <pre class="in"><span class="c"># the agent tries to create a file with no research on the table</span>
 $ printf '{"tool_name":"Write","tool_input":{"file_path":"src/lib/retry-helper.mts"}}' \
   | node hooks/gateguard.mjs</pre>
@@ -372,9 +372,9 @@ $ printf '…same payload…' | node hooks/gateguard.mjs
         <li><span class="v">1</span><span class="k">Fact gate, default on</span></li>
         <li><span class="v">28</span><span class="k">Bundled skills</span></li>
         <li><span class="v">0</span><span class="k">Runtime deps</span></li>
-        <li><span class="v">1,249</span><span class="k">Tests in the suite</span></li>
+        <li><span class="v">1,271</span><span class="k">Tests in the suite</span></li>
         <li><span class="v">MIT</span><span class="k">License</span></li>
-        <li><span class="v">v3.23.0</span><span class="k">Current rev</span></li>
+        <li><span class="v">v3.24.0</span><span class="k">Current rev</span></li>
       </ul>
     </div>
 
@@ -592,7 +592,7 @@ headings present                     <span class="c">→ allow</span></pre>
             </div>
 <pre class="spec">build      PASS
 types      PASS
-tests      PASS  1249/1249
+tests      PASS  1271/1271
 diff       PASS  <span class="c">3 files, 41 lines, one concern</span></pre>
           </article>
           <article class="mech reveal">
@@ -669,7 +669,7 @@ inject: 2026-08-14 fix for the same error <span class="c">(once per session)</sp
             <span class="kicker" style="display:block;margin-bottom:16px"><b>04</b> · Where it comes from</span>
             <p>Built and used daily by one maintainer on his own production repos. Every hook here exists because a real session went wrong first; the repository's own <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/CLAUDE.md">CLAUDE.md</a> keeps a dated table of those mistakes, what each one cost, and which check now enforces the lesson.</p>
             <p>The product is the loop, not the word count. The reflection block has fixed fields because an unstructured "lessons learned" paragraph is how "I'll remember" disguises itself. Nothing learned is permanent: instincts weaken on correction and fade without use, because self-accounting that happens once is not self-accounting.</p>
-            <p>Read the worked examples (<a href="https://github.com/naimkatiman/continuous-improvement/blob/main/examples/01-bug-fix.md">a bug fix</a>, <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/examples/02-feature-build.md">a feature</a>, <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/examples/03-refactor.md">a refactor</a>), the <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/docs/skills.md">full skill catalog</a>, or <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/CHANGELOG.md">what changed in 3.23.0</a>.</p>
+            <p>Read the worked examples (<a href="https://github.com/naimkatiman/continuous-improvement/blob/main/examples/01-bug-fix.md">a bug fix</a>, <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/examples/02-feature-build.md">a feature</a>, <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/examples/03-refactor.md">a refactor</a>), the <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/docs/skills.md">full skill catalog</a>, or <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/CHANGELOG.md">what changed in 3.24.0</a>.</p>
           </div>
           <dl class="names">
             <dt>The 7 Laws of AI Agent Discipline</dt>
@@ -789,7 +789,7 @@ inject: 2026-08-14 fix for the same error <span class="c">(once per session)</sp
 
   <footer>
     <div class="container foot-grid">
-      <span class="foot-doc">DOC. CI-7L &middot; REV 3.23.0 &middot; MIT LICENSE</span>
+      <span class="foot-doc">DOC. CI-7L &middot; REV 3.24.0 &middot; MIT LICENSE</span>
       <div class="foot-links">
         <a href="https://github.com/naimkatiman/continuous-improvement">GitHub</a>
         <a href="https://www.npmjs.com/package/continuous-improvement">npm</a>
