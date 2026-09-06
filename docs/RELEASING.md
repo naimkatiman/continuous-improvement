@@ -134,9 +134,10 @@ domain (no preview-only step). Run by hand, the deploy uses your local wrangler 
 ### Automated on release (preferred)
 
 `release.yml` deploys the landing page itself, after the npm publish and the GitHub Release, then
-re-reads the live domain and fails if it is not serving the version just tagged. Deploying last means
-a Cloudflare outage can never block a publish, and verifying inline means a silent no-op deploy fails
-the release instead of waiting for the next morning's drift check.
+polls the live domain until it serves the tagged version (or times out). A one-shot read is not
+enough: v3.25.0 uploaded successfully, then the next step still saw 3.24.0 on `*.pages.dev`.
+Deploying last means a Cloudflare outage can never block a publish, and verifying inline means a
+silent no-op deploy fails the release instead of waiting for the next morning's drift check.
 
 This exists because every release moves the landing's version markers, so a release without a deploy
 leaves the site a version behind by construction. v3.22.0 and v3.23.0 both shipped that way and the
