@@ -77,7 +77,7 @@ Before creating {file_path}, present these facts:
 
 ### Destructive Bash Gate (every destructive command)
 
-Triggers on: `rm -rf`, `git reset --hard`, `git push --force`, `drop table`, etc.
+Triggers on structured rules that ignore flag order and spelling — `rm` with any recursive plus any force flag (`rm -r -f`, `rm -Rf`, `rm --recursive --force`), `git clean` with a force flag and no dry run, `git checkout -- <path>` or `git checkout .`, `git restore <path>` unless it is `--staged` only, `find … -delete`, `git push` with a `+refspec`, `git stash drop|clear` — plus the original substring list (`rm -rf`, `git reset --hard`, `git push --force`, `git branch -D`, `drop table`, `truncate `, `Remove-Item -Recurse`, etc.). Each command is judged after `&&`, `||`, `|`, `;` splitting, and a commit message, PR body or title value is blanked first so prose never trips it. The deny reason prints `Matched rule: <id>` so a block is explainable; the classifier is `lib/destructive-bash.mjs`. Plain file writes through Bash (`cat > file`, `sed -i`) are deliberately not gated.
 
 ```
 1. List all files/data this command will modify or delete

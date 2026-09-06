@@ -219,6 +219,10 @@ async function writePluginBundle(): Promise<void> {
       join(PLUGIN_BUNDLE_DIR, "lib", "gateguard-state.mjs"),
     ),
     copyFileTo(
+      join(REPO_ROOT, "lib", "destructive-bash.mjs"),
+      join(PLUGIN_BUNDLE_DIR, "lib", "destructive-bash.mjs"),
+    ),
+    copyFileTo(
       join(REPO_ROOT, "lib", "plugin-metadata.mjs"),
       join(PLUGIN_BUNDLE_DIR, "lib", "plugin-metadata.mjs"),
     ),

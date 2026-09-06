@@ -693,3 +693,46 @@ describe("hooks/gateguard.mjs — CI_GATEGUARD_EXCLUDE opt-in path exclusion", (
     assert.match(decision.reason ?? "", /app\.ts/);
   });
 });
+
+describe("hooks/gateguard.mjs — destructive forms the substring list missed", () => {
+  let sessionDir = "";
+  before(() => {
+    sessionDir = mkdtempSync(join(tmpdir(), "gateguard-forms-"));
+  });
+  after(() => {
+    if (sessionDir) rmSync(sessionDir, { recursive: true, force: true });
+  });
+
+  const blocked: ReadonlyArray<string> = [
+    ["rm", "-r", "-f", "dist"].join(" "),
+    "git clean -fdx",
+    "git checkout -- .",
+    "git restore .",
+    "find . -name '*.log' -delete",
+    "git push origin +main",
+    "git stash drop",
+  ];
+  for (const command of blocked) {
+    it(`blocks: ${command}`, () => {
+      const decision = runHook("Bash", { command }, sessionDir);
+      assert.equal(decision.decision, "block");
+      assert.match(decision.reason ?? "", /Destructive command requested/);
+      assert.match(decision.reason ?? "", /Matched rule: /, "the deny names the rule that fired");
+    });
+  }
+
+  const allowed: ReadonlyArray<string> = [
+    "git clean -n",
+    "git checkout -b feat/new-thing",
+    "git restore --staged README.md",
+    "git stash list",
+    "find . -name '*.log'",
+    "git push origin main",
+  ];
+  for (const command of allowed) {
+    it(`allows: ${command}`, () => {
+      const decision = runHook("Bash", { command }, sessionDir);
+      assert.equal(decision.decision, "allow");
+    });
+  }
+});

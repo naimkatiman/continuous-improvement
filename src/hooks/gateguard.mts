@@ -36,6 +36,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { classifyDestructiveBash } from "../lib/destructive-bash.mjs";
 import {
   MAX_CLEARED_FILES,
   canonicalizeFileKey,
@@ -79,46 +80,14 @@ const TOOL_ROUTE: Record<string, GateType> = {
   Bash: "allow",
 };
 
-const DESTRUCTIVE_PATTERNS: readonly string[] = [
-  "rm -rf",
-  "rm -fr",
-  "git reset --hard",
-  "git push --force",
-  "git push -f",
-  "--force-with-lease",
-  "git branch -D",
-  "drop table",
-  "drop database",
-  "drop schema",
-  "truncate ",
-  "mkfs",
-  "dd if=",
-  "format ",
-  "rmdir /s",
-  "del /f /q",
-  "del /q /f",
-  "Remove-Item -Recurse",
-  "Remove-Item -Force",
-];
-
-// Flags whose VALUE is human prose (a commit message, a PR body) or a filename —
-// never a command to execute. Their contents must not trip the destructive scan:
-// `git commit -m "drop the stale format helper"` and `gh pr create --body "…"`
-// were stranding finished work on their own wording. `-c` is deliberately
-// EXCLUDED — `bash -c "rm -rf /"` carries a real command and must still gate.
-const MESSAGE_FLAG_RE =
-  /(^|\s)(-m|--message|-F|--file|--body|--body-file|--title|--notes|-C|--reuse-message)(=|\s+)('[^']*'|"[^"]*"|\S+)/g;
-
-// Blank the value of every message/body flag so only executable command syntax
-// remains for the destructive-pattern scan. The flag itself is preserved so a
-// flag like `-F` never accidentally merges with its neighbours.
-function stripMessageArgs(command: string): string {
-  return command.replace(MESSAGE_FLAG_RE, (_match, lead: string, flag: string) => `${lead}${flag} `);
-}
-
+// The destructive-Bash classifier lives in lib/destructive-bash.mjs: structured
+// rules (flag order and spelling do not matter: `rm -r -f`, `git clean -fdx`,
+// `git checkout -- .`, `git restore .`, `find -delete`, `git push +ref`,
+// `git stash drop`) plus the original substring list as the fallback. The
+// message-flag carve-out (`git commit -m "…"`) lives there too. Each rule has
+// a stable id the deny reason prints, so a block is explainable.
 function isDestructiveBash(command: string): boolean {
-  const lower = stripMessageArgs(command).toLowerCase();
-  return DESTRUCTIVE_PATTERNS.some((p) => lower.includes(p.toLowerCase()));
+  return classifyDestructiveBash(command).destructive;
 }
 
 function classifyTool(toolName: string, toolInput: ToolInput): GateType {
@@ -324,6 +293,7 @@ function buildBraceRefReason(hit: BraceRefHit): string {
 }
 
 function buildDestructiveBashReason(command: string): string {
+  const rule = classifyDestructiveBash(command).rule ?? "unknown";
   return [
     `Destructive command requested: ${command}`,
     "",
@@ -331,6 +301,7 @@ function buildDestructiveBashReason(command: string): string {
     "  2. Write a one-line rollback procedure",
     "  3. Quote the user's current instruction verbatim",
     "",
+    `Matched rule: ${rule}`,
     "Destructive Bash gates EVERY call — clearance is not cached.",
   ].join("\n");
 }

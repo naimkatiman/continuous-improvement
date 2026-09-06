@@ -151,6 +151,7 @@ async function writePluginBundle() {
         copyFileTo(join(REPO_ROOT, "lib", "git-state.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "git-state.mjs")),
         copyFileTo(join(REPO_ROOT, "bin", "gateguard-clear.mjs"), join(PLUGIN_BUNDLE_DIR, "bin", "gateguard-clear.mjs")),
         copyFileTo(join(REPO_ROOT, "lib", "gateguard-state.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "gateguard-state.mjs")),
+        copyFileTo(join(REPO_ROOT, "lib", "destructive-bash.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "destructive-bash.mjs")),
         copyFileTo(join(REPO_ROOT, "lib", "plugin-metadata.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "plugin-metadata.mjs")),
         copyFileTo(join(REPO_ROOT, "lib", "resolve-home-dir.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "resolve-home-dir.mjs")),
         copyFileTo(join(REPO_ROOT, "lib", "observe-event.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "observe-event.mjs")),
