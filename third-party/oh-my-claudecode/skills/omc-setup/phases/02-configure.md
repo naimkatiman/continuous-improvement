@@ -1,6 +1,41 @@
 # Phase 2: Environment Configuration
 
-**Skip condition**: If resuming and `lastCompletedStep >= 4`, skip this entire phase.
+**Skip condition**: If resuming and `lastCompletedStep >= 4`, skip Steps 2.0–2.3 and begin at Step 2.4 so retired setup values are always cleared before the phase exits.
+
+## Resume Boundary
+
+Capture the original progress marker once when Phase 2 starts. A resumed run that enters at Step 2.4 must not repeat the completed Steps 2.5/2.6 prompts or overwrite a higher progress marker:
+
+```bash
+if ! command -v jq >/dev/null 2>&1; then
+  echo "ERROR: jq is required to resume setup safely. Existing setup state was not modified."
+  exit 1
+fi
+if ! RESUME_LAST_COMPLETED_STEP=$(jq -r '.lastCompletedStep // 0' ".omc/state/setup-state.json" 2>/dev/null); then
+  echo "ERROR: Setup state is invalid JSON. Existing setup state was not modified."
+  exit 1
+fi
+if [ "$RESUME_LAST_COMPLETED_STEP" -ge 4 ] 2>/dev/null; then
+  RESUMED_PHASE_TWO_BOUNDARY="true"
+else
+  RESUMED_PHASE_TWO_BOUNDARY="false"
+fi
+```
+
+## Step 2.0: Check Ralph Ruby Dependency
+
+Ralph workflows require Ruby. On fresh Ubuntu installations, missing Ruby can cause Ralph to fail later with an opaque Claude Code abort. Check for Ruby during setup and show a product-facing remediation hint without blocking the rest of setup:
+
+```bash
+if command -v ruby >/dev/null 2>&1; then
+  echo "Ruby detected for Ralph workflows: $(ruby --version 2>/dev/null | head -1)"
+else
+  echo "WARNING: Ruby was not found on PATH. Ralph workflows require Ruby."
+  echo "Install it, then restart Claude Code before using Ralph."
+  echo "Ubuntu/Debian: sudo apt update && sudo apt install ruby-full"
+  echo "macOS: brew install ruby"
+fi
+```
 
 ## Step 2.1: Setup HUD Statusline
 
@@ -20,13 +55,15 @@ This will:
 After HUD setup completes, save progress:
 ```bash
 CONFIG_TYPE=$(jq -r '.configType // "unknown"' ".omc/state/setup-state.json" 2>/dev/null || echo "unknown")
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/setup-progress.sh" save 3 "$CONFIG_TYPE"
+bash "${OMC_SETUP_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/setup-progress.sh" save 3 "$CONFIG_TYPE"
 ```
 
-## Step 2.2: Clear Stale Plugin Cache
+## Step 2.2: Repair Stale Plugin Cache References
+
+After a marketplace update, Claude Code may still have old OMC cache paths in the running session or plugin registry. Repair those references before any cache cleanup so setup does not repeatedly emit stale plugin directory errors.
 
 ```bash
-node -e "const p=require('path'),f=require('fs'),h=require('os').homedir(),d=process.env.CLAUDE_CONFIG_DIR||p.join(h,'.claude'),b=p.join(d,'plugins','cache','omc','oh-my-claudecode');try{const v=f.readdirSync(b).filter(x=>/^\d/.test(x)).sort((a,c)=>a.localeCompare(c,void 0,{numeric:true}));if(v.length<=1){console.log('Cache is clean');process.exit()}v.slice(0,-1).forEach(x=>{f.rmSync(p.join(b,x),{recursive:true,force:true})});console.log('Cleared',v.length-1,'stale cache version(s)')}catch{console.log('No cache directory found (normal for new installs)')}"
+node "${OMC_SETUP_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/repair-plugin-cache.mjs"
 ```
 
 ## Step 2.3: Check for Updates
@@ -37,7 +74,8 @@ Notify user if a newer version is available:
 # Detect installed version (cross-platform)
 node -e "
 const p=require('path'),f=require('fs'),h=require('os').homedir();
-const d=process.env.CLAUDE_CONFIG_DIR||p.join(h,'.claude');
+const raw=process.env.CLAUDE_CONFIG_DIR?.trim();
+const d=raw==null||raw===''? p.join(h,'.claude'):raw==='~'?h:raw.startsWith('~/')||raw.startsWith('~\\\\')?p.join(h,raw.slice(2)):raw;
 let v='';
 // Try cache directory first
 const b=p.join(d,'plugins','cache','omc','oh-my-claudecode');
@@ -68,33 +106,41 @@ elif [ -n "$LATEST_VERSION" ]; then
 fi
 ```
 
-## Step 2.4: Set Default Execution Mode
+## Step 2.4: Clear Retired Setup Values
 
-Use the AskUserQuestion tool to prompt the user:
-
-**Question:** "Which parallel execution mode should be your default when you say 'fast' or 'parallel'?"
-
-**Options:**
-1. **ultrawork (maximum capability)** - Uses all agent tiers including Opus for complex tasks. Best for challenging work where quality matters most. (Recommended)
-
-Store the preference in `~/.claude/.omc-config.json`:
+The `ultrawork` workflow was removed in 5.0.0 and the `defaultExecutionMode` config key is no longer read by any runtime surface. Upgrades from 4.x may still carry a dead persisted value in `.omc-config.json`. Clear it so the config matches the current contract:
 
 ```bash
-CONFIG_FILE="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.omc-config.json"
-mkdir -p "$(dirname "$CONFIG_FILE")"
+CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+case "$CONFIG_DIR" in
+  "~") CONFIG_DIR="$HOME" ;;
+  "~/"*) CONFIG_DIR="$HOME/${CONFIG_DIR#\~/}" ;;
+  "~\\"*) CONFIG_DIR="$HOME/${CONFIG_DIR#\~\\}" ;;
+esac
+CONFIG_FILE="$CONFIG_DIR/.omc-config.json"
 
-if [ -f "$CONFIG_FILE" ]; then
-  EXISTING=$(cat "$CONFIG_FILE")
-else
-  EXISTING='{}'
+if [ -f "$CONFIG_FILE" ] && grep -q '"defaultExecutionMode"' "$CONFIG_FILE" 2>/dev/null; then
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "WARNING: jq is required to clear the retired defaultExecutionMode key from $CONFIG_FILE."
+    echo "The stale value is harmless (no runtime reads it), but install jq and rerun setup to clean it."
+  else
+    TEMP_FILE=$(mktemp "${CONFIG_FILE}.tmp.XXXXXX")
+    trap 'rm -f "$TEMP_FILE"' EXIT
+    if jq 'del(.defaultExecutionMode)' "$CONFIG_FILE" > "$TEMP_FILE" \
+      && mv "$TEMP_FILE" "$CONFIG_FILE"; then
+      echo "Cleared retired defaultExecutionMode key (ultrawork was removed in 5.0.0)"
+    else
+      echo "WARNING: Failed to clear retired defaultExecutionMode. Existing config was not modified."
+      rm -f "$TEMP_FILE"
+    fi
+    trap - EXIT
+  fi
 fi
-
-# Set defaultExecutionMode (replace USER_CHOICE with "ultrawork" or "")
-echo "$EXISTING" | jq --arg mode "USER_CHOICE" '. + {defaultExecutionMode: $mode, configuredAt: (now | todate)}' > "$CONFIG_FILE"
-echo "Default execution mode set to: USER_CHOICE"
 ```
 
-**Note**: This preference ONLY affects generic keywords ("fast", "parallel"). Explicit keywords ("ulw") always override this preference.
+**Note:** Never write a new `defaultExecutionMode` value. Generic keywords no longer route through a configured execution mode; invoke `/oh-my-claudecode:execute` or `/oh-my-claudecode:team` directly instead.
+
+**Resume-only boundary:** If `RESUMED_PHASE_TWO_BOUNDARY` is `true`, stop Phase 2 after this cleanup. Do not execute Steps 2.5 or 2.6, do not prompt for task-tool or team settings again, and do not save a new progress value. Return to the setup orchestrator with the original `RESUME_LAST_COMPLETED_STEP` unchanged.
 
 ## Step 2.5: Install OMC CLI Tool
 
@@ -180,7 +226,7 @@ If beads or beads-rust is detected, use AskUserQuestion:
 **Question:** "Which task management tool should I use for tracking work?"
 
 **Options:**
-1. **Built-in Tasks (default)** - Use Claude Code's native TaskCreate/TodoWrite. Tasks are session-only.
+1. **Built-in Tasks (default)** - Use Claude Code's native TodoWrite or available task-list surface. Tasks are session-only.
 2. **Beads (bd)** - Git-backed persistent tasks. Survives across sessions. [Only if detected]
 3. **Beads-Rust (br)** - Lightweight Rust port of beads. [Only if detected]
 
@@ -189,8 +235,20 @@ If beads or beads-rust is detected, use AskUserQuestion:
 Store the preference:
 
 ```bash
-CONFIG_FILE="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.omc-config.json"
+CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+case "$CONFIG_DIR" in
+  "~") CONFIG_DIR="$HOME" ;;
+  "~/"*) CONFIG_DIR="$HOME/${CONFIG_DIR#\~/}" ;;
+  "~\\"*) CONFIG_DIR="$HOME/${CONFIG_DIR#\~\\}" ;;
+esac
+CONFIG_FILE="$CONFIG_DIR/.omc-config.json"
 mkdir -p "$(dirname "$CONFIG_FILE")"
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "ERROR: jq is required to update $CONFIG_FILE safely."
+  echo "Install jq and rerun setup. Existing config was not modified."
+  exit 1
+fi
 
 if [ -f "$CONFIG_FILE" ]; then
   EXISTING=$(cat "$CONFIG_FILE")
@@ -199,7 +257,17 @@ else
 fi
 
 # USER_CHOICE is "builtin", "beads", or "beads-rust" based on user selection
-echo "$EXISTING" | jq --arg tool "USER_CHOICE" '. + {taskTool: $tool, taskToolConfig: {injectInstructions: true, useMcp: false}}' > "$CONFIG_FILE"
+TEMP_FILE=$(mktemp "${CONFIG_FILE}.tmp.XXXXXX")
+trap 'rm -f "$TEMP_FILE"' EXIT
+if printf '%s\n' "$EXISTING" | jq --arg tool "USER_CHOICE" '. + {taskTool: $tool, taskToolConfig: {injectInstructions: true, useMcp: false}}' > "$TEMP_FILE" \
+  && mv "$TEMP_FILE" "$CONFIG_FILE"; then
+  :
+else
+  echo "ERROR: Failed to update $CONFIG_FILE. Existing config was not modified."
+  rm -f "$TEMP_FILE"
+  exit 1
+fi
+trap - EXIT
 echo "Task tool set to: USER_CHOICE"
 ```
 
@@ -209,5 +277,9 @@ echo "Task tool set to: USER_CHOICE"
 
 ```bash
 CONFIG_TYPE=$(jq -r '.configType // "unknown"' ".omc/state/setup-state.json" 2>/dev/null || echo "unknown")
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/setup-progress.sh" save 4 "$CONFIG_TYPE"
+if [ "${RESUMED_PHASE_TWO_BOUNDARY:-false}" != "true" ]; then
+  bash "${OMC_SETUP_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/setup-progress.sh" save 4 "$CONFIG_TYPE"
+else
+  echo "Resumed Phase 2: preserving lastCompletedStep=$RESUME_LAST_COMPLETED_STEP"
+fi
 ```

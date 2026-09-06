@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "omc",
-  "description": "Claude Code native multi-agent orchestration - intelligent model routing, 28 agents, 32 skills",
+  "description": "Claude Code native multi-agent orchestration - intelligent model routing across agents and skills",
   "owner": {
     "name": "Yeachan Heo",
     "email": "hurrc04@gmail.com"
@@ -9,8 +9,8 @@
   "plugins": [
     {
       "name": "oh-my-claudecode",
-      "description": "Claude Code native multi-agent orchestration with intelligent model routing, 28 agent variants, and 32 powerful skills. Zero learning curve. Maximum power.",
-      "version": "4.13.6",
+      "description": "Claude Code native multi-agent orchestration with intelligent model routing across agents and skills. Zero learning curve. Maximum power.",
+      "version": "5.3.0",
       "author": {
         "name": "Yeachan Heo",
         "email": "hurrc04@gmail.com"
@@ -23,9 +23,9 @@
         "orchestration",
         "delegation",
         "todo-management",
-        "ultrawork"
+        "team"
       ]
     }
   ],
-  "version": "4.13.6"
+  "version": "5.3.0"
 }

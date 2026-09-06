@@ -3,15 +3,22 @@
 // Restores persistent mode states when session starts
 // Cross-platform: Windows, macOS, Linux
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync, unlinkSync, rmSync, statSync } from 'fs';
 import { join, dirname, normalize, resolve } from 'path';
 import { homedir } from 'os';
 import { fileURLToPath, pathToFileURL } from 'url';
+import { spawn } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const { getClaudeConfigDir } = await import(pathToFileURL(join(__dirname, 'lib', 'config-dir.mjs')).href);
+const { getClaudeConfigDir, getUpdateCheckCachePath } = await import(pathToFileURL(join(__dirname, 'lib', 'config-dir.mjs')).href);
 const configDir = getClaudeConfigDir();
+const { resolveSessionStatePathsForHook, resolveOmcStateRoot } = await import(pathToFileURL(join(__dirname, 'lib', 'state-root.mjs')).href);
+const { publishCacheOccupancy } = await import(pathToFileURL(join(__dirname, 'lib', 'cache-occupancy.mjs')).href);
+
+// Detached update-cache refresh: argv flag and the child's overall deadline.
+const REFRESH_UPDATE_CACHE_FLAG = '--refresh-update-cache';
+const REFRESH_UPDATE_CACHE_DEADLINE_MS = 3000;
 
 // Import timeout-protected stdin reader (prevents hangs on Linux/Windows, see issue #240, #524)
 let readStdin;
@@ -59,11 +66,10 @@ function writeJsonFile(path, data) {
 const SESSION_ID_ALLOWLIST = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,255}$/;
 const WORKFLOW_SLOT_TOMBSTONE_TTL_MS = 24 * 60 * 60 * 1000;
 
-function isWorkflowSlotTombstonedForMode(directory, mode, sessionId) {
+async function isWorkflowSlotTombstonedForMode(directory, mode, sessionId) {
   const safeSessionId = typeof sessionId === 'string' && SESSION_ID_ALLOWLIST.test(sessionId) ? sessionId : '';
-  const ledgerPath = safeSessionId
-    ? join(directory, '.omc', 'state', 'sessions', safeSessionId, 'skill-active-state.json')
-    : join(directory, '.omc', 'state', 'skill-active-state.json');
+  const { readPath } = await resolveSessionStatePathsForHook(directory, 'skill-active', safeSessionId || undefined);
+  const ledgerPath = readPath;
   const ledger = readJsonFile(ledgerPath);
   const slot = ledger?.active_skills?.[mode];
   if (!slot || typeof slot !== 'object') return false;
@@ -73,14 +79,110 @@ function isWorkflowSlotTombstonedForMode(directory, mode, sessionId) {
   return Date.now() - completedAt < WORKFLOW_SLOT_TOMBSTONE_TTL_MS;
 }
 
-function shouldRestoreModeState(directory, mode, state, sessionId) {
+async function shouldRestoreModeState(directory, mode, state, sessionId) {
   if (!state?.active) return false;
-  if (isWorkflowSlotTombstonedForMode(directory, mode, sessionId)) return false;
+  if (await isWorkflowSlotTombstonedForMode(directory, mode, sessionId)) return false;
   return true;
 }
 
+// Read version from OMC's own package.json, not the project's (fixes #516)
+function resolveOmcVersion() {
+  for (let i = 1; i <= 4; i++) {
+    const candidate = join(__dirname, ...Array(i).fill('..'), 'package.json');
+    const pkg = readJsonFile(candidate);
+    if ((pkg?.name === 'oh-my-claude-sisyphus' || pkg?.name === 'oh-my-claudecode') && pkg?.version) {
+      return pkg.version;
+    }
+  }
+  return null;
+}
+
+// Registry base override. Only honoured when set; tests point it at a closed
+// port to exercise the offline/timeout paths without touching the network.
+function registryLatestUrl(packageName) {
+  const base = process.env.OMC_UPDATE_REGISTRY_BASE;
+  const root = base ? base.replace(/\/+$/, '') : 'https://registry.npmjs.org';
+  return `${root}/${packageName}/latest`;
+}
+
+function readUpdateCheckCache() {
+  const cached = readJsonFile(getUpdateCheckCachePath());
+  return cached && typeof cached === 'object' && !Array.isArray(cached) ? cached : {};
+}
+
+// Merge into the existing cache so unrelated fields (e.g. the Claude Code
+// version tracked below) survive an OMC-only refresh. Refresh children from
+// concurrent sessions share this file, so serialize the read/modify/write and
+// publish a complete JSON document with a same-directory rename.
+function mergeUpdateCheckCache(fields) {
+  const cachePath = getUpdateCheckCachePath();
+  const cacheDir = dirname(cachePath);
+  const lockPath = `${cachePath}.lock`;
+  const deadline = Date.now() + 1000;
+  let locked = false;
+
+  try {
+    mkdirSync(cacheDir, { recursive: true });
+    while (!locked && Date.now() < deadline) {
+      try {
+        mkdirSync(lockPath);
+        locked = true;
+      } catch {
+        try {
+          if (Date.now() - statSync(lockPath).mtimeMs > 10_000) {
+            rmSync(lockPath, { recursive: true, force: true });
+          }
+        } catch {}
+        try { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10); } catch {}
+      }
+    }
+    if (!locked) return;
+
+    const temporaryPath = `${cachePath}.${process.pid}.${Date.now()}.tmp`;
+    writeFileSync(temporaryPath, JSON.stringify({ ...readUpdateCheckCache(), ...fields }), 'utf-8');
+    try {
+      renameSync(temporaryPath, cachePath);
+    } catch {
+      // Windows cannot replace an existing file with rename. The lock keeps
+      // other writers out; readers already tolerate a missing cache briefly.
+      try { unlinkSync(cachePath); } catch {}
+      renameSync(temporaryPath, cachePath);
+    }
+  } catch {
+    // Cache refresh is best-effort and must never affect session startup.
+  } finally {
+    if (locked) {
+      try { rmSync(lockPath, { recursive: true, force: true }); } catch {}
+    }
+  }
+}
+
+// Refresh the cached latest Claude Code version (same 24h window and 2s timeout
+// as the OMC check) so the HUD can show a Claude Code update hint. The field is
+// simply absent on caches written before this check existed.
+async function checkClaudeCodeUpdate() {
+  const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+  const cached = readUpdateCheckCache();
+  if (cached.claudeCodeCheckedAt && (Date.now() - cached.claudeCodeCheckedAt) < CACHE_DURATION) return;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 2000);
+  try {
+    const response = await fetch(registryLatestUrl('@anthropic-ai/claude-code'), {
+      signal: controller.signal
+    });
+    if (!response.ok) return;
+
+    const data = await response.json();
+    if (!data?.version) return;
+    mergeUpdateCheckCache({ claudeCodeLatestVersion: data.version, claudeCodeCheckedAt: Date.now() });
+  } catch {
+    // Silent fail - network unavailable or timeout
+  } finally { clearTimeout(timeoutId); }
+}
+
 async function checkForUpdates(currentVersion) {
-  const cacheFile = join(homedir(), '.omc', 'update-check.json');
+  const cacheFile = getUpdateCheckCachePath();
   const now = Date.now();
   const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -94,7 +196,7 @@ async function checkForUpdates(currentVersion) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 2000);
   try {
-    const response = await fetch('https://registry.npmjs.org/oh-my-claude-sisyphus/latest', {
+    const response = await fetch(registryLatestUrl('oh-my-claude-sisyphus'), {
       signal: controller.signal
     });
 
@@ -111,16 +213,60 @@ async function checkForUpdates(currentVersion) {
       timestamp: now,
       latestVersion,
       currentVersion,
-      updateAvailable
+      updateAvailable,
+      // This hook only queries npm; pin the source so the merge does not
+      // preserve a stale marketplace value from an earlier plugin install.
+      source: 'npm'
     };
 
-    writeJsonFile(cacheFile, cacheData);
+    mergeUpdateCheckCache(cacheData);
 
     return updateAvailable ? cacheData : null;
   } catch (error) {
     // Silent fail - network unavailable or timeout
     return null;
   } finally { clearTimeout(timeoutId); }
+}
+
+// Concurrent: each fetch aborts after 2s, and SessionStart hooks have a 5s
+// budget, so running them in sequence would risk a cold-cache timeout.
+async function runUpdateChecks() {
+  const currentVersion = resolveOmcVersion();
+  const [updateInfo] = await Promise.all([
+    currentVersion ? checkForUpdates(currentVersion).catch(() => null) : null,
+    checkClaudeCodeUpdate().catch(() => {}),
+  ]);
+  return updateInfo;
+}
+
+// Refresh the update caches in a detached child so a slow or unreachable
+// registry cannot delay the SessionStart response (the hook budget is 5s).
+function refreshUpdateCacheInBackground() {
+  if (process.env.OMC_HOOK_BACKGROUND_CHILD === '1') return;
+  try {
+    const child = spawn(process.execPath, [__filename, REFRESH_UPDATE_CACHE_FLAG], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+      env: { ...process.env, OMC_HOOK_BACKGROUND_CHILD: '1' },
+    });
+    // spawn reports most failures (EMFILE, EPERM, ENOMEM) via an async 'error'
+    // event, not a throw; swallow it so the hook never exits non-zero after answering.
+    child.on('error', () => {});
+    child.unref();
+  } catch {
+    // Cache refresh is best-effort and must never affect hook output.
+  }
+}
+
+// Detached child entrypoint: refresh the caches, then exit. The deadline keeps
+// the child from lingering if a fetch never settles.
+async function refreshUpdateCacheAndExit() {
+  const deadline = setTimeout(() => process.exit(0), REFRESH_UPDATE_CACHE_DEADLINE_MS);
+  deadline.unref();
+  try { await runUpdateChecks(); } catch {}
+  clearTimeout(deadline);
+  process.exit(0);
 }
 
 function compareVersions(v1, v2) {
@@ -174,10 +320,11 @@ function isVertexSession() {
   return Boolean(modelId && modelId.toLowerCase().startsWith('vertex_ai/'));
 }
 
-function readRoutingForceInheritFromConfig(directory) {
+async function readRoutingForceInheritFromConfig(directory) {
+  const omcRoot = await resolveOmcStateRoot(directory);
   const configPaths = [
     join(configDir, '.omc-config.json'),
-    join(directory, '.omc', 'config.json'),
+    join(omcRoot, 'config.json'),
   ];
 
   for (const configPath of configPaths) {
@@ -188,10 +335,10 @@ function readRoutingForceInheritFromConfig(directory) {
   return false;
 }
 
-function shouldEmitModelRoutingOverride(directory) {
+async function shouldEmitModelRoutingOverride(directory) {
   if (process.env.OMC_ROUTING_FORCE_INHERIT === 'true') return true;
   if (process.env.OMC_ROUTING_FORCE_INHERIT === 'false') return false;
-  if (readRoutingForceInheritFromConfig(directory)) return true;
+  if (await readRoutingForceInheritFromConfig(directory)) return true;
 
   if (isBedrockSession() || isVertexSession()) return true;
 
@@ -249,6 +396,15 @@ function compactOmcStartupGuidance(content) {
   return `${normalized.slice(0, OMC_STARTUP_GUIDANCE_MAX_CHARS - notice.length).trimEnd()}${notice}`;
 }
 
+function formatUpdateNoticeForUser(updateInfo, options = {}) {
+  const latestVersion = updateInfo?.latestVersion || 'latest';
+  const currentVersion = updateInfo?.currentVersion || 'unknown';
+  const action = options.autoUpgradePrompt === false
+    ? 'To update later, run: omc update'
+    : 'Run /update to upgrade now, or use /plugin install oh-my-claudecode';
+  return `[OMC UPDATE AVAILABLE] oh-my-claudecode v${latestVersion} is available (current: v${currentVersion}). ${action}`;
+}
+
 function buildSessionStartAdditionalContext(messages) {
   if (!Array.isArray(messages) || messages.length === 0) return '';
 
@@ -256,7 +412,6 @@ function buildSessionStartAdditionalContext(messages) {
   const priorityOrder = [
     /\[MODEL ROUTING OVERRIDE/,
     /\[AUTOPILOT MODE RESTORED\]/,
-    /\[ULTRAWORK MODE RESTORED\]/,
     /\[RALPH LOOP RESTORED\]/,
     /\[PROJECT MEMORY\]/,
     /\[NOTEPAD PRIORITY CONTEXT LOADED\]/,
@@ -305,15 +460,16 @@ const WORKING_MEMORY_HEADER = '## Working Memory';
 /**
  * Get notepad path in .omc directory
  */
-function getNotepadPath(directory) {
-  return join(directory, '.omc', NOTEPAD_FILENAME);
+async function getNotepadPath(directory) {
+  const omcRoot = await resolveOmcStateRoot(directory);
+  return join(omcRoot, NOTEPAD_FILENAME);
 }
 
 /**
  * Read notepad content
  */
-function readNotepad(directory) {
-  const notepadPath = getNotepadPath(directory);
+async function readNotepad(directory) {
+  const notepadPath = await getNotepadPath(directory);
   if (!existsSync(notepadPath)) {
     return null;
   }
@@ -344,8 +500,8 @@ function extractSection(content, header) {
 /**
  * Get Priority Context section (for injection)
  */
-function getPriorityContext(directory) {
-  const content = readNotepad(directory);
+async function getPriorityContext(directory) {
+  const content = await readNotepad(directory);
   if (!content) {
     return null;
   }
@@ -355,8 +511,8 @@ function getPriorityContext(directory) {
 /**
  * Format notepad context for session injection
  */
-function formatNotepadContext(directory) {
-  const priorityContext = getPriorityContext(directory);
+async function formatNotepadContext(directory) {
+  const priorityContext = await getPriorityContext(directory);
   if (!priorityContext) {
     return null;
   }
@@ -369,7 +525,42 @@ ${priorityContext}
 </notepad-priority>`;
 }
 
-const STALE_STATE_THRESHOLD_MS = 2 * 60 * 60 * 1000; // 2 hours
+/**
+ * Validate that a candidate cwd is a real OMC workspace anchor.
+ * Returns the candidate unchanged if it is non-empty AND contains a
+ * `.omc-workspace` marker OR a `.git` directory.
+ * Otherwise emits a one-line warning to stderr and returns null,
+ * signalling the caller to skip all state mutations.
+ */
+function validateCwd(candidate) {
+  if (!candidate || typeof candidate !== 'string') {
+    process.stderr.write(
+      `[OMC] session-start: refusing to use cwd '${candidate}' as workspace anchor (no .omc-workspace or .git marker)\n`
+    );
+    return null;
+  }
+  // cwd is commonly a subdirectory of the repo/workspace root, so walk up
+  // looking for a `.omc-workspace` marker or `.git` dir. Stop before scanning
+  // $HOME (or above) so a stray marker/repo in $HOME cannot validate an
+  // unrelated directory. Returns the original candidate so downstream root
+  // resolution (getOmcRoot/resolveOmcStateRoot) can anchor it.
+  let home = null;
+  try { home = homedir(); } catch { home = null; }
+  let cursor = candidate;
+  while (true) {
+    if (home && cursor === home) break;
+    if (existsSync(join(cursor, '.omc-workspace')) || existsSync(join(cursor, '.git'))) {
+      return candidate;
+    }
+    const parent = dirname(cursor);
+    if (parent === cursor) break;
+    cursor = parent;
+  }
+  process.stderr.write(
+    `[OMC] session-start: refusing to use cwd '${candidate}' as workspace anchor (no .omc-workspace or .git marker)\n`
+  );
+  return null;
+}
 
 function normalizePath(p) {
   if (!p || typeof p !== 'string') return '';
@@ -381,171 +572,85 @@ function normalizePath(p) {
   return normalized;
 }
 
-function getStateRecencyMs(state) {
-  if (!state || typeof state !== 'object') return 0;
-  const startedAt = state.started_at ? new Date(state.started_at).getTime() : 0;
-  const lastCheckedAt = state.last_checked_at ? new Date(state.last_checked_at).getTime() : 0;
-  return Math.max(startedAt || 0, lastCheckedAt || 0);
-}
-
-function isFreshActiveState(state) {
-  if (!state?.active) return false;
-  const recencyMs = getStateRecencyMs(state);
-  if (!Number.isFinite(recencyMs) || recencyMs <= 0) return false;
-  return (Date.now() - recencyMs) <= STALE_STATE_THRESHOLD_MS;
-}
-
-function hasConflictingUltraworkRestore(state, sessionId, directory, source) {
-  if (!sessionId || !isFreshActiveState(state)) return false;
-  if (typeof state.session_id !== 'string' || !state.session_id || state.session_id === sessionId) {
-    return false;
-  }
-
-  if (source === 'global') {
-    if (typeof state.project_path !== 'string' || !state.project_path) {
-      return false;
-    }
-    return normalizePath(state.project_path) === normalizePath(directory);
-  }
-
-  return true;
-}
-
-function getUltraworkRestoreCandidate(directory, sessionId) {
-  const localPath = join(directory, '.omc', 'state', 'ultrawork-state.json');
-  const globalPath = join(homedir(), '.omc', 'state', 'ultrawork-state.json');
-
-  const localState = readJsonFile(localPath);
-  if (hasConflictingUltraworkRestore(localState, sessionId, directory, 'local')) {
-    return { restore: null, collision: { source: 'local', state: localState } };
-  }
-  if (localState?.active && (!localState.session_id || localState.session_id === sessionId)) {
-    return { restore: localState, collision: null };
-  }
-
-  const globalState = readJsonFile(globalPath);
-  if (hasConflictingUltraworkRestore(globalState, sessionId, directory, 'global')) {
-    return { restore: null, collision: { source: 'global', state: globalState } };
-  }
-  if (globalState?.active && (!globalState.session_id || globalState.session_id === sessionId)) {
-    return { restore: globalState, collision: null };
-  }
-
-  return { restore: null, collision: null };
-}
-
-function formatUltraworkCollisionWarning(source, state) {
-  const startedAt = state?.started_at || 'an unknown time';
-  const ownerSession = state?.session_id || 'another session';
-  const scope = source === 'global' ? 'matching project path in the shared global fallback state' : 'this repo root';
-  return `<session-restore>
-
-[PARALLEL SESSION WARNING]
-
-Detected an active ultrawork session for ${scope}.
-Owner session: ${ownerSession}
-Started: ${startedAt}
-
-To avoid shared \.omc/state bleed across parallel sessions, OMC suppressed the restore for this session.
-Continue normally in this session, or use a separate worktree / close the other same-root session before resuming the prior ultrawork state.
-
-</session-restore>
-
----
-`;
-}
-
 async function main() {
   try {
     const input = await readStdin();
     let data = {};
     try { data = JSON.parse(input); } catch {}
 
-    const directory = data.cwd || data.directory || process.cwd();
+    const rawDirectory = data.cwd || data.directory || process.cwd();
+    const directory = validateCwd(rawDirectory);
+    if (directory === null) {
+      // No workspace here, but the registry update checks do not need one, so
+      // the HUD update cache still refreshes for users who launch Claude Code
+      // outside a repo. It runs detached: this path must answer immediately and
+      // must not touch any workspace or session state.
+      refreshUpdateCacheInBackground();
+      console.log(JSON.stringify({ continue: true }));
+      return;
+    }
     const sessionId = data.sessionId || data.session_id || data.sessionid || '';
-    const messages = [];
+    if (process.env.CLAUDE_PLUGIN_ROOT) {
+      publishCacheOccupancy(process.env.CLAUDE_PLUGIN_ROOT, configDir);
+    }
+    let messages = [];
+    const userMessages = [];
+    let pendingRestore = null;
+    let pendingRestoreMessage = null;
+
+    // Restore the newest PreCompact checkpoint after compaction (issue #3730).
+    // Only fires when Claude Code signals the session resumed from compaction
+    // (source === 'compact'); never on startup, resume, or clear.
+    if (data.source === 'compact' && sessionId) {
+      try {
+        const { preparePreCompactCheckpointRestore, claimPreCompactCheckpointRestore } = await import(
+          pathToFileURL(join(__dirname, 'lib', 'precompact-restore.mjs')).href
+        );
+        const restoreRoot = await resolveOmcStateRoot(directory);
+        const prepared = preparePreCompactCheckpointRestore(restoreRoot, sessionId);
+        if (prepared) {
+          pendingRestore = { ...prepared, restoreRoot, preparePreCompactCheckpointRestore, claimPreCompactCheckpointRestore };
+          pendingRestoreMessage = `<session-restore>\n\n${prepared.text}\n\n</session-restore>\n\n---\n`;
+          messages.push(pendingRestoreMessage);
+        }
+      } catch {
+        // Restore is advisory: never break session start on a checkpoint error.
+      }
+    }
 
     // Check for updates (non-blocking)
-    // Read version from OMC's own package.json, not the project's (fixes #516)
-    let currentVersion = null;
-    for (let i = 1; i <= 4; i++) {
-      const candidate = join(__dirname, ...Array(i).fill('..'), 'package.json');
-      const pkg = readJsonFile(candidate);
-      if ((pkg?.name === 'oh-my-claude-sisyphus' || pkg?.name === 'oh-my-claudecode') && pkg?.version) {
-        currentVersion = pkg.version;
-        break;
-      }
+    const currentVersion = resolveOmcVersion();
+
+    // Template-version drift check: warn once per session if installed templates differ from plugin
+    if (currentVersion) {
+      try {
+        const omcRoot = await resolveOmcStateRoot(directory);
+        const stampPath = join(omcRoot, 'template-version.json');
+        const driftMarkerPath = join(omcRoot, 'state', `drift-warned-${sessionId || 'nosession'}.json`);
+        if (existsSync(stampPath) && !existsSync(driftMarkerPath)) {
+          const stamp = readJsonFile(stampPath);
+          if (stamp?.version && stamp.version !== currentVersion) {
+            process.stderr.write(
+              `[omc] template version drift: installed=${stamp.version}, plugin=${currentVersion} — run /oh-my-claudecode:omc-setup to refresh\n`
+            );
+            mkdirSync(join(driftMarkerPath, '..'), { recursive: true });
+            writeFileSync(driftMarkerPath, JSON.stringify({ warnedAt: new Date().toISOString() }));
+          }
+        }
+      } catch { /* non-fatal */ }
     }
 
-    const updateInfo = currentVersion ? await checkForUpdates(currentVersion) : null;
+    const updateInfo = await runUpdateChecks();
     if (updateInfo) {
-      // Read config to check autoUpgradePrompt preference
       const configPath = join(getClaudeConfigDir(), '.omc-config.json');
       const omcConfig = readJsonFile(configPath) || {};
-      const autoUpgradePrompt = omcConfig.autoUpgradePrompt !== false; // default: true
-
-      if (autoUpgradePrompt) {
-        messages.push(`<session-restore>
-
-[OMC AUTO-UPGRADE AVAILABLE]
-
-oh-my-claudecode v${updateInfo.latestVersion} is available (current: v${updateInfo.currentVersion}).
-
-ACTION: Use AskUserQuestion to ask the user if they want to upgrade now. Offer these options:
-- "Upgrade now" (Recommended): Run \`npm install -g oh-my-claude-sisyphus@latest\` via Bash, then run \`omc install --force --skip-claude-check --refresh-hooks\` to reconcile hooks and CLAUDE.md
-- "Skip this time": Continue the session without upgrading
-- "Don't ask again": Tell the user to set "autoUpgradePrompt": false in [$CLAUDE_CONFIG_DIR|~/.claude]/.omc-config.json to disable future prompts
-
-Keep the prompt brief. If the user accepts, execute the upgrade commands and report the result.
-
-</session-restore>
-
----
-`);
-      } else {
-        messages.push(`<session-restore>
-
-[OMC UPDATE AVAILABLE]
-
-A new version of oh-my-claudecode is available: v${updateInfo.latestVersion} (current: ${updateInfo.currentVersion})
-
-To update, run: omc update
-
-</session-restore>
-
----
-`);
-      }
+      userMessages.push(formatUpdateNoticeForUser(updateInfo, {
+        autoUpgradePrompt: omcConfig.autoUpgradePrompt !== false,
+      }));
     }
 
-    if (shouldEmitModelRoutingOverride(directory)) {
+    if (await shouldEmitModelRoutingOverride(directory)) {
       messages.push(MODEL_ROUTING_OVERRIDE_MESSAGE);
-    }
-
-    // Check for ultrawork state - warn on conflicting same-path session, otherwise restore.
-    const ultraworkCandidate = getUltraworkRestoreCandidate(directory, sessionId);
-    if (ultraworkCandidate.collision) {
-      messages.push(
-        formatUltraworkCollisionWarning(
-          ultraworkCandidate.collision.source,
-          ultraworkCandidate.collision.state,
-        ),
-      );
-    } else if (shouldRestoreModeState(directory, 'ultrawork', ultraworkCandidate.restore, sessionId)) {
-      const ultraworkState = ultraworkCandidate.restore;
-      messages.push(`<session-restore>
-
-[ULTRAWORK MODE RESTORED]
-
-You have an active ultrawork session from ${ultraworkState.started_at}.
-Original task: ${ultraworkState.original_prompt}
-
-Continue working in ultrawork mode until all tasks are complete.
-
-</session-restore>
-
----
-`);
     }
 
     // Check for incomplete todos (project-local only, not global
@@ -554,8 +659,9 @@ Continue working in ultrawork mode until all tasks are complete.
     // [$CLAUDE_CONFIG_DIR|~/.claude]/todos/ directory.
     // That directory accumulates todo files from ALL past sessions across all
     // projects, causing phantom task counts in fresh sessions (see issue #354).
+    const omcRootForTodos = await resolveOmcStateRoot(directory);
     const localTodoPaths = [
-      join(directory, '.omc', 'todos.json'),
+      join(omcRootForTodos, 'todos.json'),
       join(directory, '.claude', 'todos.json')
     ];
     let incompleteCount = 0;
@@ -584,7 +690,7 @@ Please continue working on these tasks.
     }
 
     // Check for notepad Priority Context (ALWAYS loaded on session start)
-    const notepadContext = formatNotepadContext(directory);
+    const notepadContext = await formatNotepadContext(directory);
     if (notepadContext) {
       messages.push(`<session-restore>
 
@@ -623,14 +729,76 @@ ${agentsContent}
       }
     }
 
-    if (messages.length > 0) {
-      console.log(JSON.stringify({
-        continue: true,
-        hookSpecificOutput: {
-          hookEventName: 'SessionStart',
-          additionalContext: buildSessionStartAdditionalContext(messages)
+    let additionalContext = '';
+    if (pendingRestore && pendingRestoreMessage) {
+      additionalContext = buildSessionStartAdditionalContext(messages);
+      if (additionalContext.includes(pendingRestoreMessage)) {
+        let markerStatus = null;
+        const waitCell = new Int32Array(new SharedArrayBuffer(4));
+        for (let attempt = 0; attempt < 100; attempt += 1) {
+          const status = pendingRestore.claimPreCompactCheckpointRestore(
+            pendingRestore.restoreRoot,
+            sessionId,
+            pendingRestore.path,
+            pendingRestore.created_at,
+            pendingRestore.mtime_ms,
+            pendingRestore.checkpoint_sha256,
+          );
+          if (status === 'written') {
+            markerStatus = status;
+            break;
+          }
+          if (status !== 'contended') break;
+          Atomics.wait(waitCell, 0, 0, 10);
+          const refreshed = pendingRestore.preparePreCompactCheckpointRestore(
+            pendingRestore.restoreRoot,
+            sessionId,
+          );
+          if (!refreshed) break;
+          const refreshedMessage = `<session-restore>\n\n${refreshed.text}\n\n</session-restore>\n\n---\n`;
+          const refreshedMessages = messages.map((message) => (
+            message === pendingRestoreMessage ? refreshedMessage : message
+          ));
+          const refreshedContext = buildSessionStartAdditionalContext(refreshedMessages);
+          if (!refreshedContext.includes(refreshedMessage)) break;
+          pendingRestore = {
+            ...refreshed,
+            restoreRoot: pendingRestore.restoreRoot,
+            preparePreCompactCheckpointRestore: pendingRestore.preparePreCompactCheckpointRestore,
+            claimPreCompactCheckpointRestore: pendingRestore.claimPreCompactCheckpointRestore,
+          };
+          pendingRestoreMessage = refreshedMessage;
+          messages = refreshedMessages;
+          additionalContext = refreshedContext;
         }
-      }));
+        if (!markerStatus) {
+          messages = messages.filter((message) => message !== pendingRestoreMessage);
+          additionalContext = buildSessionStartAdditionalContext(messages);
+        }
+      } else {
+        // The complete restore sentinel did not fit the aggregate budget;
+        // do not commit a replay marker for context that was not delivered.
+        messages = messages.filter((message) => message !== pendingRestoreMessage);
+        additionalContext = buildSessionStartAdditionalContext(messages);
+      }
+    } else if (messages.length > 0) {
+      additionalContext = buildSessionStartAdditionalContext(messages);
+    }
+
+    if (messages.length > 0 || userMessages.length > 0) {
+      const output = {
+        continue: true,
+      };
+      if (userMessages.length > 0) {
+        output.systemMessage = userMessages.join('\n');
+      }
+      if (messages.length > 0) {
+        output.hookSpecificOutput = {
+          hookEventName: 'SessionStart',
+          additionalContext,
+        };
+      }
+      console.log(JSON.stringify(output));
     } else {
       console.log(JSON.stringify({ continue: true, suppressOutput: true }));
     }
@@ -639,4 +807,8 @@ ${agentsContent}
   }
 }
 
-main();
+if (process.argv.includes(REFRESH_UPDATE_CACHE_FLAG)) {
+  refreshUpdateCacheAndExit();
+} else {
+  main();
+}

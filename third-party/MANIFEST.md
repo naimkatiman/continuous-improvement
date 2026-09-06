@@ -10,16 +10,16 @@ Pinned snapshots. Read-only. Refresh by bumping the SHA and re-running the docum
 |---|---|
 | Upstream | https://github.com/Yeachan-Heo/oh-my-claudecode |
 | License | MIT |
-| Pinned SHA | `aacde3e19c40e891479e22fb30e6169a8782d7e4` |
-| Snapshot date | 2026-05-06 |
-| Snapshot size | ~1.8 MB, 175 files |
-| Upstream version at SHA | 4.13.6 |
+| Pinned SHA | `4820f5641828cb980b7eb488a3c187f3d01459c3` |
+| Snapshot date | 2026-09-06 |
+| Snapshot size | ~2.2 MB, 192 files |
+| Upstream version at SHA | 5.3.0 |
 | Local path | `third-party/oh-my-claudecode/` |
 
 **Selective scope (verbatim from upstream):**
 
 - `agents/` — 19 agent definitions
-- `skills/` — 38 skills
+- `skills/` — 37 skills
 - `missions/` — task templates
 - `templates/` — scaffold files
 - `examples/` — usage examples

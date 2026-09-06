@@ -42,6 +42,7 @@ Keep runtime marker contracts stable and non-destructive when overlays are appli
 - Keep diffs small and reversible.
 - Run lint, typecheck, tests, and static analysis after changes.
 - Final reports must include changed files, simplifications made, and remaining risks.
+- For session-scoped state paths, resolve via `resolveSessionStatePaths()` only — branded `ReadPath`/`WritePath` are produced exclusively by that helper; ESLint `no-restricted-syntax` blocks `as ReadPath` / `as WritePath` casts outside `src/lib/worktree-paths.ts`.
 </working_agreements>
 
 ---
@@ -198,11 +199,15 @@ Workflow Skills:
 - `web-clone`: URL-driven website cloning with visual + functional verification
 - `ecomode`: Token-efficient execution using lightweight models
 - `team`: N coordinated agents on shared task list
-- `ultraqa`: QA cycling -- test, verify, fix, repeat
 - `plan`: Strategic planning with optional RALPLAN-DR consensus mode
 - `deep-interview`: Socratic deep interview with Ouroboros-inspired mathematical ambiguity gating before execution
 - `ralplan`: Iterative consensus planning with RALPLAN-DR structured deliberation (planner + architect + critic); supports `--deliberate` for high-risk work
 - `ai-slop-cleaner`: Regression-safe cleanup workflow for duplicate code, dead code, needless abstractions, and boundary violations; supports `--review` for reviewer-only passes
+- `minimal-code-discipline`: YAGNI-ladder writing-time discipline — existence-first, reuse before writing, shortest correct diff, with non-negotiables that are never minimized away
+- `launch`: Shipyard governed delivery pipeline — spec synthesis, vertical-slice tickets with blocking edges, frontier execution with human checkpoints; opt-in
+- `ask-navigator`: Shipyard navigator — charts foggy efforts into decision-ticket maps on the issue tracker, one ticket per session, then hands a mission brief to launch; opt-in
+- `loft`: Shipyard shape-before-steel discipline — answers a design question prose cannot settle with a throwaway artifact (pure logic module or structurally different UI variants); model-invoked; opt-in
+- `drydock`: Shipyard harness scaffold — 4-pillar shared environment (Context/Rules/Tools/Standards) across 5 surfaces, with --check drift audit; opt-in
 
 Agent Shortcuts:
 - `analyze` -> debugger: Investigation and root-cause analysis
@@ -348,6 +353,9 @@ oh-my-claudecode uses the `.omc/` directory for persistent state:
 - `.omc/project-memory.json` -- Cross-session project knowledge
 - `.omc/plans/` -- Planning documents
 - `.omc/logs/` -- Audit logs
+- `.omc/ultragoal/plans/{planId}/` -- Multi-plan ultragoal artifacts when `--plan-id` / `--auto-plan-id` is used.
+
+Multi-repo workspaces: drop a `.omc-workspace` marker file (JSON, can be `{}` or `{"id":"name"}`) in the parent directory when it is not itself a git repo. OMC will anchor `.omc/` at the marker from any sub-directory. This lets parallel Claude sessions in sibling repos share one `.omc/`. The session-start hook uses PID-aware liveness — a dead owner no longer blocks state restore. See `docs/REFERENCE.md#multi-repo-workspaces-with-omc-workspace` for full details.
 
 Tools are available via MCP when configured (`omc setup` registers all servers):
 
@@ -383,7 +391,6 @@ Recommended mode fields:
 - `ultrawork`: `active`, `reinforcement_count`, `started_at`
 - `team`: `active`, `current_phase` (`team-plan|team-prd|team-exec|team-verify|team-fix|complete`), `agent_count`, `team_name`
 - `ecomode`: `active`
-- `ultraqa`: `active`, `current_phase`, `iteration`, `started_at`, `completed_at`
 </state_management>
 
 ---

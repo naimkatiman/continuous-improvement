@@ -14,6 +14,7 @@ const __dirname = dirname(__filename);
 // Dynamic imports for shared modules (use pathToFileURL for Windows compatibility, #524)
 const { readStdin } = await import(pathToFileURL(join(__dirname, 'lib', 'stdin.mjs')).href);
 const { atomicWriteFileSync } = await import(pathToFileURL(join(__dirname, 'lib', 'atomic-write.mjs')).href);
+const { resolveSessionStatePathsForHook, resolveOmcStateRoot } = await import(pathToFileURL(join(__dirname, 'lib', 'state-root.mjs')).href);
 
 // Constants
 const NOTEPAD_TEMPLATE = '# Notepad\n' +
@@ -26,8 +27,8 @@ const NOTEPAD_TEMPLATE = '# Notepad\n' +
   '<!-- User content. Never auto-pruned. -->\n';
 
 // Initialize notepad.md if needed
-function initNotepad(directory) {
-  const omcDir = join(directory, '.omc');
+async function initNotepad(directory) {
+  const omcDir = await resolveOmcStateRoot(directory);
   const notepadPath = join(omcDir, 'notepad.md');
 
   if (!existsSync(omcDir)) {
@@ -80,17 +81,18 @@ function isConsensusPlanningSkillInvocation(skillName, toolInput) {
 
 const SESSION_ID_ALLOWLIST = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,255}$/;
 
-function getSkillActiveStatePaths(directory, sessionId) {
-  const stateDir = join(directory, '.omc', 'state');
+async function getSkillActiveStatePaths(directory, sessionId) {
   const safeSessionId = sessionId && SESSION_ID_ALLOWLIST.test(sessionId) ? sessionId : '';
+  const { writePath: sessionPath } = await resolveSessionStatePathsForHook(directory, 'skill-active', safeSessionId || undefined);
+  const { writePath: legacyPath } = await resolveSessionStatePathsForHook(directory, 'skill-active', undefined);
   return [
-    safeSessionId ? join(stateDir, 'sessions', safeSessionId, 'skill-active-state.json') : null,
-    join(stateDir, 'skill-active-state.json'),
+    safeSessionId ? sessionPath : null,
+    legacyPath,
   ].filter(Boolean);
 }
 
-function readSkillActiveState(directory, sessionId) {
-  for (const statePath of getSkillActiveStatePaths(directory, sessionId)) {
+async function readSkillActiveState(directory, sessionId) {
+  for (const statePath of await getSkillActiveStatePaths(directory, sessionId)) {
     try {
       if (!existsSync(statePath)) continue;
       const state = JSON.parse(readFileSync(statePath, 'utf-8'));
@@ -100,29 +102,30 @@ function readSkillActiveState(directory, sessionId) {
   return null;
 }
 
-function clearSkillActiveState(directory, sessionId) {
-  for (const statePath of getSkillActiveStatePaths(directory, sessionId)) {
+async function clearSkillActiveState(directory, sessionId) {
+  for (const statePath of await getSkillActiveStatePaths(directory, sessionId)) {
     try {
       unlinkSync(statePath);
     } catch {}
   }
 }
 
-function getRalplanStatePaths(directory, sessionId) {
-  const stateDir = join(directory, '.omc', 'state');
+async function getRalplanStatePaths(directory, sessionId) {
   const safeSessionId = sessionId && SESSION_ID_ALLOWLIST.test(sessionId) ? sessionId : '';
+  const { writePath: sessionPath } = await resolveSessionStatePathsForHook(directory, 'ralplan', safeSessionId || undefined);
+  const { writePath: legacyPath } = await resolveSessionStatePathsForHook(directory, 'ralplan', undefined);
   return [
-    safeSessionId ? join(stateDir, 'sessions', safeSessionId, 'ralplan-state.json') : null,
-    join(stateDir, 'ralplan-state.json'),
+    safeSessionId ? sessionPath : null,
+    legacyPath,
   ].filter(Boolean);
 }
 
-function deactivateRalplanState(directory, sessionId) {
+async function deactivateRalplanState(directory, sessionId) {
   const safeSessionId = sessionId && SESSION_ID_ALLOWLIST.test(sessionId) ? sessionId : '';
   const terminalPhases = new Set(['complete', 'completed', 'failed', 'cancelled', 'done']);
   const now = new Date().toISOString();
 
-  for (const statePath of getRalplanStatePaths(directory, sessionId)) {
+  for (const statePath of await getRalplanStatePaths(directory, sessionId)) {
     try {
       if (!existsSync(statePath)) continue;
       const state = JSON.parse(readFileSync(statePath, 'utf-8'));
@@ -153,16 +156,14 @@ function deactivateRalplanState(directory, sessionId) {
   }
 }
 
-function activateState(directory, stateName, state, sessionId) {
-  const stateDir = join(directory, '.omc', 'state');
+async function activateState(directory, stateName, state, sessionId) {
   const safeSessionId = sessionId && SESSION_ID_ALLOWLIST.test(sessionId) ? sessionId : '';
-  const targetDir = safeSessionId
-    ? join(stateDir, 'sessions', safeSessionId)
-    : stateDir;
+  const { writePath } = await resolveSessionStatePathsForHook(directory, stateName, safeSessionId || undefined);
+  const targetDir = join(writePath, '..');
 
   try {
     if (!existsSync(targetDir)) mkdirSync(targetDir, { recursive: true });
-    atomicWriteFileSync(join(targetDir, `${stateName}-state.json`), JSON.stringify(state, null, 2));
+    atomicWriteFileSync(writePath, JSON.stringify(state, null, 2));
   } catch {}
 
   // Also write to global fallback
@@ -248,18 +249,18 @@ async function main() {
     // Handle Skill("...:ralph") invocations so ralph handoffs activate persistent states.
     if (String(toolName).toLowerCase() === 'skill') {
       const skillName = getInvokedSkillName(toolInput);
-      const currentState = readSkillActiveState(directory, sessionId);
+      const currentState = await readSkillActiveState(directory, sessionId);
       const completingSkill = (skillName || '').replace(/^oh-my-claudecode:/, '');
       if (!currentState || !currentState.active || currentState.skill_name === completingSkill) {
-        clearSkillActiveState(directory, sessionId);
+        await clearSkillActiveState(directory, sessionId);
       }
       if (isConsensusPlanningSkillInvocation(skillName, toolInput)) {
-        deactivateRalplanState(directory, sessionId);
+        await deactivateRalplanState(directory, sessionId);
       }
       if (skillName === 'ralph') {
         const now = new Date().toISOString();
         const promptText = data.prompt || data.message || 'Ralph loop activated via Skill tool';
-        activateState(directory, 'ralph', {
+        await activateState(directory, 'ralph', {
           active: true,
           iteration: 1,
           max_iterations: 100,
@@ -267,17 +268,6 @@ async function main() {
           prompt: promptText,
           session_id: sessionId || undefined,
           project_path: directory,
-          linked_ultrawork: true
-        }, sessionId);
-        activateState(directory, 'ultrawork', {
-          active: true,
-          started_at: now,
-          original_prompt: promptText,
-          session_id: sessionId || undefined,
-          project_path: directory,
-          reinforcement_count: 0,
-          last_checked_at: now,
-          linked_to_ralph: true
         }, sessionId);
       }
       console.log(JSON.stringify({ continue: true, suppressOutput: true }));
@@ -302,7 +292,7 @@ async function main() {
     }
 
     // Initialize notepad and process tags
-    const notepadPath = initNotepad(directory);
+    const notepadPath = await initNotepad(directory);
     processRememberTags(toolOutput, notepadPath);
 
     console.log(JSON.stringify({ continue: true, suppressOutput: true }));

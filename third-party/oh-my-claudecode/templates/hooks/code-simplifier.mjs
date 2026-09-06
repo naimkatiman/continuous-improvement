@@ -19,7 +19,7 @@ import {
 } from 'fs';
 import { join, dirname } from 'path';
 import { homedir } from 'os';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { fileURLToPath, pathToFileURL } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -27,6 +27,10 @@ const __dirname = dirname(__filename);
 
 const { readStdin } = await import(
   pathToFileURL(join(__dirname, 'lib', 'stdin.mjs')).href
+);
+const { resolveOmcStateRoot } = await import(pathToFileURL(join(__dirname, 'lib', 'state-root.mjs')).href);
+const { BOUNDED_GIT_TIMEOUT_MS } = await import(
+  pathToFileURL(join(__dirname, 'lib', 'bounded-git-timeout.mjs')).href
 );
 
 const DEFAULT_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.py', '.go', '.rs'];
@@ -52,11 +56,12 @@ function isEnabled(config) {
 
 function getModifiedFiles(cwd, extensions, maxFiles) {
   try {
-    const output = execSync('git diff HEAD --name-only', {
+    const output = execFileSync('git', ['diff', 'HEAD', '--name-only'], {
       cwd,
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'ignore'],
-      timeout: 5000,
+      timeout: BOUNDED_GIT_TIMEOUT_MS,
+      windowsHide: true,
     });
 
     return output
@@ -95,7 +100,7 @@ async function main() {
     }
 
     const cwd = data.cwd || data.directory || process.cwd();
-    const stateDir = join(cwd, '.omc', 'state');
+    const stateDir = join(await resolveOmcStateRoot(cwd), 'state');
     const config = readOmcConfig();
 
     if (!isEnabled(config)) {

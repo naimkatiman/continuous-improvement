@@ -1,10 +1,10 @@
 # Hooks System
 
-> OMC's 20 hooks intercept Claude Code lifecycle events to enable magic keywords, context injection, and quality enforcement.
+> OMC's 21 hooks intercept Claude Code lifecycle events to enable magic keywords, context injection, and quality enforcement.
 
 ## What Are Hooks?
 
-Hooks are scripts that execute automatically in response to Claude Code lifecycle events. oh-my-claudecode extends Claude Code's default behavior with 20 hooks.
+Hooks are scripts that execute automatically in response to Claude Code lifecycle events. oh-my-claudecode extends Claude Code's default behavior with 21 hooks.
 
 When a user submits a prompt, a tool runs, or a session starts/ends, hooks fire automatically to inject additional context, activate modes, and manage state.
 
@@ -68,6 +68,7 @@ Handle code quality, permissions, and subagent tracking.
 | permission-handler | Handles permission requests and validation |
 | subagent-tracker | Tracks subagent spawn and completion |
 | code-simplifier | Auto-simplifies recently modified files on Stop (opt-in) |
+| workflow-drift-guard | Blocks only closed, local Stop-hook selection forks with two known-live alternatives and unchanged fake-completion blockers |
 
 ## Disabling Hooks
 
@@ -97,10 +98,12 @@ Fires when the user submits a prompt.
 
 | Script | Role | Timeout |
 |--------|------|---------|
-| `keyword-detector.mjs` | Detects magic keywords and invokes the corresponding skill | 5s |
-| `skill-injector.mjs` | Injects skill prompts | 3s |
+| `keyword-detector.mjs` | Detects magic keywords and invokes the corresponding skill | 30s outer host fuse; 8s trusted Worker limit |
+| `skill-injector.mjs` | Injects skill prompts | 30s outer host fuse; 12s trusted Worker limit |
 
 Runs on all user input (`matcher: "*"`). When the keyword detector finds keywords like "ultrawork", "ralph", or "autopilot", it injects the corresponding skill invocation instruction via `additionalContext`.
+
+The 30s timeout is a per-command outer host fuse that includes launcher startup before `run.cjs`. Once the runner reaches its exact trusted Worker branch, `keyword-detector.mjs` is limited to 8s and `skill-injector.mjs` to 12s; lower manifest limits are never extended. A command that never reaches `run.cjs` can consume its full 30s outer fuse. The host schedules the two commands externally, so this does not claim an aggregate prompt latency.
 
 ### SessionStart
 
@@ -121,9 +124,11 @@ Fires immediately before Claude uses a tool.
 
 | Script | Role | Timeout |
 |--------|------|---------|
-| `pre-tool-enforcer.mjs` | Validates rules before tool use | 3s |
+| `pre-tool-enforcer.mjs` | Validates rules before tool use | 5s |
 
 Runs on all tool calls (`matcher: "*"`). Enforces agent permission restrictions (e.g., blocking Write/Edit for read-only agents).
+Denies Task/Agent calls whose `subagent_type` names a bundled skill (issue #3667): instead of Claude Code's generic native "Agent type not found", the hook returns a precise error naming the Skill tool and the correct identifier, and forbids closest-match agent substitution.
+The exact canonical shipped script runs in the trusted Worker path; untrusted paths, event mismatches, and extra arguments retain the isolated child-process fallback.
 
 ### PermissionRequest
 
@@ -141,10 +146,12 @@ Fires after a tool use completes.
 
 | Script | Role | Timeout |
 |--------|------|---------|
-| `post-tool-verifier.mjs` | Verifies tool results and injects additional context | 3s |
+| `post-tool-verifier.mjs` | Verifies tool results and injects additional context | 5s |
 | `project-memory-posttool.mjs` | Updates project memory | 3s |
+| `post-tool-rules-injector.mjs` | Injects matching project rules | 3s |
 
 Injects additional guidance based on Read, Write, Edit, and Bash results. For example, after reading a file it may hint "consider using parallel reads."
+These exact canonical shipped scripts use the trusted Worker path without changing their manifest timeout budgets. The verifier retains statistics for the current session and the 99 most recently updated historical sessions so per-tool writes stay bounded. Disable all three with `DISABLE_OMC=1` (or `DISABLE_OMC=true`) or `OMC_SKIP_HOOKS=post-tool-use`; `project-memory-posttool` also accepts its script-specific token.
 
 ### PostToolUseFailure
 
@@ -153,6 +160,8 @@ Fires when a tool use fails.
 | Script | Role | Timeout |
 |--------|------|---------|
 | `post-tool-use-failure.mjs` | Provides recovery guidance for failed tool use | 3s |
+
+Disable via `DISABLE_OMC=1` (or `DISABLE_OMC=true`) or `OMC_SKIP_HOOKS=post-tool-use-failure` (the `post-tool-use` token also skips it, alongside `post-tool-verifier.mjs`).
 
 ### SubagentStart
 
@@ -182,7 +191,7 @@ Fires immediately before context compaction.
 | `pre-compact.mjs` | Preserves state before compaction | 10s |
 | `project-memory-precompact.mjs` | Preserves project memory | 5s |
 
-Saves important state and memory before compaction runs because the context window is full.
+Saves important state and memory before compaction runs because the context window is full. The checkpoint captures active mode states, TODO counts, background job status, and durable plan anchors (PRD/boulder references). After compaction, the `SessionStart` hook (`source: "compact"`) restores the newest matching checkpoint into context so OMC-owned plan detail survives compaction (issue #3730).
 
 ### Stop
 
@@ -191,10 +200,11 @@ Fires when Claude finishes a response.
 | Script | Role | Timeout |
 |--------|------|---------|
 | `context-guard-stop.mjs` | Monitors context usage | 5s |
-| `persistent-mode.cjs` | Maintains active mode state (ralph, ultrawork, etc.) | 10s |
+| `workflow-drift-guard.mjs` | Blocks narrow structured-question and fake-completion drift | 3s |
+| `persistent-mode.mjs` | Maintains active mode state (ralph, ultrawork, etc.) | 10s |
 | `code-simplifier.mjs` | Auto-simplifies modified files (opt-in) | 5s |
 
-`persistent-mode` injects a reinforcement message like "The boulder never stops" when an active execution mode is running, prompting continued work.
+`persistent-mode` injects a reinforcement message like "The boulder never stops" when an active execution mode is running, prompting continued work. A fresh unconfirmed ultragoal is exempt while Claude `/goal` confirmation is pending; confirmed runs remain fail-closed.
 
 ### SessionEnd
 
@@ -223,18 +233,46 @@ Detects magic keywords in user prompts and invokes the corresponding skill.
 
 See the [Magic Keywords](#magic-keywords) section for the full keyword list.
 
+
+#### workflow-drift-guard
+
+Blocks only deterministic recurring workflow drift at the Claude Code `Stop` lifecycle point. The boundary follows the official Claude Code [hooks reference](https://code.claude.com/docs/en/hooks): Stop hooks receive `last_assistant_message`, may return `decision: "block"` with a `reason`, and must account for `stop_hook_active` to avoid self-reinforcing loops. Plugin/Hookify installs follow the official Claude Code [plugins reference](https://code.claude.com/docs/en/plugins-reference): plugin hooks can live in `hooks/hooks.json` at the plugin root and respond to the same lifecycle events as user hooks.
+
+- **Event**: Stop
+- **Behavior**: Blocks only a supported, local selection fork in the final assistant message. The block reason directs Claude to use `AskUserQuestion` with 2–4 options and `allowOther` unless free-form input is unsafe.
+- **Fake completion guard**: Unchanged. It blocks only when the final assistant message claims completion and changed code adds deterministic blockers (`test.skip`/`.only`, placeholder TODOs, unimplemented throws, placeholder returns, or explicit stub/placeholder implementations).
+
+##### Closed selection evidence
+
+The decision classifier is stateless and final-message-local. `last_assistant_message` takes precedence; only when it is absent does it use `lastAssistantMessage`, `message`, `output`, `response`, then `text`. It does not use transcript content, prior `AskUserQuestion` calls, firing history, counters, cooldowns, or session state. It masks recognized non-prose before extracting the final unmasked question and blocks only when exactly one of these three source-associated evidence forms independently establishes selection intent and at least two known-live alternatives:
+
+1. **Direct binary question**: either a bare `<single name> or <single name>?` with exactly one top-level ASCII ` or ` delimiter, `Would you prefer <1–6-token named operand> or <1–6-token named operand>?`, `Do you prefer <1–6-token named operand> or <1–6-token named operand>?`, or `Should I <1–8-token action operand> or <1–8-token action operand>?`. Unsupported prefixes, polarity/auxiliary forms, duplicate alternatives, multiple delimiters, or `and`/`or` grouping are not inferred.
+2. **One exact adjacent setup plus one selection closer**: the final question must immediately follow exactly one supported setup sentence and use an exact closer: `Which [option|approach|path|one] should I [choose|use|take]?` or `Which should I [choose|use|take]?`. A named setup enumerates exactly two (`C and C`), three (`C, C, and C`), or four (`C, C, C, and C`) candidates. Its `ENUMERATION` core ends in exactly `are viable options`, `are viable`, `are options`, or `were considered`. The full setup is then exactly `<ENUMERATION>.`, `<ENUMERATION>; <C> is|was <status>[ and <C> is|was <status>].`, `<ENUMERATION>; only <C> remains.`, `<ENUMERATION>; the other module is unchanged.`, `<ENUMERATION>, or <paste|provide|enter> the exact <operand>.`, or `<ENUMERATION>, or describe <operand>.` Named liveness statuses are exactly `ruled out`, `eliminated`, `discarded`, `not viable`, `no longer an option`, `already chosen`, `already selected`, and `already resolved`. A named candidate is 1–4 exact `NAME_TOKEN`s (`[A-Za-z0-9][A-Za-z0-9._/+:-]*`) separated by one ASCII space, after at most one balanced outer emphasis pair is removed. The parser enumerates every full-string syntactic parse before normalization; zero or multiple parses pass. Only after one parse is established are normalized duplicate identities collapsed, and only compatible states may merge—conflicting duplicate states are unknown and pass.
+3. **One exact contiguous option list plus one selection closer**: at least two supported `- `, `* `, `+ `, numeric (`1.`–`9.`), or alphabetic (`A.`–`Z.`/`a.`–`z.`) items must be contiguous and directly followed by that closer; blank lines are allowed only between items. Items may use only the exact eliminated-status suffixes `ruled out`, `eliminated`, `discarded`, `not viable`, or `no longer an option`, in an em-dash or parenthesized form. Any other marker, suffix, or intervening non-item prose passes.
+
+All candidate-bearing records use the same rules. Empty candidates and exact `this`, `that`, `it`, `something`, `yes`, `no`, and `not` do not count; valid candidates start live; exact supported statuses can eliminate them; and exact `only C remains` keeps that candidate live while eliminating its named peers. A record blocks only with at least two unique, substantive, known-live identities after compatible duplicate collapse. An unlinked, ambiguous, conflicting, or unknown candidate state passes.
+
+An offered candidate normalized exactly as `other` or `other/free-form` always takes precedence and makes its binary, named-setup, or list record pass. The named-setup free-form productions (`or paste`, `provide`, or `enter the exact …`, or `describe …`) also pass. Conversely, the exact local suffix `; the other module is unchanged.` is ignored non-evidence: it neither supplies an alternative nor triggers the `Other` escape.
+
+Cardinality is candidate-free: exact `I found two viable [paths|options|approaches].`, `There are two viable [paths|options|approaches].`, and `Two viable [paths|options|approaches] remain.` setups establish a minimum of two live alternatives when directly paired with a selection closer. The only reduction is the exact matching-noun sentence `<I found|There are> two viable <plural>, but one <singular> <is|was> <status>.`; its status may be `ruled out`, `eliminated`, `discarded`, `not viable`, `no longer an option`, `resolved`, `already chosen`, `already selected`, or `already resolved`, including `was resolved`. That makes cardinality unknown and passes unless the exact matching-noun re-establishment sentence `One <singular> <is|was> <status>; two viable <plural> remain.` restores two. `Only one path|option|approach remains.` creates no cardinality evidence. The guard never invents candidate names from cardinality.
+
+Ambiguous-regex and malformed-ternary uncertainty is bounded to the current physical line using half-open UTF-16 source ranges. Uncertainty intersecting or following a record passes; uncertainty ending before the record does not suppress it. Unlisted syntax, malformed or overlapping parses, unsupported open-input wording, uncertain boundaries, and any attempt to combine candidates, cardinality, liveness, intent, or free-form evidence across records all fail open.
+
+- **Unchanged pass behavior**: Free-form/`Other` cases, TODO/stub markers without a completion claim, `stop_hook_active` re-entry, environment skips, and exception handling fail open as before.
+- **Minimal safe boundary**: Worktree/session continuity remains SessionStart guidance plus existing mode-state restoration because a generic Stop hook cannot safely infer that the assistant is in the wrong branch or has lost context without overblocking valid work.
+
 #### persistent-mode
 
 Enforces continuation when an execution mode is active. This is the hook that keeps skills like autopilot, ralph, and ultrawork running.
 
 - **Event**: Stop
-- **Behavior**: Checks `.omc/state/` for active mode state files. If any mode (ralph, autopilot, ultrawork, ultraqa, team, pipeline) is active, injects a reinforcement message to prevent Claude from stopping.
+- **Behavior**: Checks `.omc/state/` for active mode state files. If any mode (ralph, ultragoal, autopilot, ultrawork, team, pipeline) is active, injects a reinforcement message to prevent Claude from stopping.
 - **Reinforcement message**: "The boulder never stops" — prompts Claude to continue working
 - **Staleness check**: States older than 2 hours are treated as inactive to prevent stale state from blocking new sessions
 - **Notification**: Sends Discord/Telegram/Slack notification on first stop (if configured)
 - **Cancel**: Use `/oh-my-claudecode:cancel` to deactivate modes
 
-> **Note**: autopilot, ralph, ultrawork, and ultraqa are **skills** (invoked via keyword-detector), not hooks. The persistent-mode hook is what enforces their continuation by blocking the Stop event.
+> **Note**: autopilot, ralph, and ultrawork are **skills** (invoked via keyword-detector), not hooks. The persistent-mode hook is what enforces their continuation by blocking the Stop event.
 
 ### Mode State Management
 
@@ -255,6 +293,18 @@ Execution mode hooks manage state files in the `.omc/state/` directory.
 ```
 
 When a session ID is present, state is stored in session scope under `.omc/state/sessions/{sessionId}/`.
+
+
+#### ultragoal-state.json lifecycle
+
+`ultragoal-state.json` is the session-scoped Stop/PreToolUse guard for `$ultragoal` runs. The durable plan and audit trail remain `.omc/ultragoal/goals.json` and `.omc/ultragoal/ledger.jsonl`; the state file only records the active runtime guard.
+
+- **Location**: `.omc/state/sessions/{sessionId}/ultragoal-state.json` when a Claude session id is available; legacy fallback is `.omc/state/ultragoal-state.json`.
+- **Active fields**: `active: true`, `session_id`, `project_path`, `started_at`, `last_checked_at`, `current_phase`, optional `claude_goal_objective`, `reinforcement_count`, `awaiting_confirmation`, and `awaiting_confirmation_set_at`.
+- **Pending confirmation**: a fresh unconfirmed state is exempt from both Stop reinforcement and matching-`/goal` PreToolUse enforcement. Freshness requires `awaiting_confirmation: true` and a timestamp age in `[0, 2 minutes)`; a non-empty `awaiting_confirmation_set_at` is authoritative, while an absent or blank value may fall back to `started_at`. Invalid, future, or expired timestamps fail closed.
+- **Stop hook**: after confirmation, reinforces only when the state is active, fresh (within the normal 2-hour mode-state freshness window), session-matching, and project-matching. Terminal phases (`complete`, `completed`, `done`, `all-done`, `failed`, `cancelled`) and all-done `.omc/ultragoal/goals.json` plans are ignored.
+- **PreToolUse guard**: after confirmation, tools are denied unless the hook can see a matching active Claude `/goal` snapshot. Use `ALLOW_ULTRAGOAL_WITHOUT_GOAL=1` only as an intentional local bypass.
+- **Completion**: after the final quality gate and ultragoal checkpoint, mark the state inactive or run `/oh-my-claudecode:cancel` so the state file is cleared with other workflow state.
 
 #### Canceling a Mode
 
@@ -304,6 +354,7 @@ Manages permanent project-level memory.
   - `project-memory-session.mjs` (SessionStart): Loads project memory when session starts
   - `project-memory-posttool.mjs` (PostToolUse): Updates memory after tool use
   - `project-memory-precompact.mjs` (PreCompact): Preserves memory before compaction
+- **Multi-session contract**: Both writers acquire `withProjectMemoryLock` (see `src/lib/file-lock.ts`) before reading or rewriting `project-memory.json`. Concurrent sessions in the same workspace serialize through this lock, so lost-update races between parallel Claude sessions are impossible. See `tests/integration/concurrent-project-memory.test.ts` for the regression guard.
 
 Two types of data are stored in project-memory:
 
@@ -366,7 +417,7 @@ These keywords invoke a skill and create a state file.
 | `ralph`, `don't stop`, `must complete`, `until done` | ralph | Persistent execution until verification completes |
 | `autopilot`, `build me`, `I want a`, `handle it all`, `end to end`, `auto-pilot`, `full auto`, `fullsend`, `e2e this` | autopilot | Fully autonomous execution |
 | `ultrawork`, `ulw`, `uw` | ultrawork | Maximum parallel execution |
-| `ccg`, `claude-codex-gemini` | ccg | Claude-Codex-Gemini tri-model orchestration |
+| `ccg`, `claude-codex-gemini` | ccg | Claude-Codex-Gemini tri-model orchestration (use `antigravity` workers when using the Antigravity CLI) |
 | `ralplan` | ralplan | Consensus-based iterative planning |
 | `deep interview`, `ouroboros` | deep-interview | Socratic deep interview |
 
@@ -405,6 +456,12 @@ These keywords inject an inline mode message rather than invoking a skill.
 | `ultrathink`, `think hard`, `think deeply` | Activates extended reasoning mode |
 | `deepsearch`, `search the codebase`, `find in codebase` | Activates codebase-focused search mode |
 | `deep-analyze`, `deepanalyze` | Activates deep analysis mode |
+
+### Localized Triggers (Korean / Japanese)
+
+`keyword-detector.mjs` also recognizes Korean and Japanese aliases for these keywords (e.g. `랄프` / `ラルフ` → ralph, `코드 리뷰` / `コード レビュー` → code-review, `딥 분석` / `ディープ アナライズ` → analyze). Because Korean and Japanese have no ASCII word boundary, these aliases match by substring, so a localized alias inside a longer noun phrase still routes (e.g. `コードレビュー記事を要約して` → code-review).
+
+See [REFERENCE.md → Magic Keywords → Localized triggers](./REFERENCE.md#magic-keywords) for the full alias table and routing-behavior details (reviewer-suffix guard, informational suppression including `違いを教えて`/`何が違う` difference questions).
 
 ### Priority and Conflict Resolution
 
