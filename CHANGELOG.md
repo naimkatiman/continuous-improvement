@@ -4,6 +4,12 @@ All notable changes to this skill are documented here.
 
 ---
 
+## Unreleased
+
+### Changed
+
+- **`landing-drift.yml` opens a PR when the landing test count is stale** instead of leaving a manual two-surface edit on every feature PR. `--write --actual-from` rewrites both numbers from a real suite run and pushes `chore/landing-test-count`. A missed Pages deploy still fails the REV job red: a source PR cannot fix a live deploy. PR CI only checks that the two surfaces agree with each other.
+
 ## [3.25.0] — 2026-09-07
 
 ### Added
