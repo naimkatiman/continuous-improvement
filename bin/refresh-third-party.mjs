@@ -198,6 +198,7 @@ function localPathDirty(relPath) {
 }
 async function deleteClaudeMdRecursive(root) {
     // Node-only equivalent of `find <root> -name CLAUDE.md -type f -delete`.
+    // (helpers for our own in-snapshot annotations are defined below)
     const { readdir } = await import("node:fs/promises");
     const stack = [root];
     let deleted = 0;
@@ -239,6 +240,32 @@ async function checkOne(snapshot) {
         await rm(dir, { recursive: true, force: true });
     }
 }
+/**
+ * Files inside a snapshot directory that we author, not upstream. The refresh
+ * wipes the directory wholesale, so these have to be carried across it by hand.
+ * `OUR_NOTES.md` is the drift radar the vendoring contract requires;
+ * `.fork-only-skills.txt` is the allowlist the Skills Drift Check subtracts.
+ */
+export const OUR_FILES = ["OUR_NOTES.md", ".fork-only-skills.txt"];
+/** Read whichever of OUR_FILES exist under `localAbs`. Absent files are skipped. */
+export async function readOurFiles(localAbs) {
+    const saved = new Map();
+    for (const name of OUR_FILES) {
+        try {
+            saved.set(name, await readFile(join(localAbs, name)));
+        }
+        catch {
+            // Not every snapshot carries every one of these; absence is normal.
+        }
+    }
+    return saved;
+}
+/** Write the captured files back under `localAbs`. Returns how many were restored. */
+export async function restoreOurFiles(localAbs, saved) {
+    for (const [name, body] of saved)
+        await writeFile(join(localAbs, name), body);
+    return saved.size;
+}
 async function refreshOne(snapshot, { force }) {
     const pinned = await readPinnedSha(snapshot);
     const localAbs = join(REPO_ROOT, snapshot.localPath);
@@ -254,6 +281,12 @@ async function refreshOne(snapshot, { force }) {
             throw new Error(`[${snapshot.name}] upstream HEAD ${headSha} != pinned ${pinned}; ` +
                 `bump the pinned SHA in third-party/MANIFEST.md first`);
         }
+        // Our own annotations live inside the snapshot directory, so the wipe below
+        // destroys them along with the upstream copy. That silently deleted
+        // OUR_NOTES.md on both the superpowers (#304) and oh-my-claudecode (#308)
+        // refreshes — the drift radar, removed by the tool whose drift it records.
+        // Capture before the wipe, put back after the copy.
+        const ourFiles = await readOurFiles(localAbs);
         // Wipe + recreate destination.
         await rm(localAbs, { recursive: true, force: true });
         await mkdir(localAbs, { recursive: true });
@@ -279,6 +312,10 @@ async function refreshOne(snapshot, { force }) {
         }
         // Strip every CLAUDE.md (auto-loads as session context).
         const stripped = await deleteClaudeMdRecursive(localAbs);
+        // Put our annotations back. After the CLAUDE.md strip, so a snapshot that
+        // ever carries an OUR_* named CLAUDE.md is not re-deleted; before the diff
+        // stat, so the printed diff reflects what actually landed on disk.
+        const preserved = await restoreOurFiles(localAbs, ourFiles);
         // Defense in depth: forcibly delete excludePostCopy paths from the
         // local snapshot, regardless of whether they were copied. Guards
         // against silent regressions if selectiveDirs is later edited to
@@ -322,7 +359,7 @@ async function refreshOne(snapshot, { force }) {
         log(`  upstream     : ${snapshot.upstream}`);
         log(`  pinned SHA   : ${pinned}`);
         log(`  upstream HEAD: ${headSha}`);
-        log(`  status       : updated (${copiedDirs} dirs, ${copiedFiles} files, ${stripped} CLAUDE.md stripped, ${excluded} excluded paths removed, ${patchedKeys} json keys patched)`);
+        log(`  status       : updated (${copiedDirs} dirs, ${copiedFiles} files, ${stripped} CLAUDE.md stripped, ${preserved} of ours preserved, ${excluded} excluded paths removed, ${patchedKeys} json keys patched)`);
         if (String(diffStat.stdout).trim()) {
             log("  diff --stat  :");
             for (const line of String(diffStat.stdout).trimEnd().split(/\r?\n/)) {
@@ -412,7 +449,14 @@ async function main() {
         exit(1);
     exit(0);
 }
-main().catch((e) => {
-    err(`fatal: ${e.stack || e.message}`);
-    exit(1);
-});
+// Only run the CLI when invoked as one. Without this, importing the module to
+// test its helpers would start a refresh. Same shape as the other bin/ scripts:
+// the endsWith fallback covers Windows, where argv[1] is a backslash path and
+// never equals the forward-slash file:// URL.
+const invokedDirectly = argv[1] !== undefined && import.meta.url.endsWith(argv[1].replace(/\\/g, "/"));
+if (invokedDirectly || argv[1]?.endsWith("refresh-third-party.mjs")) {
+    main().catch((e) => {
+        err(`fatal: ${e.stack || e.message}`);
+        exit(1);
+    });
+}
