@@ -29,9 +29,14 @@ with the text `probe`) **without presenting any research first**.
 
 - If the hook **blocks** the write with a fact-list reason — the runtime layer is
   wired. Record `gateguard: ✓`. Do not retry the write; the block is the pass.
-- If the write **goes through** with no pause — the hook did not load. Record
-  `gateguard: ✗ (hooks/gateguard.mjs not wired — see README → Troubleshooting install)`.
-  Delete the probe file if it was created.
+- If the write **goes through** with no pause — either the hook did not load, or
+  `CI_GATEGUARD_EXCLUDE` is set to a fragment that matches the probe path (a
+  catch-all such as `/` or `.` matches every path and switches the file gate off;
+  the hook prints a one-line stderr notice when an exclusion fires). Run
+  `echo "$CI_GATEGUARD_EXCLUDE"` first. If it is empty, record
+  `gateguard: ✗ (hooks/gateguard.mjs not wired — see README → Troubleshooting install)`;
+  if it is set, record `gateguard: ✗ (excluded by CI_GATEGUARD_EXCLUDE=<value>; unset it or
+  narrow the fragment)`. Delete the probe file if it was created.
 
 ## Check 3 — observation capture recording
 
