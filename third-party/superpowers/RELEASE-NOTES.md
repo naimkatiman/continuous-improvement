@@ -1,5 +1,223 @@
 # Superpowers Release Notes
 
+## v6.3.0 (2026-08-12)
+
+### Harness Support
+
+- **Devin CLI**: `devin plugins install obra/superpowers` now works, and skills auto-trigger at session start. (#1995)
+- **Hermes Agent**: install from a git clone; skills register with Hermes' native loader and the bootstrap loads on the first turn. (#1922, #2025)
+- **Grok Build CLI** added to the install docs. (#1919)
+
+### Brainstorming
+
+- **Ceremony now scales to the task.** Requests are classified as spike, bounded, or architectural; small tasks skip the two-document ritual. Every path still stops for your approval before implementation. (#2063)
+
+### Subagent-Driven Development
+
+- **Controllers no longer stall on plan conflicts.** Non-catastrophic conflicts and ambiguities get a recorded ruling and work continues; only destructive or irreversible actions still stop for a human. One donated session had sat blocked for almost nine hours on a question the controller could have decided. (#2077)
+- **The pre-dispatch conflict scan records its checks in the ledger** instead of just asserting the plan is clean. (#2080)
+- **Small same-shape tasks batch into one dispatch**, cutting subagent cost sharply on micro-task plans; batch reviews verify every file in the brief made it into the diff. (#2078)
+- **Implementers and reviewers may not spawn their own subagents**, which was producing duplicate reviews. (#2059)
+- **Plans carry a `Spec:` pointer** and SDD reads the spec at setup, so plan conflicts get resolved against the design instead of guessed at. (#2086)
+- Reviewers re-read evidence they find illegible instead of re-running the test suite (#2089), and circuit-breaker rulings now show up in the Finish report.
+
+### Codex
+
+- Subagent waits are event-driven instead of poll-heavy, spawns pin model and reasoning effort explicitly, and the multi-agent reference is corrected against Codex source. (#2060, #2061, #2062)
+
+### Finishing a Development Branch
+
+- **Worktree removal no longer destroys untracked files.** When `git worktree remove` refuses because the tree holds uncommitted work, the skill stops, names the files, and asks — instead of reaching for `--force`. (#2016, #1223, #2024)
+
+### Fixes
+
+- `render-graphs.js` in writing-skills works on Windows.
+- Corrected Copilot CLI backgrounding guidance for Windows. (#1929, #2006)
+- `bump-version.sh` covers the Hermes manifest.
+
+### Documentation
+
+- README: added a table of contents and reorganized Getting Started.
+
+## v6.2.0 (2026-07-23)
+
+### Subagent-Driven Development
+
+Two structural changes to how SDD tracks progress and closes out review findings, both developed against live eval campaigns.
+
+- **The workspace is now plan-scoped.** `.superpowers/sdd/` had no plan identity and no end-of-life: a follow-up plan in the same working tree could read the previous plan's ledger as its own progress (observed in the wild, with multiple contamination rounds and ad-hoc workarounds). `sdd-workspace` now requires the plan file and resolves a per-plan directory, `.superpowers/sdd/<plan-basename>/`; `task-brief` and `review-package` write into their plan's directory (`review-package` gains the plan file as its first argument); the ledger names its plan on its first line; and the workspace is deleted once the final review is clean — git history is the durable record. Baseline evals showed controllers already refused foreign ledgers, but at a cost of 6–13 tool calls of cross-plan git forensics per resume; plan-scoping makes the answer structural instead. (25/25 baseline and GREEN eval runs documented in `docs/specs/` and `docs/plans/`.)
+- **The review-fix loop resumes the implementer.** The lifecycle restructure gives fix rounds resume-the-implementer semantics instead of fresh dispatches, adds a scoped re-review prompt (`re-review-prompt.md`) so the re-reviewer checks the fixes rather than re-reading the whole task, and installs a five-round circuit breaker with controller adjudication when it trips. SKILL.md reorganizes by lifecycle, and its Red Flags convert to the house rationalization-table form.
+
+### Skills
+
+A branch-wide compression campaign: recap sections, social proof, and benefits-selling prose aimed at a reader who has already invoked the skill are gone, with every load-bearing argument folded into a rationalization-table row or moved to its point of use. Each cut was micro-tested with subagent probes, and the one cut that measurably degraded behavior was reworked rather than shipped.
+
+- **`testing-anti-patterns.md` is now `writing-good-tests.md`.** The TDD reference doc is rebuilt as a positive catalog — six rules that lead with the GOOD example — and absorbs a falsifiability discipline: name the production change that would fail the test, derive expectations independently of the code under test, and a closing mutation check. It closes two holes by name: the string-presence trap (grep-style tests on scripts, skills, and prompts counterfeit falsifiability — the observable is behavior, never text) and the change-detector trap (a constant assertion can fail and still protect nothing), each with a hard stop in the gate function. Trivial code and human prose earn no test; the trigger broadens from "adding mocks" to any test writing.
+- **TDD's "Why Order Matters" rebuttals survive as rationalization rows.** Deleting the section outright measurably degraded test-first behavior under "just write it, tests after" pressure (control 8/10 → treatment 5/10, corroborated on Claude and Codex), so each prose rebuttal now lives in its Common Rationalizations row — the section is gone but the arguments fire where an agent hits them mid-rationalization.
+- **`finishing-a-development-branch` no longer offers to discard your work.** The completion menu dates from when throwing away branches was routine; "Discard this work" next to "Merge" advertised destroying finished, passing work. Discard survives as an explicit-request-only path with the same typed-confirmation ritual. The same pass made PR creation forge-agnostic (your forge's CLI or the URL printed on push, not a blessed list of tools) and fixed a real bug: the worktree path was recomputed after cleanup had already changed directory, so provenance checks never matched and cleanup silently no-oped.
+- **Recap and persuasion prose removed across the library.** `brainstorming`, `systematic-debugging`, `dispatching-parallel-agents`, `verification-before-completion`, `executing-plans`, `subagent-driven-development`, `requesting-code-review`, `receiving-code-review`, `using-git-worktrees`, `writing-plans`, and `writing-skills` all drop their Bottom Line / Key Principles / Real-World Impact / Advantages sections; `using-git-worktrees` and `finishing-a-development-branch` convert their guard sections to the house Excuse/Reality rationalization table.
+
+### Windows
+
+- **The SessionStart hook now dispatches via Git Bash.** The hook's command string starts with a quoted path, which broke both shells Claude Code might hand it to: PowerShell parsed the quoted string as an expression and died with a parser error (#1751), and cmd.exe's quote-stripping rule truncated the command when the profile path contained a metacharacter like `(` (#1918) — either way the bootstrap silently never loaded. The hook now declares `shell: "bash"`, which Claude Code ≥ 2.1.81 resolves to Git for Windows directly, and which surfaces an actionable install prompt when Git Bash is missing. Older Claude Code versions ignore the unknown key and behave as before. Verified end-to-end on Linux, Windows 11 with Git Bash under a hostile path, and Windows 11 without Git Bash.
+
+### Harness Support
+
+- **Gemini CLI support is restored.** The v6.1.0 removal (on the news that Google had EOLed the Gemini CLI) was premature; the install docs and the `gemini-tools.md` tool-mapping reference are back while permanent removal gets a proper evaluation. (#1959)
+
+### Fixes
+
+- **`find-polluter.sh` actually finds test files now.** `find .` emits `./`-prefixed paths, so the documented `-path "src/**/*.test.ts"` pattern matched nothing — and `wc -l` on empty input then reported "Found 1". Fixed the prefix mismatch (#2008, #2011), plus two follow-ups: a caller-supplied `./`-prefixed pattern no longer double-prefixes into a never-matching form, and `**/` is also matched collapsed so tests directly under the base directory (`src/top.test.ts` vs `src/**/*.test.ts`) aren't silently skipped. The script gains a deterministic test suite.
+- **The Codex package script works beyond macOS.** Deterministic-metadata tar flags were bsdtar-only spellings, staged file modes depended on two umasks canceling out, and the test's timestamp assertion parsed bsdtar's column layout in a US timezone. GNU tar now gets equivalent flags producing byte-identical headers, modes are pinned canonical, and the test asserts mtime via `tarfile`.
+- **SDD's skill test no longer flakes.** The file's worst case exceeded the runner's per-file ceiling (raised to 900s), and the assert helpers matched free-form model prose case-sensitively; matching is now case-insensitive and `assert_order` dumps output on failure so the next flake is diagnosable.
+- **Docs and test cleanup after the v6.1.0 reference pruning.** Dead links to the deleted `claude-code-tools.md`/`copilot-tools.md` are replaced with the current architecture (#1969), a dangling `#subagent-support` anchor in the Antigravity reference is dropped (#2010), and the Antigravity/Pi mapping tests assert only the surviving harness-specific mappings — scoped to the table so they fail again if it's deleted.
+
+## v6.1.1 (2026-07-02)
+
+### Codex
+
+- **Codex no longer re-registers the Claude SessionStart hook.** v6.1.0 removed the Codex hook config and its manifest `hooks` pointer, meaning to stop Codex from installing a SessionStart hook — but with no `hooks` field, Codex fell back to auto-discovering `hooks/hooks.json`, the Claude Code SessionStart hook that the marketplace ships from the repo root, and re-registered it along with its install-time trust prompt. The Codex manifest now declares an explicit empty hooks object (`hooks: {}`), which Codex reads as "no hooks" instead of reaching the auto-discovery fallback. An absent field, `[]`, and an empty inline list all collapse back to the fallback, so the value has to be exactly `{}`.
+- **Removed orphaned Codex session-start dead code.** `hooks/session-start-codex` had no caller once the Codex hook config was deleted, so it and its redundant test cases are gone. The worked shell-hook example in `docs/porting-to-a-new-harness.md` moves from Codex — now native skill discovery with no session-start hook — to Cursor, a live shell-hook harness, and the stale `hooks-codex.json` pointer in `docs/windows/polyglot-hooks.md` is corrected. The Codex plugin category is also fixed to "Developer Tools".
+
+### Packaging
+
+- **New `package-codex-plugin.sh` for building the Codex portal package.** A maintainer script produces a deterministic Codex "portal" archive — `.zip` by default, `tar.gz` on request — that normalizes entry timestamps, preserves executable modes, verifies every packaged skill ships its OpenAI metadata, includes the app and composer icons, and refuses to run against a dirty worktree. The packaged manifest keeps the source `hooks: {}` object so a portal-installed plugin avoids the same SessionStart auto-discovery, and the script can rebuild a byte-identical archive from a saved metadata source. Covered by a new test suite.
+
+## v6.1.0 (2026-06-30)
+
+### Lower Per-Session Token Cost
+
+The `using-superpowers` bootstrap is injected into every session, so its size is paid for constantly. This release trims it and the per-harness references it points to, without dropping behavior-shaping content.
+
+- **Compressed the `using-superpowers` bootstrap.** Replaced the graphviz skill-flow diagram with the prose it encoded, folded the standalone Instruction-Priority section into User Instructions, dropped the per-platform "How to Access Skills" walkthrough, and trimmed the Platform Adaptation pointer to the harnesses that still ship a reference file. The full Red Flags rationalization table and the user-instruction precedence rules are unchanged.
+- **Pruned the per-harness tool-mapping references.** The verbose action-to-tool tables restated guidance modern agents already follow. Each reference file is trimmed to the harness-specific notes that still carry weight — subagent dispatch, task tracking, instructions-file paths — and `claude-code-tools.md` and `copilot-tools.md`, which had nothing harness-specific left, are deleted.
+
+### Codex
+
+- **Codex can install from the marketplace.** Codex marketplace sources expect a `.agents/plugins/marketplace.json` at the marketplace root; the repo only shipped the Claude marketplace file, so Codex could name the marketplace but found no installable plugin entries. A repo-local Codex marketplace manifest now points at the same repository root, so the plugin is installable from Codex.
+- **Codex no longer ships a SessionStart hook.** Codex reliably triggers skills on its own, and the bootstrap hook made the UX worse rather than better. The Codex hook config (`hooks-codex.json`) and its manifest registration are removed.
+
+### Harness Support
+
+- **Gemini CLI support removed.** Google EOLed the Gemini CLI on 2026-06-18; the extension can no longer be installed or updated. Gemini is gone from the install docs, the subagent-capable platform lists, and the eval-harness description, and its tool-mapping reference is deleted.
+
+## v6.0.3 (2026-06-18)
+
+### Subagent-Driven Development
+
+- **SDD scratch files moved out of `.git/`.** Claude Code treats `.git/` as a protected path and denies agent writes there, so an implementer subagent writing its report into `.git/sdd/` got blocked mid-run. Task briefs, implementer reports, review diffs, and the progress ledger now live in a self-ignoring `.superpowers/sdd/` directory in the working tree — kept out of `git status` and out of commits, and resolved per worktree by a shared `sdd-workspace` helper. One caveat: because the workspace is git-ignored working-tree scratch, `git clean -fdx` will delete the progress ledger; recover from `git log` if that happens. (#1780)
+
+## v6.0.2 (2026-06-16)
+
+### Install Fixes
+
+- **We no longer ship the `evals` submodule.** It broke plugin installs for some users, so the eval harness now lives in its own repo, separate from the published plugin. (#1778, #1774)
+
+## v6.0.1 (2026-06-16)
+
+### Codex Fixes
+
+- **Version display in the brainstorm companion** — packaged Codex plugins ship without a root `package.json`, so the visual companion reported its version as "unknown". `readSuperpowersVersion()` now falls back to `.codex-plugin/plugin.json` when `package.json` is absent.
+- **Cleaner Codex plugin sync** — the sync-to-codex script now excludes `.gitmodules` and `.pre-commit-config.yaml`, keeping repo metadata out of the packaged Codex plugin.
+
+## v6.0.0 (2026-06-16)
+
+Superpowers 6.0 is a big release. The headline is a rewrite of how `subagent-driven-development` reviews each task — cheaper, stricter, and harder to game. 
+
+While these numbers won't hold on every harness and for every workload, in our evals, Claude Code and Codex produce similar high-quality results roughly twice as fast and while spending almost 50% fewer tokens.
+
+It also adds three new harnesses (Kimi Code, Pi, and Antigravity), gives the brainstorming visual companion a better security model, and rewrites a number of skills' tool calls to be significantly more vendor-neutral.
+
+### Visible Changes
+
+- **The two per-task reviewer prompts became one.** `spec-reviewer-prompt.md` and `code-quality-reviewer-prompt.md` are gone, replaced by a single `task-reviewer-prompt.md`. If you dispatch the old files directly, switch to the new one.
+- **The legacy global worktree directory is gone.** `using-git-worktrees` and `finishing-a-development-branch` no longer use `~/.config/superpowers/worktrees/`. Worktrees now land in the project — an existing `.worktrees/` or `worktrees/` if you have one, otherwise a fresh `.worktrees/` — unless you say otherwise.
+
+### New Harness Support
+
+Superpowers now runs on three more harnesses. Each ships its own bootstrap, a tool-mapping reference, and tests, and each gets its own install section in the README.
+
+- **Kimi Code** — a plugin manifest, install docs, and manifest tests; install from Kimi's marketplace or straight from the repo. (initial manifest by @qer)
+- **Pi** — a session-start extension that registers the skills and injects the `using-superpowers` bootstrap. Pi has native skills, so it needs no compatibility shim.
+- **Antigravity (`agy`)** — installs the plugin directly and bootstraps from the first message; verified end-to-end against the standard "make a react todo list" acceptance test.
+
+### Subagent-Driven Development
+
+A long run of cost-and-quality experiments on real projects reshaped how the controller reviews each task. The old flow ran two reviewers per task and leaned on the controller's judgment for model choice and severity, and both turned out to be expensive and easy to game. The new flow runs one reviewer per task, hands work off as files instead of pasted text, and takes several judgment calls away from the controller.
+
+- **One reviewer per task, two verdicts.** A single `task-reviewer-prompt.md` reads the task's diff once and returns both a spec-compliance verdict and a quality verdict, so one fix pass clears both. A new "can't verify from the diff" verdict flags requirements that live in untouched code, for the controller to check itself. (#1538, #1543)
+- **One broad review at the end.** The run finishes with a single whole-branch review on the most capable model, instead of re-reviewing everything task by task.
+- **Plans get a pre-flight read.** Before the first task, the controller checks the plan for internal conflicts — and for anything the plan asks for that a reviewer would flag as a defect — and raises it all at once, rather than stumbling into it mid-run.
+- **Diffs and task text move as files.** A pasted diff parks itself permanently in the most expensive context, and a reviewer without one rebuilds it by hand — the single biggest reviewer cost. Two new scripts, `task-brief` and `review-package`, write the task text and the review diff to files for the subagent to read.
+- **Every dispatch states its model.** Left to choose, controllers stopped naming a model at all — and an unnamed model quietly inherits the session's most expensive one, so one run put all 26 of its reviewers on the top tier. The templates now require a model, with guidance that reaches for cheaper tiers when the work allows.
+- **The controller can't tell a reviewer what to ignore.** Real runs caught controllers coaching reviewers to skip a finding or call it "Minor at most," and the flaw shipped. Suppressing findings and pre-rating severity are now banned outright, and a defect the plan itself mandates gets reported for you to decide on rather than waved through.
+- **Reviewers are read-only and skeptical of rationales.** Review no longer touches the working tree or branch — a reviewer running `git checkout` had been orphaning later commits — and an implementer's "I left this unabstracted on purpose" no longer talks a reviewer out of a real finding.
+- **Stronger evidence and reporting.** Reviewers back each answer with a file and line, the implementer's report moves to a file and carries red/green evidence when TDD applies, and a progress ledger lets a controller that loses its context resume instead of redoing finished work. (#994)
+
+### Writing Plans
+
+Plans now carry the structure the controller and reviewers used to re-derive on every dispatch.
+
+- **A Global Constraints block** lists the rules that bind every task — version floors, dependency limits, naming and copy, exact values — copied in verbatim, so they actually reach the implementers and reviewers downstream.
+- **A per-task Interfaces block** names exactly what each task consumes and produces, so an implementer who sees only its own task still knows its neighbors' contracts.
+- **Right-sizing guidance** keeps a task at the size that earns its own test cycle and a reviewer's pass, folding setup, config, and docs into the task that needs them. In testing, a plan written this way needed one round of fixes where the control needed two to four — and the control shipped a real bug.
+
+### Brainstorming Visual Companion
+
+The visual companion is a small web server the agent opens alongside the conversation. It had no authentication at all, so on a shared or remote machine anyone who could reach the port could read your brainstorm — or inject events the agent treats as your input. This release gives it a real security model and makes it survive restarts and dropped connections.
+
+- **A per-session key now guards everything.** The agent's URL carries a one-time key, the browser tucks it into a tab-scoped cookie, and every request and WebSocket connection has to present it. This closes the door to stray local tabs and routable remote hosts alike, including the DNS-rebinding case an origin allowlist can't catch. (Closes #1014)
+- **The file server stays in its sandbox.** It refuses symlinks, dotfiles, and any path that climbs out of the content directory, ignores macOS resource-fork files, and sends the usual no-store and deny-framing headers. Files that hold the session key are written owner-only.
+- **The companion is offered only when it helps.** The skill raises it the first time a question would read better shown than told, as its own message, and lets a decline stand. Accepting opens your browser to the first screen. (Closes #755)
+- **It survives restarts and flaky connections.** Given a project directory, the server keeps the same port and key across restarts, so an open tab simply reconnects. The page reconnects on its own, shows a live status pill, and raises a "paused" overlay while the server is down.
+- **Longer idle life, safer shutdown.** The idle timeout went from 30 minutes to 4 hours, and `stop-server.sh` now confirms it owns the right process before signaling, so it never kills an unrelated `node` after a reboot. (#1703)
+- **Windows launch hardening** — consolidated shell detection, and Windows now relies on the idle timeout for shutdown, since Node can't track POSIX process ownership across MSYS2.
+
+
+### Existing Harness Updates
+
+- **Codex** now bootstraps through its own SessionStart hook rather than shared wiring, and the Codex App gained an install section and fuller tool docs (web search, `AGENTS.md`, personal skills). (#1540)
+- **OpenCode** got an action-based tool mapping across its plugin, install doc, and README, plus a bootstrap-caching test.
+- **Cursor**'s manifest dropped its `agents` and `commands` entries, since those directories no longer exist.
+
+### One Set of Skills, Every Harness
+
+The skills used to speak Claude Code's dialect — "use the Task tool," "put it in CLAUDE.md." This release rewrites that vocabulary in terms of what you're actually doing ("dispatch a subagent," "your instructions file") and adds a per-harness reference that maps each action to the right tool, checked against each runtime. Prose that named "Claude" now says "your agent."
+
+- **A tool reference per harness** at `skills/using-superpowers/references/`, covering Claude Code, Codex, Copilot, Gemini, Pi, and Antigravity.
+- **`finishing-a-development-branch` went forge-neutral** — it no longer hardcodes `gh pr create`, so agents push with whatever forge tooling they have. (#1609)
+- **One rename:** "Claude Search Optimization" is now "Skill Discovery Optimization," since the technique isn't Claude-specific.
+
+### Writing Skills
+
+Two additions for skill authors.
+
+- **Match the Form to the Failure** — a short table for picking the right kind of guidance. A flat "don't do X" works for discipline slips but backfires when the problem is the *shape* of an output, where a worked example does better. The table, and a tighter scope on the existing rationalization section, steer authors to the form that actually helps.
+- **Micro-Test Wording** — a cheap way to check a phrasing before committing to it: sample it a handful of times against a no-guidance control and read every result by hand, treating run-to-run variance as a warning sign.
+
+### Testing
+
+Skill-behavior testing moved out of `tests/` into a new `evals/` submodule built on "drill," which runs real Claude Code, Codex, and Gemini sessions and judges them with an LLM. Several in-tree bash suites retired once a stricter drill scenario covered them; the few with no equivalent stayed. From here on, `tests/` holds plugin-code tests and `evals/` holds skill-behavior tests, and `docs/testing.md` explains the split. New backends reach Antigravity, Pi, and more models, and new shell-lint and pre-commit checks guard the harness. (#1541)
+
+### Bug Fixes
+
+- **systematic-debugging no longer forces every session into extended thinking.** One bullet held the exact keyword Claude Code scans for, quietly tripping the switch on every session that loaded the skill. A hyphen breaks the keyword; the text still reads. (#1283, by @Nick Galatis)
+- **The Windows SessionStart hook stopped printing a write error every session** — each `printf` now routes through `cat` to absorb the broken pipe, and the output is otherwise unchanged. (#1612, reported by @silvertakana)
+- **Windows foreground mode** tracks the right process and clears its owner PID on MSYS2. (by @nestorluiscamachopaz)
+- **The `using-superpowers` bootstrap** no longer lists "debugging" as a skill that doesn't exist. (reported by @mhat)
+- **The TDD skill** links the testing anti-patterns reference. (#1532, #1529; link fix #1474 by @Stable Genius)
+- **`using-git-worktrees`** fixes its step numbering and drops stale Cursor references. (#1522, and by @fuleinist)
+- **The Codex review skill** swaps a private in-joke for plain guidance. (#1531)
+
+### Documentation & Contributor Guidelines
+
+- **A guide to porting Superpowers to a new harness** (`docs/porting-to-a-new-harness.md`) lays out the three pieces every integration needs and the one rule that makes or breaks it: load the bootstrap at session start.
+- **Every PR and issue now discloses how it was made** — model, harness, version, and installed plugins, or a note that it was written by hand. We weigh a contribution differently depending on what produced it. PRs also target `dev`, not `main`. The PR template, all three issue templates, and a new platform-support template carry this.
+
+### Contributors
+
+Thanks to @mattvanhorn, @nawfal, @Nick Galatis, @silvertakana, @nestorluiscamachopaz, @qer, @mhat, @Stable Genius, @fuleinist, @dev_Hakaze, @robotsnh, Rahul, and @arittr.
+
 ## v5.1.0 (2026-04-30)
 
 ### Removals
@@ -50,6 +268,8 @@ New `sync-to-codex-plugin` script mirrors superpowers into the OpenAI Codex plug
 - **Single source of truth** — the persona/checklist that previously lived in both `agents/code-reviewer.md` and the skill's placeholder template (and drifted independently) is now one file.
 - **`subagent-driven-development` follows suit** — its `code-quality-reviewer-prompt.md` now dispatches `Task (general-purpose)` instead of the named agent.
 - **Behavioral test added** — `tests/claude-code/test-requesting-code-review.sh` plants real bugs (SQL injection, plaintext password handling, credential logging) into a tiny project and asserts the dispatched reviewer flags every planted issue at Critical/Important severity and refuses to approve the diff.
+
+> Note: `tests/claude-code/test-requesting-code-review.sh` and `tests/claude-code/test-document-review-system.sh` (mentioned later in this document) were lifted into drill scenarios on 2026-05-06 and removed from `tests/`. See `evals/scenarios/code-review-catches-planted-bugs.yaml` and `evals/scenarios/spec-reviewer-catches-planted-flaws.yaml`. The references above and below are preserved as dated artifacts of the work this section describes.
 - **Codex and Copilot workaround docs trimmed** — the "Named agent dispatch" sections in `references/codex-tools.md` and `references/copilot-tools.md` documented how to flatten a named agent into a generic dispatch. With no named agents shipping, the workaround is unnecessary; both sections were dropped.
 
 ### Subagent-Driven Development
