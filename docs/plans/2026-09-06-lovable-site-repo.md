@@ -53,7 +53,7 @@ Ranked by `(value × novelty) / effort` from the verdicts, not the raw findings.
 
 | # | Source (stars, pushed) | What we would build here | Law | Effort | Status |
 |---|---|---|---|---|---|
-| 1 | karanb192/claude-code-hooks `config-guard` (499, 2026-09-05, MIT) | `hooks/config-guard.mjs`: PreToolUse deny/warn on any mutation of `.claude/settings*.json`, `.mcp.json`, `hooks.json`, the installed plugin root. Today the agent can edit the file that wires every gate with no hook in the way. | all 7 | S | in progress (branch `feat/config-guard-hook`) |
+| 1 | karanb192/claude-code-hooks `config-guard` (499, 2026-09-05, MIT) | `hooks/config-guard.mjs`: PreToolUse deny/warn on any mutation of `.claude/settings*.json`, `.mcp.json`, `hooks.json`, the installed plugin root. Today the agent can edit the file that wires every gate with no hook in the way. | all 7 | S | shipped as #302 (warn by default, `CI_CONFIG_GUARD=block` to deny) |
 | 2 | Dicklesworthstone/destructive_command_guard (5,921, 2026-09-04) | `bin/gateguard-explain.mjs "<cmd>"` prints which rule fires and the JSON the hook would emit; single-use allow-once code in the destructive deny so the hard deny has an audited clearance route. | 4 / 1 | S | logged; the `Matched rule:` line shipped in #301 |
 | 3 | trailhq/Graft blast radius (5,604, 2026-09-05, MIT) | PostToolUse `hooks/blast-radius.mjs` (opt-in) computes the importers the gateguard fact list asks the agent to grep for. | 1 | S | logged |
 | 4 | mattpocock/skills `retro` (2026-09-04, MIT) | seven-category environment retro appended to the `ci_reflect` template and `/seven-laws`. | 5 | S | logged |
