@@ -6,6 +6,10 @@ All notable changes to this skill are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- **`verify:superpowers-companion-table` fails when `commands/superpowers.md` names a deleted companion skill** — the cheat-sheet named `ultrawork`, `ultraqa` and `deep-dive` for months after oh-my-claudecode 5.x removed them, and `verify:routing-targets` stayed green because it never reads that table. The new invariant parses `## Routing surface (four sources)` and requires each vendored example to exist at `third-party/<snapshot>/skills/<name>/` and each bundled one at `skills/<name>.md`; a vendored row that names no snapshot skill fails closed. `verify:all` now runs 19 invariants plus typecheck.
+
 ### Changed
 
 - **`verify:invariant-count` fails on orphan `verify:*` scripts** — a `package.json` script named `verify:*` that is not in the `verify:all` chain is now a violation. #312 only checked the docs against the chain, so a new `verify:foo` could sit in scripts forever and never run. `verify:generated` remains the one deliberate outsider (CI `git diff` gate, not a content invariant).
