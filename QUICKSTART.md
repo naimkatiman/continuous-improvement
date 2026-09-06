@@ -2,7 +2,7 @@
 
 Zero to working in under 2 minutes.
 
-This is the **Beginner** path. It mirrors README.md and is enough for ~90% of users — no Node, no bash, no shell. If you want the MCP server, observation hooks, and instinct packs, see the **Expert (npx)** section at the bottom.
+This is the **Beginner** path. It mirrors README.md and is enough for most users — no npm install, no bash, no shell (the hooks run with the `node` on your PATH, 18+; without it the gate is silently absent). If you want the MCP server, observation hooks, and instinct packs, see the **Expert (npx)** section at the bottom.
 
 ---
 
