@@ -2,8 +2,12 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { extractClaims, parseActualCount, findViolations, } from "../bin/check-test-count.mjs";
-const REPO_ROOT = join(import.meta.dirname, "..");
+// import.meta.dirname landed in Node 20.11 and this repo's CI matrix includes 18,
+// where it is undefined. Every other test file resolves its directory this way.
+const __dirname = fileURLToPath(new URL(".", import.meta.url));
+const REPO_ROOT = join(__dirname, "..");
 const strip = (n) => `<li><span class="v">${n}</span><span class="k">Tests in the suite</span></li>`;
 const ladder = (a, b) => `tests      PASS  ${a}/${b}`;
 const page = (s, l) => `<html><body>\n${s}\n<pre>\n${l}\n</pre>\n</body></html>`;
