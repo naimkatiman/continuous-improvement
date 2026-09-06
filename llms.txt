@@ -6,6 +6,10 @@
 
 The persistent-memory and discipline layer for AI coding agents. It carries the corrections Claude has already received from one session into the next, grounds each edit in real facts before it lands, and learns from every session so its competence compounds over time — research, plan, execute one thing at a time, verify, reflect, iterate, learn — building behavioral instincts via the Mulahazah learning system, so the same correction never has to be given twice and each run starts smarter than the last. Orchestration tools run a task; this is the layer that makes the lessons survive the run.
 
+Why these seven: every red flag an agent says ("this should work", "I'll remember", "next time I'll") is a wish standing in for a check. The Laws are one old sentence turned into checks an agent can run on itself: the wise one takes account of himself and works for what comes after; the weak one follows his impulse and merely wishes (Jami` at-Tirmidhi 2459). Before saying done: did I check, or did I hope? Sources and the mapping to each Law: docs/philosophy.md.
+
+What the gate can and cannot do: hooks/gateguard.mjs denies the first Edit/Write/MultiEdit per file until a four-item fact list is presented and the printed clear command is run (honor system, 50 files per session); destructive Bash on a fixed blocklist is denied on every call with no clearance route; Bash file writes are not gated. Goal-drift warns by default (CLAUDE_GOAL_DRIFT_GATE=block to refuse), typecheck gate and recall briefing are opt-in.
+
 Smarter models do not retire this product. Planning etiquette and "remember to verify" reminders merge into the model over time. The runtime gate, this-repo memory, and proof that a change worked do not. Keep goal-driven execution plus research / verify / learn guardrails; retire scaffolding when the native harness covers it (see skills/model-forward.md).
 
 How you actually benefit:

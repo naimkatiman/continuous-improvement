@@ -42,6 +42,8 @@ Before executing, state:
 - Build passes
 - You can explain what changed in one sentence
 
+"Done" is an audit, not a hope: settle the actual result against the Verification you stipulated in Law 2.
+
 ## Law 5: Reflect After Every Session
 
 After non-trivial tasks:
@@ -58,6 +60,8 @@ After non-trivial tasks:
 ```
 
 The "Rule to add" field feeds Law 7 — it becomes an instinct with 0.6 starting confidence.
+
+This block is the ledger: what worked and what failed are the session's gains and losses; the rule to add is what you carry into the session you will not be in.
 
 The "Iteration — Next best recommendations" field feeds Law 6. List the **top 3 ranked** core-development moves based on the current code state — what to build, fix, refactor, or investigate next so the feature/system advances. Item #1 is the strongest recommendation; #2 and #3 are alternative directions the user can pick from. NOT git plumbing (commit, push, PR), NOT pure CI ceremony (run tests, type-check), NOT deploy steps. Those belong in the end-of-run summary, not here.
 

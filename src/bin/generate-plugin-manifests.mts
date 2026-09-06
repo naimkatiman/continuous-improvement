@@ -247,6 +247,10 @@ async function writePluginBundle(): Promise<void> {
       join(PLUGIN_BUNDLE_DIR, "lib", "gateguard-state.mjs"),
     ),
     copyFileTo(
+      join(REPO_ROOT, "lib", "destructive-bash.mjs"),
+      join(PLUGIN_BUNDLE_DIR, "lib", "destructive-bash.mjs"),
+    ),
+    copyFileTo(
       join(REPO_ROOT, "lib", "plugin-metadata.mjs"),
       join(PLUGIN_BUNDLE_DIR, "lib", "plugin-metadata.mjs"),
     ),
@@ -269,6 +273,10 @@ async function writePluginBundle(): Promise<void> {
     copyFileTo(
       join(REPO_ROOT, "lib", "hook-pack-gate.mjs"),
       join(PLUGIN_BUNDLE_DIR, "lib", "hook-pack-gate.mjs"),
+    ),
+    copyFileTo(
+      join(REPO_ROOT, "lib", "config-guard-gate.mjs"),
+      join(PLUGIN_BUNDLE_DIR, "lib", "config-guard-gate.mjs"),
     ),
     copyFileTo(
       join(REPO_ROOT, "lib", "recall-index.mjs"),

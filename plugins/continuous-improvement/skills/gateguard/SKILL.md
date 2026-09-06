@@ -77,7 +77,7 @@ Before creating {file_path}, present these facts:
 
 ### Destructive Bash Gate (every destructive command)
 
-Triggers on: `rm -rf`, `git reset --hard`, `git push --force`, `drop table`, etc.
+Triggers on structured rules that ignore flag order and spelling — `rm` with any recursive plus any force flag (`rm -r -f`, `rm -Rf`, `rm --recursive --force`), `git clean` with a force flag and no dry run, `git checkout -- <path>` or `git checkout .`, `git restore <path>` unless it is `--staged` only, `find … -delete`, `git push` with a `+refspec`, `git stash drop|clear` — plus the original substring list (`rm -rf`, `git reset --hard`, `git push --force`, `git branch -D`, `drop table`, `truncate `, `Remove-Item -Recurse`, etc.). Each command is judged after `&&`, `||`, `|`, `;` splitting, and a commit message, PR body or title value is blanked first so prose never trips it. The deny reason prints `Matched rule: <id>` so a block is explainable; the classifier is `lib/destructive-bash.mjs`. Plain file writes through Bash (`cat > file`, `sed -i`) are deliberately not gated.
 
 ```
 1. List all files/data this command will modify or delete
@@ -153,6 +153,8 @@ The inline `_gateguard_facts_presented: true` retry still works on harnesses tha
 ### Excluding low-risk paths
 
 Set the `CI_GATEGUARD_EXCLUDE` environment variable to opt specific low-risk paths out of the gate entirely — an LLM-maintained prose wiki, a generated scratch directory, anything where the fact-forcing pause costs more than it saves. The value is a comma-separated list of path substrings, each matched case-insensitively against the forward-slash-normalized file path, so `/mywiki/` excludes `D:\Vault\MyWiki\notes\x.md`. Unset or empty (the default) changes nothing: every mutating file call is gated exactly as before, and a call that touches a mix of excluded and non-excluded paths still gates the non-excluded ones. Set it per project in `.claude/settings.json` under `env`, or globally in `~/.claude/settings.json`.
+
+An exclusion is never silent. When every target of a call is excluded, `hooks/gateguard.mjs` still allows it but prints one stderr line naming the fragment that matched (`gateguard: skipped by CI_GATEGUARD_EXCLUDE (fragment "docs/wiki" matched docs/wiki/page.md)`). A catch-all fragment that every path contains (`/`, `.`, any single character) is honoured too, but the line says what it really is: the file gate is off for this session. Destructive Bash is never excluded. If `/verify-install` reports the probe write went through, check this variable before concluding the hook is not wired.
 
 ### Locking edits to the current repo
 

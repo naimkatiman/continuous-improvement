@@ -23,19 +23,19 @@
 </p>
 
 <p align="center">
-  <b>New here?</b> → <a href="QUICKSTART.md">QUICKSTART.md</a> (2 minutes) · <a href="https://continuous-improvement.dev">continuous-improvement.dev</a>
+  <b>New here?</b> → <a href="QUICKSTART.md">QUICKSTART.md</a> (2 minutes) · <a href="https://continuous-improvement.dev">continuous-improvement.dev</a> · Latest: <a href="CHANGELOG.md">v3.23.0</a> (2026-08-15)
 </p>
 
 ## Quick start
 
-Inside Claude Code — two commands, no Node, no bash:
+Inside Claude Code — two commands, no npm install, no bash (the hooks run with the `node` on your PATH, 18+):
 
 ```bash
 /plugin marketplace add naimkatiman/continuous-improvement
 /plugin install continuous-improvement@continuous-improvement
 ```
 
-**If you don't know which to pick, use Beginner.** That is the install above — enough for ~90% of users. Want the MCP server, observation hooks, and instinct packs too? See [Expert install](#install) below.
+**If you don't know which to pick, use Beginner.** That is the install above — enough for most users. Want the MCP server, observation hooks, and instinct packs too? See [Expert install](#install) below.
 
 Verify it is live: run `/discipline` in Claude Code and you should see the 7 Laws card. (Commands load on session start — if it is not recognized, restart Claude Code once.)
 
@@ -87,6 +87,20 @@ Three rungs. Most people stop at 1, never run `/seven-laws`, and conclude "it di
   <img src="assets/gateguard-demo.png" alt="gateguard blocks an unresearched Edit until the investigation is on the table" width="820" />
 </p>
 
+The image is rendered from [`demo/gateguard-demo.html`](demo/gateguard-demo.html), faithful to what the hook prints. The literal output of `hooks/gateguard.mjs` on a `Write` payload with no research on the table (v3.23.0, paths shortened):
+
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "Before creating src/lib/retry-helper.mts, present these facts:\n\n  1. List ALL files that import/require this file (use Grep)\n  2. List the public functions/classes affected by this change\n  3. If this file reads/writes data files, show field names, structure, and date format\n  4. Quote the user's current instruction verbatim\n\nThen clear the gate and retry the same call. ..."
+  }
+}
+```
+
+One denied call, a printed reason, a retry. Reproduce it yourself: `printf '{"tool_name":"Write","tool_input":{"file_path":"x.mts"}}' | node hooks/gateguard.mjs`.
+
 Without Continuous Improvement, "fix the login redirect bug" looks like this:
 
 > Claude edits `Login.tsx`, `LoginForm.tsx`, `useAuth.ts`, `authRouter.ts`, `redirects.ts`, and `useNavigate.ts` — six files, no plan, no investigation. Says "done". The redirect still loops. You roll back six files.
@@ -120,6 +134,10 @@ Research -> Plan -> Execute (one thing) -> Verify -> Reflect -> Learn -> Iterate
 </p>
 
 Full spec, reflection-block format, and anti-examples: [SKILL.md](SKILL.md). Full Law-to-tool alignment matrix: [CONTRIBUTING.md § Law Coverage Matrix](CONTRIBUTING.md#law-coverage-matrix).
+
+**Why these seven.** Every red flag in the table is a wish standing in for a check: "this should work" hopes the test passes, "I'll remember" hopes memory survives the session. The Laws are one old sentence turned into checks an agent can run on itself: the wise one takes account of himself and works for what comes after; the weak one follows his impulse and merely wishes (Jami` at-Tirmidhi 2459). You do not need the theology to use the test: before you say done, did you check, or did you hope? Sourcing, both gradings, and the mapping to each Law: [docs/philosophy.md](docs/philosophy.md).
+
+**What a gate can and cannot do.** `hooks/gateguard.mjs` can force the *form* of research; it cannot force honesty. It stays honor-system once the agent says the facts are on the table, which is why the account is settled by outcomes instead of by the agent's word: a correction cuts an instinct's confidence, a drifted session cannot quietly say done, and "verified" means the command output is in the reply.
 
 ---
 
@@ -181,7 +199,7 @@ Update later with `/plugin marketplace update continuous-improvement` or by re-r
 <details>
 <summary><b>Troubleshooting install</b></summary>
 
-Three failures account for nearly every install support thread. Try them in order:
+Three failures account for most install problems. Try them in order:
 
 | Symptom | Real cause | Fix |
 |---|---|---|
@@ -205,6 +223,9 @@ The framework has documented operator-level modes that change hook behavior with
 | `CLAUDE_TYPECHECK_GATE` | `hooks/typecheck-stop.mjs` (a `Stop` hook) runs the project typecheck (the `typecheck` npm script, else a local `tsc --noEmit`) on changed TS files at turn end and feeds a failure back to the model. `off` (default) is a no-op — the global advisory `typecheck-changed.sh` stays the default layer; `warn` prints a one-line stderr notice; `block` re-prompts with the tsc output so a headless/autonomous `-p` loop fixes its own type errors before ending the turn. Skips non-TS repos and turns where no TS file changed; fails open on any error or timeout. | bash/zsh: `export CLAUDE_TYPECHECK_GATE=block` in `~/.bashrc` / `~/.zshrc`. PowerShell: `$env:CLAUDE_TYPECHECK_GATE='block'` (session) or `[Environment]::SetEnvironmentVariable('CLAUDE_TYPECHECK_GATE','block','User')` (persistent). |
 | `CLAUDE_RECALL_BRIEFING=1` | `hooks/recall-briefing.mjs` (a UserPromptSubmit hook) makes episodic memory proactive: on the first substantive prompt of a session it searches this project's past observations (BM25) and injects a one-time `<system-reminder>` with the most relevant prior activity, so the agent reuses a past fix instead of re-deriving it. Opt-in and default off; it is an amplifier, never a gate — it cannot block a prompt and fails open. The `ci_recall` MCP tool stays available for explicit, deeper searches. | bash/zsh: `export CLAUDE_RECALL_BRIEFING=1` in `~/.bashrc` / `~/.zshrc`. PowerShell: `$env:CLAUDE_RECALL_BRIEFING=1` (session) or `[Environment]::SetEnvironmentVariable('CLAUDE_RECALL_BRIEFING','1','User')` (persistent). |
 | `CLAUDE_WORKFLOW_DISTILL_NUDGE=on` | `hooks/workflow-distill.mjs` (a `Stop` hook) closes the orchestration-to-memory loop: when a native Workflow run's output then passed a verify in the same session, it prints a one-line stderr nudge to run the `ci_distill_from_workflow` MCP tool, so an expensive multi-agent run leaves a durable Mulahazah draft instinct instead of evaporating. `on` enables it; default (unset or any other value) is off. Opt-in amplifier, never a gate — it cannot block the Stop, dedupes per run, and fails open. | bash/zsh: `export CLAUDE_WORKFLOW_DISTILL_NUDGE=on` in `~/.bashrc` / `~/.zshrc`. PowerShell: `$env:CLAUDE_WORKFLOW_DISTILL_NUDGE='on'` (session) or `[Environment]::SetEnvironmentVariable('CLAUDE_WORKFLOW_DISTILL_NUDGE','on','User')` (persistent). |
+| `CI_GATEGUARD_EXCLUDE` | Comma-separated path fragments that `hooks/gateguard.mjs` skips for Edit / Write / MultiEdit (case-insensitive substring match on the forward-slash path). Meant for a prose wiki or a generated scratch dir. The hook prints one stderr line naming the fragment whenever an exclusion fires, and a catch-all fragment such as `/` or `.` matches every path and is reported as the file gate being off. Destructive Bash is never excluded. Unset (default) changes nothing. | bash/zsh: `export CI_GATEGUARD_EXCLUDE=docs/wiki,scratch/`. PowerShell: `$env:CI_GATEGUARD_EXCLUDE='docs/wiki,scratch/'` (session). |
+| `CI_GATEGUARD_TARGET_LOCK=block` | `hooks/gateguard.mjs` refuses any Edit / Write / MultiEdit whose absolute target canonicalizes outside the session project root, before the fact gate and independent of clearance, so a wrong-repo or wrong-worktree write is denied even with perfect facts. Off by default. | bash/zsh: `export CI_GATEGUARD_TARGET_LOCK=block`. PowerShell: `$env:CI_GATEGUARD_TARGET_LOCK='block'` (session). |
+| `CI_CONFIG_GUARD` | `hooks/config-guard.mjs` (a PreToolUse hook on Bash / Edit / Write / MultiEdit / NotebookEdit) watches the files that wire the guardrails: `.claude/settings*.json`, `.mcp.json`, `hooks.json`, `.claude/hooks/`, `.claude/plugins/`, `.claude-plugin/`, and the `claude plugin\|mcp\|config` CLI forms that edit them. `warn` (default) prints one stderr line and never blocks; `block` denies the call with the reason and the bypass; `off` disables it. Reads never trigger it. One-call bypass: `CI_CONFIG_GUARD_ALLOW=true`. Fails open. | bash/zsh: `export CI_CONFIG_GUARD=block` in `~/.bashrc` / `~/.zshrc`. PowerShell: `$env:CI_CONFIG_GUARD='block'` (session) or `[Environment]::SetEnvironmentVariable('CI_CONFIG_GUARD','block','User')` (persistent). |
 | `CLAUDE_QUERY_COST_NUDGE=on` | `hooks/query-cost-nudge.mjs` (a `Stop` hook) guards against surprise DB bills: when the working tree has changed DB/query files (`.sql`, `.prisma`, `migrations/`, `/db/`, `schema.*`, `drizzle`) at turn end, it injects a once-per-session `additionalContext` reminder to run a D1-aware cost audit — dispatch the `database-reviewer` agent or check EXPLAIN QUERY PLAN, index coverage, N+1, and D1 `rows_read` billing before finishing. `on` enables it; default (unset) is off. Opt-in amplifier, never a gate; dedupes per session and fails open. | bash/zsh: `export CLAUDE_QUERY_COST_NUDGE=on` in `~/.bashrc` / `~/.zshrc`. PowerShell: `$env:CLAUDE_QUERY_COST_NUDGE='on'` (session) or `[Environment]::SetEnvironmentVariable('CLAUDE_QUERY_COST_NUDGE','on','User')` (persistent). |
 
 </details>
@@ -241,7 +262,7 @@ Use this if you:
 - ship from real repositories with real consequences
 - have been bitten by an agent that edits before understanding
 - want tests, builds, or healthchecks to pass before "done"
-- want lessons from yesterday to survive into today
+- want the work to outlive the session: lessons from yesterday survive into today, and today's fix survives into the next engineer's week
 
 Skip it if you:
 
@@ -250,6 +271,12 @@ Skip it if you:
 - want a prompt template, not a runtime gate (`hooks/gateguard.mjs`)
 
 Claude Code gets the full install (hooks, MCP, instincts). Other agents can still load the 7 Laws as a rules file — see [Works with other agents](#install).
+
+---
+
+## What leaves your machine
+
+Nothing. Observations (`observations.jsonl`) and instincts live under `~/.claude/instincts/` and are never uploaded. The npx installer makes one throttled, fail-open read of the public npm registry to print a newer-version notice; `CLAUDE_CI_UPDATE_CHECK=off` silences it. No telemetry. Raw observation rows can contain command heads and file paths, so review them before you share an export — see [SECURITY.md](SECURITY.md).
 
 ---
 
@@ -279,7 +306,7 @@ Three of those alignment + reflection skills (`grill-me`, `grill-with-docs`, `ha
 <details>
 <summary><b>How instincts form, level up, and decay — you configure nothing</b></summary>
 
-Hooks capture every tool call. After ~20 observations Claude analyzes patterns and creates **instincts** with confidence scores: silent below 0.5, suggested at 0.5–0.69, auto-applied at 0.7+. Corrections drop confidence by 0.1; unused instincts decay. Project-scoped; promoted to global after seen across 2+ projects. You configure nothing.
+Hooks capture every tool call silently. When you run `/seven-laws` (or `/harvest`, `/distill`) after ~20 observations, Claude analyzes patterns and creates **instincts** with confidence scores: silent below 0.5, suggested at 0.5–0.69, auto-applied at 0.7+. What runs in code today: `ci_reinforce` adds 0.15 on an accepted suggestion and cuts 0.1 on a correction, and `/harvest` weights recurring friction by recency. The confirm, decay, and cross-project promotion rules in [SKILL.md](SKILL.md) are instructions the model applies during analysis, not a background process. Nothing forms until you close the loop.
 
 <p align="center">
   <img src="assets/diagram-mulahazah-learning.jpg" alt="Mulahazah pipeline" width="820" />
@@ -384,7 +411,10 @@ Proof-format templates ship in [templates/](templates/): `release_receipt_templa
 - [examples/](examples/) — bug fix, feature build, refactor walkthroughs
 - [templates/insights-claude-md.md](templates/insights-claude-md.md) — paste-in CLAUDE.md blocks for verification discipline, environment notes, think-before-acting, and git/deploy workflow (sourced from the 28-day usage report)
 - [CONTRIBUTING.md](CONTRIBUTING.md) — architecture, repo internals, adding a new skill
+- [docs/philosophy.md](docs/philosophy.md) — the one sentence the product is built on, with sources and the mapping to each Law
+- [CHANGELOG.md](CHANGELOG.md) — what changed in each release
 - [SECURITY.md](SECURITY.md)
+- Found a bug? [Open an issue](https://github.com/naimkatiman/continuous-improvement/issues) with the one-line output of `/verify-install`
 
 <details>
 <summary><b>Uninstall · the brand stack · in the wild</b></summary>
@@ -404,7 +434,7 @@ One product, three names. Use the one that fits the audience:
 | Layer | Name | When you say it |
 |-------|------|-----------------|
 | **Brand** | The 7 Laws of AI Agent Discipline | Tweets, talks, docs, "what is this" |
-| **Engine** | Mulahazah | The auto-leveling instinct system inside it |
+| **Engine** | Mulahazah | Arabic for observation. The engine watches every tool call; the confidence ledger keeps the account (suggest at 0.5, apply at 0.7, corrections cut). Taking account of yourself is *muhasabah*, the reason the engine exists: [docs/philosophy.md](docs/philosophy.md) |
 | **Package** | `continuous-improvement` | `npm install`, `/plugin install`, `settings.json` |
 
 Every skill description leads with `Enforces Law N (...)` so the discipline tag shows up the moment the skill is loaded; the lint `verify:skill-law-tag` blocks any skill that drops the tag.
