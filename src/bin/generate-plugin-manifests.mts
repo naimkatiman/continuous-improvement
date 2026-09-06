@@ -243,6 +243,10 @@ async function writePluginBundle(): Promise<void> {
       join(PLUGIN_BUNDLE_DIR, "lib", "hook-pack-gate.mjs"),
     ),
     copyFileTo(
+      join(REPO_ROOT, "lib", "config-guard-gate.mjs"),
+      join(PLUGIN_BUNDLE_DIR, "lib", "config-guard-gate.mjs"),
+    ),
+    copyFileTo(
       join(REPO_ROOT, "lib", "recall-index.mjs"),
       join(PLUGIN_BUNDLE_DIR, "lib", "recall-index.mjs"),
     ),
