@@ -19,3 +19,6 @@ dist/
 # Stray full-clone of upstream addy/agent-skills.
 # Vendored snapshot at third-party/addy-agent-skills/ (pinned via MANIFEST.md) is the source of truth.
 agent-skills/
+
+# CI captures the test run here so check-test-count can read the real total
+test-run.log
