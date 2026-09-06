@@ -52,6 +52,7 @@
     "verify:skill-count": "node bin/check-skill-count.mjs",
     "verify:skill-count-prose": "node bin/check-skill-count-prose.mjs",
     "verify:command-count": "node bin/check-command-count.mjs",
+    "verify:test-count": "node bin/check-test-count.mjs",
     "verify:docs-substrings": "node bin/check-docs-substrings.mjs",
     "verify:everything-mirror": "node bin/check-everything-mirror.mjs",
     "verify:routing-targets": "node bin/check-routing-targets.mjs",
@@ -62,7 +63,7 @@
     "verify:third-party-shape": "node bin/check-third-party-shape.mjs",
     "verify:tool-count": "node bin/check-tool-count.mjs",
     "verify:reconcile-parity": "node bin/check-reconcile-parity.mjs",
-    "verify:all": "npm run verify:skill-mirror && npm run verify:skill-tiers && npm run verify:skill-law-tag && npm run verify:skill-count && npm run verify:skill-count-prose && npm run verify:command-count && npm run verify:docs-substrings && npm run verify:everything-mirror && npm run verify:routing-targets && npm run verify:doc-runtime-claims && npm run verify:test-imports-only && npm run verify:landing-version && npm run verify:scripts-citation-drift && npm run verify:third-party-shape && npm run verify:tool-count && npm run verify:reconcile-parity && npm run typecheck"
+    "verify:all": "npm run verify:skill-mirror && npm run verify:skill-tiers && npm run verify:skill-law-tag && npm run verify:skill-count && npm run verify:skill-count-prose && npm run verify:command-count && npm run verify:test-count && npm run verify:docs-substrings && npm run verify:everything-mirror && npm run verify:routing-targets && npm run verify:doc-runtime-claims && npm run verify:test-imports-only && npm run verify:landing-version && npm run verify:scripts-citation-drift && npm run verify:third-party-shape && npm run verify:tool-count && npm run verify:reconcile-parity && npm run typecheck"
   },
   "files": [
     ".claude-plugin/",
