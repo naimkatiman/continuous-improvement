@@ -27,16 +27,13 @@ jobs:
       - name: Build generated artifacts
         run: npm run build
 
-      # Capture the run so the stated test count can be checked against reality
-      # without paying for a second suite run. `pipefail` keeps a test failure
-      # failing the step, which `tee` would otherwise mask by returning 0.
       - name: Run tests
-        run: |
-          set -o pipefail
-          npm test 2>&1 | tee test-run.log
+        run: npm test
 
-      - name: Verify the stated test count matches the actual run
-        run: node bin/check-test-count.mjs --actual-from test-run.log
+      # Surfaces must agree with each other. Matching the live suite count is
+      # landing-drift.yml's job: it rewrites both numbers and opens a PR.
+      - name: Verify the stated test counts agree with each other
+        run: node bin/check-test-count.mjs
 
       - name: Verify zero runtime dependencies
         run: |

@@ -18,7 +18,7 @@ Use this checklist before cutting a release PR, before tagging, and again after 
 | Release procedure | `docs/RELEASING.md` | Tag-triggered npm publish via OIDC; plugin marketplace refreshes from `main`; GitHub Action Marketplace publish is manual; landing deploy is manual Cloudflare Pages direct upload. |
 | Release workflow | `.github/workflows/release.yml` | Runs on `v*` tags, Node 22, npm upgrade, `npm ci`, build, generated-artifact diff, `verify:all`, tests, tag/package version match, OIDC publish, GitHub Release, and major-version tag update. |
 | PR CI | `.github/workflows/ci.yml` | Tests Node 18/20/22, build, `npm test`, zero runtime dependencies, generated artifact diff, law tags, skill mirror, docs substrings, and instinct-pack JSON. |
-| Landing drift | `.github/workflows/landing-drift.yml` | Daily/read-only drift check compares `docs/landing/index.html` REV to the deployed domain or `*.pages.dev`; it cannot deploy. |
+| Landing drift | `.github/workflows/landing-drift.yml` | Daily and on push to `main`: REV mismatch vs the live domain still fails red; a stale landing test count is rewritten and opened as a PR on `chore/landing-test-count`. It cannot deploy. |
 | GitHub Action metadata | `action.yml` | Action uses `node20` and `bin/lint-transcript.mjs`; Marketplace publish remains manual after GitHub Release creation. |
 | Plugin marketplace manifest | `.claude-plugin/marketplace.json` | Generated manifest currently lists the native plugin at `3.14.0` and the four vendored companion plugins. |
 | Landing source | `docs/landing/index.html` | Source now contains `REV 3.14.0`, matching `package.json` and `.claude-plugin/marketplace.json`; production deployment is still manual and was not run by the scheduled agent. |
