@@ -158,6 +158,7 @@ async function writePluginBundle() {
         copyFileTo(join(REPO_ROOT, "lib", "goal-state.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "goal-state.mjs")),
         copyFileTo(join(REPO_ROOT, "lib", "goal-drift-gate.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "goal-drift-gate.mjs")),
         copyFileTo(join(REPO_ROOT, "lib", "hook-pack-gate.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "hook-pack-gate.mjs")),
+        copyFileTo(join(REPO_ROOT, "lib", "config-guard-gate.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "config-guard-gate.mjs")),
         copyFileTo(join(REPO_ROOT, "lib", "recall-index.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "recall-index.mjs")),
         copyFileTo(join(REPO_ROOT, "lib", "recall-briefing.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "recall-briefing.mjs")),
         copyFileTo(join(REPO_ROOT, "lib", "skill-distill.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "skill-distill.mjs")),
