@@ -4,6 +4,23 @@ All notable changes to this skill are documented here.
 
 ---
 
+## [3.24.0] — 2026-09-06
+
+### Added
+
+- **`config-guard`: the files that wire the guardrails are no longer unguarded** — a new PreToolUse hook (`hooks/config-guard.mjs`, matcher `Bash|Edit|MultiEdit|Write|NotebookEdit`) watches `.claude/settings.json`, `.claude/settings.local.json`, `.mcp.json`, `hooks.json`, `.claude/hooks/`, `.claude/plugins/`, `.claude-plugin/`, and the `claude plugin` / `mcp` / `config` CLI forms that edit them. Until now an agent could switch off every gate this plugin ships in a single `Edit` and nothing stood in the way. `CI_CONFIG_GUARD=warn` is the default and only prints one stderr line; `block` denies with the reason and the bypass; `off` disables it. Reads never trigger it, `CI_CONFIG_GUARD_ALLOW=true` clears one call, and it fails open on malformed input. Ported from karanb192/claude-code-hooks (MIT); the code and pattern list are ours. (#302)
+
+### Changed
+
+- **Destructive Bash is caught by structure, not spelling** — the guard was a 19-entry substring list, so `rm -r -f dist` walked past a rule written as `rm -rf`. A new pure classifier (`lib/destructive-bash.mjs`) splits the command at unquoted separators, tokenizes each segment (skipping `sudo`, `env` and `VAR=` prefixes) and applies structured rules for recursive-force `rm`, forced `git clean`, discarding `git checkout` / `git restore`, `find -delete`, a `+refspec` push and `git stash drop`, falling back to the original substring list. Every deny now ends with `Matched rule: <id>`, so the agent and the operator can see which rule fired. (#301)
+- **`CI_GATEGUARD_EXCLUDE` says when it skips the gate** — an exclusion used to be silent, so an operator whose config excluded a path saw no block and no explanation. The hook now prints one stderr line naming the matched fragment, and a catch-all fragment such as `/` or `.` is reported as the file gate being off for every path. The decision itself is unchanged, and destructive Bash is still never excluded. (#300)
+- **`safety-guard` retired; the six context-engineering rules applied across the bundle** — the skill's runtime edge never existed, so it is removed rather than left as prose that implies enforcement. The bundle is now 28 skills. (#293)
+- **The site and the README state only what the code does** — continuous-improvement.dev rebuilt around one question, "did I check, or did I hope": the two `/plugin` commands as the install, the literal deny JSON captured from the hook instead of mocked spec boxes, every enforcement card labelled with its real default, and a "what it cannot do" block naming the honor-system clearance, the ungated Bash writes and the fact that a Beginner install alone does not learn. New `docs/philosophy.md` carries the sourcing. Unsourced numbers ("~90% of users", "nearly every install support thread") are gone. (#299, #296)
+
+### Fixed
+
+- **One instinct hash for `C:/` and `c:/`** — a Windows drive letter differing only in case produced two project hashes, so observations split across two instinct directories and `/harvest` read half the history. Harvest sandbox false positives dropped in the same pass. (#297)
+
 ## [3.23.0] — 2026-08-15
 
 ### Added
