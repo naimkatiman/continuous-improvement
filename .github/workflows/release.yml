@@ -92,3 +92,65 @@ jobs:
           git tag -fa "$MAJOR" -m "$MAJOR -> $GITHUB_REF_NAME"
           git push origin "$MAJOR" --force
           echo "✓ Major version tag $MAJOR updated"
+
+      # continuous-improvement.dev is a Cloudflare Pages DIRECT-UPLOAD project,
+      # not a git-connected one, so merging to main never touches the live site.
+      # Every release moves the four version markers in docs/landing/index.html,
+      # which means a release without a deploy leaves the domain serving the
+      # previous version and turns landing-drift.yml red the next morning. That
+      # is exactly what happened after v3.22.0 and v3.23.0: the site sat two
+      # releases behind and the daily check was red from 2026-09-02.
+      #
+      # These steps run LAST, after npm and the GitHub release, so a Cloudflare
+      # outage can never block the publish. They are gated on the secret being
+      # present: without it the deploy is skipped with a warning rather than
+      # failing, so a fork — or this repo before the secret is configured —
+      # still gets a complete release.
+      - name: Check for Cloudflare credentials
+        id: cf
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -n "$CF_TOKEN" ] && [ -n "$CF_ACCOUNT" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "✓ Cloudflare credentials present — the landing page will be deployed"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID not set, so the landing page was NOT deployed and continuous-improvement.dev will serve the previous version. Deploy it by hand (see docs/RELEASING.md) or landing-drift.yml will go red within 24h."
+          fi
+
+      # Pinned, not @latest: this is the wrangler proven against this project.
+      - name: Deploy landing page to Cloudflare Pages
+        if: steps.cf.outputs.configured == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4.104.0 pages deploy docs/landing --project-name=continuous-improvement --branch=main --commit-dirty=true
+
+      # Deploying is not the same as being live. This is the landing-drift check
+      # run inline, so a silent no-op deploy fails the release instead of waiting
+      # for tomorrow's scheduled run to notice.
+      - name: Verify the deployed page serves this version
+        if: steps.cf.outputs.configured == 'true'
+        run: |
+          expected=$(node -p "require('./package.json').version")
+          ua='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
+          rev() { curl -fsSL --retry 5 --retry-delay 5 -A "$ua" "$1" 2>/dev/null \
+            | grep -oE 'REV [0-9]+\.[0-9]+\.[0-9]+' | head -1 | awk '{print $2}'; }
+          # The apex sits behind the customer zone's bot protection, which 403s
+          # runner IPs; *.pages.dev is the Cloudflare-managed zone and serves the
+          # same deployment. Same fallback order as landing-drift.yml.
+          url='https://continuous-improvement.dev/'
+          live=$(rev "$url")
+          if [ -z "$live" ]; then
+            url='https://continuous-improvement.pages.dev/'
+            live=$(rev "$url")
+          fi
+          echo "package.json : $expected"
+          echo "live $url : ${live:-<none>}"
+          if [ "$expected" != "$live" ]; then
+            echo "::error::Landing deploy did not take: serving '${live:-<none>}' but this release is $expected."
+            exit 1
+          fi
+          echo "✓ continuous-improvement.dev is serving $expected"
