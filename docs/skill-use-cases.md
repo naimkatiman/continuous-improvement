@@ -2,7 +2,7 @@
 
 [`docs/skills.md`](skills.md) is the **catalog** (what each skill *is*). This page is the **decision guide** (when to *reach for it*, and how to tell two similar-sounding skills apart).
 
-The plugin ships **29 skills** (1 core + 1 featured + 7 tier-1 + 17 tier-2 + 3 always-bundled companions). Most confusion is not "what does this skill do" — it is "I have five skills that all sound like *stop and check first*; which one is this situation?" The [disambiguation section](#4-disambiguation--this-not-that) is the answer to that.
+The plugin ships **28 skills** (1 core + 1 featured + 7 tier-1 + 16 tier-2 + 3 always-bundled companions). Most confusion is not "what does this skill do" — it is "I have five skills that all sound like *stop and check first*; which one is this situation?" The [disambiguation section](#4-disambiguation--this-not-that) is the answer to that.
 
 ---
 
@@ -71,7 +71,9 @@ Grouped by the job, not the tier. Each skill gets the **trigger** that is unique
 
 | Skill | Reach for it when… | Not for… |
 |---|---|---|
-| `safety-guard` | Running autonomously, on production, or with `--dangerously-skip-permissions` — locks edits to a directory and blocks destructive shell | Normal interactive work where `gateguard` already gates edits |
+| `tdd-workflow` | A change needs a failing test before any implementation lands | Pure docs, config, or generated-artifact changes |
+
+Bounded blast radius is not a separate skill: set `CI_GATEGUARD_TARGET_LOCK=block` and `gateguard` refuses any absolute write outside the session project root. That replaced the retired `safety-guard` skill on 2026-08-07.
 
 ### Verify — *prove it* (Law 3 + 4)
 
@@ -127,12 +129,11 @@ The skills that get confused, separated by the one word that distinguishes them.
 | Skill | Guards… | Fires… |
 |---|---|---|
 | `gateguard` | your **understanding** — no edit without facts | automatically, on every first mutation per file |
-| `safety-guard` | your **blast radius** — no destructive shell, edits locked to a dir | when you opt into a careful/freeze/guard mode |
 | `reconcile` | **git truth** — right branch, push actually landed | when you ask, before a mutation |
 | `worktree-safety` | the **worktree** — valid root, no stale lease, no foreign owner | before a write inside a multi-worktree setup |
 | `state-reconciliation` | the **work-queue** — DB/disk/memory agree before dispatch | before re-dispatching a unit of work |
 
-*One line:* **gateguard** guards what you know · **safety-guard** guards what you can break · **reconcile** guards where git is · **worktree-safety** guards where you are writing · **state-reconciliation** guards what already ran.
+*One line:* **gateguard** guards what you know and what you can break · **reconcile** guards where git is · **worktree-safety** guards where you are writing · **state-reconciliation** guards what already ran.
 
 ### The four "verify" skills
 
@@ -188,7 +189,7 @@ The skills that get confused, separated by the one word that distinguishes them.
 | It merged to an auto-deploy branch | `deploy-receipt` |
 | An agent handed me a numbered list | `proceed-with-the-recommendation` |
 | I don't know which skill fits this task | `superpowers` |
-| Running unattended or against prod | `safety-guard` |
+| Running unattended or against prod | `gateguard` with `CI_GATEGUARD_TARGET_LOCK=block` |
 | A verify step just failed | `recovery-classification` |
 | Reviewing recent commits for defects | `audit` |
 | My change works, but is it over-engineered? | `simplicity-review` |

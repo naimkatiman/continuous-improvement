@@ -177,6 +177,5 @@ git branch -d <type>/<slug>            # delete the merged feature branch (safe 
 
 - **`recall`** (Law 1) — before a risky git op, recall whether the same operation failed on this repo before.
 - **`gateguard`** (Law 1) — the runtime gate (`hooks/gateguard.mjs`); `reconcile` is the procedure you run once a destructive git action is in play.
-- **`safety-guard`** — destructive-operation guardrails for production and autonomous runs.
 - **`audit`** (Law 4) — when an audit ends in a fix, `reconcile` is the safe path from branch to landed PR.
 - **`commit-commands:commit-push-pr`** — the external-plugin equivalent of the commit → push → PR tail; `reconcile` reimplements it inline so the flow works with no companion installed. For a TDD-gated single-defect variant, use `/ship`.
