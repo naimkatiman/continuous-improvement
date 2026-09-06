@@ -9,7 +9,7 @@ The release pipeline is **tag-triggered**. Pushing a `v*` tag publishes the npm 
 | **Plugin marketplace** (`/plugin install`) | Merge to `main` | Claude Code clients fetch `.claude-plugin/marketplace.json` from `main` on demand. Consumers refresh with `/plugin update continuous-improvement`. |
 | **npm package** (`npm install -g continuous-improvement`) | Tag push (`v*`) | `.github/workflows/release.yml` publishes via OIDC trusted publishing (no token) and creates a GitHub Release. |
 | **GitHub Action Marketplace** | Manual (one-time setup + per-release) | Publish `action.yml` via the GitHub Release UI. See [Publishing to Marketplace](#publishing-to-github-marketplace) below. |
-| **Landing page** (`continuous-improvement.dev`) | Manual today; automate by connecting the CF Pages project to Git | `wrangler pages deploy docs/landing --project-name=continuous-improvement --branch=main`. The domain is a **Cloudflare Pages** direct-upload project — pushes to `main` do **not** auto-deploy. See [Landing page](#landing-page-continuous-improvementdev) below. |
+| **Landing page** (`continuous-improvement.dev`) | Tag push (`v*`), when `CLOUDFLARE_API_TOKEN` is set | `release.yml` deploys `docs/landing` after the npm publish, then verifies the live domain serves the new version. Without the secret the step is skipped with a warning and you deploy by hand. The domain is a **Cloudflare Pages** direct-upload project — pushes to `main` do **not** auto-deploy. See [Landing page](#landing-page-continuous-improvementdev) below. |
 
 ## Cutting a release
 
@@ -59,7 +59,7 @@ git push origin vX.Y.Z
 1. `npm install -g npm@11.18.0` (pinned trusted publisher, npm ≥ 11.5.1)
 2. `npm ci` + `npm run build`
 3. `git diff --exit-code` to ensure generated artifacts are committed
-4. `npm run verify:all` (16 invariants + typecheck)
+4. `npm run verify:all` (17 invariants + typecheck)
 5. `node --test test/*.test.mjs`
 6. Asserts `package.json` version equals the tag
 7. `npm publish --access public --provenance` via OIDC trusted publishing (no token)
@@ -129,8 +129,31 @@ curl -s https://continuous-improvement.dev/ | grep -o "REV 3.[0-9.]*"   # confir
 ```
 
 `main` is the project's production branch, so that single command updates production **and** the custom
-domain (no preview-only step). The deploy uses your local wrangler OAuth session — there is no
-`CLOUDFLARE_API_TOKEN` secret in CI.
+domain (no preview-only step). Run by hand, the deploy uses your local wrangler OAuth session.
+
+### Automated on release (preferred)
+
+`release.yml` deploys the landing page itself, after the npm publish and the GitHub Release, then
+re-reads the live domain and fails if it is not serving the version just tagged. Deploying last means
+a Cloudflare outage can never block a publish, and verifying inline means a silent no-op deploy fails
+the release instead of waiting for the next morning's drift check.
+
+This exists because every release moves the landing's version markers, so a release without a deploy
+leaves the site a version behind by construction. v3.22.0 and v3.23.0 both shipped that way and the
+domain sat two releases stale with `landing-drift.yml` red from 2026-09-02.
+
+It needs two repository secrets. Until both are set the step logs a warning and skips, so releases
+still complete and the manual command above stays the fallback:
+
+| Secret | Value |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | A scoped API token with **Account → Cloudflare Pages → Edit** on the account owning the `continuous-improvement` Pages project. Create at Cloudflare dashboard → My Profile → API Tokens. Do not reuse a Global API Key. |
+| `CLOUDFLARE_ACCOUNT_ID` | The account ID that owns the project (`wrangler whoami` prints it). |
+
+```bash
+gh secret set CLOUDFLARE_API_TOKEN     # paste the scoped token
+gh secret set CLOUDFLARE_ACCOUNT_ID    # paste the account id
+```
 
 **Catch staleness automatically:** the [`landing-drift.yml`](../.github/workflows/landing-drift.yml)
 workflow runs daily (and on demand) and first requires every source marker to match `package.json`, then fails if `continuous-improvement.dev` is not serving that version. A stale source marker or missed deploy is reported instead of going unnoticed for weeks. It is
@@ -146,8 +169,11 @@ deploy already works, the manual deploy + drift check above is the lower-risk de
 
 > The former CI workflows `pages.yml` (GitHub Pages) and `cf-pages.yml` (Cloudflare) were removed. The
 > first deployed only to an orphaned `github.io` URL the domain never pointed at; the second failed on
-> every run because it needs a `CLOUDFLARE_API_TOKEN` secret that the OAuth-CLI path does not use. The
-> result was a live site frozen weeks behind `main` (v3.10.0) with green-looking CI.
+> every run because it needs a `CLOUDFLARE_API_TOKEN` secret that was never configured. The result was
+> a live site frozen weeks behind `main` (v3.10.0) with green-looking CI. The release-time deploy above
+> takes the same token but differs in the two ways that caused that outcome: it skips with a warning
+> instead of failing red when the secret is absent, and it verifies the live domain afterwards instead
+> of assuming the upload landed.
 
 ## Rollback
 

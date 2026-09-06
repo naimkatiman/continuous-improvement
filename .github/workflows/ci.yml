@@ -27,8 +27,16 @@ jobs:
       - name: Build generated artifacts
         run: npm run build
 
+      # Capture the run so the stated test count can be checked against reality
+      # without paying for a second suite run. `pipefail` keeps a test failure
+      # failing the step, which `tee` would otherwise mask by returning 0.
       - name: Run tests
-        run: npm test
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee test-run.log
+
+      - name: Verify the stated test count matches the actual run
+        run: node bin/check-test-count.mjs --actual-from test-run.log
 
       - name: Verify zero runtime dependencies
         run: |
