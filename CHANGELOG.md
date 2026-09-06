@@ -4,6 +4,12 @@ All notable changes to this skill are documented here.
 
 ---
 
+## Unreleased
+
+### Changed
+
+- **`verify:invariant-count` fails on orphan `verify:*` scripts** — a `package.json` script named `verify:*` that is not in the `verify:all` chain is now a violation. #312 only checked the docs against the chain, so a new `verify:foo` could sit in scripts forever and never run. `verify:generated` remains the one deliberate outsider (CI `git diff` gate, not a content invariant).
+
 ## [3.25.0] — 2026-09-07
 
 ### Added

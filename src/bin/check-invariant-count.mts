@@ -21,7 +21,14 @@
  * the first non-`verify:` step is a content invariant; the rest (today just
  * `typecheck`) is the trailing tail the docs name after the colon. Derived, not
  * hardcoded, so adding an invariant to the chain is the only edit needed to make
- * this check demand the docs follow.
+ * this check demand the docs follow. A new `verify:*` script must join that
+ * chain (or OUTSIDE_CHAIN_VERIFY_SCRIPTS) or this check fails.
+ *
+ * The same function also fails if `package.json` gains a `verify:*` script that
+ * is not in that chain. #312 only checked the docs against the chain, so a new
+ * `verify:foo` could sit in scripts forever and never run. `verify:generated`
+ * is the one deliberate outsider: it is a CI `git diff` gate, not a content
+ * invariant.
  *
  * Two claim shapes are recognised:
  *   long  — "(17 content invariants + typecheck: a, b, …, typecheck)"  count + ordered names
@@ -35,7 +42,8 @@
  *
  * Exit codes:
  *   0 — every claim matches the verify:all chain
- *   1 — a count is stale, a name list is wrong or out of order, or a file states none
+ *   1 — a count is stale, a name list is wrong or out of order, a file states
+ *       none, or a verify:* script is missing from the chain
  */
 
 import { readFileSync } from "node:fs";
@@ -44,6 +52,16 @@ import { argv, cwd, exit } from "node:process";
 
 /** Files that carry a verify:all claim. Explicit, so dropping one is deliberate. */
 export const CLAIM_FILES: string[] = ["CLAUDE.md", "AGENTS.md", join("docs", "RELEASING.md")];
+
+/**
+ * `verify:*` scripts that are allowed to live outside `verify:all`.
+ * `verify:all` is the chain itself. `verify:generated` is the CI
+ * `git diff --exit-code` gate, not a content invariant.
+ */
+export const OUTSIDE_CHAIN_VERIFY_SCRIPTS: readonly string[] = Object.freeze([
+  "verify:all",
+  "verify:generated",
+]);
 
 export interface VerifyChain {
   invariants: string[];
@@ -125,6 +143,21 @@ export function findViolations(
   return violations;
 }
 
+/** `verify:*` scripts in package.json that `verify:all` never runs. */
+export function findOrphanVerifyScripts(
+  scripts: Record<string, string>,
+  chain: VerifyChain,
+): string[] {
+  const chained = new Set(chain.invariants);
+  const orphans: string[] = [];
+  for (const name of Object.keys(scripts).sort()) {
+    if (!name.startsWith("verify:")) continue;
+    if (OUTSIDE_CHAIN_VERIFY_SCRIPTS.includes(name)) continue;
+    if (!chained.has(name.slice("verify:".length))) orphans.push(name);
+  }
+  return orphans;
+}
+
 export function checkInvariantCount(repoRoot: string): {
   chain: VerifyChain;
   violations: string[];
@@ -139,6 +172,8 @@ export function checkInvariantCount(repoRoot: string): {
     };
   }
   const chain = parseVerifyAllChain(chainScript);
+  const scripts = pkg.scripts ?? {};
+  const orphans = findOrphanVerifyScripts(scripts, chain);
 
   const claimsByFile: Record<string, Claim[]> = {};
   for (const rel of CLAIM_FILES) {
@@ -152,7 +187,14 @@ export function checkInvariantCount(repoRoot: string): {
     claimsByFile[rel] = parseClaims(content);
   }
 
-  return { chain, violations: findViolations(chain, claimsByFile) };
+  const violations = [
+    ...findViolations(chain, claimsByFile),
+    ...orphans.map(
+      (name) =>
+        `package.json script "${name}" is not in the verify:all chain. An invariant nobody runs is worse than none. Add it to the chain or, if it is a deliberate outsider like verify:generated, to OUTSIDE_CHAIN_VERIFY_SCRIPTS.`,
+    ),
+  ];
+  return { chain, violations };
 }
 
 function main(): void {
@@ -166,12 +208,12 @@ function main(): void {
     exit(0);
   }
 
-  console.error(`FAIL invariant-count: ${violations.length} stale claim(s) about verify:all.\n`);
+  console.error(`FAIL invariant-count: ${violations.length} violation(s) about verify:all.\n`);
   for (const v of violations) console.error(`  ${v}`);
   console.error(
     `\nFix: verify:all currently runs ${chain.invariants.length} invariants — ` +
       `${[...chain.invariants, ...chain.trailing].join(", ")}. ` +
-      `Update the claim in each file above to match. The chain in package.json is the source of truth.`,
+      `Update the claim in each file above to match, or add the orphaned verify:* script to the chain (or to OUTSIDE_CHAIN_VERIFY_SCRIPTS if it is a deliberate outsider like verify:generated). The chain in package.json is the source of truth.`,
   );
   exit(1);
 }
