@@ -76,3 +76,25 @@ Companion snapshots behind upstream: obra/superpowers pinned 5.1.0 vs v6.3.0 (re
 - `CI_GATEGUARD_EXCLUDE= node --test test/*.test.mjs` green (the host env var otherwise fails 16 gateguard tests; Linux CI is unaffected).
 - Landing opened locally; every anchor, copy button and link resolves; no console errors.
 - `git diff --stat` reviewed by file before staging by explicit filename.
+
+## Merge resolution (2026-09-06, after #300 / #301 / #302 landed)
+
+This branch was written against v3.23.0 and merged last, so `origin/main` moved under it three
+times. Merging main in required correcting claims this PR had made about the code, which is the
+whole point of the PR: the page states only what ships.
+
+- `README.md`: both sides added rows to the Operator modes table. All three kept
+  (`CI_GATEGUARD_EXCLUDE`, `CI_GATEGUARD_TARGET_LOCK`, `CI_CONFIG_GUARD`). The exclusion row's
+  sentence "in 3.23.0 the hook says nothing when an exclusion fires" was made false by #300 and
+  now describes the stderr notice and the catch-all label.
+- `docs/landing/index.html`, `What it cannot do`: the same exclusion claim corrected; "the
+  destructive list is a blocklist, not a parser" replaced, since #301 reads command structure
+  first and falls back to the substring list.
+- `docs/landing/index.html`, gateguard proof panel: `Matched rule: substring:git push --force`
+  added, captured from the merged hook, not written by hand.
+- `docs/landing/index.html`, `What actually runs`: a Config guard card added with a
+  `warn by default` chip and its real stderr line. The section enumerates every hook that runs,
+  and #302 ships one that runs by default.
+- Test count 1,137 to 1,249 in the strip and the verification-loop panel, measured on the merged
+  tree. Local run: 1,243 pass, 6 fail, all the documented Windows wall-clock flakes; isolated
+  rerun leaves only `completes within 2000ms`, which CLAUDE.md records as environmental.

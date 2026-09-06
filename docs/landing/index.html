@@ -372,7 +372,7 @@ $ printf '…same payload…' | node hooks/gateguard.mjs
         <li><span class="v">1</span><span class="k">Fact gate, default on</span></li>
         <li><span class="v">29</span><span class="k">Bundled skills</span></li>
         <li><span class="v">0</span><span class="k">Runtime deps</span></li>
-        <li><span class="v">1,137</span><span class="k">Tests in the suite</span></li>
+        <li><span class="v">1,249</span><span class="k">Tests in the suite</span></li>
         <li><span class="v">MIT</span><span class="k">License</span></li>
         <li><span class="v">v3.23.0</span><span class="k">Current rev</span></li>
       </ul>
@@ -527,7 +527,20 @@ $ printf '…same payload…' | node hooks/gateguard.mjs
   2. Write a one-line rollback procedure
   3. Quote the user's current instruction verbatim
 
+Matched rule: substring:git push --force
 <span class="c">Destructive Bash gates EVERY call — clearance is not cached.</span></pre>
+          </article>
+          <article class="mech reveal">
+            <div class="body">
+              <span class="id">Hook · PreToolUse · before the act <span class="chip warn">warn by default</span></span>
+              <h3>Config guard</h3>
+              <p>Watches the files that wire every other gate: <code>.claude/settings.json</code>, <code>.mcp.json</code>, <code>hooks.json</code>, the hooks and plugin directories, and the <code>claude plugin</code>, <code>mcp</code> and <code>config</code> commands that edit them. Reads never trigger it. Without this, an agent can switch off its own guardrails in a single edit and nothing stands in the way.</p>
+            </div>
+<pre class="spec">config-guard: Edit would modify
+~/.claude/settings.json (matches ".claude/settings.json"),
+one of the files that wires the guardrails.
+
+<span class="c">warn prints this and allows. CI_CONFIG_GUARD=block denies it.</span></pre>
           </article>
           <article class="mech reveal">
             <div class="body">
@@ -579,7 +592,7 @@ headings present                     <span class="c">→ allow</span></pre>
             </div>
 <pre class="spec">build      PASS
 types      PASS
-tests      PASS  1137/1137
+tests      PASS  1249/1249
 diff       PASS  <span class="c">3 files, 41 lines, one concern</span></pre>
           </article>
           <article class="mech reveal">
@@ -610,8 +623,8 @@ inject: 2026-08-14 fix for the same error <span class="c">(once per session)</sp
           <h3>What it cannot do</h3>
           <ul>
             <li>The gate can force the form of research, not its honesty. Once the agent runs the printed clear command it is trusted; the per-session state file is deletable.</li>
-            <li>Bash file writes (<code>cat &gt; file</code>, <code>sed -i</code>) are not gated. The gate covers the Edit, Write and MultiEdit tools; the destructive list is a blocklist, not a parser.</li>
-            <li>One env var, <code>CI_GATEGUARD_EXCLUDE</code>, can exclude paths from the gate and in 3.23.0 says nothing when it does. Check <code>/verify-install</code> if you expected a block and saw none.</li>
+            <li>Bash file writes (<code>cat &gt; file</code>, <code>sed -i</code>) are not gated. The gate covers the Edit, Write and MultiEdit tools; the destructive check reads command structure for the forms it knows, then falls back to a substring list, so an unfamiliar spelling can still get through.</li>
+            <li>One env var, <code>CI_GATEGUARD_EXCLUDE</code>, can exclude paths from the gate. The hook names the matched fragment on stderr when that happens, and reports a catch-all such as <code>/</code> or <code>.</code> as the file gate being off.</li>
             <li>Instincts do not form on their own. Beginner install alone does not learn; see the three rungs below.</li>
           </ul>
         </div>
