@@ -16,7 +16,7 @@ Project-local rules for AI coding agents. Global rules live in `~/.claude/CLAUDE
 
 ## Verification Discipline
 
-- After any code change, run `npm run verify:all` (17 content invariants + typecheck: skill-mirror, skill-tiers, skill-law-tag, skill-count, skill-count-prose, command-count, test-count, docs-substrings, everything-mirror, routing-targets, doc-runtime-claims, test-imports-only, landing-version, scripts-citation-drift, third-party-shape, tool-count, reconcile-parity, typecheck). Anything below that is incomplete.
+- After any code change, run `npm run verify:all` (18 content invariants + typecheck: skill-mirror, skill-tiers, skill-law-tag, skill-count, skill-count-prose, command-count, test-count, invariant-count, docs-substrings, everything-mirror, routing-targets, doc-runtime-claims, test-imports-only, landing-version, scripts-citation-drift, third-party-shape, tool-count, reconcile-parity, typecheck). Anything below that is incomplete.
 - For doc-only or template-only changes, `npm run typecheck` is the floor.
 - Run all commands from repo root. Verify CWD with `pwd` if a previous step may have changed it.
 - Never claim "verified" or "done" without the passing output. Silence is not a pass.
