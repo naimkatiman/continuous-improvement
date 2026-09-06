@@ -9,6 +9,13 @@
  *   (a) ships bundled at plugins/continuous-improvement/skills/<name>/SKILL.md, or
  *   (b) is declared in the root-level optional-companions.json file.
  *
+ * And, for the prefixes we vendor (oh-my-claudecode, superpowers, agent-skills,
+ * ruflo-swarm), that every declared target actually EXISTS in its snapshot under
+ * third-party/<snapshot>/skills/<name>/. Declaring a target only asserted intent;
+ * nothing checked the destination. oh-my-claudecode:ultrawork was declared after
+ * upstream deleted it, and oh-my-claudecode:retrospective was declared for months
+ * having never existed upstream at all — both with this check green.
+ *
  * Catches: a routing-table row that names a skill the bundle does not ship and
  * the maintainer has not declared as an optional companion. Without this gate,
  * such drift only surfaces at runtime when the orchestrator routes to a target
@@ -21,10 +28,11 @@
  *
  * Exit codes:
  *   0 — every routing target is accounted for (bundled or optional-declared)
- *   1 — at least one routing target is unaccounted for
+ *   1 — at least one routing target is unaccounted for, or a declared vendored
+ *       target has no directory in its snapshot
  */
 
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { argv, cwd, exit } from "node:process";
 
@@ -44,6 +52,58 @@ export interface CheckResult {
   drifts: RoutingTarget[];
   bundledCount: number;
   optionalCount: number;
+  missingVendored: MissingVendoredTarget[];
+}
+
+export interface MissingVendoredTarget {
+  target: string;
+  expectedPath: string;
+}
+
+/**
+ * Routing-target prefix -> vendored snapshot directory under third-party/.
+ *
+ * Declaring a target in optional-companions.json only asserted that we MEANT to
+ * route somewhere; nothing checked the destination existed. So when
+ * oh-my-claudecode 5.x deleted `ultrawork`, this check stayed green while the
+ * routing table named a skill upstream no longer ships (#308, fixed in #309) —
+ * and `oh-my-claudecode:retrospective` had been declared for months without ever
+ * existing upstream at all. For prefixes we vendor, the snapshot is ground truth.
+ *
+ * Prefixes NOT listed here (host built-ins, `frontend-design:`, `commit-commands:`)
+ * are deliberately unchecked: we have no local copy to check them against, and
+ * guessing would make this fail closed on things it cannot see.
+ */
+export const VENDORED_PREFIXES: Record<string, string> = {
+  "oh-my-claudecode": "oh-my-claudecode",
+  superpowers: "superpowers",
+  "agent-skills": "addy-agent-skills",
+  "ruflo-swarm": "ruflo-swarm",
+};
+
+/** Repo-relative skill path a vendored target must resolve to, or null if unvendored. */
+export function resolveVendoredSkillPath(target: string): string | null {
+  const idx = target.indexOf(":");
+  if (idx < 0) return null;
+  const dir = VENDORED_PREFIXES[target.slice(0, idx)];
+  if (!dir) return null;
+  // Everything after the FIRST colon is the skill name, colons included.
+  return `third-party/${dir}/skills/${target.slice(idx + 1)}`;
+}
+
+/** Vendored targets with no directory in their snapshot. */
+export function findMissingVendoredTargets(
+  repoRoot: string,
+  targets: Iterable<string>,
+): MissingVendoredTarget[] {
+  const missing: MissingVendoredTarget[] = [];
+  for (const target of targets) {
+    const rel = resolveVendoredSkillPath(target);
+    if (rel === null) continue;
+    const abs = join(repoRoot, rel);
+    if (!existsSync(abs)) missing.push({ target, expectedPath: abs });
+  }
+  return missing;
 }
 
 export function discoverBundledSkills(repoRoot: string): Set<string> {
@@ -138,22 +198,47 @@ export function checkRoutingTargets(repoRoot: string): CheckResult {
     if (optional.has(t.target)) continue;
     drifts.push(t);
   }
+  // Declared is not the same as existing: for prefixes we vendor, the snapshot
+  // is ground truth. Checks the declared companion set, so a target that is
+  // declared but never referenced is still caught.
+  const missingVendored = findMissingVendoredTargets(repoRoot, optional);
+
   return {
     targets,
     drifts,
     bundledCount: bundled.size,
     optionalCount: optional.size,
+    missingVendored,
   };
 }
 
 function main(): void {
   const repoRoot = argv[2] ?? cwd();
-  const { targets, drifts, bundledCount, optionalCount } =
+  const { targets, drifts, bundledCount, optionalCount, missingVendored } =
     checkRoutingTargets(repoRoot);
+
+  if (missingVendored.length > 0) {
+    console.error(
+      `FAIL routing-targets: ${missingVendored.length} declared target(s) do not exist in the vendored snapshot.\n`,
+    );
+    for (const m of missingVendored) {
+      console.error(`  - "${m.target}"`);
+      console.error(`      Declared in ${OPTIONAL_COMPANIONS_PATH}, but no directory at:`);
+      console.error(`      ${m.expectedPath}`);
+    }
+    console.error(
+      `\nEither upstream removed or renamed the skill (retarget the routing rows and this ` +
+        `declaration), or the snapshot is stale (refresh it with ` +
+        `'node bin/refresh-third-party.mjs <name>'). Declaring a target does not make it exist.`,
+    );
+    exit(1);
+  }
+
   if (drifts.length === 0) {
     console.log(
       `OK routing-targets: all ${targets.length} routing target(s) accounted for ` +
-        `(${bundledCount} bundled skill(s), ${optionalCount} optional companion(s) declared).`,
+        `(${bundledCount} bundled skill(s), ${optionalCount} optional companion(s) declared, ` +
+        `every vendored target present in its snapshot).`,
     );
     exit(0);
   }
