@@ -19,6 +19,8 @@ Print this card and check yourself against each law.
 | 6 | **Iterate One Change** | Am I changing one thing at a time? | "And also..." |
 | 7 | **Learn From Every Session** | Did I capture this as an instinct? | "Next time I'll..." |
 
+Read the seven as three moments around every act. **Before** (Laws 1, 2): set the terms. **During** (Laws 3, 6): watch yourself. **After** (Laws 4, 5, 7): settle the account and carry it forward. Every check is an audit you run on yourself; every red flag is you hoping instead. The sentence this comes from, and its sources: `docs/philosophy.md`.
+
 ## Operator Stakes
 
 The Laws above are the *how*. These five principles are the *why*: code ships from your account, the incident lands on your pager, the bill hits your budget. Each one pairs with the Law that prevents it from going wrong.
@@ -31,7 +33,7 @@ The Laws above are the *how*. These five principles are the *why*: code ships fr
 | 4 | **Problem framing** | Builds the websocket chat the ticket asked for | Finds out users wanted faster support replies, not chat | 1 |
 | 5 | **Constraints management** | Calls the $0.02/image model on every upload | Does the math, adds client-side validation + caching + cheaper triage model | 2 |
 
-Code is a liability, not an asset. Speed without these five turns into someone else's incident at 3am — except the someone is you.
+Code is a liability, not an asset. Speed without these five turns into someone else's incident at 3am — except the someone is you. The other half of the why is not fear: the session ends and the context is gone, so the only work that survives is what you verified and wrote down for the one who comes after, whether that is tomorrow's session or the engineer who inherits the repo.
 
 ## Goal-Driven Execution maps onto the Laws
 
@@ -61,5 +63,6 @@ Before saying "Done", verify ALL:
 - [ ] I checked the **actual** result (not assumed)
 - [ ] Build passes
 - [ ] I can explain the change in one sentence
+- [ ] For each item above I checked, not hoped
 
-If you're skipping a step, that's the step you need most.
+If you're skipping a step, that's the step you need most. The step you skip is the one you are hoping through.
