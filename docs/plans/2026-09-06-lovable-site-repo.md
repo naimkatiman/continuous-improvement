@@ -42,8 +42,8 @@
 ## Out of scope (logged, own PRs)
 
 - Deploy to Cloudflare Pages (`wrangler pages deploy docs/landing --project-name=continuous-improvement --branch=main`). Owner runs or approves it; the drift check stays red until then.
-- Gateguard observability: warn on a catch-all `CI_GATEGUARD_EXCLUDE`, one stderr line per session, `/verify-install` flags an excluded gate. Code + tests.
-- Destructive-Bash matcher hardening (`rm -r -f`, `git clean -f*`, `git checkout -- .`, `git restore .`, `find -delete`, `+refspec`, `git stash drop`) and a documented clearance route, plus Bash file-write gating (`> file`, `tee`, heredoc). Code + table tests.
+- Gateguard observability: warn on a catch-all `CI_GATEGUARD_EXCLUDE`, a stderr line per exclusion, `/verify-install` flags an excluded gate. Shipped as #300.
+- Destructive-Bash matcher hardening (`rm -r -f`, `git clean -f*`, `git checkout -- .`, `git restore .`, `find -delete`, `+refspec`, `git stash drop`) with table tests and a `Matched rule:` line. Shipped as #301. Bash file-write gating (`> file`, `tee`, heredoc) is a deliberate non-goal, since the operator's own workflow writes through Bash, and is disclosed as a limit instead.
 - Mulahazah decay: either implement the 30-day decay in code or relabel it as a model-side instruction in SKILL.md.
 - Cherry-picks from the research sweep, ranked below once verification completes.
 
@@ -53,8 +53,8 @@ Ranked by `(value × novelty) / effort` from the verdicts, not the raw findings.
 
 | # | Source (stars, pushed) | What we would build here | Law | Effort | Status |
 |---|---|---|---|---|---|
-| 1 | karanb192/claude-code-hooks `config-guard` (499, 2026-09-05, MIT) | `hooks/config-guard.mjs`: PreToolUse deny/warn on any mutation of `.claude/settings*.json`, `.mcp.json`, `hooks.json`, the installed plugin root. Today the agent can edit the file that wires every gate with no hook in the way. | all 7 | S | follow-up PR |
-| 2 | Dicklesworthstone/destructive_command_guard (5,921, 2026-09-04) | `bin/gateguard-explain.mjs "<cmd>"` prints which rule fires and the JSON the hook would emit; single-use allow-once code in the destructive deny so the hard deny has an audited clearance route. | 4 / 1 | S | follow-up PR |
+| 1 | karanb192/claude-code-hooks `config-guard` (499, 2026-09-05, MIT) | `hooks/config-guard.mjs`: PreToolUse deny/warn on any mutation of `.claude/settings*.json`, `.mcp.json`, `hooks.json`, the installed plugin root. Today the agent can edit the file that wires every gate with no hook in the way. | all 7 | S | in progress (branch `feat/config-guard-hook`) |
+| 2 | Dicklesworthstone/destructive_command_guard (5,921, 2026-09-04) | `bin/gateguard-explain.mjs "<cmd>"` prints which rule fires and the JSON the hook would emit; single-use allow-once code in the destructive deny so the hard deny has an audited clearance route. | 4 / 1 | S | logged; the `Matched rule:` line shipped in #301 |
 | 3 | trailhq/Graft blast radius (5,604, 2026-09-05, MIT) | PostToolUse `hooks/blast-radius.mjs` (opt-in) computes the importers the gateguard fact list asks the agent to grep for. | 1 | S | logged |
 | 4 | mattpocock/skills `retro` (2026-09-04, MIT) | seven-category environment retro appended to the `ci_reflect` template and `/seven-laws`. | 5 | S | logged |
 | 5 | agent-sh/agnix (404, Apache-2.0) | `verify:agent-config` linting hooks.json paths/timeouts and SKILL.md lengths. New external dependency: ask first. | 4 | S | needs owner yes |
@@ -66,7 +66,7 @@ Ranked by `(value × novelty) / effort` from the verdicts, not the raw findings.
 | 11 | lennney/stop-that-shit task contract (1,627, MIT) | `/contract review\|change files=…` prompt prefix + PreToolUse deny; gives `safety-guard` its promised runtime edge. | 3 | M | logged |
 | 12 | addyosmani/agent-skills floor-guard (MIT) | `bin/floor-guard.mjs`: diff-scoped detector of bar-lowering (skipped tests, removed assertions, empty catch). | 4 | M | logged |
 
-Own findings folded into the same queue: `CI_GATEGUARD_EXCLUDE` observability (S), destructive-matcher forms `rm -r -f`, `git clean -f*`, `git checkout -- .`, `git restore .`, `find -delete`, `git push +ref`, `git stash drop` (S). Bash file-write gating is a deliberate non-goal on this host (the operator's own workflow writes through Bash) and is disclosed as a limit instead.
+Own findings, shipped as their own PRs (#300 for the exclusion notice, #301 for the structured classifier): `CI_GATEGUARD_EXCLUDE` observability (S), destructive-matcher forms `rm -r -f`, `git clean -f*`, `git checkout -- .`, `git restore .`, `find -delete`, `git push +ref`, `git stash drop` (S). Bash file-write gating is a deliberate non-goal on this host (the operator's own workflow writes through Bash) and is disclosed as a limit instead.
 
 Companion snapshots behind upstream: obra/superpowers pinned 5.1.0 vs v6.3.0 (review-fix circuit breaker), oh-my-claudecode 4.13.6 vs v5.2.0 (17 aliases retired, drift radar must be re-read), addyosmani/agent-skills 1.0.0 vs 0.6.9 manifests (constraint-driven-development), mattpocock/skills (retro, implement-spec). Each refresh is its own PR via `bin/refresh-third-party.mjs`.
 
