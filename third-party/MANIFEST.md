@@ -80,10 +80,10 @@ node -e "const f='third-party/oh-my-claudecode/.claude-plugin/plugin.json'; \
 |---|---|
 | Upstream | https://github.com/obra/superpowers |
 | License | MIT |
-| Pinned SHA | `f2cbfbefebbfef77321e4c9abc9e949826bea9d7` |
-| Snapshot date | 2026-05-06 |
-| Snapshot size | ~842 KB, 76 files |
-| Upstream version at SHA | 5.1.0 |
+| Pinned SHA | `b36e0829c6d0140e93cfef2ca599b1b07d4a7797` |
+| Snapshot date | 2026-09-06 |
+| Snapshot size | ~1.5 MB, 107 files |
+| Upstream version at SHA | 6.3.0 |
 | Local path | `third-party/superpowers/` |
 
 This is the canonical upstream that the CI fork's `plugins/continuous-improvement/skills/superpowers/SKILL.md` dispatcher routes to (declared via `origin: https://github.com/obra/superpowers` in its frontmatter). The two remain distinct plugins — Obra ships the skill bodies, the CI fork ships the Law-aligned dispatcher and the wider 7 Laws system. This snapshot is cold-storage only; it is **not** loaded by `plugins/continuous-improvement/` and is **not** registered in `.claude-plugin/marketplace.json`.

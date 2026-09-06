@@ -52,6 +52,36 @@ The CI fork's `plugins/continuous-improvement/skills/superpowers/SKILL.md` refer
 
 14 dispatcher references, 14 upstream files. A future refresh that breaks this 1:1 ratio is the signal to re-align the dispatcher table.
 
+## Refresh log
+
+### 2026-09-06 — 5.1.0 (`f2cbfbe`) to 6.3.0 (`b36e082`)
+
+48 files changed, 2,303 insertions, 1,941 deletions. The dispatcher map above survives unchanged:
+still 14 skills upstream, 14 dispatcher references, none renamed or removed, so the 1:1 ratio the
+map depends on holds and no dispatcher edit is forced by this refresh.
+
+What changed that a reader of this snapshot should know:
+
+- **`brainstorming` gained a three-path router.** It now classifies a request as spike, bounded or
+  architectural, and only the architectural path produces the sectioned design and the written spec
+  under `docs/superpowers/specs/`. The approval gate applies on all three paths; what scales is the
+  artifact. Our dispatcher table still summarises the skill as "presents design in sections for
+  validation" (`skills/superpowers.md` line 49), which is now true of one path out of three. That is
+  integration copy outside the snapshot, so it is a follow-up, not part of this refresh.
+- **`subagent-driven-development` lost its two prompt files** (`spec-reviewer-prompt.md`,
+  `code-quality-reviewer-prompt.md`) and folded that content into `SKILL.md`. Our two-stage
+  spec-then-quality commitment still holds; only the file layout moved.
+- **`test-driven-development` lost `testing-anti-patterns.md`** (299 lines), folded into `SKILL.md`.
+- **`using-superpowers` lost `references/copilot-tools.md`** and gained Devin CLI and Hermes Agent
+  platform notes alongside the existing Codex and Gemini references.
+
+None of the four removed files is referenced anywhere in this repo outside the snapshot, checked at
+refresh time, so nothing here points at a path that no longer exists.
+
+The intentionally-not-integrated list below is unchanged: upstream's `scripts/`, `tests/`,
+`package.json`, `gemini-extension.json`, `GEMINI.md`, the non-Claude adapters and the root
+`CLAUDE.md` all stay out, and 6.3.0 adds nothing that changes those calls.
+
 ## Overlap with the 7 Laws (read this before integrating anything)
 
 The CI fork already names every workflow skill above inside its dispatcher table. The relationships are not redundant — Obra ships the skill bodies, the 7 Laws fork wraps them in Law-aligned routing:
