@@ -46,7 +46,7 @@ See `docs/THIRD_PARTY.md` for plugin-by-plugin scope.
 
 | Order | Skill | When It Activates |
 |-------|-------|-------------------|
-| 1 | **brainstorming** | Before writing code. Refines rough ideas through questions, explores alternatives, presents design in sections for validation. |
+| 1 | **brainstorming** | Before writing code. Classifies the request as spike, bounded or architectural, then scales the ceremony to it: a 2-3 sentence probe, a short design in chat, or questions plus alternatives plus a sectioned design and a written spec. Approval is required before implementation on all three paths. |
 | 2 | **using-git-worktrees** | After design approval. Creates isolated workspace on new branch, runs project setup, verifies clean test baseline. |
 | 3 | **writing-plans** | With approved design. Breaks work into bite-sized tasks (2-5 minutes each). Every task has exact file paths, complete code, verification steps. |
 | 4 | **subagent-driven-development** or **executing-plans** | With plan. Dispatches fresh subagent per task with two-stage review (spec compliance, then code quality), or executes in batches with human checkpoints. |
