@@ -5,35 +5,39 @@ argument-hint: "[--no-deslop] [--critic=architect|critic|codex] <task descriptio
 level: 4
 ---
 
-[RALPH + ULTRAWORK - ITERATION {{ITERATION}}/{{MAX}}]
+[RALPH - ITERATION {{ITERATION}}/{{MAX}}]
 
 Your previous attempt did not output the completion promise. Continue working on the task.
 
 <Purpose>
-Ralph is a PRD-driven persistence loop that keeps working on a task until ALL user stories in prd.json have passes: true and are reviewer-verified. It wraps ultrawork's parallel execution with session persistence, automatic retry on failure, structured story tracking, and mandatory verification before completion.
+Ralph is a PRD-driven persistence loop that keeps working on a task until ALL user stories in prd.json have passes: true and are reviewer-verified. It combines session persistence, automatic retry on failure, structured story tracking, and mandatory verification before completion.
 </Purpose>
 
 <Use_When>
+
 - Task requires guaranteed completion with verification (not just "do your best")
 - User says "ralph", "don't stop", "must complete", "finish this", or "keep going until done"
 - Work may span multiple iterations and needs persistence across retries
 - Task benefits from structured PRD-driven execution with reviewer sign-off
-</Use_When>
+  </Use_When>
 
 <Do_Not_Use_When>
+
 - User wants a full autonomous pipeline from idea to code -- use `autopilot` instead
 - User wants to explore or plan before committing -- use `plan` skill instead
 - User wants a quick one-shot fix -- delegate directly to an executor agent
-- User wants manual control over completion -- use `ultrawork` directly
-</Do_Not_Use_When>
+- User wants manual control over completion -- delegate directly to an executor agent
+- User already has an active Claude Code `/goal` and only wants that native goal loop monitored -- adopt the existing `/goal` explicitly or use artifact-only Ultragoal notes instead of starting Ralph as a competing persistence loop
+  </Do_Not_Use_When>
 
 <Why_This_Exists>
 Complex tasks often fail silently: partial implementations get declared "done", tests get skipped, edge cases get forgotten. Ralph prevents this by:
+
 1. Structuring work into discrete user stories with testable acceptance criteria (prd.json)
 2. Iterating story-by-story until each one passes
 3. Tracking progress and learnings across iterations (progress.txt)
 4. Requiring fresh reviewer verification against specific acceptance criteria before completion
-</Why_This_Exists>
+   </Why_This_Exists>
 
 <PRD_Mode>
 By default, ralph operates in PRD mode. A scaffold `prd.json` is auto-generated when ralph starts if none exists. Active transient PRD state is session-scoped at `.omc/state/sessions/{sessionId}/prd.json` when a session ID is available; legacy project-level `prd.json` / `.omc/prd.json` files are read as startup migration inputs.
@@ -43,15 +47,59 @@ By default, ralph operates in PRD mode. A scaffold `prd.json` is auto-generated 
 **Deslop opt-out:** If `{{PROMPT}}` contains `--no-deslop`, skip the mandatory post-review deslop pass entirely. Use this only when the cleanup pass is intentionally out of scope for the run.
 
 **Reviewer selection:** Pass `--critic=architect`, `--critic=critic`, or `--critic=codex` in the Ralph prompt to choose the completion reviewer for that run. `architect` remains the default.
+
+**Stale-state detection & reconciliation (#3669):** If a PRD is left unfinished by an abnormal/non-Step 8 exit (crash, force-kill, cancel before `/oh-my-claudecode:cancel`, session end), Ralph surfaces an explicit `[STALE PRD WARNING]` at startup/resume, in the continuation context, and at session end — with unfinished counts, last-touched age, and stale-pointer signals (PRD `branchName` merged/gone). Completion is NEVER inferred from PR/branch/merge status alone; git state is a warning signal only. A story is auto-reconciled to `passes: true` ONLY when the PRD carries configured observable evidence and every check passes:
+
+```json
+{
+  "reconciliation": {
+    "staleAfterMs": 7200000,
+    "observableChecks": {
+      "US-001": [
+        { "type": "fileContains", "path": "src/landed.ts", "pattern": "LANDED_SYMBOL" },
+        { "type": "gitGrep", "ref": "origin/dev", "pattern": "LANDED_SYMBOL" }
+      ]
+    }
+  }
+}
+```
+
+Check types: `fileExists` / `fileContains` (working tree) and `gitGrep` (content at a ref — this is "verified by content on trunk", never PR status). Stories without configured checks are never auto-marked. Reconciled stories keep `architectVerified: false` and still require Step 7 reviewer verification before Step 8; every decision is appended to the `prd-reconciliation.jsonl` audit log and summarized in the story notes.
 </PRD_Mode>
 
+<PRD_Criterion_Amendments>
+Acceptance criteria are the PRD's completion authority: Step 4 verifies EACH active criterion and Step 7 reviews against them. A criterion can stop governing ONLY through the evidence-preserving amendment path — never by silent deletion or by "satisfying" a criterion measurement has refuted.
+
+When implementation proves a criterion empirically false (e.g. a count in the dispatching brief is wrong), amend it:
+
+1. **Replace** the refuted criterion with the measured correction, or **supersede** it when no replacement governs.
+2. Record the amendment in the story's `criterionAmendments` ledger. The original criterion text is retained verbatim (never rewritten or deleted) alongside:
+   - `kind`: `"replaced"` or `"superseded"`
+   - `original`: the verbatim refuted criterion (must still be active when the amendment is recorded)
+   - `replacement`: the corrected criterion (only for `replaced`)
+   - `reason`: why the original no longer governs
+   - `evidence`: the bounded measurement that refuted it (e.g. "enumerated 12 setters, not 16: ...")
+   - `authority`: who made the amendment (use the ralph session id)
+   - `timestamp`: ISO 8601 timestamp
+3. The completion check then verifies only the ACTIVE criteria; the ledger keeps the audit trail so reviewers see why the original no longer governs.
+
+Rules:
+- An amendment without bounded evidence, reason, authority, or timestamp is invalid — the PRD fails closed on read rather than being silently weakened.
+- An original that is still active cannot be amended; an original can be amended only once.
+- Programmatic path: `amendCriterion(dir, storyId, { original, replacement, reason, evidence, authority })` and `supersedeCriterion(dir, storyId, { original, reason, evidence, authority })`.
+- Hand-edited PRDs must preserve the same invariants; a contradictory ledger (original still active, or amended twice) makes the PRD invalid.
+- This is not a goal-weakening tool: it exists so that "the measurement disagrees with the plan" resolves toward the measurement without the loop losing its grip.
+</PRD_Criterion_Amendments>
+
 <Execution_Policy>
+
 - Fire independent agent calls simultaneously -- never wait sequentially for independent work
 - Use `run_in_background: true` for long operations (installs, builds, test suites)
 - Always pass the `model` parameter explicitly when delegating to agents
 - Read `docs/shared/agent-tiers.md` before first delegation to select correct agent tiers
 - Deliver the full implementation: no scope reduction, no partial completion, no deleting tests to make them pass
-</Execution_Policy>
+- If a Claude Code `/goal` is mentioned, treat it as a native session-loop handoff/evidence source only and use the deterministic conflict policies `refuse`, `adopt_existing`, and `artifact_only` rather than non-deterministic warning handling. Ralph remains the OMC loop authority for this run; do not claim `/goal` independently ran tests or read files, and do not treat evaluator success as a substitute for Ralph reviewer verification.
+  </Execution_Policy>
 
 <Steps>
 1. **PRD Setup** (first iteration only):
@@ -77,24 +125,25 @@ By default, ralph operates in PRD mode. A scaffold `prd.json` is auto-generated 
    - Run long operations in background: Builds, installs, test suites use `run_in_background: true`
 
 4. **Verify the current story's acceptance criteria**:
-   a. For EACH acceptance criterion in the story, verify it is met with fresh evidence
+   a. For EACH active acceptance criterion in the story, verify it is met with fresh evidence
    b. Run relevant checks (test, build, lint, typecheck) and read the output
-   c. If any criterion is NOT met, continue working -- do NOT mark the story as complete
+   c. If implementation proves a criterion empirically FALSE (the measurement refutes it), do NOT mark the story complete and do NOT silently delete or weaken the criterion. Instead amend it through the evidence-preserving path described in `<PRD_Criterion_Amendments>`: replace or supersede it in the active criteria and append the original (verbatim) with `kind`, `reason`, `evidence`, `authority`, and `timestamp` to the story's `criterionAmendments` ledger. Then continue verifying the remaining ACTIVE criteria
+   d. If any active criterion is NOT met and NOT amended, continue working -- do NOT mark the story as complete
 
 5. **Mark story complete**:
-   a. When ALL acceptance criteria are verified, set `passes: true` for this story in the active PRD file
+   a. When ALL active acceptance criteria are verified, create a revision-bound completion claim: set `passes: true` and set `completionCriteriaRevision` to the story's current `governingCriteriaRevision`. Do not set `architectVerified`; reviewer approval binds that separately.
    b. Record progress in `progress.txt`: what was implemented, files changed, learnings for future iterations
    c. Add any discovered codebase patterns to `progress.txt`
 
 6. **Check PRD completion**:
-   a. Read the active PRD file -- are ALL stories marked `passes: true`?
+   a. Read the active PRD file -- are ALL stories marked `passes: true` (with no active criteria left unverified)?
    b. If NOT all complete, loop back to Step 2 (pick next story)
    c. If ALL complete, proceed to Step 7 (architect verification)
 
 7. **Reviewer verification** (tiered, against acceptance criteria):
    - <5 files, <100 lines with full tests: STANDARD tier minimum (architect-medium / Sonnet)
    - Standard changes: STANDARD tier (architect-medium / Sonnet)
-   - >20 files or security/architectural changes: THOROUGH tier (architect / Opus)
+   - > 20 files or security/architectural changes: THOROUGH tier (architect / Opus)
    - If `--critic=critic`, use the Claude `critic` agent for the approval pass
    - If `--critic=codex`, run `omc ask codex --agent-prompt critic "..."` for the approval pass. The Codex critic prompt MUST include:
      1. The full list of acceptance criteria from prd.json for verification
@@ -106,31 +155,33 @@ By default, ralph operates in PRD mode. A scaffold `prd.json` is auto-generated 
    - **On APPROVAL: immediately proceed to Step 7.5 in the same turn. Do NOT pause to report the verdict to the user — reporting happens only at Step 8 (`/oh-my-claudecode:cancel`) or on rejection (Step 9). Treating an approved verdict as a reporting checkpoint is a polite-stop anti-pattern.**
 
 7.5 **Mandatory Deslop Pass** (runs unconditionally after Step 7 approval, unless `{{PROMPT}}` contains `--no-deslop`):
-   - **Invoke the `ai-slop-cleaner` skill via the Skill tool: `Skill("ai-slop-cleaner")`.** Run in standard mode (not `--review`) on the files changed during the current Ralph session only.
-   - **ai-slop-cleaner is a SKILL, not an agent.** Do NOT call it via `Task(subagent_type="oh-my-claudecode:ai-slop-cleaner")` — that subagent type does not exist and the call will fail with "Agent type not found". If you see that error, retry with the Skill tool — do NOT substitute a similarly-named agent like `code-simplifier` as a "closest match".
-   - Keep the scope bounded to the Ralph changed-file set; do not broaden the cleanup pass to unrelated files.
-   - If the reviewer approved the implementation but the deslop pass introduces follow-up edits, keep those edits inside the same changed-file scope before proceeding.
 
-7.6 **Regression Re-verification**:
-   - After the deslop pass, re-run all relevant tests, build, and lint checks for the Ralph session.
-   - Read the output and confirm the post-deslop regression run actually passes.
-   - If regression fails, roll back the cleaner changes or fix the regression, then rerun the verification loop until it passes.
-   - Only proceed to completion after the post-deslop regression run passes (or `--no-deslop` was explicitly specified).
+- **Invoke the `ai-slop-cleaner` skill via the Skill tool: `Skill("oh-my-claudecode:ai-slop-cleaner")`** — it is a Skill, not an agent. If you mistakenly call it via `Task(subagent_type="oh-my-claudecode:ai-slop-cleaner")`, OMC's PreToolUse hook denies the call with the correct Skill-tool identifier; do not substitute a similarly-named agent. Run in standard mode (not `--review`) on the files changed during the current Ralph session only.
+- Keep the scope bounded to the Ralph changed-file set; do not broaden the cleanup pass to unrelated files.
+- If the reviewer approved the implementation but the deslop pass introduces follow-up edits, keep those edits inside the same changed-file scope before proceeding.
+
+  7.6 **Regression Re-verification**:
+
+- After the deslop pass, re-run all relevant tests, build, and lint checks for the Ralph session.
+- Read the output and confirm the post-deslop regression run actually passes.
+- If regression fails, roll back the cleaner changes or fix the regression, then rerun the verification loop until it passes.
+- Only proceed to completion after the post-deslop regression run passes (or `--no-deslop` was explicitly specified).
 
 8. **On approval**: After Step 7.6 passes (with Step 7.5 completed, or skipped via `--no-deslop`), run `/oh-my-claudecode:cancel` to cleanly exit and clean up all state files
 
 9. **On rejection**: Fix the issues raised, re-verify with the same reviewer, then loop back to check if the story needs to be marked incomplete
-</Steps>
+   </Steps>
 
 <Tool_Usage>
+
 - Use `Task(subagent_type="oh-my-claudecode:architect", ...)` for architect verification cross-checks when changes are security-sensitive, architectural, or involve complex multi-system integration
 - Use `Task(subagent_type="oh-my-claudecode:critic", ...)` when `--critic=critic`
 - Use `omc ask codex --agent-prompt critic "..."` when `--critic=codex`. Construct the prompt to include: (a) prd.json acceptance criteria, (b) files changed + related files, (c) explicit optimality question: "Is there a meaningfully simpler, faster, or more maintainable approach that achieves the same acceptance criteria?"
 - Skip architect consultation for simple feature additions, well-tested changes, or time-critical verification
 - Proceed with architect agent verification alone -- never block on unavailable tools
 - Use `state_write` / `state_read` for ralph mode state persistence between iterations
-- **Skill vs agent invocation**: `ai-slop-cleaner` is a skill, invoke via `Skill("ai-slop-cleaner")`. `architect`, `critic`, `executor` etc. are agents, invoke via `Task(subagent_type="oh-my-claudecode:<name>")`. If you ever get "Agent type ... not found" for an `oh-my-claudecode:<name>` identifier, the item is a skill — retry with the Skill tool. Do NOT substitute a similarly-named agent as a "closest match".
-</Tool_Usage>
+- **Skill vs agent invocation**: skills (e.g. `ai-slop-cleaner`) are invoked via the Skill tool: `Skill("oh-my-claudecode:ai-slop-cleaner")`; agents (e.g. `architect`, `critic`, `executor`) via `Task(subagent_type="oh-my-claudecode:<name>")`. OMC's PreToolUse hook denies a Task/Agent call whose `subagent_type` names a bundled skill and returns the correct Skill-tool identifier — do not substitute a similarly-named agent as a "closest match".
+  </Tool_Usage>
 
 <Examples>
 <Good>
@@ -140,11 +191,12 @@ Auto-generated scaffold has:
   acceptanceCriteria: ["Implementation is complete", "Code compiles without errors"]
 
 After refinement:
-  acceptanceCriteria: [
-    "Legacy --no-prd text is stripped from the Ralph working prompt",
-    "Ralph startup still creates or validates prd.json when legacy --no-prd text is present",
-    "TypeScript compiles with no errors (npm run build)"
-  ]
+acceptanceCriteria: [
+"Legacy --no-prd text is stripped from the Ralph working prompt",
+"Ralph startup still creates or validates prd.json when legacy --no-prd text is present",
+"TypeScript compiles with no errors (npm run build)"
+]
+
 ```
 Why good: Generic criteria replaced with specific, testable criteria.
 </Good>
@@ -152,9 +204,11 @@ Why good: Generic criteria replaced with specific, testable criteria.
 <Good>
 Correct parallel delegation:
 ```
+
 Task(subagent_type="oh-my-claudecode:executor", model="haiku", prompt="Add type export for UserConfig")
 Task(subagent_type="oh-my-claudecode:executor", model="sonnet", prompt="Implement the caching layer for API responses")
 Task(subagent_type="oh-my-claudecode:executor", model="opus", prompt="Refactor auth module to support OAuth2 flow")
+
 ```
 Why good: Three independent tasks fired simultaneously at appropriate tiers.
 </Good>
@@ -162,12 +216,14 @@ Why good: Three independent tasks fired simultaneously at appropriate tiers.
 <Good>
 Story-by-story verification:
 ```
+
 1. Story US-001: "Add flag detection helpers"
    - Criterion: "Legacy --no-prd is stripped from the working prompt" → Run test → PASS
    - Criterion: "TypeScript compiles" → Run build → PASS
-   - Mark US-001 passes: true
+   - Mark US-001 complete with `passes: true` and `completionCriteriaRevision` equal to its current `governingCriteriaRevision`
 2. Story US-002: "Wire PRD into bridge.ts"
    - Continue to next story...
+
 ```
 Why good: Each story verified against its own acceptance criteria before marking complete.
 </Good>
@@ -181,9 +237,11 @@ Why bad: Uses "should" and "look good" -- no fresh evidence, no story-by-story v
 <Bad>
 Sequential execution of independent tasks:
 ```
+
 Task(executor, "Add type export") → wait →
 Task(executor, "Implement caching") → wait →
 Task(executor, "Refactor auth")
+
 ```
 Why bad: These are independent tasks that should run in parallel, not sequentially.
 </Bad>
@@ -193,6 +251,32 @@ Keeping generic acceptance criteria:
 "prd.json created with criteria: Implementation is complete, Code compiles. Moving on to coding."
 Why bad: Did not refine scaffold criteria into task-specific ones. This is PRD theater.
 </Bad>
+<Good>
+Evidence-preserving criterion amendment:
+```
+Criterion: "All 16 files that set FDFT_WHALE_STREAM=1 are classified affected/not-affected WITH EVIDENCE"
+
+Implementation enumerated the setters: 12 exist, not 16 (7 listed names are readers/asserters/doc-recipes).
+Two of those mis-classified readers are the ONLY affected files — the wrong count was hiding the answer.
+
+Active criteria become:
+  acceptanceCriteria: [
+    "All 12 files that set FDFT_WHALE_STREAM=1 are classified affected/not-affected WITH EVIDENCE"
+  ]
+  criterionAmendments: [
+    {
+      "kind": "replaced",
+      "original": "All 16 files that set FDFT_WHALE_STREAM=1 are classified affected/not-affected WITH EVIDENCE",
+      "replacement": "All 12 files that set FDFT_WHALE_STREAM=1 are classified affected/not-affected WITH EVIDENCE",
+      "reason": "The brief count was wrong: 7 listed names are readers/asserters/doc-recipes, not setters",
+      "evidence": "Enumerated setters via grep FDFT_WHALE_STREAM=1: 12 setters, 16 total matches",
+      "authority": "ses_<ralph-session-id>",
+      "timestamp": "2026-08-10T03:15:00.000Z"
+    }
+  ]
+```
+Why good: The falsified criterion stops governing, the measurement is preserved verbatim with proof/reason/authority/timestamp, and the loop keeps verifying the corrected criterion.
+</Good>
 </Examples>
 
 <Escalation_And_Stop_Conditions>
@@ -206,6 +290,7 @@ Why bad: Did not refine scaffold criteria into task-specific ones. This is PRD t
 
 <Final_Checklist>
 - [ ] All prd.json stories have `passes: true` (no incomplete stories)
+- [ ] Any refuted acceptance criterion was amended through the evidence ledger (original retained), not silently deleted
 - [ ] prd.json acceptance criteria are task-specific (not generic boilerplate)
 - [ ] All requirements from the original task are met (no scope reduction)
 - [ ] Zero pending or in_progress TODO items
@@ -218,6 +303,13 @@ Why bad: Did not refine scaffold criteria into task-specific ones. This is PRD t
 - [ ] Post-deslop regression tests pass
 - [ ] `/oh-my-claudecode:cancel` run for clean state cleanup
 </Final_Checklist>
+
+## Parallel session caveats
+
+- **Multi-repo workspace anchor:** drop a `.omc-workspace` marker at the parent directory so multiple sessions across sub-repos share one `.omc/`. Resolution order: `OMC_STATE_DIR > .omc-workspace > git > cwd`. See `docs/REFERENCE.md`.
+- **Session id source:** OMC_SESSION_ID env var wins in CLI contexts; hook payload data.session_id wins in hook contexts.
+- **Plan id (when applicable):** Two ralph runs in the same workspace will conflict on `prd.json`. Use distinct session IDs (the hook payload session_id is already isolated per Claude Code session). For parallel ultragoal-backed ralph runs, use `--plan-id`.
+- **Parallel verdict:** supported (each session writes its own session-scoped state)
 
 <Advanced>
 ## Background Execution Rules
@@ -236,3 +328,4 @@ Why bad: Did not refine scaffold criteria into task-specific ones. This is PRD t
 
 Original task:
 {{PROMPT}}
+```

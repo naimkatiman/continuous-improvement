@@ -5,30 +5,100 @@
  * Minimal continuation enforcer for all OMC modes.
  * Stripped down for reliability — no optional imports, no PRD, no notepad pruning.
  *
- * Supported modes: ralph, autopilot, ultrapilot, swarm, ultrawork, ultraqa, pipeline, team
+ * Supported modes: ralph, autopilot, ultrapilot, swarm, pipeline, team
  */
 
 import {
   existsSync,
   readFileSync,
-  writeFileSync,
-  renameSync,
   readdirSync,
+  realpathSync,
   mkdirSync,
   unlinkSync,
+  openSync,
+  closeSync,
 } from "fs";
-import { join, dirname, resolve, normalize } from "path";
+import { createHash } from 'node:crypto';
+import { join, dirname, resolve, normalize, sep } from "path";
 import { homedir } from "os";
 import { fileURLToPath, pathToFileURL } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const { getClaudeConfigDir } = await import(pathToFileURL(join(__dirname, 'lib', 'config-dir.mjs')).href);
 
-// Dynamic import for the shared stdin module
+const SAFE_CONTINUE = { continue: true, suppressOutput: true };
+const DEFAULT_SAFETY_TIMEOUT_MS = 8500;
+const SAFE_EXIT_FLUSH_TIMEOUT_MS = 100;
+
+
+function getSafetyTimeoutMs() {
+  const parsed = Number.parseInt(process.env.OMC_PERSISTENT_MODE_TIMEOUT_MS || "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_SAFETY_TIMEOUT_MS;
+}
+
+function writeSafeContinue(onFlushed) {
+  let settled = false;
+  const finish = () => {
+    if (settled) return;
+    settled = true;
+    if (onFlushed) onFlushed();
+  };
+
+  try {
+    const ok = process.stdout.write(JSON.stringify(SAFE_CONTINUE) + "\n", finish);
+    if (!ok) {
+      process.stdout.once("drain", finish);
+    }
+    const timeout = setTimeout(finish, SAFE_EXIT_FLUSH_TIMEOUT_MS);
+    if (!onFlushed) timeout.unref?.();
+  } catch {
+    // If stdout is unavailable, exiting still prevents a wedged Stop hook.
+    finish();
+  }
+}
+
+function shouldSkipPersistentModeHook() {
+  const skipHooks = (process.env.OMC_SKIP_HOOKS || "")
+    .split(",")
+    .map((hook) => hook.trim())
+    .filter(Boolean);
+
+  return (
+    process.env.DISABLE_OMC === "1" ||
+    process.env.DISABLE_OMC === "true" ||
+    skipHooks.includes("persistent-mode") ||
+    skipHooks.includes("stop-continuation")
+  );
+}
+
+function forceSafeExit(message) {
+  try {
+    if (message) process.stderr.write(message + "\n");
+  } catch {
+    // Ignore stderr failures; the JSON decision is what matters.
+  }
+  writeSafeContinue(() => process.exit(0));
+}
+
+const safetyTimeout = setTimeout(() => {
+  forceSafeExit("[persistent-mode] Safety timeout reached, forcing exit");
+}, getSafetyTimeoutMs());
+
+process.on("uncaughtException", (error) => {
+  forceSafeExit(`[persistent-mode] Uncaught exception: ${error?.message || error}`);
+});
+
+process.on("unhandledRejection", (error) => {
+  forceSafeExit(`[persistent-mode] Unhandled rejection: ${error?.message || error}`);
+});
+
+const { getClaudeConfigDir } = await import(pathToFileURL(join(__dirname, "lib", "config-dir.mjs")).href);
 const { readStdin } = await import(
   pathToFileURL(join(__dirname, "lib", "stdin.mjs")).href
 );
+const { resolveOmcStateRoot } = await import(pathToFileURL(join(__dirname, "lib", "state-root.mjs")).href);
+const { advanceWorkflowOnStop, isValidWorkflowDescriptor, isValidWorkflowTrackingState, isWorkflowRuntimeSupported, refreshWorkflowBoundaryForCommit, resolveWorkflowStagePrompt, takeWorkflowTranscriptFailure } = await import(pathToFileURL(join(__dirname, "lib", "workflow-profile-runtime.mjs")).href);
+const { acquireStateFileLockSync, atomicWriteFileSync, isStateFileLockingSupported, releaseStateFileLockSync, withStateFileLockSync } = await import(pathToFileURL(join(__dirname, "lib", "atomic-write.mjs")).href);
 
 function readJsonFile(path) {
   try {
@@ -41,15 +111,48 @@ function readJsonFile(path) {
 
 function writeJsonFile(path, data) {
   try {
-    const dir = dirname(path);
-    if (dir && dir !== "." && !existsSync(dir)) {
-      mkdirSync(dir, { recursive: true });
-    }
-    const tmpPath = path + '.tmp.' + process.pid;
-    writeFileSync(tmpPath, JSON.stringify(data, null, 2));
-    renameSync(tmpPath, path);
+    atomicWriteFileSync(path, JSON.stringify(data, null, 2));
     return true;
   } catch { return false; }
+}
+
+function workflowStopResponse(state) {
+  const stage = state?.workflow?.stages?.[state?.pipelineTracking?.currentStageIndex];
+  if (!stage) return { continue: false, decision: "block", reason: "[AUTOPILOT WORKFLOW] All selected stages are complete." };
+  const prompt = resolveWorkflowStagePrompt(state, stage);
+  return { continue: false, decision: "block", reason: prompt || "[AUTOPILOT WORKFLOW] workflow_stage_dispatch_failed. Run /cancel and re-invoke the workflow." };
+}
+
+function commitWorkflowAdvance(path, advance) {
+  const lock = acquireStateFileLockSync(path);
+  if (!lock) return { committed: false, state: readJsonFile(path) };
+  try {
+    const current = readJsonFile(path);
+    const currentStage = current?.pipelineTracking?.stages?.[advance.expectedStageIndex];
+    if (!isValidWorkflowDescriptor(current?.workflow) || !isValidWorkflowTrackingState(current, advance.expectedSessionId) || current.workflowRunId !== advance.expectedWorkflowRunId || current?.pipelineTracking?.trackingRevision !== advance.expectedRevision || current.workflow.profileHash !== advance.expectedProfileHash || current?.session_id !== advance.expectedSessionId || current?.active !== true || current?.pipelineTracking?.currentStageIndex !== advance.expectedStageIndex || currentStage?.id !== advance.expectedStageId || currentStage?.status !== 'active') return { committed: false, state: current };
+    if (!refreshWorkflowBoundaryForCommit(advance)) return { committed: false, state: current };
+    if (!writeJsonFile(path, advance.updated)) return { committed: false, state: readJsonFile(path) };
+    return { committed: true, state: advance.updated };
+  } finally {
+    releaseStateFileLockSync(lock);
+  }
+}
+
+function refreshNamedWorkflowDispatch(path, expected) {
+  const lock = acquireStateFileLockSync(path);
+  if (!lock) return { committed: false, state: readJsonFile(path) };
+  try {
+    const current = readJsonFile(path);
+    const currentStage = current?.pipelineTracking?.stages?.[expected.stageIndex];
+    if (!isValidWorkflowDescriptor(current?.workflow) || !isValidWorkflowTrackingState(current, expected.sessionId)) return { committed: false, state: current, integrityFailed: true };
+    if (current?.workflowRunId !== expected.workflowRunId || current?.session_id !== expected.sessionId || current?.workflow?.profileHash !== expected.profileHash || current?.pipelineTracking?.trackingRevision !== expected.trackingRevision || current?.pipelineTracking?.currentStageIndex !== expected.stageIndex || currentStage?.id !== expected.stageId || currentStage?.status !== 'active' || current?.phase !== expected.phase || current?.active !== true) return { committed: false, state: current };
+    const now = new Date().toISOString();
+    const refreshed = { ...current, last_checked_at: now, updated_at: now };
+    if (!writeJsonFile(path, refreshed)) return { committed: false, state: readJsonFile(path) };
+    return { committed: true, state: refreshed };
+  } finally {
+    releaseStateFileLockSync(lock);
+  }
 }
 
 function shouldWriteStateBack(path) {
@@ -137,6 +240,7 @@ Do NOT skip this step. Do NOT move on without fixing the error.
  * from causing the stop hook to malfunction in new sessions.
  */
 const STALE_STATE_THRESHOLD_MS = 2 * 60 * 60 * 1000; // 2 hours
+const PENDING_ASYNC_STATE_STALE_MS = 24 * 60 * 60 * 1000;
 const TEAM_TERMINAL_PHASES = new Set([
   "completed",
   "complete",
@@ -181,6 +285,66 @@ function isStaleState(state) {
 
   const age = Date.now() - mostRecent;
   return age > STALE_STATE_THRESHOLD_MS;
+}
+
+
+function parseTimestamp(value) {
+  if (typeof value !== "string" || value.length === 0) return null;
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function isFreshTimestamp(value, ttlMs = PENDING_ASYNC_STATE_STALE_MS) {
+  const parsed = parseTimestamp(value);
+  return parsed !== null && Date.now() - parsed <= ttlMs;
+}
+
+function hasPendingBackgroundTask(stateDir, sessionId) {
+  const safeSessionId = sanitizeSessionId(sessionId);
+  const hudPath = safeSessionId
+    ? join(stateDir, "sessions", safeSessionId, "hud-state.json")
+    : join(stateDir, "hud-state.json");
+  const hudState = readJsonFile(hudPath);
+  return Boolean(hudState?.backgroundTasks?.some((task) => {
+    if (task?.status !== "running") return false;
+    return isFreshTimestamp(task.startedAt ?? task.startTime);
+  }));
+}
+
+function readPendingWakeupStates(stateDir, sessionId) {
+  const safeSessionId = sanitizeSessionId(sessionId);
+  const dirs = safeSessionId ? [join(stateDir, "sessions", safeSessionId), stateDir] : [stateDir];
+  const fileNames = ["scheduled-wakeup-state.json", "schedule-wakeup-state.json", "wakeup-state.json"];
+  const states = [];
+  for (const dir of dirs) {
+    for (const fileName of fileNames) {
+      const state = readJsonFile(join(dir, fileName));
+      if (state && typeof state === "object") states.push(state);
+    }
+  }
+  return states;
+}
+
+function hasPendingScheduledWakeup(stateDir, sessionId) {
+  const now = Date.now();
+  return readPendingWakeupStates(stateDir, sessionId).some((state) => {
+    const status = typeof state.status === "string" ? state.status.toLowerCase() : "";
+    if (["completed", "complete", "cancelled", "canceled", "failed", "expired"].includes(status)) {
+      return false;
+    }
+    const dueAt = parseTimestamp(
+      state.due_at ?? state.wakeup_at ?? state.scheduled_for ?? state.deadline_at ?? state.expires_at,
+    );
+    if (dueAt !== null) return dueAt > now;
+    if (state.active === true || state.pending === true) {
+      return isFreshTimestamp(state.created_at ?? state.updated_at ?? state.started_at);
+    }
+    return false;
+  });
+}
+
+function hasPendingOwnedAsyncWork(stateDir, sessionId) {
+  return hasPendingBackgroundTask(stateDir, sessionId) || hasPendingScheduledWakeup(stateDir, sessionId);
 }
 
 function normalizeTeamPhase(state) {
@@ -253,44 +417,165 @@ function isStaleSkillState(state) {
  * @param {string} sessionId - Optional session ID
  * @returns {boolean} true if cancel is in progress
  */
-function isSessionCancelInProgress(stateDir, sessionId) {
+function isSessionCancelInProgress(stateDir, sessionId, currentAutopilotPath, cancellationContext) {
   const CANCEL_SIGNAL_TTL_MS = 30000; // 30 seconds
-  const isActiveSignal = (signalPath) => {
-    const signal = readJsonFile(signalPath);
-    if (!signal) {
-      return false;
-    }
-
-    const now = Date.now();
-    const expiresAt = signal.expires_at ? new Date(signal.expires_at).getTime() : NaN;
-    const requestedAt = signal.requested_at ? new Date(signal.requested_at).getTime() : NaN;
-    const fallbackExpiry = Number.isFinite(requestedAt) ? requestedAt + CANCEL_SIGNAL_TTL_MS : NaN;
-    const effectiveExpiry = Number.isFinite(expiresAt) ? expiresAt : fallbackExpiry;
-
-    if (Number.isFinite(effectiveExpiry) && effectiveExpiry > now) {
-      return true;
-    }
-
-    if (existsSync(signalPath)) {
-      try {
-        unlinkSync(signalPath);
-      } catch {
-        // best effort cleanup
+  const CANCEL_SIGNAL_CLOCK_SKEW_MS = 5000;
+  let authenticatedAutopilot = null;
+  const validateSignal = (signalPath, currentAutopilot) => {
+    let active = false;
+    const locked = withStateFileLockSync(signalPath, () => {
+      const signal = readJsonFile(signalPath);
+      if (!signal || typeof signal !== "object" || Array.isArray(signal) || signal.active !== true) return;
+      const now = Date.now();
+      const requestedAt = typeof signal.requested_at === "string" ? new Date(signal.requested_at).getTime() : NaN;
+      const expiresAt = typeof signal.expires_at === "string" ? new Date(signal.expires_at).getTime() : NaN;
+      if (!Number.isFinite(requestedAt)) return;
+      const isFreshRequest = requestedAt <= now + CANCEL_SIGNAL_CLOCK_SKEW_MS && now - requestedAt <= CANCEL_SIGNAL_TTL_MS;
+      if (!currentAutopilot) {
+        const effectiveExpiry = Number.isFinite(expiresAt) ? expiresAt : requestedAt + CANCEL_SIGNAL_TTL_MS;
+        if (Number.isFinite(effectiveExpiry) && effectiveExpiry <= now && existsSync(signalPath)) unlinkSync(signalPath);
+        if (signal.mode === "autopilot" || Object.prototype.hasOwnProperty.call(signal, "target_state_sha256") || Object.prototype.hasOwnProperty.call(signal, "target_workflow_run_id")) return;
+        if (isFreshRequest && effectiveExpiry > requestedAt && effectiveExpiry - requestedAt <= CANCEL_SIGNAL_TTL_MS && effectiveExpiry > now) active = true;
+        return;
       }
+      if (!isFreshRequest) {
+        if (Number.isFinite(expiresAt) && expiresAt <= now && existsSync(signalPath)) unlinkSync(signalPath);
+        return;
+      }
+      if (signal.mode !== "autopilot" || typeof signal.source !== "string" || signal.source.length === 0) return;
+      if (!Number.isFinite(expiresAt) || expiresAt <= requestedAt || expiresAt - requestedAt > CANCEL_SIGNAL_TTL_MS) return;
+      if (expiresAt <= now) {
+        if (existsSync(signalPath)) unlinkSync(signalPath);
+        return;
+      }
+      const stateDigest = createHash("sha256").update(JSON.stringify(currentAutopilot)).digest("hex");
+      if (typeof signal.target_state_sha256 !== "string" || !/^[a-f0-9]{64}$/.test(signal.target_state_sha256) || signal.target_state_sha256 !== stateDigest) return;
+      if (currentAutopilot.workflowRunId && signal.target_workflow_run_id !== currentAutopilot.workflowRunId) return;
+      if (!currentAutopilot.workflowRunId && signal.target_workflow_run_id) return;
+      active = true;
+    }, currentAutopilot !== null);
+    return locked.acquired && active;
+  };
+  const isActiveSignal = (signalPath) => {
+    if (!existsSync(signalPath)) return false;
+    if (!currentAutopilotPath || !cancellationContext) return validateSignal(signalPath, null);
+    const stateLock = acquireStateFileLockSync(currentAutopilotPath, 50, true);
+    if (!stateLock) {
+      if (isStateFileLockingSupported()) return false;
+      const currentAutopilot = readJsonFile(currentAutopilotPath);
+      if (isEnforceableAutopilotCancellationTarget(currentAutopilot, cancellationContext.directory, cancellationContext.isGlobal, cancellationContext.hasValidSessionId, sessionId)) return false;
+      return validateSignal(signalPath, null);
     }
-    return false;
+    try {
+      const currentAutopilot = readJsonFile(currentAutopilotPath);
+      if (!isEnforceableAutopilotCancellationTarget(currentAutopilot, cancellationContext.directory, cancellationContext.isGlobal, cancellationContext.hasValidSessionId, sessionId)) return validateSignal(signalPath, null);
+      authenticatedAutopilot = currentAutopilot;
+      return validateSignal(signalPath, currentAutopilot);
+    } finally {
+      releaseStateFileLockSync(stateLock);
+    }
   };
 
-  // Try session-scoped path first
+  const localSignalPath = currentAutopilotPath && join(dirname(currentAutopilotPath), "cancel-signal-state.json");
+  if (localSignalPath && isActiveSignal(localSignalPath)) return { active: true, currentAutopilot: authenticatedAutopilot };
   if (sessionId) {
-    const sessionSignalPath = join(stateDir, 'sessions', sessionId, 'cancel-signal-state.json');
-    if (isActiveSignal(sessionSignalPath)) {
-      return true;
-    }
+    const sessionSignalPath = join(stateDir, "sessions", sessionId, "cancel-signal-state.json");
+    if (sessionSignalPath !== localSignalPath && isActiveSignal(sessionSignalPath)) return { active: true, currentAutopilot: authenticatedAutopilot };
   }
+  const legacySignalPath = join(stateDir, "cancel-signal-state.json");
+  if (legacySignalPath !== localSignalPath && isActiveSignal(legacySignalPath)) return { active: true, currentAutopilot: authenticatedAutopilot };
+  return { active: false, currentAutopilot: authenticatedAutopilot };
+}
 
-  // Fall back to legacy path
-  return isActiveSignal(join(stateDir, 'cancel-signal-state.json'));
+function hasNamedWorkflowMarkers(state) {
+  return Boolean(
+    state &&
+    typeof state === "object" &&
+    ['workflow', 'workflowRunId', 'pipelineTracking'].some((marker) => Object.prototype.hasOwnProperty.call(state, marker)),
+  );
+}
+
+function hasExactWorkflowKeys(value, keys) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const actual = Object.keys(value).sort();
+  const expected = [...keys].sort();
+  return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
+}
+
+function isWorkflowTimestamp(value) {
+  return typeof value === "string" && Number.isFinite(Date.parse(value));
+}
+
+function isWorkflowFileIdentity(value) {
+  return hasExactWorkflowKeys(value, ["device", "inode", "size", "mtimeNs", "ctimeNs", "contentSha256"]) &&
+    [value.device, value.inode, value.size].every((field) => Number.isSafeInteger(field) && field >= 0) &&
+    /^\d+$/.test(value.mtimeNs) && /^\d+$/.test(value.ctimeNs) && /^[a-f0-9]{64}$/.test(value.contentSha256);
+}
+
+
+function hasWorkflowBoundaryTopology(value, sessionId) {
+  let root;
+  try { root = realpathSync(resolve(getClaudeConfigDir(), "projects")); } catch { root = resolve(getClaudeConfigDir(), "projects"); }
+  if (!hasExactWorkflowKeys(value, ["transcriptPath", "transcriptRoot", "transcriptBasename", "sessionId", "byteOffset", "fileIdentity"]) ||
+    typeof value.transcriptPath !== "string" || value.transcriptRoot !== root || value.transcriptBasename !== `${sessionId}.jsonl` || value.sessionId !== sessionId ||
+    !Number.isSafeInteger(value.byteOffset) || value.byteOffset < 0 || !isWorkflowFileIdentity(value.fileIdentity) ||
+    value.fileIdentity.size !== value.byteOffset) return false;
+  if (resolve(value.transcriptPath) !== value.transcriptPath || !value.transcriptPath.startsWith(root + sep)) return false;
+  const relativePath = value.transcriptPath.slice(root.length + sep.length);
+  return relativePath.length > 0 && relativePath.split(sep).every((component) => component && component !== "." && component !== "..") &&
+    value.transcriptPath.endsWith(`${sep}${sessionId}.jsonl`);
+}
+
+function workflowFileIdentityEquals(left, right) {
+  return left.device === right.device && left.inode === right.inode && left.size === right.size &&
+    left.mtimeNs === right.mtimeNs && left.ctimeNs === right.ctimeNs && left.contentSha256 === right.contentSha256;
+}
+
+function isStructurallyValidNamedWorkflowState(state, sessionId) {
+  const workflow = state?.workflow;
+  const tracking = state?.pipelineTracking;
+  if (!isValidWorkflowDescriptor(workflow) || typeof state?.prompt !== "string" || state.prompt.trim().length === 0 ||
+    typeof state?.workflowRunId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(state.workflowRunId) || state?.session_id !== sessionId) return false;
+  const terminal = state.active === false && state.phase === "complete";
+  const maxIndex = terminal ? workflow.stages.length : workflow.stages.length - 1;
+  if (!hasExactWorkflowKeys(tracking, ["stages", "currentStageIndex", "trackingRevision", "activationBoundary", "completionObservations"]) ||
+    !Array.isArray(tracking.stages) || !Array.isArray(tracking.completionObservations) || !Number.isSafeInteger(tracking.currentStageIndex) || tracking.currentStageIndex < 0 || tracking.currentStageIndex > maxIndex ||
+    !Number.isSafeInteger(tracking.trackingRevision) || tracking.trackingRevision !== tracking.currentStageIndex ||
+    (terminal && (tracking.currentStageIndex !== workflow.stages.length || tracking.completionObservations.length !== workflow.stages.length)) ||
+    (!terminal && !((state.active === true || state.active === false) && state.phase === workflow.stages[tracking.currentStageIndex])) ||
+    tracking.stages.length !== workflow.stages.length || tracking.completionObservations.length !== tracking.currentStageIndex || !hasWorkflowBoundaryTopology(tracking.activationBoundary, sessionId)) return false;
+  for (let index = 0; index < tracking.stages.length; index += 1) {
+    const stage = tracking.stages[index];
+    const status = terminal || index < tracking.currentStageIndex ? "complete" : index === tracking.currentStageIndex ? "active" : "pending";
+    const keys = status === "complete" ? ["id", "status", "iterations", "startedAt", "completedAt"] : status === "active" ? ["id", "status", "iterations", "startedAt"] : ["id", "status", "iterations"];
+    if (!hasExactWorkflowKeys(stage, keys) || stage.id !== workflow.stages[index] || stage.status !== status || !Number.isSafeInteger(stage.iterations) || stage.iterations < 0 || (stage.startedAt !== undefined && !isWorkflowTimestamp(stage.startedAt)) || (stage.completedAt !== undefined && !isWorkflowTimestamp(stage.completedAt))) return false;
+  }
+  let previous;
+  for (let index = 0; index < tracking.completionObservations.length; index += 1) {
+    const observation = tracking.completionObservations[index];
+    if (!hasExactWorkflowKeys(observation, ["stageId", "sessionId", "signalId", "lineNumber", "byteOffset", "recordContentSha256", "stableFile", "activationBoundary", "observedAt"]) || observation.stageId !== workflow.stages[index] || observation.sessionId !== sessionId || observation.signalId !== `PIPELINE_${observation.stageId.toUpperCase()}_COMPLETE` || !Number.isSafeInteger(observation.lineNumber) || observation.lineNumber < 0 || !Number.isSafeInteger(observation.byteOffset) || !/^[a-f0-9]{64}$/.test(observation.recordContentSha256) || !isWorkflowTimestamp(observation.observedAt) || !isWorkflowFileIdentity(observation.stableFile) || !hasWorkflowBoundaryTopology(observation.activationBoundary, sessionId) || observation.byteOffset < observation.activationBoundary.byteOffset || observation.byteOffset >= observation.stableFile.size || (previous && (observation.activationBoundary.transcriptPath !== previous.activationBoundary.transcriptPath || observation.activationBoundary.byteOffset !== previous.stableFile.size || !workflowFileIdentityEquals(observation.activationBoundary.fileIdentity, previous.stableFile)))) return false;
+    previous = observation;
+  }
+  const latest = tracking.completionObservations.at(-1);
+  return !latest || (tracking.activationBoundary.transcriptPath === latest.activationBoundary.transcriptPath && tracking.activationBoundary.byteOffset === latest.stableFile.size && workflowFileIdentityEquals(tracking.activationBoundary.fileIdentity, latest.stableFile));
+}
+
+function isValidNamedWorkflowState(state, sessionId) {
+  return isWorkflowRuntimeSupported()
+    ? isValidWorkflowDescriptor(state?.workflow) && isValidWorkflowTrackingState(state, sessionId)
+    : isStructurallyValidNamedWorkflowState(state, sessionId);
+}
+
+function isEnforceableAutopilotCancellationTarget(state, directory, isGlobal, hasValidSessionId, sessionId) {
+  if (!state?.active || isAwaitingConfirmation(state) || (isStaleState(state) && !hasNamedWorkflowMarkers(state))) return false;
+  if (!isStateForCurrentProject(state, directory, isGlobal)) return false;
+  if (hasValidSessionId ? state.session_id !== sessionId : state.session_id && state.session_id !== sessionId) return false;
+  return (state.phase || "unspecified") !== "complete";
+}
+
+function isCurrentAutopilotState(state, directory, isGlobal, hasValidSessionId, sessionId) {
+  if (!isStateForCurrentProject(state, directory, isGlobal)) return false;
+  return hasValidSessionId ? state?.session_id === sessionId : !state?.session_id || state.session_id === sessionId;
 }
 
 /**
@@ -455,87 +740,7 @@ function getActiveSubagentCount(stateDir) {
   }
 }
 
-/**
- * Count incomplete Tasks from Claude Code's native Task system.
- */
-function countIncompleteTasks(sessionId) {
-  if (!sessionId || typeof sessionId !== "string") return 0;
-  if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,255}$/.test(sessionId)) return 0;
 
-  const taskDir = join(getClaudeConfigDir(), "tasks", sessionId);
-  if (!existsSync(taskDir)) return 0;
-
-  let count = 0;
-  try {
-    const files = readdirSync(taskDir).filter(
-      (f) => f.endsWith(".json") && f !== ".lock",
-    );
-    for (const file of files) {
-      try {
-        const content = readFileSync(join(taskDir, file), "utf-8");
-        const task = JSON.parse(content);
-        if (task.status === "pending" || task.status === "in_progress") count++;
-      } catch {
-        /* skip */
-      }
-    }
-  } catch {
-    /* skip */
-  }
-  return count;
-}
-
-function countIncompleteTodos(sessionId, projectDir) {
-  let count = 0;
-
-  // Session-specific todos only (no global scan)
-  if (
-    sessionId &&
-    typeof sessionId === "string" &&
-    /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,255}$/.test(sessionId)
-  ) {
-    const sessionTodoPath = join(
-      getClaudeConfigDir(),
-      "todos",
-      `${sessionId}.json`,
-    );
-    try {
-      const data = readJsonFile(sessionTodoPath);
-      const todos = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.todos)
-          ? data.todos
-          : [];
-      count += todos.filter(
-        (t) => t.status !== "completed" && t.status !== "cancelled",
-      ).length;
-    } catch {
-      /* skip */
-    }
-  }
-
-  // Project-local todos only
-  for (const path of [
-    join(projectDir, ".omc", "todos.json"),
-    join(projectDir, ".claude", "todos.json"),
-  ]) {
-    try {
-      const data = readJsonFile(path);
-      const todos = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.todos)
-          ? data.todos
-          : [];
-      count += todos.filter(
-        (t) => t.status !== "completed" && t.status !== "cancelled",
-      ).length;
-    } catch {
-      /* skip */
-    }
-  }
-
-  return count;
-}
 
 /**
  * Detect if stop was triggered by context-limit related reasons.
@@ -662,13 +867,18 @@ function isScheduledWakeupStop(data) {
 
 async function main() {
   try {
+    if (shouldSkipPersistentModeHook()) {
+      writeSafeContinue();
+      return;
+    }
+
     const input = await readStdin();
     let data = {};
     try {
       data = JSON.parse(input);
     } catch {
       // Invalid JSON - allow stop to prevent hanging
-      process.stdout.write(JSON.stringify({ continue: true, suppressOutput: true }) + "\n");
+      writeSafeContinue();
       return;
     }
 
@@ -676,7 +886,8 @@ async function main() {
     const sessionIdRaw = data.sessionId || data.session_id || data.sessionid || "";
     const sessionId = sanitizeSessionId(sessionIdRaw);
     const hasValidSessionId = isValidSessionId(sessionIdRaw);
-    const stateDir = join(directory, ".omc", "state");
+    const omcRoot = await resolveOmcStateRoot(directory);
+    const stateDir = join(omcRoot, "state");
     const globalStateDir = join(homedir(), ".omc", "state");
 
     // CRITICAL: Never block context-limit stops.
@@ -704,6 +915,11 @@ async function main() {
       return;
     }
 
+    if (hasPendingOwnedAsyncWork(stateDir, sessionId)) {
+      console.log(JSON.stringify({ continue: true, suppressOutput: true }));
+      return;
+    }
+
     // Read all mode states (session-scoped when sessionId provided)
     const ralph = readStateFileWithSession(
       stateDir,
@@ -721,18 +937,6 @@ async function main() {
       stateDir,
       globalStateDir,
       "ultrapilot-state.json",
-      sessionId,
-    );
-    const ultrawork = readStateFileWithSession(
-      stateDir,
-      globalStateDir,
-      "ultrawork-state.json",
-      sessionId,
-    );
-    const ultraqa = readStateFileWithSession(
-      stateDir,
-      globalStateDir,
-      "ultraqa-state.json",
       sessionId,
     );
     const pipeline = readStateFileWithSession(
@@ -753,13 +957,25 @@ async function main() {
     const swarmMarker = existsSync(join(stateDir, "swarm-active.marker"));
     const swarmSummary = readJsonFile(join(stateDir, "swarm-summary.json"));
 
-    // Count incomplete items (session-specific + project-local only)
-    const taskCount = countIncompleteTasks(sessionId);
-    const todoCount = countIncompleteTodos(sessionId, directory);
-    const totalIncomplete = taskCount + todoCount;
 
-    // Check if cancel is in progress - if so, allow stop immediately
-    if (isSessionCancelInProgress(stateDir, sessionId)) {
+    const currentAutopilot = isCurrentAutopilotState(autopilot.state, directory, autopilot.isGlobal, hasValidSessionId, sessionId)
+      ? autopilot.state
+      : null;
+    if (currentAutopilot && hasNamedWorkflowMarkers(currentAutopilot) && !isValidNamedWorkflowState(currentAutopilot, sessionId)) {
+      const transcriptFailure = takeWorkflowTranscriptFailure(sessionId);
+      const reason = transcriptFailure === "workflow_transcript_record_too_large"
+        ? `[AUTOPILOT WORKFLOW] ${transcriptFailure}. Run /cancel and re-invoke the workflow.`
+        : "[AUTOPILOT WORKFLOW] workflow_descriptor_integrity_failed. Run /cancel and re-invoke the workflow.";
+      console.log(JSON.stringify({ continue: false, decision: "block", reason }));
+      return;
+    }
+    if (currentAutopilot && hasNamedWorkflowMarkers(currentAutopilot) && !isWorkflowRuntimeSupported()) {
+      console.log(JSON.stringify(SAFE_CONTINUE));
+      return;
+    }
+    const cancellation = isSessionCancelInProgress(stateDir, sessionId, autopilot.path, { directory, isGlobal: autopilot.isGlobal, hasValidSessionId });
+    if (cancellation.currentAutopilot) autopilot.state = cancellation.currentAutopilot;
+    if (cancellation.active) {
       console.log(JSON.stringify({ continue: true, suppressOutput: true }));
       return;
     }
@@ -829,23 +1045,83 @@ async function main() {
     // Priority 2: Autopilot (high-level orchestration)
     if (
       autopilot.state?.active && !isAwaitingConfirmation(autopilot.state) &&
-      !isStaleState(autopilot.state) &&
+      (!isStaleState(autopilot.state) || autopilot.state.workflow) &&
       isStateForCurrentProject(autopilot.state, directory, autopilot.isGlobal)
     ) {
       const sessionMatches = hasValidSessionId
         ? autopilot.state.session_id === sessionId
         : !autopilot.state.session_id || autopilot.state.session_id === sessionId;
       if (sessionMatches) {
+        if (hasNamedWorkflowMarkers(autopilot.state) && !isValidNamedWorkflowState(autopilot.state, sessionId)) {
+          const transcriptFailure = takeWorkflowTranscriptFailure(sessionId);
+          console.log(JSON.stringify({ continue: false, decision: "block", reason: transcriptFailure === 'workflow_transcript_record_too_large' ? '[AUTOPILOT WORKFLOW] workflow_transcript_record_too_large. Run /cancel and re-invoke the workflow.' : "[AUTOPILOT WORKFLOW] workflow_descriptor_integrity_failed. Run /cancel and re-invoke the workflow." }));
+          return;
+        }
+        if (hasNamedWorkflowMarkers(autopilot.state) && !isWorkflowRuntimeSupported()) {
+          console.log(JSON.stringify(SAFE_CONTINUE));
+          return;
+        }
+        const workflowAdvance = advanceWorkflowOnStop(autopilot.state, data, sessionId);
+        if (workflowAdvance) {
+          const commit = commitWorkflowAdvance(autopilot.path, workflowAdvance);
+          if (commit.committed) {
+            console.log(JSON.stringify({ continue: false, decision: "block", reason: workflowAdvance.nextStage
+              ? workflowAdvance.nextStagePrompt
+              : "[AUTOPILOT WORKFLOW] All selected stages are complete." }));
+          } else if (takeWorkflowTranscriptFailure(sessionId) === 'workflow_transcript_record_too_large') {
+            console.log(JSON.stringify({ continue: false, decision: 'block', reason: '[AUTOPILOT WORKFLOW] workflow_transcript_record_too_large. Run /cancel and re-invoke the workflow.' }));
+          } else if (hasNamedWorkflowMarkers(commit.state) && (!isValidWorkflowDescriptor(commit.state.workflow) || !isValidWorkflowTrackingState(commit.state, sessionId))) {
+            console.log(JSON.stringify({ continue: false, decision: "block", reason: "[AUTOPILOT WORKFLOW] workflow_descriptor_integrity_failed. Run /cancel and re-invoke the workflow." }));
+          } else {
+            console.log(JSON.stringify(hasNamedWorkflowMarkers(commit.state) ? workflowStopResponse(commit.state) : SAFE_CONTINUE));
+          }
+          return;
+        }
+        if (takeWorkflowTranscriptFailure(sessionId) === 'workflow_transcript_record_too_large') {
+          console.log(JSON.stringify({ continue: false, decision: 'block', reason: '[AUTOPILOT WORKFLOW] workflow_transcript_record_too_large. Run /cancel and re-invoke the workflow.' }));
+          return;
+        }
+        if (hasNamedWorkflowMarkers(autopilot.state) && (!isValidWorkflowDescriptor(autopilot.state.workflow) || !isValidWorkflowTrackingState(autopilot.state, sessionId))) {
+          console.log(JSON.stringify({ continue: false, decision: "block", reason: "[AUTOPILOT WORKFLOW] workflow_descriptor_integrity_failed. Run /cancel and re-invoke the workflow." }));
+          return;
+        }
+        if (hasNamedWorkflowMarkers(autopilot.state)) {
+          const expected = {
+            workflowRunId: autopilot.state.workflowRunId,
+            sessionId: autopilot.state.session_id,
+            profileHash: autopilot.state.workflow.profileHash,
+            trackingRevision: autopilot.state.pipelineTracking.trackingRevision,
+            stageIndex: autopilot.state.pipelineTracking.currentStageIndex,
+            stageId: autopilot.state.pipelineTracking.stages?.[autopilot.state.pipelineTracking.currentStageIndex]?.id,
+            phase: autopilot.state.phase,
+          };
+          const refresh = refreshNamedWorkflowDispatch(autopilot.path, expected);
+          if (refresh.integrityFailed || (hasNamedWorkflowMarkers(refresh.state) && (!isValidWorkflowDescriptor(refresh.state.workflow) || !isValidWorkflowTrackingState(refresh.state, sessionId)))) {
+            console.log(JSON.stringify({ continue: false, decision: "block", reason: "[AUTOPILOT WORKFLOW] workflow_descriptor_integrity_failed. Run /cancel and re-invoke the workflow." }));
+          } else {
+            console.log(JSON.stringify(refresh.committed ? workflowStopResponse(refresh.state) : SAFE_CONTINUE));
+          }
+          return;
+        }
         const phase = autopilot.state.phase || "unspecified";
         if (phase !== "complete") {
+          const loadedSnapshot = JSON.stringify(autopilot.state);
           const newCount = (autopilot.state.reinforcement_count || 0) + 1;
           if (newCount <= 20) {
             const toolError = readLastToolError(stateDir);
             const errorGuidance = getToolErrorRetryGuidance(toolError);
-
-            autopilot.state.reinforcement_count = newCount;
-            autopilot.state.last_checked_at = new Date().toISOString();
-            writeJsonFile(autopilot.path, autopilot.state);
+            const reinforced = { ...autopilot.state, reinforcement_count: newCount, last_checked_at: new Date().toISOString() };
+            let committed = false;
+            const locked = withStateFileLockSync(autopilot.path, () => {
+              const current = readJsonFile(autopilot.path);
+              if (!current || JSON.stringify(current) !== loadedSnapshot) return;
+              committed = writeJsonFile(autopilot.path, reinforced);
+            });
+            if (!locked.acquired || !committed) {
+              console.log(JSON.stringify(SAFE_CONTINUE));
+              return;
+            }
+            autopilot.state = reinforced;
 
             const cancelGuidance = hasValidSessionId && autopilot.state.session_id === sessionId
               ? " When all phases are complete, run /oh-my-claudecode:cancel to cleanly exit and clean up this session's autopilot state files. If cancel fails, retry with /oh-my-claudecode:cancel --force."
@@ -1022,108 +1298,6 @@ async function main() {
       }
     }
 
-    // Priority 7: UltraQA (QA cycling)
-    if (
-      ultraqa.state?.active &&
-      !isStaleState(ultraqa.state) &&
-      (hasValidSessionId
-        ? ultraqa.state.session_id === sessionId
-        : !ultraqa.state.session_id || ultraqa.state.session_id === sessionId) &&
-      isStateForCurrentProject(ultraqa.state, directory, ultraqa.isGlobal)
-    ) {
-      const cycle = ultraqa.state.cycle || 1;
-      const maxCycles = ultraqa.state.max_cycles || 10;
-      if (cycle < maxCycles && !ultraqa.state.all_passing) {
-        const toolError = readLastToolError(stateDir);
-        const errorGuidance = getToolErrorRetryGuidance(toolError);
-
-        ultraqa.state.cycle = cycle + 1;
-        ultraqa.state.last_checked_at = new Date().toISOString();
-        writeJsonFile(ultraqa.path, ultraqa.state);
-
-        let reason = `[ULTRAQA - Cycle ${cycle + 1}/${maxCycles}] Tests not all passing. Continue fixing. When all tests pass, run /oh-my-claudecode:cancel to cleanly exit and clean up state files. If cancel fails, retry with /oh-my-claudecode:cancel --force.`;
-        if (errorGuidance) {
-          reason = errorGuidance + reason;
-        }
-
-        console.log(
-          JSON.stringify({
-            continue: false,
-            decision: "block",
-            reason,
-          }),
-        );
-        return;
-      }
-    }
-
-    // Priority 8: Ultrawork - reinforce only while tracked work remains incomplete.
-    // This prevents false stops from bash errors or transient failures mid-task.
-    // Session isolation: only block if state belongs to this session (issue #311)
-    // If state has session_id, it must match. If no session_id (legacy), allow.
-    if (
-      isAuthoritativeModeActive(stateDir, "ultrawork", ultrawork, sessionId) && !isAwaitingConfirmation(ultrawork.state) &&
-      !isStaleState(ultrawork.state) &&
-      (hasValidSessionId
-        ? ultrawork.state.session_id === sessionId
-        : !ultrawork.state.session_id || ultrawork.state.session_id === sessionId) &&
-      isStateForCurrentProject(ultrawork.state, directory, ultrawork.isGlobal)
-    ) {
-      if (totalIncomplete === 0) {
-        // Issue #2419: once tracked work is complete, auto-clear ultrawork so
-        // Stop can exit cleanly instead of forcing repeated cancel prompts.
-        try {
-          ultrawork.state.active = false;
-          ultrawork.state.deactivated_reason = 'task_completion';
-          ultrawork.state.last_checked_at = new Date().toISOString();
-          writeJsonFile(ultrawork.path, ultrawork.state);
-        } catch { /* best-effort cleanup */ }
-        console.log(JSON.stringify({ continue: true, suppressOutput: true }));
-        return;
-      }
-
-      const newCount = (ultrawork.state.reinforcement_count || 0) + 1;
-      const maxReinforcements = ultrawork.state.max_reinforcements || 50;
-
-      if (newCount > maxReinforcements) {
-        // Max reinforcements reached - allow stop
-        console.log(JSON.stringify({ continue: true, suppressOutput: true }));
-        return;
-      }
-
-      const toolError = readLastToolError(stateDir);
-      const errorGuidance = getToolErrorRetryGuidance(toolError);
-
-      ultrawork.state.reinforcement_count = newCount;
-      ultrawork.state.last_checked_at = new Date().toISOString();
-      writeJsonFile(ultrawork.path, ultrawork.state);
-
-      let reason = `[ULTRAWORK #${newCount}/${maxReinforcements}] Mode active.`;
-
-      if (totalIncomplete > 0) {
-        const itemType = taskCount > 0 ? "Tasks" : "todos";
-        reason += ` ${totalIncomplete} incomplete ${itemType} remain. Continue working.`;
-      } else if (newCount >= 3) {
-        // Only suggest cancel after minimum iterations (guard against no-tasks-created scenario)
-        reason += ` If all work is complete, run /oh-my-claudecode:cancel to cleanly exit ultrawork mode and clean up state files. If cancel fails, retry with /oh-my-claudecode:cancel --force. Otherwise, continue working.`;
-      } else {
-        // Early iterations with no tasks yet - just tell LLM to continue
-        reason += ` Continue working - create Tasks to track your progress.`;
-      }
-
-      if (ultrawork.state.original_prompt) {
-        reason += `\nTask: ${ultrawork.state.original_prompt}`;
-      }
-
-      if (errorGuidance) {
-        reason = errorGuidance + reason;
-      }
-
-      console.log(JSON.stringify({ continue: false, decision: "block", reason }));
-      return;
-    }
-
-    // Priority 9: Skill Active State (issue #1033)
     // Skills like code-review, plan, tdd, etc. write skill-active-state.json
     // when invoked via the Skill tool. This prevents premature stops mid-skill.
     const skillState = readStateFileWithSession(
@@ -1191,66 +1365,10 @@ async function main() {
     } catch {
       // Ignore stderr errors - we just need to return valid JSON
     }
-    try {
-      process.stdout.write(JSON.stringify({ continue: true, suppressOutput: true }) + "\n");
-    } catch {
-      // If stdout write fails, the hook will timeout and Claude Code will proceed
-      // This is better than hanging forever
-      process.exit(0);
-    }
+    writeSafeContinue();
   }
 }
 
-// Global error handlers to prevent hook from hanging on uncaught errors (issue #319)
-process.on("uncaughtException", (error) => {
-  try {
-    process.stderr.write(
-      `[persistent-mode] Uncaught exception: ${error?.message || error}\n`,
-    );
-  } catch {
-    // Ignore
-  }
-  try {
-    process.stdout.write(JSON.stringify({ continue: true, suppressOutput: true }) + "\n");
-  } catch {
-    // If we can't write, just exit
-  }
-  process.exit(0);
-});
-
-process.on("unhandledRejection", (error) => {
-  try {
-    process.stderr.write(
-      `[persistent-mode] Unhandled rejection: ${error?.message || error}\n`,
-    );
-  } catch {
-    // Ignore
-  }
-  try {
-    process.stdout.write(JSON.stringify({ continue: true, suppressOutput: true }) + "\n");
-  } catch {
-    // If we can't write, just exit
-  }
-  process.exit(0);
-});
-
-// Safety timeout: if hook doesn't complete in 10 seconds, force exit
-// This prevents infinite hangs from any unforeseen issues
-const safetyTimeout = setTimeout(() => {
-  try {
-    process.stderr.write(
-      "[persistent-mode] Safety timeout reached, forcing exit\n",
-    );
-  } catch {
-    // Ignore
-  }
-  try {
-    process.stdout.write(JSON.stringify({ continue: true, suppressOutput: true }) + "\n");
-  } catch {
-    // If we can't write, just exit
-  }
-  process.exit(0);
-}, 10000);
 
 main().finally(() => {
   clearTimeout(safetyTimeout);

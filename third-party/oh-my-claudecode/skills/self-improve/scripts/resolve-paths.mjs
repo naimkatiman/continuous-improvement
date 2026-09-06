@@ -2,9 +2,12 @@
 
 import { existsSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { resolveOmcStateRoot } from '../../../scripts/lib/state-root.mjs';
 
 const DEFAULT_TOPIC_SLUG = 'default';
 const TOPICS_DIR = 'topics';
+const SESSIONS_DIR = 'sessions';
 
 function slugify(value) {
   const normalized = String(value ?? '')
@@ -24,6 +27,7 @@ function parseArgs(argv) {
     projectRoot: process.cwd(),
     topic: '',
     slug: '',
+    sessionId: '',
     format: 'json',
     ensureDirs: false,
   };
@@ -47,6 +51,11 @@ function parseArgs(argv) {
       index += 1;
     } else if (arg.startsWith('--slug=')) {
       result.slug = arg.slice('--slug='.length);
+    } else if (arg === '--session-id' && next) {
+      result.sessionId = next;
+      index += 1;
+    } else if (arg.startsWith('--session-id=')) {
+      result.sessionId = arg.slice('--session-id='.length);
     } else if (arg === '--format' && next) {
       result.format = next;
       index += 1;
@@ -73,13 +82,13 @@ function hasLegacyLayout(baseRoot) {
     || existsSync(join(baseRoot, 'state', 'agent-settings.json'));
 }
 
-function buildPaths(root, projectRoot, topicSlug, scopeMode) {
+function buildPaths(root, projectRoot, topicSlug, scopeMode, baseRoot) {
   const configDir = join(root, 'config');
   const stateDir = join(root, 'state');
   const trackingDir = join(root, 'tracking');
   const paths = {
     project_root: projectRoot,
-    base_root: join(projectRoot, '.omc', 'self-improve'),
+    base_root: baseRoot,
     topic_slug: topicSlug,
     scope_mode: scopeMode,
     root,
@@ -120,21 +129,36 @@ function ensureDirs(paths) {
   }
 }
 
-export function resolveSelfImprovePaths({ projectRoot = process.cwd(), topic = '', slug = '' } = {}) {
+export async function resolveSelfImprovePaths({ projectRoot = process.cwd(), topic = '', slug = '', sessionId = '' } = {}) {
   const resolvedProjectRoot = resolve(projectRoot);
-  const baseRoot = join(resolvedProjectRoot, '.omc', 'self-improve');
+  const omcRoot = await resolveOmcStateRoot(resolvedProjectRoot);
+  const baseRoot = join(omcRoot, 'self-improve');
   const explicitSlug = slugify(slug || topic);
   const legacyLayout = hasLegacyLayout(baseRoot);
   const shouldUseLegacyRoot = !slug && !topic && legacyLayout;
   const topicSlug = shouldUseLegacyRoot ? DEFAULT_TOPIC_SLUG : explicitSlug;
+
+  // When a sessionId is provided, scope beneath topics/<slug>/sessions/<sid>/
+  // so concurrent runs sharing the same topic slug don't collide.
+  // Falls back to OMC_SESSION_ID env var when explicit arg is absent.
+  // Legacy layout (no topic/slug supplied, flat .omc/self-improve/ exists) is
+  // preserved as-is — session scoping only applies to the topic-scoped layout.
+  const rawSessionId = sessionId && sessionId.trim()
+    ? sessionId.trim()
+    : (process.env.OMC_SESSION_ID && process.env.OMC_SESSION_ID.trim() ? process.env.OMC_SESSION_ID.trim() : '');
+  const effectiveSessionId = shouldUseLegacyRoot ? '' : rawSessionId;
   const root = shouldUseLegacyRoot
     ? baseRoot
-    : join(baseRoot, TOPICS_DIR, topicSlug);
+    : effectiveSessionId
+      ? join(baseRoot, TOPICS_DIR, topicSlug, SESSIONS_DIR, effectiveSessionId)
+      : join(baseRoot, TOPICS_DIR, topicSlug);
   const scopeMode = shouldUseLegacyRoot
     ? 'legacy-flat-root'
-    : (slug || topic ? 'topic-scoped' : 'default-scoped');
+    : effectiveSessionId
+      ? 'session-scoped'
+      : (slug || topic ? 'topic-scoped' : 'default-scoped');
 
-  return buildPaths(root, resolvedProjectRoot, topicSlug, scopeMode);
+  return { ...buildPaths(root, resolvedProjectRoot, topicSlug, scopeMode, baseRoot), session_id: effectiveSessionId || null };
 }
 
 function renderShell(paths) {
@@ -146,27 +170,29 @@ function renderShell(paths) {
 function printHelp() {
   process.stdout.write(
     [
-      'Usage: node resolve-paths.mjs [--project-root PATH] [--topic TEXT | --slug SLUG] [--ensure-dirs] [--format json|shell]',
+      'Usage: node resolve-paths.mjs [--project-root PATH] [--topic TEXT | --slug SLUG] [--session-id SID] [--ensure-dirs] [--format json|shell]',
       '',
       'Resolves self-improve artifact paths.',
       '- New runs default to .omc/self-improve/topics/<topic-slug>/',
+      '- Pass --session-id to isolate parallel runs: .omc/self-improve/topics/<slug>/sessions/<sid>/',
       '- Legacy flat .omc/self-improve/ is preserved only when no topic/slug is supplied and a flat layout already exists',
       '',
     ].join('\n'),
   );
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
     printHelp();
     return;
   }
 
-  const paths = resolveSelfImprovePaths({
+  const paths = await resolveSelfImprovePaths({
     projectRoot: args.projectRoot,
     topic: args.topic,
     slug: args.slug,
+    sessionId: args.sessionId,
   });
 
   if (args.ensureDirs) {
@@ -181,12 +207,10 @@ function main() {
   process.stdout.write(`${JSON.stringify(paths, null, 2)}\n`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  try {
-    main();
-  } catch (error) {
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+  main().catch((error) => {
     const message = error instanceof Error ? error.message : String(error);
     process.stderr.write(`${message}\n`);
     process.exit(1);
-  }
+  });
 }

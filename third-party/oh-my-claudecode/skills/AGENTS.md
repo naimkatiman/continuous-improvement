@@ -1,9 +1,9 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-01-28 | Updated: 2026-03-02 -->
+<!-- Generated: 2026-01-28 | Updated: 2026-09-05 -->
 
 # skills
 
-30 skill directories for workflow automation and specialized behaviors.
+37 skill directories for workflow automation and specialized behaviors.
 
 ## Purpose
 
@@ -19,10 +19,9 @@ Skills are reusable workflow templates that can be invoked via `/oh-my-claudecod
 | File | Skill | Purpose |
 |-----------|-------|---------|
 | `autopilot/SKILL.md` | autopilot | Full autonomous execution from idea to working code |
-| `ultrawork/SKILL.md` | ultrawork | Maximum parallel agent execution |
+| `launch/SKILL.md` | launch | Governed delivery pipeline: spec → vertical-slice tickets → frontier execution with human checkpoints |
 | `ralph/SKILL.md` | ralph | Persistence until verified complete |
 | `team/SKILL.md` | team | N coordinated agents with task claiming |
-| `ultraqa/SKILL.md` | ultraqa | QA cycling until goal met |
 
 ### Planning Skills
 
@@ -31,6 +30,7 @@ Skills are reusable workflow templates that can be invoked via `/oh-my-claudecod
 | `plan/SKILL.md` | omc-plan | Strategic planning with interview workflow |
 | `ralplan/SKILL.md` | ralplan | Iterative planning (Planner+Architect+Critic) with RALPLAN-DR structured deliberation (`--deliberate` for high-risk) |
 | `deep-interview/SKILL.md` | deep-interview | Socratic deep interview with mathematical ambiguity gating (Ouroboros-inspired) |
+| `ask-navigator/SKILL.md` | ask-navigator | Shipyard navigator: chart foggy efforts into decision-ticket maps, one ticket per session, then hand a mission brief to launch |
 | `ralph-init/SKILL.md` | ralph-init | Initialize PRD for structured ralph |
 
 ### Exploration Skills
@@ -51,6 +51,9 @@ Skills are reusable workflow templates that can be invoked via `/oh-my-claudecod
 | File | Skill | Purpose |
 |-----------|-------|---------|
 | `ai-slop-cleaner/SKILL.md` | ai-slop-cleaner | Regression-safe cleanup workflow for AI-generated code slop |
+| `drydock/SKILL.md` | drydock | Shipyard harness scaffold: 4-pillar shared environment across 5 surfaces, with --check drift audit |
+| `loft/SKILL.md` | loft | Shipyard shape-before-steel discipline: throwaway artifacts answer design questions prose cannot settle |
+| `minimal-code-discipline/SKILL.md` | minimal-code-discipline | YAGNI-ladder writing-time discipline: existence-first, reuse before writing, shortest correct diff |
 | `skillify/SKILL.md` | skillify | Extract reusable skill from session |
 | `learner/SKILL.md` | learner | Deprecated compatibility alias/internal implementation history for skillify |
 | `ask/SKILL.md` | ask | Ask Claude, Codex, or Gemini via `omc ask` and capture an artifact |
@@ -176,7 +179,7 @@ None - pure markdown files.
 
 | Category | Skills | Trigger Keywords |
 |----------|--------|------------------|
-| Execution | autopilot, ultrawork, ralph, team, ultraqa | "autopilot", "ulw", "ralph", "team" |
+| Execution | autopilot, ralph, team | "autopilot", "ralph", "team" |
 | Cleanup | ai-slop-cleaner | "deslop", "anti-slop", cleanup/refactor + slop smells |
 | Planning | omc-plan, ralplan, deep-interview, ralph-init | "plan this", "interview me", "ouroboros" |
 | Exploration | deepinit, sciomc, external-context | "deepinit", "research" |
@@ -190,7 +193,6 @@ Some skills activate automatically based on context:
 | Skill | Auto-Trigger Condition |
 |-------|----------------------|
 | autopilot | "autopilot", "build me", "I want a" |
-| ultrawork | "ulw", "ultrawork" |
 | ralph | "ralph", "don't stop until" |
 | deep-interview | "deep interview", "interview me", "ouroboros", "don't assume" |
 | cancel | "stop", "cancel", "abort" |

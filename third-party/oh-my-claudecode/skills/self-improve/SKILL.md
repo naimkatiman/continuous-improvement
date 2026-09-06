@@ -125,7 +125,7 @@ Read these files at startup and at the beginning of each iteration:
    git -C {repo_path} checkout {target_branch}
    ```
    Where `{goal_slug}` is derived from the goal objective (lowercase, underscored). If the branch already exists, skip creation. Persist `goal_slug` in agent-settings.json.
-10. **Mode exclusivity**: Call `state_list_active`. If autopilot, ralph, or ultrawork is active, refuse to start.
+10. **Mode exclusivity**: Call `state_list_active`. If autopilot or ralph is active, refuse to start.
 11. Write initial state: `state_write(mode='self-improve', active=true, iteration=0, started_at=<now>)`
 
 ---
@@ -374,6 +374,13 @@ When the loop exits:
 | Settings corrupted | Report and stop. |
 
 ---
+
+## Parallel session caveats
+
+- **Multi-repo workspace anchor:** drop a `.omc-workspace` marker at the parent directory so multiple sessions across sub-repos share one `.omc/`. Resolution order: `OMC_STATE_DIR > .omc-workspace > git > cwd`. See `docs/REFERENCE.md`.
+- **Session id source:** OMC_SESSION_ID env var wins in CLI contexts; hook payload data.session_id wins in hook contexts.
+- **Plan id (when applicable):** Self-improve artifact dirs are topic-slug-scoped; for parallel runs with the same topic in the same workspace, expect Wave B2's session-id suffix to land.
+- **Parallel verdict:** supported-with-caveats (topic-slug collision possible; see Wave B2)
 
 ## Approach Family Taxonomy
 

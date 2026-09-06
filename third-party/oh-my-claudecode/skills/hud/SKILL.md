@@ -109,19 +109,19 @@ node -e "const p=require('path'),f=require('fs'),d=process.env.CLAUDE_CONFIG_DIR
 ### Minimal
 Shows only the essentials:
 ```
-[OMC] ralph | ultrawork | todos:2/5
+[OMC] ralph | todos:2/5
 ```
 
 ### Focused (Default)
 Shows all relevant elements:
 ```
-[OMC] branch:main | ralph:3/10 | US-002 | ultrawork skill:planner | ctx:67% | agents:2 | bg:3/5 | todos:2/5
+[OMC] branch:main | ralph:3/10 | US-002 | skill:planner | ctx:67% | agents:2 | bg:3/5 | todos:2/5
 ```
 
 ### Full
 Shows everything including multi-line agent details:
 ```
-[OMC] repo:oh-my-claudecode branch:main | ralph:3/10 | US-002 (2/5) | ultrawork | ctx:[████░░]67% | agents:3 | bg:3/5 | todos:2/5
+[OMC] repo:oh-my-claudecode branch:main | ralph:3/10 | US-002 (2/5) | ctx:[████░░]67% | agents:3 | bg:3/5 | todos:2/5
 ├─ O architect    2m   analyzing architecture patterns...
 ├─ e explore     45s   searching for test files
 └─ s executor     1m   implementing validation logic
@@ -144,7 +144,6 @@ When agents are running, the HUD shows detailed information on separate lines:
 | `branch:name` | Git branch name (cyan) |
 | `ralph:3/10` | Ralph loop iteration/max |
 | `US-002` | Current PRD story ID |
-| `ultrawork` | Active mode badge |
 | `skill:name` | Last activated skill (cyan) |
 | `ctx:67%` | Context window usage |
 | `agents:2` | Running subagent count |
@@ -172,6 +171,7 @@ You can manually edit the config file. Each option can be set individually - any
   "preset": "focused",
   "elements": {
     "omcLabel": true,
+    "updateNotification": true,
     "ralph": true,
     "autopilot": true,
     "prdStory": true,

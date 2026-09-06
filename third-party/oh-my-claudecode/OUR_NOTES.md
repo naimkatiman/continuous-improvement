@@ -18,6 +18,41 @@ The snapshot is **not loaded** into `plugins/continuous-improvement/` itself. Ma
 
 Activating the plugin installs OMC's agents and skills only — `hooks/` is intentionally stripped from this snapshot (see item 2 below). Be aware of the heavy overlap with `/ralph` and `/superpowers` called out in the matrix below — when both are installed, the unified `/superpowers` dispatcher (PR B) prefers the CI-bundled implementation for the autonomous-loop entry point and surfaces OMC's variants as alternatives in the routing table only.
 
+## Refresh log
+
+### 2026-09-06 — 4.13.6 (`aacde3e`) to 5.3.0 (`4820f56`)
+
+92 files changed, 6,809 insertions, 7,186 deletions. Upstream had reached **5.3.0**, not the 5.2.0
+recorded in the 2026-09-06 research sweep, so the pin moves to current HEAD.
+
+Agents are unchanged at 19. Skills went 38 to 37, but the count understates the churn: **11 skills
+were removed and 10 added**, so a third of the surface turned over.
+
+| Removed in 5.x | Added in 5.x |
+|---|---|
+| `ccg`, `deep-dive`, `learner`, `mcp-setup`, `omc-reference`, `omc-teams`, `sciomc`, `setup`, `ultraqa`, `ultrawork`, `writer-memory` | `ask-navigator`, `drydock`, `execute`, `graph`, `launch`, `loft`, `minimal-code-discipline`, `research`, `review`, `ultragoal` |
+
+### Routing drift this refresh exposes — needs a decision
+
+Three of the removed skills are named on our side, and `verify:routing-targets` cannot catch it:
+that check only asserts a target is bundled or declared in `optional-companions.json`, and it has no
+view of what upstream actually ships. So CI stays green while the claim is false. This is the exact
+failure mode the snapshot exists to surface.
+
+| Our file | What it says | Status upstream |
+|---|---|---|
+| `optional-companions.json` | declares `oh-my-claudecode:ultrawork` as a routing target | **removed** |
+| `skills/superpowers.md` (2 rows) | routes "long autonomous run with quality gates" to `oh-my-claudecode:ultrawork` | **removed** |
+| `skills/proceed-with-the-recommendation.md` | same route, but explicitly labelled "Reference behavior — does not require `oh-my-claudecode`" | **removed** |
+| `commands/superpowers.md` | lists `ultrawork`, `ultraqa`, `deep-dive` among OMC's skills | all three **removed** |
+
+`ultragoal` and `launch` are the plausible 5.x successors for the autonomous-run route, but picking
+one is a routing decision, not a vendoring one, so this refresh does not make it. The
+`proceed-with-the-recommendation` row is the least urgent of the four: it already tells the reader
+the behaviour does not require the plugin to be installed.
+
+Until that is decided, `commands/superpowers.md` describes a skill set upstream no longer ships.
+
 ## Overlap with the 7 Laws (read this before integrating anything)
 
 | OMC asset | 7 Laws equivalent | Notes |

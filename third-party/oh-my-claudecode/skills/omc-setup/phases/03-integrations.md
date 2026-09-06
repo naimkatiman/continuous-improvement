@@ -5,21 +5,26 @@
 ## Step 3.1: Verify Plugin Installation
 
 ```bash
-grep -q "oh-my-claudecode" "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json" && echo "Plugin verified" || echo "Plugin NOT found - run: claude /install-plugin oh-my-claudecode"
+CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+case "$CONFIG_DIR" in
+  "~") CONFIG_DIR="$HOME" ;;
+  "~/"*) CONFIG_DIR="$HOME/${CONFIG_DIR#\~/}" ;;
+  "~\\"*) CONFIG_DIR="$HOME/${CONFIG_DIR#\~\\}" ;;
+esac
+grep -q "oh-my-claudecode" "$CONFIG_DIR/settings.json" && echo "Plugin verified" || echo "Plugin NOT found - run: claude /install-plugin oh-my-claudecode"
 ```
 
-## Step 3.2: Offer MCP Server Configuration
+## Step 3.2: MCP Server Configuration (Pointer Only)
 
-MCP servers extend Claude Code with additional tools (web search, GitHub, etc.).
+MCP servers extend Claude Code with additional tools (web search, GitHub, etc.). OMC no longer ships an MCP setup skill; servers are registered through Claude Code's native MCP surfaces.
 
-Use AskUserQuestion: "Would you like to configure MCP servers for enhanced capabilities? (Context7, Exa search, GitHub, etc.)"
+If the user asks about MCP servers, point them at the native registration path:
 
-If yes, invoke the mcp-setup skill:
-```
-/oh-my-claudecode:mcp-setup
-```
+- Claude Code: `claude mcp add <name> ...` (see `claude mcp --help`), or the native MCP config selected by `CLAUDE_MCP_CONFIG_PATH` (by default, the sibling `.claude.json` next to `${CLAUDE_CONFIG_DIR:-$HOME/.claude}`)
+- OMC keeps its own bundled MCP server (`bridge/mcp-server.cjs`) registered via `.mcp.json`; it requires no user action
+- Company-context guidance, if used, is documented in `docs/company-context-interface.md`
 
-If no, skip to next step.
+Do **not** try to invoke an MCP setup skill — `mcp-setup` was removed in 5.0.0 and has no replacement skill; the native surfaces above are the whole story.
 
 ## Step 3.3: Configure Agent Teams (Optional)
 
@@ -44,7 +49,13 @@ Use AskUserQuestion:
 First, read the current settings.json:
 
 ```bash
-SETTINGS_FILE="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
+CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+case "$CONFIG_DIR" in
+  "~") CONFIG_DIR="$HOME" ;;
+  "~/"*) CONFIG_DIR="$HOME/${CONFIG_DIR#\~/}" ;;
+  "~\\"*) CONFIG_DIR="$HOME/${CONFIG_DIR#\~\\}" ;;
+esac
+SETTINGS_FILE="$CONFIG_DIR/settings.json"
 
 if [ -f "$SETTINGS_FILE" ]; then
   echo "Current settings.json found"
@@ -59,11 +70,32 @@ Then use the Read tool to read `${CLAUDE_CONFIG_DIR:-~/.claude}/settings.json` (
 Use jq to safely merge without overwriting existing settings:
 
 ```bash
-SETTINGS_FILE="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
+CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+case "$CONFIG_DIR" in
+  "~") CONFIG_DIR="$HOME" ;;
+  "~/"*) CONFIG_DIR="$HOME/${CONFIG_DIR#\~/}" ;;
+  "~\\"*) CONFIG_DIR="$HOME/${CONFIG_DIR#\~\\}" ;;
+esac
+SETTINGS_FILE="$CONFIG_DIR/settings.json"
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "ERROR: jq is required to update $SETTINGS_FILE safely."
+  echo "Install jq and rerun setup. Existing settings were not modified."
+  exit 1
+fi
 
 if [ -f "$SETTINGS_FILE" ]; then
-  TEMP_FILE=$(mktemp)
-  jq '.env = (.env // {} | . + {"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"})' "$SETTINGS_FILE" > "$TEMP_FILE" && mv "$TEMP_FILE" "$SETTINGS_FILE"
+  TEMP_FILE=$(mktemp "${SETTINGS_FILE}.tmp.XXXXXX")
+  trap 'rm -f "$TEMP_FILE"' EXIT
+  if jq '.env = (.env // {} | . + {"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"})' "$SETTINGS_FILE" > "$TEMP_FILE" \
+    && mv "$TEMP_FILE" "$SETTINGS_FILE"; then
+    :
+  else
+    echo "ERROR: Failed to update $SETTINGS_FILE. Existing settings were not modified."
+    rm -f "$TEMP_FILE"
+    exit 1
+  fi
+  trap - EXIT
   echo "Added CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS to existing settings.json"
 else
   mkdir -p "$(dirname "$SETTINGS_FILE")"
@@ -94,11 +126,33 @@ Use AskUserQuestion:
 If user chooses anything other than "Auto", add `teammateMode` to settings.json:
 
 ```bash
-SETTINGS_FILE="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
+CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+case "$CONFIG_DIR" in
+  "~") CONFIG_DIR="$HOME" ;;
+  "~/"*) CONFIG_DIR="$HOME/${CONFIG_DIR#\~/}" ;;
+  "~\\"*) CONFIG_DIR="$HOME/${CONFIG_DIR#\~\\}" ;;
+esac
+SETTINGS_FILE="$CONFIG_DIR/settings.json"
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "ERROR: jq is required to update $SETTINGS_FILE safely."
+  echo "Install jq and rerun setup. Existing settings were not modified."
+  exit 1
+fi
 
 # TEAMMATE_MODE is "in-process" or "tmux" based on user choice
 # Skip this if user chose "Auto" (that's the default)
-jq --arg mode "TEAMMATE_MODE" '. + {teammateMode: $mode}' "$SETTINGS_FILE" > "${SETTINGS_FILE}.tmp" && mv "${SETTINGS_FILE}.tmp" "$SETTINGS_FILE"
+TEMP_FILE=$(mktemp "${SETTINGS_FILE}.tmp.XXXXXX")
+trap 'rm -f "$TEMP_FILE"' EXIT
+if jq --arg mode "TEAMMATE_MODE" '. + {teammateMode: $mode}' "$SETTINGS_FILE" > "$TEMP_FILE" \
+  && mv "$TEMP_FILE" "$SETTINGS_FILE"; then
+  :
+else
+  echo "ERROR: Failed to update $SETTINGS_FILE. Existing settings were not modified."
+  rm -f "$TEMP_FILE"
+  exit 1
+fi
+trap - EXIT
 echo "Teammate display mode set to: TEAMMATE_MODE"
 ```
 
@@ -118,13 +172,26 @@ Use AskUserQuestion with multiple questions:
 **Options:**
 1. **claude (Recommended)** - Default provider with the widest compatibility
 2. **codex** - Use Codex CLI workers by default when installed
-3. **gemini** - Use Gemini CLI workers by default when installed
+3. **gemini** - Use Gemini CLI workers by default when installed (enterprise/API-key tier)
+4. **antigravity** - Use Antigravity CLI (`agy`) workers by default when installed; Google's successor to the Gemini CLI (install per the [official instructions](https://antigravity.google))
 
-Store the team configuration in `~/.claude/.omc-config.json`:
+Store the team configuration in the active Claude config directory's `.omc-config.json`:
 
 ```bash
-CONFIG_FILE="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.omc-config.json"
+CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+case "$CONFIG_DIR" in
+  "~") CONFIG_DIR="$HOME" ;;
+  "~/"*) CONFIG_DIR="$HOME/${CONFIG_DIR#\~/}" ;;
+  "~\\"*) CONFIG_DIR="$HOME/${CONFIG_DIR#\~\\}" ;;
+esac
+CONFIG_FILE="$CONFIG_DIR/.omc-config.json"
 mkdir -p "$(dirname "$CONFIG_FILE")"
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "ERROR: jq is required to update $CONFIG_FILE safely."
+  echo "Install jq and rerun setup. Existing config was not modified."
+  exit 1
+fi
 
 if [ -f "$CONFIG_FILE" ]; then
   EXISTING=$(cat "$CONFIG_FILE")
@@ -133,10 +200,20 @@ else
 fi
 
 # Replace MAX_AGENTS, AGENT_TYPE with user choices
-echo "$EXISTING" | jq \
+TEMP_FILE=$(mktemp "${CONFIG_FILE}.tmp.XXXXXX")
+trap 'rm -f "$TEMP_FILE"' EXIT
+if printf '%s\n' "$EXISTING" | jq \
   --argjson maxAgents MAX_AGENTS \
   --arg agentType "AGENT_TYPE" \
-  '. + {team: {ops: {maxAgents: $maxAgents, defaultAgentType: $agentType, monitorIntervalMs: 30000, shutdownTimeoutMs: 15000}}}' > "$CONFIG_FILE"
+  '. + {team: {ops: {maxAgents: $maxAgents, defaultAgentType: $agentType, monitorIntervalMs: 30000, shutdownTimeoutMs: 15000}}}' > "$TEMP_FILE" \
+  && mv "$TEMP_FILE" "$CONFIG_FILE"; then
+  :
+else
+  echo "ERROR: Failed to update $CONFIG_FILE. Existing config was not modified."
+  rm -f "$TEMP_FILE"
+  exit 1
+fi
+trap - EXIT
 
 echo "Team configuration saved:"
 echo "  Max agents: MAX_AGENTS"
@@ -151,7 +228,13 @@ echo "  Model: teammates inherit your session model"
 After all modifications, verify settings.json is valid JSON and contains the expected keys:
 
 ```bash
-SETTINGS_FILE="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
+CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+case "$CONFIG_DIR" in
+  "~") CONFIG_DIR="$HOME" ;;
+  "~/"*) CONFIG_DIR="$HOME/${CONFIG_DIR#\~/}" ;;
+  "~\\"*) CONFIG_DIR="$HOME/${CONFIG_DIR#\~\\}" ;;
+esac
+SETTINGS_FILE="$CONFIG_DIR/settings.json"
 
 if jq empty "$SETTINGS_FILE" 2>/dev/null; then
   echo "settings.json: valid JSON"
@@ -188,5 +271,5 @@ Or by running `/oh-my-claudecode:omc-setup --force` and choosing to enable teams
 
 ```bash
 CONFIG_TYPE=$(jq -r '.configType // "unknown"' ".omc/state/setup-state.json" 2>/dev/null || echo "unknown")
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/setup-progress.sh" save 6 "$CONFIG_TYPE"
+bash "${OMC_SETUP_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/setup-progress.sh" save 6 "$CONFIG_TYPE"
 ```

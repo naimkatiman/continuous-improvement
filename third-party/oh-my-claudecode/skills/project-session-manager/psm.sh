@@ -31,6 +31,75 @@ log_success() { echo -e "${GREEN}[PSM]${NC} $*"; }
 log_warn() { echo -e "${YELLOW}[PSM]${NC} $*"; }
 log_error() { echo -e "${RED}[PSM]${NC} $*" >&2; }
 
+# Validate a worktree-creation result string against the expected protocol schema.
+# Fails closed on any contamination so a malformed result never becomes a wrong/empty cwd.
+# Usage: psm_validate_worktree_result <raw_result> <schema>   (schema: pr|branched)
+psm_validate_worktree_result() {
+    local raw="$1"
+    local schema="$2"
+    # Only 'pr' and 'branched' schemas are supported
+    if [[ "$schema" != "pr" && "$schema" != "branched" ]]; then
+        log_error "Malformed worktree result: unknown schema"
+        return 1
+    fi
+    # Reject empty result
+    if [[ -z "$raw" ]]; then
+        log_error "Malformed worktree result: empty result"
+        return 1
+    fi
+    # Reject embedded newline (prepended OR appended noise -> more than one logical line)
+    if [[ "$raw" == *$'\n'* ]]; then
+        log_error "Malformed worktree result: unexpected multiline output"
+        return 1
+    fi
+    # Split on '|' WITHOUT dropping trailing empty fields ('read -a' would drop them,
+    # which would let a stray trailing delimiter smuggle in an extra field).
+    local -a fields=()
+    local remainder="$raw"
+    while true; do
+        fields+=("${remainder%%|*}")
+        [[ "$remainder" == *"|"* ]] || break
+        remainder="${remainder#*|}"
+    done
+    local status="${fields[0]}"
+    local count="${#fields[@]}"
+    local path="${fields[1]:-}"
+    local branch="${fields[2]:-}"
+    case "$status" in
+        created|exists)
+            # Required fields must be present and not whitespace-only, or the caller
+            # could launch tmux in an empty/unusable working directory.
+            case "$schema" in
+                pr)
+                    if [[ "$count" -ne 2 ]] || [[ "$path" =~ ^[[:space:]]*$ ]]; then
+                        log_error "Malformed worktree result: invalid $status record"
+                        return 1
+                    fi
+                    ;;
+                branched)
+                    if [[ "$count" -ne 3 ]] || [[ "$path" =~ ^[[:space:]]*$ ]] || [[ "$branch" =~ ^[[:space:]]*$ ]]; then
+                        log_error "Malformed worktree result: invalid $status record"
+                        return 1
+                    fi
+                    ;;
+            esac
+            ;;
+        error)
+            # error|message : exactly 2 fields, message is an opaque diagnostic (not a path)
+            if [[ "$count" -ne 2 ]] || [[ "${fields[1]:-}" =~ ^[[:space:]]*$ ]]; then
+                log_error "Malformed worktree result: invalid error record"
+                return 1
+            fi
+            ;;
+        *)
+            log_error "Malformed worktree result: invalid status"
+            return 1
+            ;;
+    esac
+    return 0
+}
+
+
 # Check dependencies
 check_dependencies() {
     local missing=()
@@ -174,12 +243,16 @@ cmd_review() {
 
     # Create worktree
     log_info "Creating worktree..."
-    local worktree_result
-    worktree_result=$(psm_create_pr_worktree "$local_path" "$alias" "$pr_number" "$head_branch")
+    local worktree_result worktree_rc=0
+    worktree_result=$(psm_create_pr_worktree "$local_path" "$alias" "$pr_number" "$head_branch") || worktree_rc=$?
 
     local worktree_status
     local worktree_path
     IFS='|' read -r worktree_status worktree_path <<< "$worktree_result"
+    if ! psm_validate_worktree_result "$worktree_result" pr; then
+        return 1
+    fi
+
 
     if [[ "$worktree_status" == "exists" ]]; then
         log_warn "Worktree already exists at $worktree_path"
@@ -211,8 +284,8 @@ cmd_review() {
     fi
 
     # Create tmux session
-    local session_name="psm:${alias}:pr-${pr_number}"
     local session_id="${alias}:pr-${pr_number}"
+    local session_name=$(psm_tmux_name_from_id "$session_id")
 
     if [[ "$no_tmux" != "true" ]]; then
         log_info "Creating tmux session..."
@@ -352,11 +425,15 @@ cmd_fix() {
 
     # Create worktree
     log_info "Creating worktree and branch..."
-    local worktree_result
-    worktree_result=$(psm_create_issue_worktree "$local_path" "$alias" "$issue_number" "$slug" "$base")
+    local worktree_result worktree_rc=0
+    worktree_result=$(psm_create_issue_worktree "$local_path" "$alias" "$issue_number" "$slug" "$base") || worktree_rc=$?
 
     local worktree_status worktree_path branch_name
     IFS='|' read -r worktree_status worktree_path branch_name <<< "$worktree_result"
+    if ! psm_validate_worktree_result "$worktree_result" branched; then
+        return 1
+    fi
+
 
     if [[ "$worktree_status" == "exists" ]]; then
         log_warn "Worktree already exists at $worktree_path"
@@ -386,8 +463,8 @@ cmd_fix() {
     fi
 
     # Create tmux session
-    local session_name="psm:${alias}:issue-${issue_number}"
     local session_id="${alias}:issue-${issue_number}"
+    local session_name=$(psm_tmux_name_from_id "$session_id")
 
     log_info "Creating tmux session..."
     psm_create_tmux_session "$session_name" "$worktree_path"
@@ -442,11 +519,14 @@ cmd_feature() {
 
     # Create worktree
     log_info "Creating worktree and branch..."
-    local worktree_result
-    worktree_result=$(psm_create_feature_worktree "$local_path" "$project" "$feature_name" "$base")
+    local worktree_result worktree_rc=0
+    worktree_result=$(psm_create_feature_worktree "$local_path" "$project" "$feature_name" "$base") || worktree_rc=$?
 
     local worktree_status worktree_path branch_name
     IFS='|' read -r worktree_status worktree_path branch_name <<< "$worktree_result"
+    if ! psm_validate_worktree_result "$worktree_result" branched; then
+        return 1
+    fi
 
     if [[ "$worktree_status" == "exists" ]]; then
         log_warn "Worktree already exists at $worktree_path"
@@ -459,8 +539,8 @@ cmd_feature() {
     log_success "Worktree created at $worktree_path"
 
     local safe_name=$(psm_sanitize "$feature_name")
-    local session_name="psm:${project}:feat-${safe_name}"
     local session_id="${project}:feat-${safe_name}"
+    local session_name=$(psm_tmux_name_from_id "$session_id")
 
     psm_create_tmux_session "$session_name" "$worktree_path"
     local feature_prompt="Implement feature \"${feature_name}\" for project ${project}. Working branch: ${branch_name}. Build the feature, add tests, and open a PR when ready: gh pr create --title \"feat: ${feature_name}\""
@@ -492,7 +572,7 @@ cmd_list() {
     psm_list_sessions "$project" | while IFS='|' read -r id type state worktree; do
         # Check if tmux session exists
         local tmux_state="detached"
-        if psm_tmux_session_exists "psm:${id}"; then
+        if psm_tmux_session_exists "$(psm_tmux_name_from_id "$id")"; then
             tmux_state="$state"
         else
             tmux_state="no-tmux"
@@ -507,7 +587,7 @@ cmd_list() {
 # Command: attach
 cmd_attach() {
     local session_id="$1"
-    local session_name="psm:${session_id}"
+    local session_name=$(psm_tmux_name_from_id "$session_id")
 
     if ! psm_tmux_session_exists "$session_name"; then
         log_error "Session not found: $session_name"
@@ -623,8 +703,8 @@ cmd_status() {
     # Try to detect current session
     local current_session=$(psm_current_tmux_session)
 
-    if [[ -n "$current_session" && "$current_session" == psm:* ]]; then
-        local session_id="${current_session#psm:}"
+    if [[ -n "$current_session" && "$current_session" == psm_* ]]; then
+        local session_id=$(psm_get_session_id_for_tmux "$current_session")
         local session_json=$(psm_get_session "$session_id")
 
         if [[ -n "$session_json" ]]; then
