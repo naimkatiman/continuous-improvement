@@ -123,12 +123,39 @@ const EXCLUDE_FRAGMENTS: readonly string[] = String(process.env.CI_GATEGUARD_EXC
   .map((fragment) => fragment.trim().replace(/\\/g, "/").toLowerCase())
   .filter((fragment) => fragment !== "");
 
-function isExcludedPath(filePath: string): boolean {
+function matchedExcludeFragment(filePath: string): string | null {
   if (EXCLUDE_FRAGMENTS.length === 0 || typeof filePath !== "string" || filePath === "") {
-    return false;
+    return null;
   }
   const normalized = filePath.replace(/\\/g, "/").toLowerCase();
-  return EXCLUDE_FRAGMENTS.some((fragment) => normalized.includes(fragment));
+  return EXCLUDE_FRAGMENTS.find((fragment) => normalized.includes(fragment)) ?? null;
+}
+
+function isExcludedPath(filePath: string): boolean {
+  return matchedExcludeFragment(filePath) !== null;
+}
+
+// A fragment every path contains ("/", ".", any single character) is not an
+// exclusion, it is an off switch for the whole file gate. It is still honoured —
+// the operator set it — but silently honouring it is how a host ends up with the
+// headline feature off and nobody noticing (this repo's own author's shell had
+// CI_GATEGUARD_EXCLUDE="/,." for weeks). So every exclusion prints one stderr
+// line, and a catch-all says plainly that the gate is off. stderr never changes
+// the decision: allow stays empty stdout + exit 0.
+function isCatchAllFragment(fragment: string): boolean {
+  return fragment.length <= 1 || fragment === "./" || fragment === "..";
+}
+
+function buildExcludeNotice(paths: string[], fragment: string): string {
+  const shown = paths.map((p) => p.replace(/\\/g, "/")).join(", ");
+  if (isCatchAllFragment(fragment)) {
+    return (
+      `[continuous-improvement] gateguard: CI_GATEGUARD_EXCLUDE fragment "${fragment}" matches every path, ` +
+      `so the file gate is off for this session (skipped ${shown}). ` +
+      "Narrow it to a directory, e.g. CI_GATEGUARD_EXCLUDE=docs/wiki, to get the gate back."
+    );
+  }
+  return `[continuous-improvement] gateguard: skipped by CI_GATEGUARD_EXCLUDE (fragment "${fragment}" matched ${shown}).`;
 }
 
 // --- Target lock (opt-in) --------------------------------------------------
@@ -386,7 +413,10 @@ function main(): void {
   const allTargetPaths = extractFilePaths(toolInput);
   const filePaths = allTargetPaths.filter((path) => !isExcludedPath(path));
   if (allTargetPaths.length > 0 && filePaths.length === 0) {
-    emitAllow(); // every target is under a CI_GATEGUARD_EXCLUDE path; skip the gate
+    // Every target is under a CI_GATEGUARD_EXCLUDE path; skip the gate, but say so.
+    const fragment = matchedExcludeFragment(allTargetPaths[0]!) ?? EXCLUDE_FRAGMENTS[0]!;
+    process.stderr.write(`${buildExcludeNotice(allTargetPaths, fragment)}\n`);
+    emitAllow();
     return;
   }
 

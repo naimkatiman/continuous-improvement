@@ -47,6 +47,41 @@ interface PreToolUseHookOutput {
   };
 }
 
+interface HookRun extends HookDecision {
+  stderr: string;
+}
+
+// Spawn the hook with an explicit env. CI_GATEGUARD_EXCLUDE is pinned to ""
+// unless a test sets it: an operator's shell may export a catch-all exclusion
+// (this host does), and inheriting it silently turns every DENY case here into
+// an allow. The suite must not depend on the host's gate configuration.
+function runHookRaw(
+  toolName: string,
+  toolInput: Record<string, unknown>,
+  sessionDir: string,
+  extraEnv: Record<string, string> = {},
+): HookRun {
+  const payload = JSON.stringify({ tool_name: toolName, tool_input: toolInput });
+  const result = spawnSync(process.execPath, [HOOK_PATH], {
+    input: payload,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      CI_GATEGUARD_EXCLUDE: "",
+      GATEGUARD_SESSION_DIR: sessionDir,
+      ...extraEnv,
+    },
+  });
+  assert.equal(result.status, 0, `hook exited non-zero: ${result.stderr}`);
+  const stdout = result.stdout.trim();
+  if (stdout === "") return { decision: "allow", stderr: result.stderr };
+  const parsed = JSON.parse(stdout) as PreToolUseHookOutput;
+  const out = parsed.hookSpecificOutput;
+  assert.equal(out?.hookEventName, "PreToolUse", "deny output names the hook event");
+  assert.equal(out?.permissionDecision, "deny", "non-empty output must be a deny");
+  return { decision: "block", reason: out?.permissionDecisionReason, stderr: result.stderr };
+}
+
 function runHook(toolName: string, toolInput: Record<string, unknown>, sessionDir: string): HookDecision {
   const payload = JSON.stringify({ tool_name: toolName, tool_input: toolInput });
   const result = spawnSync(process.execPath, [HOOK_PATH], {
@@ -54,6 +89,7 @@ function runHook(toolName: string, toolInput: Record<string, unknown>, sessionDi
     encoding: "utf8",
     env: {
       ...process.env,
+      CI_GATEGUARD_EXCLUDE: "",
       GATEGUARD_SESSION_DIR: sessionDir,
     },
   });
@@ -416,6 +452,7 @@ describe("hooks/gateguard.mjs — target lock (RISA 2 / G2)", () => {
     try {
       const env: NodeJS.ProcessEnv = {
         ...process.env,
+        CI_GATEGUARD_EXCLUDE: "",
         GATEGUARD_SESSION_DIR: dir,
         CLAUDE_PROJECT_DIR: opts.projectRoot ?? ROOT,
       };
@@ -591,6 +628,7 @@ describe("hooks/gateguard.mjs — per-session isolation (no shared cap)", () => 
   function runScoped(sessionId: string, toolInput: Record<string, unknown>): HookDecision {
     const env: NodeJS.ProcessEnv = {
       ...process.env,
+      CI_GATEGUARD_EXCLUDE: "",
       HOME: tempHome,
       USERPROFILE: tempHome,
       CLAUDE_PROJECT_DIR: "d:/proj/iso",
@@ -735,4 +773,47 @@ describe("hooks/gateguard.mjs — destructive forms the substring list missed", 
       assert.equal(decision.decision, "allow");
     });
   }
+});
+
+describe("hooks/gateguard.mjs — CI_GATEGUARD_EXCLUDE is observable", () => {
+  let sessionDir = "";
+  before(() => {
+    sessionDir = mkdtempSync(join(tmpdir(), "gateguard-exclude-"));
+  });
+  after(() => {
+    if (sessionDir) rmSync(sessionDir, { recursive: true, force: true });
+  });
+
+  it("an excluded path is still allowed, and the hook says so on stderr", () => {
+    const run = runHookRaw("Write", { file_path: "docs/wiki/page.md", content: "x" }, sessionDir, {
+      CI_GATEGUARD_EXCLUDE: "docs/wiki",
+    });
+    assert.equal(run.decision, "allow", "exclusion must keep allowing (no behavior change)");
+    assert.match(run.stderr, /CI_GATEGUARD_EXCLUDE/, "stderr names the env var that skipped the gate");
+    assert.match(run.stderr, /docs\/wiki/, "stderr names the fragment that matched");
+  });
+
+  it("a catch-all fragment is honoured but flagged as switching the file gate off", () => {
+    const run = runHookRaw("Write", { file_path: "src/lib/anything.mts", content: "x" }, sessionDir, {
+      CI_GATEGUARD_EXCLUDE: "/,.",
+    });
+    assert.equal(run.decision, "allow", "the operator's setting is honoured");
+    assert.match(run.stderr, /matches every path/i, "stderr says the fragment matches every path");
+    assert.match(run.stderr, /file gate is off/i, "stderr says the file gate is effectively off");
+  });
+
+  it("a non-matching fragment leaves the deny path untouched and silent", () => {
+    const run = runHookRaw("Write", { file_path: "src/lib/gated.mts", content: "x" }, sessionDir, {
+      CI_GATEGUARD_EXCLUDE: "docs/wiki",
+    });
+    assert.equal(run.decision, "block");
+    assert.doesNotMatch(run.stderr, /CI_GATEGUARD_EXCLUDE/, "no notice when nothing was excluded");
+  });
+
+  it("destructive Bash is never excluded, even under a catch-all fragment", () => {
+    const run = runHookRaw("Bash", { command: ["rm", "-rf", "build"].join(" ") }, sessionDir, {
+      CI_GATEGUARD_EXCLUDE: "/,.",
+    });
+    assert.equal(run.decision, "block");
+  });
 });
