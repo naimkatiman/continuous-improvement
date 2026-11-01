@@ -9,7 +9,24 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
-import { MAX_CLEARED_FILES, STATE_TTL_MS, canonicalizeFileKey, canonicalizeProjectRoot, clearFiles, hashProjectRoot, isFileCleared, loadState, markFileCleared, resolveSessionDir, } from "../lib/gateguard-state.mjs";
+import { MAX_CLEARED_FILES, STATE_TTL_MS, canonicalizeFileKey, canonicalizeProjectRoot, clearFiles, hashProjectRoot, isFileCleared, loadState, markFileCleared, resolveMaxClearedFiles, resolveSessionDir, } from "../lib/gateguard-state.mjs";
+describe("resolveMaxClearedFiles", () => {
+    it("defaults to 1000 distinct files per session", () => {
+        assert.equal(resolveMaxClearedFiles({}), 1000);
+    });
+    it("honours a positive integer GATEGUARD_MAX_CLEARED_FILES", () => {
+        assert.equal(resolveMaxClearedFiles({ GATEGUARD_MAX_CLEARED_FILES: "5000" }), 5000);
+        assert.equal(resolveMaxClearedFiles({ GATEGUARD_MAX_CLEARED_FILES: "25" }), 25);
+    });
+    it("ignores a missing, zero, negative or non-numeric override", () => {
+        for (const value of ["", "0", "-3", "lots", "1.5e"]) {
+            assert.equal(resolveMaxClearedFiles({ GATEGUARD_MAX_CLEARED_FILES: value }), 1000, value);
+        }
+    });
+    it("MAX_CLEARED_FILES is the resolved value for this process", () => {
+        assert.equal(MAX_CLEARED_FILES, resolveMaxClearedFiles(process.env));
+    });
+});
 describe("canonicalizeProjectRoot", () => {
     it("lowercases a Windows drive letter", () => {
         assert.equal(canonicalizeProjectRoot("D:/Ai/x"), "d:/Ai/x");

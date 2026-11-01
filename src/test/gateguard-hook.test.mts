@@ -29,6 +29,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it, before, after } from "node:test";
 import { fileURLToPath } from "node:url";
+import { MAX_CLEARED_FILES } from "../lib/gateguard-state.mjs";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const REPO_ROOT = join(__dirname, "..");
@@ -223,7 +224,8 @@ describe("hooks/gateguard.mjs (runtime PreToolUse hook — issue #106)", () => {
     it("MultiEdit with facts does not exceed the per-session cap", () => {
       const capSessionDir = mkdtempSync(join(tmpdir(), "gateguard-cap-test-"));
       try {
-        const seeded = Array.from({ length: 48 }, (_, index) => `seed-${index + 1}.txt`);
+        // Two slots below the cap, then a five-file batch: the batch would cross it.
+        const seeded = Array.from({ length: MAX_CLEARED_FILES - 2 }, (_, index) => `seed-${index + 1}.txt`);
         seedClearedFiles(capSessionDir, seeded);
 
         const edits = Array.from({ length: 5 }, (_, index) => ({
@@ -238,7 +240,7 @@ describe("hooks/gateguard.mjs (runtime PreToolUse hook — issue #106)", () => {
         const state = JSON.parse(readFileSync(join(capSessionDir, "gateguard-session.json"), "utf8")) as {
           cleared_files?: Record<string, unknown>;
         };
-        assert.ok((state.cleared_files ? Object.keys(state.cleared_files).length : 0) <= 50);
+        assert.ok((state.cleared_files ? Object.keys(state.cleared_files).length : 0) <= MAX_CLEARED_FILES);
       } finally {
         rmSync(capSessionDir, { recursive: true, force: true });
       }
