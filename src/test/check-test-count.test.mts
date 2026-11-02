@@ -1,6 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,6 +10,7 @@ import {
   extractClaims,
   parseActualCount,
   findViolations,
+  applyTestCount,
 } from "../bin/check-test-count.mjs";
 
 // import.meta.dirname landed in Node 20.11 and this repo's CI matrix includes 18,
@@ -65,6 +68,10 @@ describe("check-test-count — parseActualCount", () => {
 
   it("takes the total, not the pass count, when both are present", () => {
     assert.equal(parseActualCount("ℹ tests 1271\nℹ pass 1265\nℹ fail 6\n"), 1271);
+  });
+
+  it("takes the last tests N line, which is the runner summary", () => {
+    assert.equal(parseActualCount("tests 3\nℹ tests 1271\n"), 1271);
   });
 
   it("returns null when no summary line is present", () => {
@@ -133,5 +140,150 @@ describe("check-test-count — against the real landing page", () => {
     assert.ok(claims.strip.length > 0, "spec strip must state a test count");
     assert.ok(claims.ladder.length > 0, "verification-loop panel must state a test count");
     assert.deepEqual(findViolations(claims, null), []);
+  });
+
+  it("applyTestCount on the shipped page keeps neighbor cells and agrees with extractClaims", () => {
+    const html = readFileSync(join(REPO_ROOT, "docs", "landing", "index.html"), "utf8");
+    const claimed = extractClaims(html).strip[0];
+    const { html: out } = applyTestCount(html, claimed + 1);
+    assert.deepEqual(extractClaims(out).strip, [claimed + 1]);
+    assert.deepEqual(extractClaims(out).ladder, [claimed + 1, claimed + 1]);
+    assert.match(out, />28</);
+    assert.match(out, />v3\.25\.0</);
+  });
+});
+
+const neighbors = `
+<li><span class="v">28</span><span class="k">Bundled skills</span></li>
+<li><span class="v">v3.25.0</span><span class="k">Current rev</span></li>
+`;
+
+describe("check-test-count — applyTestCount", () => {
+  it("rewrites the strip with a thousands comma and the ladder without one", () => {
+    const html = page(strip("1,271") + neighbors, ladder("1271", "1271"));
+    const { html: out, changed } = applyTestCount(html, 1300);
+    assert.equal(changed, true);
+    assert.deepEqual(extractClaims(out), { strip: [1300], ladder: [1300, 1300] });
+    assert.match(out, />1,300</);
+    assert.match(out, /PASS  1300\/1300/);
+  });
+
+  it("rewrites when the digit width and the thousands comma both change", () => {
+    const html = page(strip("999"), ladder("999", "999"));
+    const { html: out } = applyTestCount(html, 1000);
+    assert.deepEqual(extractClaims(out), { strip: [1000], ladder: [1000, 1000] });
+    assert.match(out, />1,000</);
+    assert.match(out, /PASS  1000\/1000/);
+  });
+
+  it("reports unchanged when both surfaces already state the actual count", () => {
+    const html = page(strip("1,300"), ladder("1300", "1300"));
+    const { html: out, changed } = applyTestCount(html, 1300);
+    assert.equal(changed, false);
+    assert.equal(out, html);
+  });
+
+  it("rewrites both surfaces to the actual count when they disagree with each other", () => {
+    const html = page(strip("1,249"), ladder("1271", "1271"));
+    const { html: out } = applyTestCount(html, 1300);
+    assert.deepEqual(extractClaims(out), { strip: [1300], ladder: [1300, 1300] });
+  });
+
+  it("does not touch the bundled-skills cell or the current-rev marker", () => {
+    const html = page(strip("1,271") + neighbors, ladder("1271", "1271"));
+    const { html: out } = applyTestCount(html, 1300);
+    assert.match(out, />28</);
+    assert.match(out, />v3\.25\.0</);
+  });
+
+  it("throws when the spec strip is missing rather than writing a partial page", () => {
+    const html = page("", ladder("1271", "1271"));
+    assert.throws(() => applyTestCount(html, 1300), /strip/i);
+  });
+
+  it("throws when the verification-loop ladder is missing rather than writing a partial page", () => {
+    const html = page(strip("1,271"), "");
+    assert.throws(() => applyTestCount(html, 1300), /ladder|verification/i);
+  });
+
+  it("rejects a non-integer actual count", () => {
+    const html = page(strip("1,271"), ladder("1271", "1271"));
+    assert.throws(() => applyTestCount(html, 1.5), RangeError);
+    assert.throws(() => applyTestCount(html, -1), RangeError);
+    assert.throws(() => applyTestCount(html, Number.NaN), RangeError);
+  });
+});
+
+describe("check-test-count — --write CLI", () => {
+  const CHECKER = join(REPO_ROOT, "bin", "check-test-count.mjs");
+
+  function setupLanding(html: string, runLog: string): { root: string; log: string } {
+    const root = mkdtempSync(join(tmpdir(), "test-count-write-"));
+    mkdirSync(join(root, "docs", "landing"), { recursive: true });
+    writeFileSync(join(root, "docs", "landing", "index.html"), html);
+    const log = join(root, "test-run.log");
+    writeFileSync(log, runLog);
+    return { root, log };
+  }
+
+  it("writes both surfaces from --actual-from and exits 0", () => {
+    const { root, log } = setupLanding(
+      page(strip("1,271"), ladder("1271", "1271")),
+      "ℹ tests 1300\nℹ pass 1300\n",
+    );
+    try {
+      const stdout = execFileSync("node", [CHECKER, root, "--write", "--actual-from", log], {
+        encoding: "utf8",
+      });
+      assert.match(stdout, /wrote 1300/);
+      const html = readFileSync(join(root, "docs", "landing", "index.html"), "utf8");
+      assert.deepEqual(extractClaims(html), { strip: [1300], ladder: [1300, 1300] });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("exits 0 without rewriting when the landing already matches the run", () => {
+    const html = page(strip("1,300"), ladder("1300", "1300"));
+    const { root, log } = setupLanding(html, "tests 1300\n");
+    try {
+      const stdout = execFileSync("node", [CHECKER, root, "--write", "--actual-from", log], {
+        encoding: "utf8",
+      });
+      assert.match(stdout, /already states 1300/);
+      assert.equal(readFileSync(join(root, "docs", "landing", "index.html"), "utf8"), html);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed when --write is given without --actual-from", () => {
+    const { root } = setupLanding(page(strip("1,271"), ladder("1271", "1271")), "tests 1300\n");
+    try {
+      execFileSync("node", [CHECKER, root, "--write"], { encoding: "utf8" });
+      assert.fail("--write without --actual-from should exit non-zero");
+    } catch (error) {
+      const failure = error as { status?: number; stderr?: string };
+      assert.equal(failure.status, 1);
+      assert.match(failure.stderr ?? "", /--write requires --actual-from/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("does not write the file when the spec strip is missing", () => {
+    const html = page("", ladder("1271", "1271"));
+    const { root, log } = setupLanding(html, "tests 1300\n");
+    try {
+      execFileSync("node", [CHECKER, root, "--write", "--actual-from", log], { encoding: "utf8" });
+      assert.fail("missing strip should exit non-zero");
+    } catch (error) {
+      const failure = error as { status?: number; stderr?: string };
+      assert.equal(failure.status, 1);
+      assert.match(failure.stderr ?? "", /strip/i);
+      assert.equal(readFileSync(join(root, "docs", "landing", "index.html"), "utf8"), html);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

@@ -156,8 +156,13 @@ gh secret set CLOUDFLARE_ACCOUNT_ID    # paste the account id
 ```
 
 **Catch staleness automatically:** the [`landing-drift.yml`](../.github/workflows/landing-drift.yml)
-workflow runs daily (and on demand) and first requires every source marker to match `package.json`, then fails if `continuous-improvement.dev` is not serving that version. A stale source marker or missed deploy is reported instead of going unnoticed for weeks. It is
-read-only (curl + version compare) and needs no secret.
+workflow runs daily, on push to `main`, and on demand. The REV job still fails red if
+`continuous-improvement.dev` is not serving `package.json`'s version: a missed deploy is not a
+source edit. The test-count job runs the suite, rewrites both landing surfaces when the stated
+number is stale, and opens a PR on `chore/landing-test-count`. Feature PRs are no longer blocked
+on that number; CI only checks the two surfaces agree with each other. The bump PR is opened
+with `GITHUB_TOKEN`, so GitHub may hold its checks in "waiting for approval" until a maintainer
+approves workflows once. Merge is still a human decision.
 
 **Full push-to-deploy (optional, involves a cutover):** Cloudflare fixes a Pages project's connection
 type at creation — a **Direct Upload** project (this one) cannot be connected to Git in place, and the

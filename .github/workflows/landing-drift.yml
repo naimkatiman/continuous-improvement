@@ -1,9 +1,11 @@
 name: Landing drift check
 
-# Fails when the landing source differs from package.json, or the deployed page
-# is not serving that package version. This catches a release merged to main whose manual
-# Cloudflare Pages deploy was never run. Read-only (curl + version compare): no
-# secret, cannot deploy. See docs/RELEASING.md "Landing page".
+# Two independent jobs:
+#   drift — fail-red if the deployed page is not serving package.json's version.
+#           A missed deploy is not a source edit; opening a PR cannot fix it.
+#   bump-test-count — if the landing's stated test count disagrees with a real
+#           suite run, rewrite both surfaces and open a PR. Feature PRs are no
+#           longer blocked on that number (CI only checks the two surfaces agree).
 #
 # continuous-improvement.dev sits behind the customer zone's Cloudflare bot
 # protection, which 403s datacenter IPs (GitHub runners) even with a browser UA.
@@ -13,13 +15,22 @@ on:
   schedule:
     - cron: '37 7 * * *'   # daily; catches a missed deploy within 24h
   workflow_dispatch:
+  push:
+    branches: [main]
 
 permissions:
   contents: read
 
+concurrency:
+  group: landing-drift
+  cancel-in-progress: true
+
 jobs:
   drift:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -52,3 +63,50 @@ jobs:
             exit 1
           fi
           echo "OK: package, landing source, and deployment match ($expected)"
+
+  bump-test-count:
+    if: github.repository == 'naimkatiman/continuous-improvement'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Rewrite a stale landing test count and open a PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          npm ci
+          npm test 2>&1 | tee test-run.log
+          node bin/check-test-count.mjs --write --actual-from test-run.log
+          if git diff --quiet -- docs/landing/index.html; then
+            echo "OK: landing test count already matches the suite"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          actual=$(node -e "const fs=require('fs'); const m=/^\W*tests\s+(\d+)\s*$/m.exec(fs.readFileSync('test-run.log','utf8')); if (!m) process.exit(2); process.stdout.write(m[1]);")
+          git checkout -B chore/landing-test-count
+          git add docs/landing/index.html
+          git commit -m "chore(landing): bump the stated test count to ${actual}"
+          git push --force-with-lease origin chore/landing-test-count
+
+          existing=$(gh pr list --head chore/landing-test-count --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            echo "Updated existing PR #${existing}"
+            exit 0
+          fi
+          gh pr create --base main --head chore/landing-test-count \
+            --title "chore(landing): bump the stated test count to ${actual}" \
+            --body "The suite ran ${actual} tests. Both landing surfaces (spec strip and verification-loop ladder) now state that number. Merge is a human decision. A missed Pages deploy still fails the REV job red: a source PR cannot fix a live deploy."
