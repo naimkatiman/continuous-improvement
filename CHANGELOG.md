@@ -4,15 +4,16 @@ All notable changes to this skill are documented here.
 
 ---
 
-## [Unreleased]
+## [3.26.0] — 2026-11-14
 
 ### Added
 
-- **`CI_ROUTE_PROMPT_DISABLE=1` turns the prompt router off** — `hooks/route-prompt.mjs` had no off switch, so a project with its own plan, test or review skills got a competing `planning-with-files` / `tdd-workflow` hint on every prompt containing those words. Set the variable in that project's `.claude/settings.json` `env` block and the hook emits nothing and writes no telemetry. Default unchanged.
+- **`CI_ROUTE_PROMPT_DISABLE=1` turns the prompt router off** — `hooks/route-prompt.mjs` had no off switch, so a project with its own plan, test or review skills got a competing `planning-with-files` / `tdd-workflow` hint on every prompt containing those words. Set the variable in that project's `.claude/settings.json` `env` block and the hook emits nothing and writes no telemetry. Default unchanged. (#321)
 
 ### Fixed
 
-- **`/ship` no longer falls through to a project's own `ship` skill** — the command forwarded to "the native `ship` skill", and in a repo that defines `.claude/skills/ship` a bare `ship` resolves to that project workflow, which can merge and deploy. The command now names where the native skill lives and stops to ask when the project defines its own.
+- **`/ship` no longer falls through to a project's own `ship` skill** — the command forwarded to "the native `ship` skill", and in a repo that defines `.claude/skills/ship` a bare `ship` resolves to that project workflow, which can merge and deploy. The command now names where the native skill lives and stops to ask when the project defines its own. (#321)
+- **gateguard's cleared-files cap no longer stops real multi-slice work** — the 50-file cap halted a session touching source, tests and docs across a few PRs. The default is now 1000, which still bounds a runaway loop, and a positive-integer `GATEGUARD_MAX_CLEARED_FILES` overrides it. (#320)
 
 ## [3.25.0] — 2026-09-07
 
