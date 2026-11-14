@@ -226,6 +226,13 @@ describe("commands/ship.md", () => {
     assert.match(content, /\$ARGUMENTS/);
     assert.doesNotMatch(content, /git worktree add|git switch <base>|git push/);
   });
+
+  it("refuses to fall through to a project-defined ship skill", () => {
+    const content = readFileSync(path, "utf8");
+
+    assert.match(content, /\.claude\/skills\/ship/);
+    assert.match(content, /stop and ask/i);
+  });
 });
 
 describe("commands/verify-install.md", () => {
