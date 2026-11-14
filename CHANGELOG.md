@@ -4,6 +4,16 @@ All notable changes to this skill are documented here.
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **`CI_ROUTE_PROMPT_DISABLE=1` turns the prompt router off** — `hooks/route-prompt.mjs` had no off switch, so a project with its own plan, test or review skills got a competing `planning-with-files` / `tdd-workflow` hint on every prompt containing those words. Set the variable in that project's `.claude/settings.json` `env` block and the hook emits nothing and writes no telemetry. Default unchanged.
+
+### Fixed
+
+- **`/ship` no longer falls through to a project's own `ship` skill** — the command forwarded to "the native `ship` skill", and in a repo that defines `.claude/skills/ship` a bare `ship` resolves to that project workflow, which can merge and deploy. The command now names where the native skill lives and stops to ask when the project defines its own.
+
 ## [3.25.0] — 2026-09-07
 
 ### Added

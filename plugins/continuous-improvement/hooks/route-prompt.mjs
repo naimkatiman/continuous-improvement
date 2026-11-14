@@ -13,6 +13,10 @@
  *          OR empty when there is no match.
  * Exit   : 0 always — routing decisions live in stdout, never in exit code.
  *
+ * Opt-out: CI_ROUTE_PROMPT_DISABLE=1 (or `true`) emits nothing and writes no
+ * telemetry. Set it in a project's `.claude/settings.json` `env` block when
+ * that project routes plan / test / review prompts to its own skills.
+ *
  * Fail-open: any unexpected error reading stdin / parsing the route table /
  * compiling a pattern → emit nothing and exit 0. The hook never blocks a
  * prompt on its own bugs.
@@ -43,6 +47,10 @@ function readStdin() {
     catch {
         return "";
     }
+}
+function isRouterDisabled() {
+    const value = (process.env.CI_ROUTE_PROMPT_DISABLE ?? "").trim().toLowerCase();
+    return value === "1" || value === "true";
 }
 function resolveHome() {
     return process.env.HOME ?? process.env.USERPROFILE ?? homedir();
@@ -129,6 +137,10 @@ function emit(output) {
     process.exit(0);
 }
 function main() {
+    if (isRouterDisabled()) {
+        emit(null);
+        return;
+    }
     const raw = readStdin();
     let payload;
     try {

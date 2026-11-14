@@ -12,15 +12,16 @@ function buildIsolatedEnv(home) {
     const env = { ...process.env };
     delete env.HOME;
     delete env.USERPROFILE;
+    delete env.CI_ROUTE_PROMPT_DISABLE;
     env.HOME = home;
     env.USERPROFILE = home;
     return env;
 }
-function runHook(payload, home) {
+function runHook(payload, home, extraEnv = {}) {
     const input = typeof payload === "string" ? payload : JSON.stringify(payload);
     const result = spawnSync(process.execPath, [HOOK_PATH], {
         input,
-        env: buildIsolatedEnv(home),
+        env: { ...buildIsolatedEnv(home), ...extraEnv },
         encoding: "utf8",
         timeout: 5000,
     });
@@ -94,5 +95,16 @@ describe("route-prompt hook", () => {
         const parsed = JSON.parse(r.stdout);
         assert.match(parsed.hookSpecificOutput.additionalContext, /tdd-workflow/);
         assert.doesNotMatch(parsed.hookSpecificOutput.additionalContext, /verification-loop/);
+    });
+    it("emits nothing for a matching prompt when CI_ROUTE_PROMPT_DISABLE=1", () => {
+        const r = runHook({ prompt: "Give me a step-by-step plan, then write a failing test." }, home, { CI_ROUTE_PROMPT_DISABLE: "1" });
+        assert.equal(r.status, 0);
+        assert.equal(r.stdout, "");
+    });
+    it("still routes when CI_ROUTE_PROMPT_DISABLE is set to any value other than 1 or true", () => {
+        const r = runHook({ prompt: "Give me a step-by-step plan before any code changes." }, home, { CI_ROUTE_PROMPT_DISABLE: "0" });
+        assert.equal(r.status, 0);
+        const parsed = JSON.parse(r.stdout);
+        assert.match(parsed.hookSpecificOutput.additionalContext, /planning-with-files/);
     });
 });
