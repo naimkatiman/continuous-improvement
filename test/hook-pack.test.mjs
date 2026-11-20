@@ -394,6 +394,138 @@ describe("hook-pack-gate: the branch a push goes to", () => {
         assert.equal(evaluateCommitSize("git -C ../big commit --amend --no-edit", staged).gated, false);
     });
 });
+// A push that names no branch pushes the branch checked out where the push
+// runs. The gate asked for the branch of the hook's own directory, whatever
+// the command line did first: a `cd` into another checkout, or a `git checkout
+// -b`. A session standing on main was denied every feature-branch push written
+// as `cd ../wt && git push -u origin HEAD`, and a push of main from another
+// checkout passed.
+describe("hook-pack-gate: the directory and the branch a command line sets up before a push", () => {
+    // Two checkouts next to the hook's own: ../repo-feat is on feat/x and
+    // ../repo-main on main. `main`, `feat/x` and `feat/new` are branch names;
+    // anything else handed to `git checkout` is a path.
+    const world = (hookBranch) => {
+        const asked = [];
+        const lookup = (dirs, switchedTo) => {
+            asked.push(dirs.join("|") + (switchedTo === undefined ? "" : ` ?${switchedTo}`));
+            const last = dirs[dirs.length - 1]?.replace(/\\/g, "/");
+            const here = last === undefined ? hookBranch : last.endsWith("repo-feat") ? "feat/x" : last.endsWith("repo-main") ? "main" : null;
+            if (here === null)
+                return null;
+            return switchedTo !== undefined && ["main", "feat/x", "feat/new"].includes(switchedTo) ? switchedTo : here;
+        };
+        return { asked, lookup };
+    };
+    const gated = (command, hookBranch, tool = "Bash") => evaluatePush(command, world(hookBranch).lookup, tool).gated;
+    const toAFeatureBranch = [
+        ["cd ../repo-feat && git push -u origin HEAD", "Bash"],
+        ["cd ../repo-feat && git push -q && gh pr create --fill", "Bash"],
+        ['cd "../repo-feat" && git push', "Bash"],
+        ["cd ../repo-feat; if git diff --quiet; then git push origin HEAD; fi", "Bash"],
+        ["pushd ../repo-feat && git push && popd", "Bash"],
+        ["(cd ../repo-feat && git push origin HEAD)", "Bash"],
+        ['bash -c "cd ../repo-feat && git push"', "Bash"],
+        ["cd ../repo-main && cd ../repo-feat && git push", "Bash"],
+        ["Set-Location ..\\repo-feat; git push -u origin HEAD", "PowerShell"],
+        ["Set-Location -Path ..\\repo-feat; if ($?) { git push }", "PowerShell"],
+        ["Push-Location ..\\repo-feat; git push; Pop-Location", "PowerShell"],
+        ['git checkout -b feat/new && git commit --allow-empty -m "feat: x" && git push -u origin HEAD', "Bash"],
+        ["git checkout -B feat/new origin/main && git push -u origin HEAD", "Bash"],
+        ["git switch -c feat/new; git push -u origin HEAD", "Bash"],
+        ["git switch --create feat/new; if ($?) { git push -u origin HEAD }", "PowerShell"],
+        ["git checkout feat/x && git push", "Bash"],
+        ["git switch feat/x && git push origin HEAD", "Bash"],
+        ["cd ../repo-main && git checkout -b feat/new && git push -u origin HEAD", "Bash"],
+        ["git -C ../repo-main checkout -b feat/new && git -C ../repo-main push -u origin HEAD", "Bash"],
+    ];
+    for (const [command, tool] of toAFeatureBranch) {
+        it(`from a session on main, pushes a feature branch (${tool}): ${command}`, () => {
+            assert.equal(gated(command, "main", tool), false);
+        });
+    }
+    const toMain = [
+        ["cd ../repo-main && git push origin HEAD", "Bash"],
+        ["cd ../repo-main && git push -q 2>&1 | tail -3", "Bash"],
+        ["cd ../repo-feat && cd ../repo-main && git push", "Bash"],
+        ["(cd ../repo-main && git push)", "Bash"],
+        ["Set-Location ..\\repo-main; git push", "PowerShell"],
+        ["git checkout main && git pull --ff-only && git push origin HEAD", "Bash"],
+        ["git checkout -q main 2>&1 && git push", "Bash"],
+        ["git switch main && git push", "Bash"],
+        ["git checkout -b feat/new && git checkout main && git push", "Bash"],
+        ["git -C ../repo-feat checkout main && git -C ../repo-feat push", "Bash"],
+        // The branch was made in this checkout, the push runs in another one.
+        ["git checkout -b feat/new && cd ../repo-main && git push", "Bash"],
+    ];
+    for (const [command, tool] of toMain) {
+        it(`from a session on a feature branch, pushes main (${tool}): ${command}`, () => {
+            assert.deepEqual(evaluatePush(command, world("feat/x").lookup, tool), { gated: true, branch: "main" });
+        });
+    }
+    it("a cd inside a group ends with the group", () => {
+        assert.equal(gated("(cd ../repo-feat && git status) && git push origin HEAD", "main"), true);
+        assert.equal(gated("(cd ../repo-main && git status) && git push origin HEAD", "feat/x"), false);
+        assert.equal(gated("x=$(cd ../repo-main && git rev-parse HEAD); git push", "feat/x"), false);
+        // Braces are the same shell: the directory stays changed after them.
+        assert.equal(gated("{ cd ../repo-main; }; git push", "feat/x"), true);
+        assert.equal(gated("if (Test-Path ..\\repo-main) { Set-Location ..\\repo-main }; git push", "feat/x", "PowerShell"), true);
+    });
+    it("a path handed to git checkout is not a branch, and the branch stays what it was", () => {
+        assert.equal(gated("git checkout README.md && git push", "main"), true);
+        assert.equal(gated("git checkout -- . && git push", "main"), true);
+        assert.equal(gated("git checkout main -- package.json && git push", "feat/x"), false);
+        assert.equal(gated("git checkout main package.json && git push", "feat/x"), false);
+    });
+    const unknown = [
+        'cd "$REPO" && git push origin HEAD',
+        "cd $(git rev-parse --show-toplevel)/../elsewhere && git push",
+        "cd - && git push",
+        "cd ../repo-main && popd && git push",
+        'git checkout "$BRANCH" && git push',
+        "git checkout - && git push",
+        "git switch - && git push origin HEAD",
+        "git checkout --track origin/feat/x && git push",
+    ];
+    for (const command of unknown) {
+        it(`allows when the directory or the branch cannot be read: ${command}`, () => {
+            assert.equal(gated(command, "main"), false);
+        });
+    }
+    it("asks for the branch of the directory the command line moved to, with the name a plain checkout gave", () => {
+        const moved = world("main");
+        evaluatePush("cd ../repo-feat && git push", moved.lookup);
+        assert.deepEqual(moved.asked, ["../repo-feat"]);
+        const switched = world("feat/x");
+        evaluatePush("git checkout main && git push", switched.lookup);
+        assert.deepEqual(switched.asked, [" ?main"]);
+        const made = world("main");
+        evaluatePush("git checkout -b feat/new && git push -u origin HEAD", made.lookup);
+        assert.deepEqual(made.asked, [], "a branch made on the line needs no lookup");
+        const back = world("main");
+        evaluatePush("cd - && git push", back.lookup);
+        assert.deepEqual(back.asked, [], "a directory that cannot be named is not looked up");
+    });
+    it("with a plain value for the current branch, a checkout on the line still decides", () => {
+        assert.equal(evaluatePush("git checkout main && git push origin HEAD", "feature/x").gated, true);
+        assert.equal(evaluatePush("git checkout -b feat/new && git push -u origin HEAD", "main").gated, false);
+        assert.equal(evaluatePush("git checkout feature/y && git push", "main").gated, false);
+    });
+    it("a plain value is the branch of the hook's own directory, and says nothing about another one", () => {
+        assert.equal(evaluatePush("git push origin HEAD", "main").gated, true);
+        assert.equal(evaluatePush("cd ../wt && git push origin HEAD", "main").gated, false);
+        assert.equal(evaluatePush("git -C ../wt push", "main").gated, false);
+        assert.equal(evaluatePush("cd ../wt && git push origin main", "feature/x").gated, true, "a named branch needs no lookup");
+    });
+    it("counts the files staged in the directory the command line moved to", () => {
+        const staged = (dirs) => (dirs[dirs.length - 1] === "../big" ? COMMIT_FILE_LIMIT + 1 : 1);
+        assert.equal(evaluateCommitSize("cd ../big && git commit -m x", staged).gated, true);
+        assert.equal(evaluateCommitSize("cd ../small && git commit -m x", staged).gated, false);
+        assert.equal(evaluateCommitSize("Set-Location ../big; git commit -m x", staged, "PowerShell").gated, true);
+        const big = (dirs) => (dirs.length === 0 ? COMMIT_FILE_LIMIT + 1 : 1);
+        assert.equal(evaluateCommitSize("cd ../small && git commit -m x", big).gated, false);
+        assert.equal(evaluateCommitSize("cd - && git commit -m x", big).gated, false, "an unknown directory is not counted");
+    });
+});
 describe("hook-pack-gate: evaluateCommitSize", () => {
     it("gates a commit staging more than the limit", () => {
         assert.equal(evaluateCommitSize("git commit -m x", COMMIT_FILE_LIMIT + 1).gated, true);
@@ -764,6 +896,91 @@ describe("hooks/hook-pack.mjs — the branch a push goes to (temp repos)", () =>
         assert.equal(big.decision, "block");
         assert.match(big.reason ?? "", /more than 15 files/);
         assert.equal(runHook("Bash", { command: `git -C "${onFeature}" commit -m x` }, "block", manyStaged).decision, "allow");
+    });
+    // The hook used to ask for the branch of the directory it was started in,
+    // whatever the command line did before the push. A session standing on main
+    // had every `cd ../wt && git push -u origin HEAD` denied, and the push of
+    // main from another checkout passed.
+    const enter = (tool, dir) => (tool === "PowerShell" ? `Set-Location "${dir}"; ` : `cd "${dir}" && `);
+    for (const tool of ["Bash", "PowerShell"]) {
+        it(`${tool}: cd <dir> then push is judged by the branch checked out in <dir>`, () => {
+            for (const push of ["git push -u origin HEAD", "git push -q && gh pr create --fill", "git push"]) {
+                const command = enter(tool, onFeature) + push;
+                assert.equal(runHook(tool, { command }, "block", onMain).decision, "allow", `from main: ${command}`);
+            }
+            for (const push of ["git push origin HEAD", "git push -q 2>&1 | tail -3", "git push"]) {
+                const command = enter(tool, onMain) + push;
+                const r = runHook(tool, { command }, "block", onFeature);
+                assert.equal(r.decision, "block", `from the feature checkout: ${command}`);
+                assert.match(r.reason ?? "", /protected branch "main"/);
+            }
+        });
+    }
+    it("a relative cd is resolved against the directory the hook runs in", () => {
+        const sibling = (dir) => `../${dir.slice(dir.lastIndexOf("/") + 1)}`;
+        assert.equal(runHook("Bash", { command: `cd ${sibling(onFeature)} && git push` }, "block", onMain).decision, "allow");
+        assert.equal(runHook("Bash", { command: `cd ${sibling(onMain)} && git push` }, "block", onFeature).decision, "block");
+    });
+    it("a cd inside a group ends with the group", () => {
+        const inGroup = `(cd "${onMain}" && git status) && git push origin HEAD`;
+        assert.equal(runHook("Bash", { command: inGroup }, "block", onFeature).decision, "allow");
+        const after = `(cd "${onFeature}" && git status); git push`;
+        assert.equal(runHook("Bash", { command: after }, "block", onMain).decision, "block");
+    });
+    it("a branch made on the command line is the branch the push pushes", () => {
+        const made = 'git checkout -b feat/new && git commit --allow-empty -m "feat: x" && git push -u origin HEAD';
+        assert.equal(runHook("Bash", { command: made }, "block", onMain).decision, "allow");
+        const switched = "git switch -c feat/new; if ($?) { git push -u origin HEAD }";
+        assert.equal(runHook("PowerShell", { command: switched }, "block", onMain).decision, "allow");
+    });
+    it("a checkout of an existing branch decides, and a checkout of a path does not", () => {
+        // Both branches exist in these two checkouts; one also tracks a file.
+        const bothOnMain = makeRepoOnBranch("main", 0);
+        const bothOnFeature = makeRepoOnBranch("feature/x", 0);
+        const git = (dir, args) => execFileSync("git", args, { cwd: dir, stdio: ["ignore", "ignore", "ignore"] });
+        git(bothOnMain, ["branch", "feature/x"]);
+        git(bothOnFeature, ["branch", "main"]);
+        writeFileSync(join(bothOnMain, "notes.txt"), "notes\n");
+        git(bothOnMain, ["add", "notes.txt"]);
+        git(bothOnMain, ["commit", "-q", "-m", "notes"]);
+        const toMain = runHook("Bash", { command: "git checkout main && git pull --ff-only && git push origin HEAD" }, "block", bothOnFeature);
+        assert.equal(toMain.decision, "block");
+        assert.match(toMain.reason ?? "", /protected branch "main"/);
+        assert.equal(runHook("Bash", { command: "git checkout feature/x && git push" }, "block", bothOnMain).decision, "allow");
+        // notes.txt is a file: the checkout restores it and main stays checked out.
+        assert.equal(runHook("Bash", { command: "git checkout notes.txt && git push" }, "block", bothOnMain).decision, "block");
+        // No branch called main in this checkout: the push pushes feature/x.
+        assert.equal(runHook("Bash", { command: "git checkout main && git push" }, "block", onFeature).decision, "allow");
+        // The same, in the directory the command line moved to.
+        const moved = `cd "${bothOnFeature}" && git checkout main && git push`;
+        assert.equal(runHook("Bash", { command: moved }, "block", onFeature).decision, "block");
+    });
+    it("allows a push when the directory or the branch cannot be read", () => {
+        for (const command of [
+            'cd "$REPO" && git push origin HEAD',
+            "cd - && git push",
+            "git worktree add ../not-made-yet -b feat/new && cd ../not-made-yet && git push -u origin HEAD",
+            'git checkout "$BRANCH" && git push',
+            "git checkout - && git push",
+        ]) {
+            assert.equal(runHook("Bash", { command }, "block", onMain).decision, "allow", command);
+        }
+        assert.equal(runHook("PowerShell", { command: "Set-Location $repo; git push" }, "block", onMain).decision, "allow");
+    });
+    it("cd <dir> then commit is judged by what is staged in <dir>", () => {
+        for (const tool of ["Bash", "PowerShell"]) {
+            const big = runHook(tool, { command: `${enter(tool, manyStaged)}git commit -m x` }, "block", onFeature);
+            assert.equal(big.decision, "block", tool);
+            assert.match(big.reason ?? "", /more than 15 files/);
+            assert.equal(runHook(tool, { command: `${enter(tool, onFeature)}git commit -m x` }, "block", manyStaged).decision, "allow", tool);
+        }
+    });
+    it("reads the drive path Git Bash writes (/c/dir) as that directory", { skip: process.platform !== "win32" }, () => {
+        const msys = (dir) => dir.replace(/^([A-Za-z]):\//, (_match, drive) => `/${drive.toLowerCase()}/`);
+        assert.notEqual(msys(onMain), onMain);
+        const toMain = runHook("Bash", { command: `cd ${msys(onMain)} && git push origin HEAD` }, "block", onFeature);
+        assert.equal(toMain.decision, "block");
+        assert.equal(runHook("Bash", { command: `cd ${msys(onFeature)} && git push` }, "block", onMain).decision, "allow");
     });
 });
 describe("hook-pack registration", () => {

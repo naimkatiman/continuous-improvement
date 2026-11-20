@@ -458,6 +458,35 @@ const GIT_VALUE_OPTIONS = new Set([
     "--config-env",
     "--attr-source",
 ]);
+/**
+ * In GitInvocation.dirs: a directory the reader cannot name. `cd -` and `popd`
+ * go back to wherever the shell was, and past MAX_DIR_CHANGES changes on one
+ * line the reader stops following.
+ */
+export const UNKNOWN_DIR = "-";
+const MAX_DIR_CHANGES = 16;
+const CD_COMMANDS = new Set(["cd", "chdir", "pushd", "set-location", "sl", "push-location"]);
+const CD_BACK_COMMANDS = new Set(["popd", "pop-location"]);
+// The directory a simple command changes to, or null when it changes none:
+// `cd ../wt`, `pushd "my repo"`, `Set-Location -Path ..\wt`, cmd's `cd /d D:\wt`.
+function changedDirectory(tokens) {
+    const command = tokens[0];
+    if (command === undefined)
+        return null;
+    if (CD_BACK_COMMANDS.has(command))
+        return UNKNOWN_DIR;
+    if (!CD_COMMANDS.has(command))
+        return null;
+    for (const word of tokens.slice(1)) {
+        if (word === "-")
+            return UNKNOWN_DIR;
+        // An option (`-P`, `-Path`, `--`), cmd's drive switch, or a redirect.
+        if (word.startsWith("-") || /^\/d$/i.test(word) || /^(?:\d+|[*&])?[<>]/.test(word))
+            continue;
+        return word;
+    }
+    return "~";
+}
 // For `git`, skip global options (`-C <dir>`, `-c k=v`, `--git-dir=…`,
 // `--no-pager`) to find the subcommand and its own arguments. Every destructive
 // git rule goes through here, so a global option cannot hide the subcommand.
@@ -1032,17 +1061,11 @@ function unmaskQuotes(text) {
 // How deep inside nested groups a command is still read. It bounds the work on
 // text that only looks nested: 200 KB of `(a` opens 100,000 groups.
 const MAX_GROUP_DEPTH = 12;
-// The commands one plain segment holds. The plain split has already cut at
-// every separator, so a segment is one command plus the commands that start
-// inside its groups and blocks: after each `(` or `{`, up to the matching
-// closer. A closer with no opener in the segment ends the command before it
-// (`git push origin main)` at the end of a group, `main) git push ;;` in a
-// `case`), and what follows starts another. Each command keeps all of its
-// words: `${REMOTE}` and `$(git branch --show-current)` are part of the
-// command they are written in, not the end of it.
 function commandsIn(segment) {
     const commands = [];
     const open = [];
+    let openParens = 0;
+    let closedBefore = 0;
     let start = 0;
     let quote = null;
     for (let i = 0; i < segment.length; i++) {
@@ -1056,23 +1079,44 @@ function commandsIn(segment) {
         }
         else if (ch === "(" || ch === "{") {
             open.push(i);
+            if (ch === "(")
+                openParens++;
         }
         else if (ch === ")" || ch === "}") {
             const from = open.pop();
             if (from === undefined) {
-                commands.push(segment.slice(start, i));
+                commands.push({ text: segment.slice(start, i), parens: -closedBefore });
                 start = i + 1;
+                if (ch === ")")
+                    closedBefore++;
             }
-            else if (open.length < MAX_GROUP_DEPTH) {
-                commands.push(segment.slice(from + 1, i));
+            else {
+                const paren = segment[from] === "(";
+                if (paren)
+                    openParens--;
+                if (open.length < MAX_GROUP_DEPTH) {
+                    commands.push({ text: segment.slice(from + 1, i), parens: openParens + (paren ? 1 : 0) - closedBefore });
+                }
             }
         }
     }
-    commands.push(segment.slice(start));
+    commands.push({ text: segment.slice(start), parens: -closedBefore });
     // A group still open at the end of the segment runs on into the next one.
-    for (const from of open.slice(0, MAX_GROUP_DEPTH))
-        commands.push(segment.slice(from + 1));
-    return commands;
+    let parens = 0;
+    for (const [index, from] of open.entries()) {
+        if (segment[from] === "(")
+            parens++;
+        if (index < MAX_GROUP_DEPTH)
+            commands.push({ text: segment.slice(from + 1), parens: parens - closedBefore });
+    }
+    return { commands, net: openParens - closedBefore };
+}
+// The directories entered so far, with one more `cd`. Once the reader has lost
+// the directory it stays lost: a later relative `cd` starts from nowhere.
+function entered(dirs, target) {
+    if (target === UNKNOWN_DIR || dirs[0] === UNKNOWN_DIR || dirs.length >= MAX_DIR_CHANGES)
+        return [UNKNOWN_DIR];
+    return [...dirs, target];
 }
 /**
  * Every git command a command line runs, found the way `classify` finds a
@@ -1099,7 +1143,9 @@ export function gitInvocations(command, tool) {
         collectGit(command, tool === "PowerShell", 0, found);
     return found;
 }
-function collectGit(command, powershell, depth, found) {
+// `cwd` is where the text starts out: the directories the command line around
+// it has entered (a wrapper runs where the line stands).
+function collectGit(command, powershell, depth, found, cwd = []) {
     if (command.trim() === "")
         return;
     const lifted = extractHereBodies(command);
@@ -1107,29 +1153,54 @@ function collectGit(command, powershell, depth, found) {
     const stripped = stripMessageArgs(code);
     const joined = joinLineContinuations(stripped, powershell);
     for (const view of joined === stripped ? [stripped] : [stripped, joined]) {
+        // The commands are read in the order they are written, so a `cd` applies
+        // to the git commands after it. One made inside a ( ) group is undone when
+        // the group closes: `groups` holds where to go back to, and how deep.
+        let dirs = cwd;
+        let groupDepth = 0;
+        const groups = [];
         for (const segment of splitSimpleCommands(view, false)) {
-            for (const text of commandsIn(segment.text)) {
+            const { commands, net } = commandsIn(segment.text);
+            for (const { text, parens } of commands) {
                 const words = commandWords(text);
                 if (words.length === 0)
                     continue;
-                const git = gitSubcommand(words.map((word) => word.text));
+                const tokens = words.map((word) => word.text);
+                const target = changedDirectory(tokens);
+                if (target !== null) {
+                    if (groupDepth + parens > 0)
+                        groups.push({ depth: groupDepth + parens, dirs });
+                    dirs = entered(dirs, target);
+                    continue;
+                }
+                const git = gitSubcommand(tokens);
                 if (git !== null) {
-                    found.push(git);
+                    found.push({ ...git, dirs: [...dirs, ...git.dirs] });
                     continue;
                 }
                 const wrapped = depth < MAX_WRAPPER_DEPTH ? wrappedCommand(text, words) : null;
                 if (wrapped !== null)
-                    collectGit(unmaskQuotes(wrapped.text), wrapped.powershell, depth + 1, found);
+                    collectGit(unmaskQuotes(wrapped.text), wrapped.powershell, depth + 1, found, dirs);
             }
+            groupDepth = Math.max(0, groupDepth + net);
+            while (groups.length > 0 && groups[groups.length - 1].depth > groupDepth)
+                dirs = groups.pop().dirs;
         }
     }
     for (const body of scannableBodies(code, lifted.bodies)) {
         if (body.hereString)
             continue;
+        let dirs = cwd;
         for (const segment of splitSimpleCommands(maskEscapedQuotes(body.text, false), false)) {
-            const git = gitSubcommand(commandWords(segment.text, false).map((word) => word.text));
+            const tokens = commandWords(segment.text, false).map((word) => word.text);
+            const target = changedDirectory(tokens);
+            if (target !== null) {
+                dirs = entered(dirs, target);
+                continue;
+            }
+            const git = gitSubcommand(tokens);
             if (git !== null)
-                found.push(git);
+                found.push({ ...git, dirs: [...dirs, ...git.dirs] });
         }
     }
 }

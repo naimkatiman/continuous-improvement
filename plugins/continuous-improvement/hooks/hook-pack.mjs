@@ -20,12 +20,18 @@
  *   block : emit the PreToolUse deny shape.
  *   off   : no-op.
  *
+ * A push that names no branch pushes the branch checked out where it runs:
+ * the directory a `cd` or `git -C` on the command line names, and the branch a
+ * `git checkout` or `git switch` before it left there. Where either cannot be
+ * read the push is allowed.
+ *
  * Only a `git commit`, and a `git push` that names no branch of its own, spawn
  * a git subprocess; every other shell command and non-shell tool returns
  * immediately. No network. Fail-open.
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { COMMIT_FILE_LIMIT, classifyCommand, decide, evaluateCommitSize, evaluatePush, parseMode, } from "../lib/hook-pack-gate.mjs";
 function readStdinSync() {
     try {
@@ -43,13 +49,29 @@ function safeJsonParse(text) {
         return null;
     }
 }
-// Ask git about the repository a command runs in: `dirs` are the values of the
-// command's own `-C <dir>` options, so `git -C ../wt push` is judged by the
-// branch checked out in ../wt, not by the one the hook was started in. Null on
-// any failure, a directory that is a shell variable included.
-function gitIn(dirs, args) {
+// A directory as the command line wrote it, as a value `git -C` can enter. `~`
+// is the home directory. Git Bash writes a drive as /d/repo; git.exe started
+// from here, outside that shell, needs D:/repo. Anything else is passed as it
+// is: a relative path resolves against the directory the hook runs in.
+function directory(dir, tool) {
+    if (dir === "~" || /^~[\\/]/.test(dir))
+        return homedir() + dir.slice(1);
+    if (process.platform === "win32" && tool !== "PowerShell") {
+        const drive = /^\/([A-Za-z])(?:\/(.*))?$/s.exec(dir);
+        if (drive)
+            return `${drive[1]}:/${drive[2] ?? ""}`;
+    }
+    return dir;
+}
+// Ask git about the repository a command runs in. `dirs` are the directories
+// the command line enters before the command: the targets of its `cd` commands
+// and the command's own `-C <dir>` values. So `cd ../wt && git push` and `git
+// -C ../wt push` are judged by the branch checked out in ../wt, not by the one
+// the hook was started in. Null on any failure, a directory that is a shell
+// variable or does not exist yet included.
+function gitIn(dirs, tool, args) {
     try {
-        return execFileSync("git", [...dirs.flatMap((dir) => ["-C", dir]), ...args], {
+        return execFileSync("git", [...dirs.flatMap((dir) => ["-C", directory(dir, tool)]), ...args], {
             encoding: "utf8",
             stdio: ["ignore", "pipe", "ignore"],
         });
@@ -58,11 +80,26 @@ function gitIn(dirs, args) {
         return null;
     }
 }
-function gitCurrentBranch(dirs) {
-    return gitIn(dirs, ["rev-parse", "--abbrev-ref", "HEAD"])?.trim() || null;
+// The branch a push from `dirs` pushes. `switchedTo` is the word an earlier
+// `git checkout <word>` on the line gave: when it names a branch there (a local
+// one, or a remote-tracking one the checkout starts a branch from) the push
+// pushes that branch; when it is a path the checked-out branch stands.
+function gitCurrentBranch(dirs, tool, switchedTo) {
+    if (switchedTo !== undefined) {
+        const refs = gitIn(dirs, tool, [
+            "for-each-ref",
+            "--count=1",
+            "--format=%(refname)",
+            `refs/heads/${switchedTo}`,
+            `refs/remotes/*/${switchedTo}`,
+        ]);
+        if (refs !== null && refs.trim() !== "")
+            return switchedTo;
+    }
+    return gitIn(dirs, tool, ["rev-parse", "--abbrev-ref", "HEAD"])?.trim() || null;
 }
-function gitStagedCount(dirs) {
-    const out = gitIn(dirs, ["diff", "--cached", "--name-only"]);
+function gitStagedCount(dirs, tool) {
+    const out = gitIn(dirs, tool, ["diff", "--cached", "--name-only"]);
     return out === null ? 0 : out.split(/\r?\n/).filter(Boolean).length;
 }
 const ALLOW = { action: "allow", reason: "" };
@@ -89,11 +126,11 @@ function compute() {
     const tool = obj.tool_name;
     const kind = classifyCommand(command, tool);
     if (kind === "push") {
-        const res = evaluatePush(command, gitCurrentBranch, tool);
+        const res = evaluatePush(command, (dirs, switchedTo) => gitCurrentBranch(dirs, tool, switchedTo), tool);
         return decide(mode, res.gated, `Direct push to protected branch "${res.branch}" — open a feature branch + PR instead.`);
     }
     if (kind === "commit") {
-        const res = evaluateCommitSize(command, gitStagedCount, tool);
+        const res = evaluateCommitSize(command, (dirs) => gitStagedCount(dirs, tool), tool);
         return decide(mode, res.gated, `This commit stages more than ${COMMIT_FILE_LIMIT} files — exceeds the one-concern limit. Split by layer, or set CLAUDE_CI_HOOKPACK_GATE=off for genuinely generated bulk.`);
     }
     return ALLOW;

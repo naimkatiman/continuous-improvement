@@ -12,7 +12,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { classifyDestructiveBash, stripMessageArgs } from "../lib/destructive-bash.mjs";
+import { classifyDestructiveBash, gitInvocations, stripMessageArgs } from "../lib/destructive-bash.mjs";
 
 const CAUGHT: ReadonlyArray<[string, string]> = [
   // [command, expected rule id]
@@ -949,5 +949,50 @@ describe("lib/destructive-bash — classifier table", () => {
   it("treats an empty or non-command string as not destructive", () => {
     assert.deepEqual(classifyDestructiveBash(""), { destructive: false, rule: null });
     assert.deepEqual(classifyDestructiveBash("   "), { destructive: false, rule: null });
+  });
+});
+
+// The push gate asks where each git command runs. `dirs` carried the command's
+// own `-C` values only, so a `cd` earlier on the line was lost.
+describe("lib/destructive-bash — gitInvocations: where each git command runs", () => {
+  const where = (command: string, tool?: string): string[] =>
+    gitInvocations(command, tool).map((git) => `${git.sub}@${git.dirs.join("|")}`);
+
+  const rows: ReadonlyArray<[string, string | undefined, string[]]> = [
+    ["git push", undefined, ["push@"]],
+    ["cd ../wt && git push -u origin HEAD", undefined, ["push@../wt"]],
+    ['cd "D:/my repo" && git commit -m x', undefined, ['commit@"D:/my repo"']],
+    ["cd a && cd b && git -C c status", undefined, ["status@a|b|c"]],
+    ["cd -P ../wt 2>/dev/null && git push", undefined, ["push@../wt"]],
+    // `popd` and `cd -` go back to a place the reader cannot name.
+    ["pushd ../wt; git push; popd; git status", undefined, ["push@../wt", "status@-"]],
+    ["cd && git status", undefined, ["status@~"]],
+    ["cd - && git status", undefined, ["status@-"]],
+    ["Set-Location ..\\wt; git push", "PowerShell", ["push@..\\wt"]],
+    ["Set-Location -LiteralPath 'D:\\my repo'; git push", "PowerShell", ["push@'D:\\my repo'"]],
+    ["sl ..\\wt; if ($?) { git push }", "PowerShell", ["push@..\\wt"]],
+    ['cmd /c "cd /d D:\\wt && git push"', undefined, ["push@D:\\wt"]],
+    // A cd inside a group ends with the group; inside braces it does not.
+    ["(cd ../wt && git fetch) && git push", undefined, ["fetch@../wt", "push@"]],
+    ["{ cd ../wt; git fetch; }; git push", undefined, ["fetch@../wt", "push@../wt"]],
+    // A wrapper starts where the line stands and keeps its own cd to itself.
+    ['cd ../wt && bash -c "cd sub && git status"; git push', undefined, ["status@../wt|sub", "push@../wt"]],
+    // A directory named in a message or a string is not a cd.
+    ['git commit -m "cd ../wt first" && git push', undefined, ["commit@", "push@"]],
+    ['echo "cd ../wt"; git push', undefined, ["push@"]],
+  ];
+  for (const [command, tool, expected] of rows) {
+    it(`reads ${JSON.stringify(command)}`, () => {
+      assert.deepEqual(where(command, tool), expected);
+    });
+  }
+
+  it("reads 200 KB of cd commands, in a row and in groups, in under a second", () => {
+    for (const command of ["cd x; ".repeat(34_000), "(cd x)".repeat(34_000), "cd x && git push; ".repeat(11_000)]) {
+      const started = performance.now();
+      gitInvocations(command, "Bash");
+      const elapsed = performance.now() - started;
+      assert.ok(elapsed < 1000, `took ${elapsed.toFixed(0)} ms for ${command.length} chars`);
+    }
   });
 });
