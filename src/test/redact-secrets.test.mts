@@ -366,6 +366,12 @@ describe("redactSecrets: credential shapes without a secret name", () => {
       "<private-key-redacted>\nnext",
     ],
     ["-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA7", "<private-key-redacted>"],
+    // the PGP armor (`gpg --export-secret-keys --armor`) ends its header in BLOCK
+    [
+      "-----BEGIN PGP PRIVATE KEY BLOCK-----\n\nlQOYBGZ1c2VkMQgAw7JqT9pLx2\n=AbCd\n-----END PGP PRIVATE KEY BLOCK-----\nnext",
+      "<private-key-redacted>\nnext",
+    ],
+    ["-----BEGIN PGP PRIVATE KEY BLOCK-----\n\nlQOYBGZ1c2VkMQgAw7JqT9pLx2", "<private-key-redacted>"],
   ];
   for (const [text, expected] of redacted) {
     it(`redacts ${JSON.stringify(text)}`, () => {
@@ -402,6 +408,7 @@ describe("redactSecrets: credential shapes without a secret name", () => {
     "pip install sk-learn",
     "open authorization_endpoint.md",
     "-----BEGIN CERTIFICATE-----",
+    "-----BEGIN PGP PUBLIC KEY BLOCK-----\n\nmQENBGZ1c2Vk\n-----END PGP PUBLIC KEY BLOCK-----",
   ];
   for (const text of untouched) {
     it(`leaves ${JSON.stringify(text)} alone`, () => {

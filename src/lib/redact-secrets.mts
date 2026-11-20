@@ -72,7 +72,9 @@ const BARE_PROPERTY_RE = propertyRule(BARE_SECRET_NAME);
 // fixed punctuation, so it is linear on the bounded text callers pass.
 //
 // A private key block, through its END line or to the end of a cut-off head.
-const PRIVATE_KEY_RE = /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g;
+// The PGP armor closes its header with BLOCK (`BEGIN PGP PRIVATE KEY BLOCK`).
+const PRIVATE_KEY_RE =
+  /-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY(?: BLOCK)?-----|$)/g;
 // An Authorization header with any scheme, or none: `Authorization: Basic x`,
 // `"Authorization":"token x"`. A known scheme word is kept.
 const AUTHORIZATION_RE =
