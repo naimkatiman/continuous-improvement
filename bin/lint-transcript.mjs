@@ -363,7 +363,8 @@ function analyzeTranscript(events, context) {
         const tool = event.tool || event.tool_name || "";
         const input = event.tool_input || event.input || {};
         const command = typeof input.command === "string" ? input.command : "";
-        const sessionKey = event.session_id ?? "";
+        // A flat log may carry any value as its session id: only a string names a session.
+        const sessionKey = typeof event.session_id === "string" ? event.session_id : "";
         let session = researchBySession.get(sessionKey);
         if (!session) {
             session = { research: 0, writes: 0, writesBeforeResearch: 0, firstWriteBeforeResearch: -1 };

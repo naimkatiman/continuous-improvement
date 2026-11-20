@@ -698,6 +698,19 @@ describe("lint-transcript.mjs", () => {
                 ];
                 assert.deepEqual(lawsOf(JSON.parse(lintRows(rows, ["--json"]).stdout)), []);
             });
+            it("reads a flat log whose session ids are not strings as one session, without crashing", () => {
+                const rows = [
+                    { tool: "Edit", session_id: 1, tool_input: { file_path: "/repo/src/a.ts" } },
+                    { tool: "Edit", session_id: { id: 2 }, tool_input: { file_path: "/repo/src/b.ts" } },
+                    { tool: "Edit", session_id: "sess-cccccccc", tool_input: { file_path: "/repo/src/c.ts" } },
+                    { tool: "Bash", tool_input: { command: "npm test" } },
+                ];
+                const { status, stdout } = lintRows(rows, ["--json"]);
+                assert.equal(status, 0);
+                const result = JSON.parse(stdout);
+                assert.deepEqual(lawsOf(result), [1, 1], "the rows without a usable id, and sess-cccccccc");
+                assert.match(result.violations[0]?.message ?? "", /^Session \(none\): 2 writes/);
+            });
             it("reports one violation for each session that wrote without research", () => {
                 const rows = [
                     inSession("sess-aaaaaaaa", "Edit", "/repo/src/a.ts"),
