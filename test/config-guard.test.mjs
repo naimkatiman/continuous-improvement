@@ -69,6 +69,11 @@ describe("config-guard-gate: matchProtectedPath", () => {
         "/home/me/.claude/plugins/cache/mp/ci/3.23.0/hooks/gateguard.mjs",
         ".claude-plugin/plugin.json",
         ".claude-plugin/marketplace.json",
+        // A protected directory named without a trailing slash is the directory
+        // itself: removing or renaming it takes every file in it along.
+        ".claude/hooks",
+        "C:\\Users\\me\\.claude\\plugins",
+        "repo/.claude-plugin",
     ];
     for (const p of protectedPaths) {
         it(`protects ${p}`, () => {
@@ -83,6 +88,9 @@ describe("config-guard-gate: matchProtectedPath", () => {
         "docs/settings.local.json",
         "hooks.json.md",
         "src/lib/config-guard-gate.mts",
+        "src/hooks",
+        "docs/plugins",
+        ".claude/hooks-notes.md",
         "",
     ];
     for (const p of openPaths) {
@@ -174,6 +182,74 @@ describe("config-guard-gate: classifyMutation", () => {
             assert.equal(classifyMutation("PowerShell", { command }), null, `expected allow for: ${command}`);
         }
     });
+    // The first PowerShell pass only knew six full cmdlet names with a positional
+    // destination. PowerShell writes a file through aliases, New-Item -Force
+    // (which truncates), a rename or move of the protected file itself, a named
+    // or colon-bound parameter, a .NET file API, and inside a script block.
+    const powershellNativeWrites = [
+        // aliases of Set-Content, Add-Content, Clear-Content, Remove-Item, New-Item
+        "sc .claude/settings.json '{}'",
+        "'{}' | sc .claude\\settings.json",
+        "ac .claude\\settings.json 'x'",
+        "clc .claude\\settings.json",
+        "ri .mcp.json",
+        "erase .claude\\settings.json",
+        "New-Item -ItemType File -Force .claude/settings.json",
+        "ni -Force -ItemType File .claude\\settings.json",
+        "$null = New-Item -ItemType File -Force .claude/settings.json",
+        "Export-Clixml .claude/settings.json",
+        // the protected file is the source of a rename or move
+        "Rename-Item .claude/settings.json settings.bak",
+        "ren .claude\\settings.json settings.bak",
+        "Move-Item .claude/settings.json backup/",
+        "Move-Item .claude\\settings.json $env:TEMP\\s.json",
+        "mv .claude/settings.json backup/",
+        // copy aliases, and a destination named instead of last
+        "copy evil.json .claude\\settings.json",
+        "cpi evil.json .claude\\settings.json",
+        "Copy-Item -Destination .claude/settings.json -Path fresh.json",
+        "Copy-Item -Destination:.claude/settings.json -Path:fresh.json",
+        // a colon-bound parameter
+        "Set-Content -Path:'.claude/settings.json' -Value '{}'",
+        "Set-Content -Path:.claude\\settings.json -Value '{}'",
+        // .NET file APIs
+        "[System.IO.File]::WriteAllText(\"$HOME\\.claude\\settings.json\", '{}')",
+        "[IO.File]::WriteAllText('.claude/settings.json', '{}')",
+        "[IO.File]::WriteAllText(\"$PWD\\.claude\\settings.json\", '{}')",
+        "[IO.File]::AppendAllText('.mcp.json', 'x')",
+        "[IO.File]::Delete('.mcp.json')",
+        // the Windows PowerShell 5.1 form of `A && B`
+        "if ($?) { Copy-Item fresh.json .claude/settings.json }",
+        // a protected directory itself, not a file inside it
+        "Remove-Item .claude\\hooks -Recurse",
+        "Remove-Item $env:USERPROFILE\\.claude\\plugins -Recurse -Force",
+        "rd .claude-plugin",
+    ];
+    for (const command of powershellNativeWrites) {
+        it(`flags the PowerShell write: ${command}`, () => {
+            const hit = classifyMutation("PowerShell", { command });
+            assert.notEqual(hit, null, `expected a hit for: ${command}`);
+            assert.equal(hit?.via, "bash");
+        });
+    }
+    const powershellNativeReads = [
+        "Copy-Item -Path .claude/settings.json -Destination backup/settings.json",
+        "Copy-Item -Destination backup/settings.json -Path .claude/settings.json",
+        "cpi .claude\\settings.json backup\\settings.json",
+        "Get-Content .claude/settings.json | Select-String hooks",
+        "Test-Path .claude/hooks",
+        "Get-ChildItem .claude\\plugins",
+        "[IO.File]::ReadAllText('.claude/settings.json')",
+        "if (Test-Path .claude/settings.json) { Get-Content .claude/settings.json }",
+        "New-Item -ItemType Directory out",
+        "Rename-Item notes.md notes.bak",
+        "sc notes/settings.md 'x'",
+    ];
+    for (const command of powershellNativeReads) {
+        it(`allows the PowerShell read or unrelated write: ${command}`, () => {
+            assert.equal(classifyMutation("PowerShell", { command }), null);
+        });
+    }
 });
 describe("config-guard-gate: decide", () => {
     it("off allows everything", () => {
@@ -245,6 +321,29 @@ describe("hooks/config-guard.mjs (runtime PreToolUse hook)", () => {
     }
     it("allows a PowerShell read of a protected file in block mode", () => {
         const r = runHook("PowerShell", { command: "Get-Content .claude/settings.json" }, { CI_CONFIG_GUARD: "block" });
+        assert.equal(r.decision, "allow");
+        assert.equal(r.stderr, "");
+    });
+    // PowerShell-native spellings of the same write, through the spawned hook.
+    const powershellNativeEdits = [
+        "sc .claude/settings.json '{}'",
+        "New-Item -ItemType File -Force .claude/settings.json",
+        "Rename-Item .claude/settings.json settings.bak",
+        "Copy-Item -Destination .claude/settings.json -Path fresh.json",
+        "Set-Content -Path:'.claude/settings.json' -Value '{}'",
+        "[IO.File]::WriteAllText('.claude/settings.json', '{}')",
+        "if ($?) { Copy-Item fresh.json .claude/settings.json }",
+        "Remove-Item .claude\\hooks -Recurse",
+    ];
+    for (const command of powershellNativeEdits) {
+        it(`PowerShell in block mode: denies ${command}`, () => {
+            const r = runHook("PowerShell", { command }, { CI_CONFIG_GUARD: "block" });
+            assert.equal(r.decision, "block");
+            assert.match(r.reason ?? "", /config-guard/);
+        });
+    }
+    it("allows a PowerShell copy of a protected file to a backup in block mode", () => {
+        const r = runHook("PowerShell", { command: "Copy-Item -Destination backup/settings.json -Path .claude/settings.json" }, { CI_CONFIG_GUARD: "block" });
         assert.equal(r.decision, "allow");
         assert.equal(r.stderr, "");
     });

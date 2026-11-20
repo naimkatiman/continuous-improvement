@@ -15,9 +15,11 @@
 // resolves to warn, and a call that names no protected path is always allowed.
 /**
  * Path patterns, matched case-insensitively on the forward-slash form.
- * A trailing "/" means a directory component anywhere in the path; otherwise
- * the pattern must be the whole path or a trailing path segment, so
- * `hooks.json.md` and `config/settings.json` are not matched.
+ * A trailing "/" means a directory: anything inside it, and the directory
+ * itself when the path ends with its name (`.claude/hooks`), since removing or
+ * renaming the directory takes every file in it along. Otherwise the pattern
+ * must be the whole path or a trailing path segment, so `hooks.json.md` and
+ * `config/settings.json` are not matched.
  */
 export const PROTECTED_PATTERNS = [
     ".claude/settings.json",
@@ -43,7 +45,8 @@ export function matchProtectedPath(filePath) {
     for (const pattern of PROTECTED_PATTERNS) {
         const lp = pattern.toLowerCase();
         if (lp.endsWith("/")) {
-            if (n.includes(lp))
+            const dir = lp.slice(0, -1);
+            if (n.includes(lp) || n === dir || n.endsWith(`/${dir}`))
                 return pattern;
             continue;
         }
@@ -75,8 +78,10 @@ const FILE_MUTATING_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit
 // classifier below (and both report `via: "bash"`).
 const SHELL_TOOLS = new Set(["Bash", "PowerShell"]);
 // --- Bash --------------------------------------------------------------------
-// Split at shell separators that sit outside single or double quotes.
-function splitSimpleCommands(command) {
+// Split at shell separators that sit outside single or double quotes. With
+// `blocks`, an unquoted `{`, `}`, `(` or `)` ends a command too, so the body of
+// a PowerShell script block (`if ($?) { Copy-Item a b }`) is a segment of its own.
+function splitSimpleCommands(command, blocks) {
     const segments = [];
     let current = "";
     let quote = null;
@@ -93,7 +98,7 @@ function splitSimpleCommands(command) {
             current += ch;
             continue;
         }
-        if (ch === "\n" || ch === ";") {
+        if (ch === "\n" || ch === ";" || (blocks && (ch === "{" || ch === "}" || ch === "(" || ch === ")"))) {
             segments.push(current);
             current = "";
             continue;
@@ -110,6 +115,12 @@ function splitSimpleCommands(command) {
     segments.push(current);
     return segments.map((s) => s.trim()).filter((s) => s !== "");
 }
+// The plain split first, so a one-liner that keeps its parentheses in one
+// segment (`[IO.File]::WriteAllText(...)`) is still seen whole; then the block
+// split, for a command that only starts after `{` or `(`.
+function allSimpleCommands(command) {
+    return [...splitSimpleCommands(command, false), ...splitSimpleCommands(command, true)];
+}
 function tokenize(segment) {
     return segment.split(/\s+/).filter((t) => t !== "");
 }
@@ -124,25 +135,77 @@ function commandWord(tokens) {
             i++;
             continue;
         }
+        // PowerShell output capture: `$null = New-Item -Force settings.json`.
+        if (/^\$[A-Za-z_][\w:]*$/.test(t) && /^\+?=$/.test(tokens[i + 1] ?? "")) {
+            i += 2;
+            continue;
+        }
         break;
     }
     return { cmd: (tokens[i] ?? "").toLowerCase(), rest: tokens.slice(i + 1) };
 }
-const COPY_MOVE = new Set(["cp", "mv", "copy-item", "move-item"]);
+// Command words by what they do to an operand. PowerShell cmdlets are listed
+// with their built-in aliases (sc, ac, clc, ni, ri, cpi, mi, rni) and the
+// cmd.exe names PowerShell also aliases (copy, move, ren, del, erase, rd).
+// Copy: only the destination is written. Move and rename: the source goes too.
+const COPY_COMMANDS = new Set(["cp", "copy-item", "copy", "cpi"]);
+const MOVE_COMMANDS = new Set(["mv", "move-item", "move", "mi", "rename-item", "ren", "rni"]);
 const OPERAND_WRITERS = new Set([
     "rm",
     "tee",
     "truncate",
     "remove-item",
+    "ri",
+    "rd",
+    "rmdir",
     "del",
+    "erase",
     "set-content",
+    "sc",
     "out-file",
     "add-content",
+    "ac",
     "clear-content",
+    "clc",
+    "new-item",
+    "ni",
+    "export-clixml",
+    "export-csv",
 ]);
 // Mutation indicators for the generic scan (a protected path mentioned inside
-// a scripting one-liner such as `node -e "writeFileSync('.claude/settings.json')"`).
-const GENERIC_WRITE_RE = /writefilesync|writefile\(|appendfile|unlink|rename\(|copyfile|rmsync|truncate|set-content|out-file|add-content|remove-item|\bdel\b|\bsed\s+-i\b|\btee\b|>{1,2}/i;
+// a scripting one-liner such as `node -e "writeFileSync('.claude/settings.json')"`
+// or a .NET call such as `[IO.File]::WriteAllText('.mcp.json', '{}')`).
+const GENERIC_WRITE_RE = /writefilesync|writefile\(|appendfile|unlink|rename\(|copyfile|rmsync|truncate|set-content|out-file|add-content|remove-item|writealltext|writealllines|writeallbytes|appendalltext|appendalllines|\]::delete\(|\]::move\(|\]::copy\(|\bdel\b|\bsed\s+-i\b|\btee\b|>{1,2}/i;
+// The path-like values a command names: its bare operands, plus the value of a
+// PowerShell colon-bound parameter (`-Path:settings.json`). Switch names and
+// the names of space-separated parameters are dropped; their values are
+// ordinary operands.
+function operandValues(rest) {
+    const values = [];
+    for (const t of rest) {
+        if (!t.startsWith("-")) {
+            values.push(stripQuotes(t));
+            continue;
+        }
+        const colon = t.indexOf(":");
+        if (colon > 1 && colon < t.length - 1)
+            values.push(stripQuotes(t.slice(colon + 1)));
+    }
+    return values;
+}
+// The destination of a copy: the value of PowerShell's -Destination when it is
+// named (it can come before the source), otherwise the last operand.
+function copyDestination(rest) {
+    for (let i = 0; i < rest.length; i++) {
+        const named = /^-des[a-z]*(?::(.+))?$/i.exec(rest[i]);
+        if (!named)
+            continue;
+        const value = named[1] ?? rest[i + 1];
+        return value ? stripQuotes(value) : null;
+    }
+    const values = operandValues(rest);
+    return values[values.length - 1] ?? null;
+}
 const CLAUDE_CLI_MUTATIONS = {
     plugin: new Set(["install", "uninstall", "enable", "disable", "update", "marketplace"]),
     mcp: new Set(["add", "remove", "add-json", "add-from-claude-desktop", "reset-project-choices"]),
@@ -163,12 +226,22 @@ function classifyBashSegment(segment) {
         }
         return null;
     }
-    // cp / mv: only the destination (last operand) can be a protected write.
-    if (COPY_MOVE.has(cmd)) {
-        const operands = rest.filter((t) => !t.startsWith("-"));
-        const dest = operands[operands.length - 1];
-        const pattern = dest ? matchProtectedPath(stripQuotes(dest)) : null;
-        return pattern && dest ? { target: stripQuotes(dest), pattern, via: "bash" } : null;
+    // Copy: only the destination can be a protected write; a protected source is
+    // a read (a backup).
+    if (COPY_COMMANDS.has(cmd)) {
+        const dest = copyDestination(rest);
+        const pattern = dest ? matchProtectedPath(dest) : null;
+        return pattern && dest ? { target: dest, pattern, via: "bash" } : null;
+    }
+    // Move / rename: the destination is written and the source stops existing
+    // under its name, so a protected path on either side is a mutation.
+    if (MOVE_COMMANDS.has(cmd)) {
+        for (const value of operandValues(rest)) {
+            const pattern = matchProtectedPath(value);
+            if (pattern)
+                return { target: value, pattern, via: "bash" };
+        }
+        return null;
     }
     // Redirects: `> path`, `>> path`, `2>path`, `>path`.
     for (let i = 0; i < tokens.length; i++) {
@@ -184,10 +257,7 @@ function classifyBashSegment(segment) {
     // Operand writers: any operand that is a protected path.
     const sedInPlace = cmd === "sed" && rest.some((t) => /^-[a-zA-Z]*i/.test(t) || t === "--in-place");
     if (OPERAND_WRITERS.has(cmd) || sedInPlace) {
-        for (const t of rest) {
-            if (t.startsWith("-"))
-                continue;
-            const clean = stripQuotes(t);
+        for (const clean of operandValues(rest)) {
             const pattern = matchProtectedPath(clean);
             if (pattern)
                 return { target: clean, pattern, via: "bash" };
@@ -233,7 +303,7 @@ export function classifyMutation(toolName, toolInput) {
         return null;
     }
     if (SHELL_TOOLS.has(toolName) && typeof toolInput.command === "string" && toolInput.command.trim() !== "") {
-        for (const segment of splitSimpleCommands(toolInput.command)) {
+        for (const segment of allSimpleCommands(toolInput.command)) {
             const hit = classifyBashSegment(segment);
             if (hit)
                 return hit;
