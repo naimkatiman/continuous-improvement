@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,6 +16,8 @@ interface LintJsonResult {
   score: number;
   stats: {
     researchTools: number;
+    toolCalls: number;
+    totalEvents: number;
     verifyTools: number;
     writeTools: number;
   };
@@ -26,6 +28,124 @@ interface LintJsonResult {
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const LINTER = join(__dirname, "..", "bin", "lint-transcript.mjs");
+
+// A Claude Code session transcript (~/.claude/projects/<project>/<session>.jsonl)
+// as the CLI writes it: every row is an envelope with a `type`, a tool call is a
+// `tool_use` block inside an `assistant` row, and its result comes back as a
+// `tool_result` block inside a `user` row. This session makes three Edit/Write
+// calls with no research before them and never runs a test.
+const CLAUDE_CODE_TRANSCRIPT_WITH_VIOLATIONS: unknown[] = [
+  { type: "file-history-snapshot", messageId: "u1", snapshot: { trackedFileBackups: {} }, isSnapshotUpdate: false },
+  {
+    type: "user",
+    uuid: "u1",
+    parentUuid: null,
+    sessionId: "sess-transcript",
+    cwd: "/repo",
+    message: { role: "user", content: "add a retry to the fetch helper" },
+  },
+  {
+    type: "assistant",
+    uuid: "a1",
+    parentUuid: "u1",
+    sessionId: "sess-transcript",
+    message: {
+      role: "assistant",
+      content: [
+        { type: "text", text: "Adding the retry." },
+        { type: "tool_use", id: "toolu_01", name: "Edit", input: { file_path: "/repo/src/fetch.ts", old_string: "get(", new_string: "retry(get, " } },
+      ],
+    },
+  },
+  {
+    type: "user",
+    uuid: "u2",
+    parentUuid: "a1",
+    sessionId: "sess-transcript",
+    message: { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_01", content: "The file /repo/src/fetch.ts has been updated." }] },
+  },
+  {
+    type: "assistant",
+    uuid: "a2",
+    parentUuid: "u2",
+    sessionId: "sess-transcript",
+    message: {
+      role: "assistant",
+      content: [
+        { type: "tool_use", id: "toolu_02", name: "Write", input: { file_path: "/repo/src/retry.ts", content: "export function retry() {}\n" } },
+        { type: "tool_use", id: "toolu_03", name: "Edit", input: { file_path: "/repo/src/index.ts", old_string: "", new_string: "export * from './retry';\n" } },
+      ],
+    },
+  },
+  {
+    type: "user",
+    uuid: "u3",
+    parentUuid: "a2",
+    sessionId: "sess-transcript",
+    message: {
+      role: "user",
+      content: [
+        { type: "tool_result", tool_use_id: "toolu_02", content: "File created successfully at: /repo/src/retry.ts" },
+        { type: "tool_result", tool_use_id: "toolu_03", content: "The file /repo/src/index.ts has been updated." },
+      ],
+    },
+  },
+  { type: "system", subtype: "turn_duration", sessionId: "sess-transcript", durationMs: 4200 },
+  {
+    type: "assistant",
+    uuid: "a3",
+    parentUuid: "u3",
+    sessionId: "sess-transcript",
+    message: { role: "assistant", content: [{ type: "text", text: "Done. The fetch helper now retries." }] },
+  },
+];
+
+/** One tool call as a Claude Code transcript records it: the assistant row, then its result row. */
+function transcriptToolCall(id: string, name: string, input: Record<string, unknown>): unknown[] {
+  return [
+    { type: "assistant", sessionId: "sess-transcript", message: { role: "assistant", content: [{ type: "tool_use", id, name, input }] } },
+    { type: "user", sessionId: "sess-transcript", message: { role: "user", content: [{ type: "tool_result", tool_use_id: id, content: "ok" }] } },
+  ];
+}
+
+/** One observations.jsonl row as bin/observe.mjs writes it: the tool input is a summary string. */
+function observation(tool: string, inputSummary: string, outputSummary = ""): unknown {
+  return {
+    ts: "2026-11-20T09:00:00Z",
+    event: "tool_complete",
+    session: "sess-observations",
+    tool,
+    input_summary: inputSummary,
+    output_summary: outputSummary,
+    project_id: "0123456789ab",
+    project_name: "repo",
+  };
+}
+
+// The plugin's own observation log for a session that writes two files with no
+// research before them, then runs the tests.
+const OBSERVATIONS_WITH_VIOLATIONS: unknown[] = [
+  observation("Edit", "/repo/src/fetch.ts", '{"filePath":"/repo/src/fetch.ts"}'),
+  observation("Write", "/repo/src/retry.ts", '{"type":"create","filePath":"/repo/src/retry.ts"}'),
+  observation("Bash", "npm test", '{"stdout":"tests 12\\npass 12\\nfail 0"}'),
+];
+
+function lintRows(rows: unknown[], flags: string[] = []): { status: number | null; stdout: string } {
+  const dir = join(tmpdir(), `ci-lint-rows-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  mkdirSync(dir, { recursive: true });
+  const file = join(dir, "transcript.jsonl");
+  writeFileSync(file, rows.map((row) => JSON.stringify(row)).join("\n") + "\n");
+  try {
+    const result = spawnSync("node", [LINTER, file, ...flags], { encoding: "utf8" });
+    return { status: result.status, stdout: result.stdout };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+function lawsOf(result: LintJsonResult): number[] {
+  return result.violations.map((violation) => violation.law);
+}
 
 function lintEvents(events: TranscriptEvent[], flags: string[] = []): string {
   const dir = join(tmpdir(), `ci-lint-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -285,5 +405,93 @@ describe("lint-transcript.mjs", () => {
     assert.equal(result.stats.researchTools, 3);
     assert.equal(result.stats.writeTools, 2);
     assert.equal(result.stats.verifyTools, 1);
+  });
+
+  it("--help names the three accepted input formats", () => {
+    const output = execFileSync("node", [LINTER, "--help"], { encoding: "utf8" });
+    assert.match(output, /Claude Code transcript/);
+    assert.match(output, /observations\.jsonl/);
+    assert.match(output, /tool_input/);
+  });
+
+  describe("Claude Code transcript rows (tool_use blocks inside assistant messages)", () => {
+    it("reports unresearched, unverified Edit/Write calls and exits 1 under --strict", () => {
+      const { status, stdout } = lintRows(CLAUDE_CODE_TRANSCRIPT_WITH_VIOLATIONS, ["--strict"]);
+      assert.doesNotMatch(stdout, /No law violations/);
+      assert.match(stdout, /Law 1: Research Before Executing/);
+      assert.match(stdout, /3 writes with 0 research operations/);
+      assert.match(stdout, /Law 4: Verify Before Reporting/);
+      assert.equal(status, 1, "a transcript with violations must fail --strict");
+    });
+
+    it("counts one event per tool_use block and none for the other rows", () => {
+      const { stdout } = lintRows(CLAUDE_CODE_TRANSCRIPT_WITH_VIOLATIONS, ["--json"]);
+      const result = JSON.parse(stdout) as LintJsonResult;
+      assert.equal(result.stats.totalEvents, 3);
+      assert.equal(result.stats.toolCalls, 3);
+      assert.equal(result.stats.writeTools, 3);
+      assert.equal(result.stats.researchTools, 0);
+      assert.equal(result.stats.verifyTools, 0);
+      assert.deepEqual(lawsOf(result), [1, 1, 1, 1, 4]);
+    });
+
+    it("reads research and the Bash command of a disciplined session, which stays clean under --strict", () => {
+      const rows = [
+        ...transcriptToolCall("toolu_11", "Grep", { pattern: "retry" }),
+        ...transcriptToolCall("toolu_12", "Read", { file_path: "/repo/src/fetch.ts" }),
+        ...transcriptToolCall("toolu_13", "Edit", { file_path: "/repo/src/fetch.ts", old_string: "a", new_string: "b" }),
+        ...transcriptToolCall("toolu_14", "Bash", { command: "npm test", description: "Run the tests" }),
+      ];
+      const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
+      assert.equal(result.stats.researchTools, 2);
+      assert.equal(result.stats.writeTools, 1);
+      assert.equal(result.stats.verifyTools, 1);
+      assert.deepEqual(lawsOf(result), []);
+
+      const strict = lintRows(rows, ["--strict"]);
+      assert.match(strict.stdout, /No law violations/);
+      assert.equal(strict.status, 0);
+    });
+  });
+
+  describe("observations.jsonl rows (tool input stored as input_summary)", () => {
+    it("reports the unresearched writes, sees the test run, and exits 1 under --strict", () => {
+      const result = JSON.parse(lintRows(OBSERVATIONS_WITH_VIOLATIONS, ["--json"]).stdout) as LintJsonResult;
+      assert.equal(result.stats.writeTools, 2);
+      assert.equal(result.stats.verifyTools, 1, "the Bash command lives in input_summary");
+      assert.deepEqual(lawsOf(result), [1, 1, 1], "Law 1 only: the test run rules out Law 4");
+
+      const strict = lintRows(OBSERVATIONS_WITH_VIOLATIONS, ["--strict"]);
+      assert.match(strict.stdout, /Law 1: Research Before Executing/);
+      assert.doesNotMatch(strict.stdout, /Law 4/);
+      assert.equal(strict.status, 1, "an observation log with violations must fail --strict");
+    });
+
+    it("keeps a researched, verified session clean under --strict", () => {
+      const rows = [
+        observation("Grep", "retry"),
+        observation("Read", "/repo/src/fetch.ts"),
+        observation("Edit", "/repo/src/fetch.ts"),
+        observation("Bash", "npm test", '{"stdout":"pass 12"}'),
+      ];
+      const { status, stdout } = lintRows(rows, ["--strict"]);
+      assert.match(stdout, /No law violations/);
+      assert.equal(status, 0);
+    });
+
+    it("reads the edited file path from input_summary (Law 6 counts distinct files)", () => {
+      const rows = [
+        observation("Grep", "retry"),
+        observation("Glob", "src/**/*.ts"),
+        observation("Read", "/repo/src/fetch.ts"),
+        ...Array.from({ length: 9 }, (_, index) => [
+          observation("Edit", `/repo/src/file${index}.ts`),
+          ...(index % 3 === 2 ? [observation("Bash", "npm test")] : []),
+        ]).flat(),
+      ];
+      const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
+      assert.deepEqual(lawsOf(result), [6]);
+      assert.equal(lintRows(rows, ["--strict"]).status, 1);
+    });
   });
 });

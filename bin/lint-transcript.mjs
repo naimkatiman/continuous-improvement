@@ -5,6 +5,18 @@
  * Analyzes AI agent transcripts/observations for compliance with
  * the 7 Laws of AI Agent Discipline.
  *
+ * Accepted input is JSONL, one JSON object per line, in any of three row
+ * shapes. Rows are normalised one at a time, so a file may mix them:
+ *
+ *   1. Claude Code transcript (~/.claude/projects/<project>/<session>.jsonl)
+ *        {"type":"assistant","message":{"content":[{"type":"tool_use","name":"Edit","input":{...}}]}}
+ *      Each tool_use block of an assistant row is one tool call. Every other
+ *      row (user/tool_result, system, summary, ...) is not a tool call.
+ *   2. observations.jsonl, written by this plugin's observer (bin/observe.mjs)
+ *        {"ts":"...","event":"tool_complete","session":"...","tool":"Bash","input_summary":"npm test",...}
+ *   3. Flat tool events
+ *        {"tool":"Edit","tool_input":{"file_path":"..."}}   (tool_name / input also read)
+ *
  * Usage:
  *   node bin/lint-transcript.mjs <file.jsonl>         # Lint a transcript file
  *   cat observations.jsonl | node bin/lint-transcript.mjs --stdin  # Pipe input
@@ -25,6 +37,64 @@ const LAWS = {
     6: { name: "Iterate One Change", patterns: [] },
     7: { name: "Learn From Every Session", patterns: [] },
 };
+function isObject(value) {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+/**
+ * Rebuild the tool input the rules read from an observation row. The observer
+ * (summariseInput in src/lib/observe-event.mts) keeps one field per tool: the
+ * command for Bash, the file path for Edit/Write.
+ */
+function observationInput(tool, inputSummary) {
+    if (tool === "Bash") {
+        return { command: inputSummary };
+    }
+    if (tool === "Write" || tool === "Edit") {
+        return { file_path: inputSummary };
+    }
+    return {};
+}
+/**
+ * Turn one parsed JSONL row into the tool events the rules consume. See the
+ * header comment for the three accepted row shapes.
+ */
+function normaliseRow(row) {
+    if (isObject(row)) {
+        const hasToolName = typeof row.tool === "string" || typeof row.tool_name === "string";
+        // Claude Code transcript: every row is an envelope with a `type`, and only
+        // the tool_use blocks of an assistant message are tool calls.
+        if (!hasToolName && typeof row.type === "string") {
+            const content = row.type === "assistant" && isObject(row.message) ? row.message.content : undefined;
+            if (!Array.isArray(content)) {
+                return [];
+            }
+            const events = [];
+            for (const block of content) {
+                if (isObject(block) && block.type === "tool_use" && typeof block.name === "string") {
+                    events.push({
+                        tool: block.name,
+                        tool_input: isObject(block.input) ? block.input : {},
+                        session_id: typeof row.sessionId === "string" ? row.sessionId : undefined,
+                    });
+                }
+            }
+            return events;
+        }
+        // observations.jsonl: the tool input is a summary string, not an object.
+        if (typeof row.tool === "string"
+            && typeof row.input_summary === "string"
+            && !isObject(row.tool_input)
+            && !isObject(row.input)) {
+            return [{
+                    tool: row.tool,
+                    tool_input: observationInput(row.tool, row.input_summary),
+                    session_id: typeof row.session === "string" ? row.session : undefined,
+                }];
+        }
+    }
+    // Flat tool events, and anything unrecognised, pass through untouched.
+    return [row];
+}
 function analyzeTranscript(events, parseFailures) {
     const violations = [];
     const stats = {
@@ -175,6 +245,13 @@ Usage:
   cat obs.jsonl | node bin/lint-transcript.mjs --stdin  Pipe input
   node bin/lint-transcript.mjs --help               Show help
 
+Accepted input (JSONL, one JSON object per line, shapes may be mixed):
+  Claude Code transcript   ~/.claude/projects/<project>/<session>.jsonl
+                           each tool_use block of an assistant row is a tool call
+  observations.jsonl       rows written by this plugin's observer
+                           {"tool":"Bash","input_summary":"npm test",...}
+  Flat tool events         {"tool":"Edit","tool_input":{"file_path":"..."}}
+
 Options:
   --stdin     Read from stdin
   --strict    Exit 1 if violations found
@@ -209,12 +286,15 @@ async function main() {
     const events = [];
     let parseFailures = 0;
     for (const line of lines) {
+        let row;
         try {
-            events.push(JSON.parse(line));
+            row = JSON.parse(line);
         }
         catch {
             parseFailures++;
+            continue;
         }
+        events.push(...normaliseRow(row));
     }
     if (events.length === 0) {
         console.log("No events found to analyze.");
