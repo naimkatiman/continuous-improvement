@@ -666,6 +666,60 @@ describe("lib/destructive-bash — classifier table", () => {
             assert.deepEqual(classifyDestructiveBash(command, tool), { destructive: true, rule }, command);
         }
     });
+    // Two ordinary Bash shapes hid a command from every structured rule. A shell
+    // keyword (`then`, `do`, `else`) was read as the command word, and a line
+    // that ends in a backslash was not joined to the next, so the flags written
+    // there were lost.
+    const KEYWORD_AND_CONTINUATION_CAUGHT = [
+        ['for wt in ../wt-a ../wt-b; do git -C "$wt" reset --hard origin/main; done', "git-reset-hard"],
+        ['if [ -n "$(git status --porcelain)" ]; then git checkout -- .; fi', "git-checkout-discard"],
+        ["if npm test; then echo ok; else git stash drop; fi", "git-stash-drop"],
+        ["if [ -d build ]; then echo skip; elif git clean -fdx; then echo cleaned; fi", "git-clean-force"],
+        ["while ! git clean -fdx; do sleep 1; done", "git-clean-force"],
+        ["until git restore .; do sleep 1; done", "git-restore-discard"],
+        ["time git clean -fdx", "git-clean-force"],
+        ["if git clean -fdx; then echo done; fi", "git-clean-force"],
+        ["git clean \\\n  -fdx", "git-clean-force"],
+        ["git clean \\\r\n  -fdx", "git-clean-force"],
+        ["find . -name '*.pyc' \\\n  -delete", "find-delete"],
+        ["git push \\\n  --force \\\n  origin feat/x", "git-push-force"],
+        ["rm -r \\\n  -f build", "rm-recursive-force"],
+        ["echo one \\\n  two; git clean -fdx", "git-clean-force"],
+    ];
+    for (const [command, rule] of KEYWORD_AND_CONTINUATION_CAUGHT) {
+        it(`catches the command after a shell keyword or across a backslash continuation: ${JSON.stringify(command)}`, () => {
+            assert.deepEqual(classifyDestructiveBash(command, "Bash"), { destructive: true, rule });
+            assert.deepEqual(classifyDestructiveBash(command), { destructive: true, rule });
+        });
+    }
+    const KEYWORD_AND_CONTINUATION_ALLOWED = [
+        "if [ -f a.txt ]; then git status; fi",
+        'for f in src/*.ts; do echo "$f"; done',
+        "if npm test; then echo ok; else git stash list; fi",
+        "while ! nc -z localhost 5432; do sleep 1; done",
+        "time npm test",
+        "git log \\\n  --oneline -5",
+        "git clean \\\n  -n",
+        "npm run build \\\n  && npm test",
+        // An escaped backslash before the line break is not a continuation.
+        "echo C:\\\\\ngit status",
+        // Prose in a heredoc body keeps the reading it had: a line that opens with
+        // a keyword is not a command.
+        "cat >> NOTES.md <<'EOF'\nif git clean -fd fails, ask first\nthen git stash drop is the last resort\nEOF",
+    ];
+    for (const command of KEYWORD_AND_CONTINUATION_ALLOWED) {
+        it(`allows a harmless command after a keyword or across a continuation: ${JSON.stringify(command)}`, () => {
+            assert.deepEqual(classifyDestructiveBash(command, "Bash"), { destructive: false, rule: null });
+        });
+    }
+    it("under PowerShell a backslash that ends a line is the end of a path, not a continuation", () => {
+        assert.deepEqual(classifyDestructiveBash("Set-Location C:\\repo\\\ngit clean -fdx", "PowerShell"), {
+            destructive: true,
+            rule: "git-clean-force",
+        });
+        assert.equal(classifyDestructiveBash("Get-ChildItem C:\\repo\\\nGet-ChildItem -Recurse", "PowerShell").destructive, false);
+        assert.equal(classifyDestructiveBash("Remove-Item C:\\scratch\\\nGet-ChildItem -Recurse", "PowerShell").destructive, false);
+    });
     // The comment pass is one walk over the text: an opener with no closer must
     // not send it looking through the rest of the text again and again.
     const LONG_COMMENT_INPUTS = [

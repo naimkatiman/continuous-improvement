@@ -214,6 +214,35 @@ describe("hook-pack-gate: text that is data is not a push", () => {
     });
   }
 
+  // The shared reader took a shell keyword for the command word and did not
+  // join a line that ends in a backslash to the next one.
+  const afterKeywordOrContinuation: ReadonlyArray<string> = [
+    "if git diff --quiet; then git push origin main; fi",
+    "if npm test; then echo ok; else git push origin main; fi",
+    "while ! git push origin main; do sleep 5; done",
+    "for r in origin backup; do git push $r main; done",
+    "git push \\\n  origin main",
+    "git push \\\n  -u \\\n  origin main",
+  ];
+  for (const command of afterKeywordOrContinuation) {
+    it(`still gates the push after a shell keyword or across a backslash continuation: ${JSON.stringify(command)}`, () => {
+      assert.equal(classifyCommand(command, "Bash"), "push");
+      assert.deepEqual(evaluatePush(command, "feature/x", "Bash"), { gated: true, branch: "main" });
+    });
+  }
+
+  it("reads a harmless command after a keyword, and prose in a heredoc body, as before", () => {
+    assert.equal(classifyCommand("if git diff --quiet; then git status; fi", "Bash"), "other");
+    assert.equal(evaluatePush("if npm test; then git push origin feature/x; fi", "main", "Bash").gated, false);
+    assert.equal(evaluatePush("git push \\\n  origin feature/x", "feature/x", "Bash").gated, false);
+    assert.equal(
+      classifyCommand("cat >> NOTES.md <<'EOF'\nthen git push origin main happens in CI\nEOF", "Bash"),
+      "other",
+    );
+    // Under PowerShell a backslash that ends a line is the end of a path.
+    assert.equal(evaluatePush("Set-Location C:\\repo\\\ngit push origin main", "feature/x", "PowerShell").gated, true);
+  });
+
   it("does not read a comment for pushes", () => {
     assert.equal(classifyCommand("# next: (git push origin main)\necho ok"), "other");
     assert.equal(classifyCommand("echo done # then (git push origin main) by hand"), "other");

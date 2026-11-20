@@ -264,11 +264,21 @@ function splitSimpleCommands(command: string, blocks: boolean): SimpleCommand[] 
 
 // PowerShell line continuation: an unquoted backtick at the end of a line joins
 // the next line to this command, so `Remove-Item` and its switches stay together.
-function joinLineContinuations(command: string): string {
+// Bash line continuation: a backslash before the line break joins the two
+// lines, outside single quotes (`git clean \` + `-fdx`). A backslash takes the
+// character after it, so `\\` before a line break is a backslash and no join.
+// Not under PowerShell, where a backslash that ends a line is the end of a path.
+function joinLineContinuations(command: string, powershell: boolean): string {
   let joined = "";
   let quote: '"' | "'" | null = null;
   for (let i = 0; i < command.length; i++) {
     const ch = command[i]!;
+    if (!powershell && ch === "\\" && quote !== "'" && i + 1 < command.length) {
+      const lineBreak = command[i + 1] === "\n" ? 1 : command[i + 1] === "\r" && command[i + 2] === "\n" ? 2 : 0;
+      if (lineBreak === 0) joined += ch + command[i + 1]!;
+      i += lineBreak === 0 ? 1 : lineBreak;
+      continue;
+    }
     if (quote) {
       if (ch === quote) quote = null;
     } else if (ch === '"' || ch === "'") {
@@ -290,9 +300,9 @@ function joinLineContinuations(command: string): string {
 // The continuation-joined view is an extra pass, never a replacement: in Bash
 // a backtick that ends a line closes a command substitution, and the next line
 // is still a command of its own.
-function allSimpleCommands(command: string): SimpleCommand[] {
+function allSimpleCommands(command: string, powershell: boolean): SimpleCommand[] {
   const segments = [...splitSimpleCommands(command, false), ...splitSimpleCommands(command, true)];
-  const joined = joinLineContinuations(command);
+  const joined = joinLineContinuations(command, powershell);
   if (joined !== command) {
     segments.push(...splitSimpleCommands(joined, false), ...splitSimpleCommands(joined, true));
   }
@@ -346,15 +356,24 @@ function commandWord(token: string): string {
     .toLowerCase();
 }
 
-// Drop `sudo`, `env`, leading VAR=value assignments and a PowerShell capture,
-// then normalise the command word, so the first word is the command the rules
-// look at.
-function commandWords(segment: string): Word[] {
+// The words a shell allows before the command word of a compound command:
+// `then git clean -fdx`, `do git reset --hard`, `while ! git push`.
+const SHELL_KEYWORDS: ReadonlySet<string> = new Set(["if", "then", "else", "elif", "do", "while", "until", "!", "time"]);
+
+// Drop `sudo`, `env`, leading VAR=value assignments, a PowerShell capture and
+// (with `keywords`) the shell keywords, then normalise the command word, so the
+// first word is the command the rules look at. A heredoc body is read without
+// `keywords`: a line of a note that opens with "if" or "then" is prose.
+function commandWords(segment: string, keywords = true): Word[] {
   const words = splitWords(segment);
   let i = 0;
   while (i < words.length) {
     const t = words[i]!.text;
     if (t === "sudo" || t === "env" || t === "command" || /^[A-Za-z_][A-Za-z0-9_]*=/.test(t)) {
+      i++;
+      continue;
+    }
+    if (keywords && SHELL_KEYWORDS.has(t)) {
       i++;
       continue;
     }
@@ -749,7 +768,7 @@ function classify(command: string, powershell: boolean, depth: number, cmd = fal
   const stripped = stripMessageArgs(code);
   const scanned = scannableBodies(code, lifted.bodies);
 
-  for (const segment of allSimpleCommands(stripped)) {
+  for (const segment of allSimpleCommands(stripped, powershell)) {
     const words = commandWords(segment.text);
     if (words.length === 0) continue;
     const tokens = words.map((word) => word.text);
@@ -769,7 +788,7 @@ function classify(command: string, powershell: boolean, depth: number, cmd = fal
   for (const body of scanned) {
     if (body.hereString) continue;
     for (const segment of splitSimpleCommands(maskEscapedQuotes(body.text, false), false)) {
-      const tokens = commandWords(segment.text).map((word) => word.text);
+      const tokens = commandWords(segment.text, false).map((word) => word.text);
       if (tokens.length === 0) continue;
       const rule = matchStructuredRule(tokens, false, false);
       if (rule !== null) return { destructive: true, rule };
@@ -939,7 +958,7 @@ function collectGit(command: string, powershell: boolean, depth: number, found: 
   const lifted = extractHereBodies(command);
   const code = maskEscapedQuotes(lifted.code, powershell);
   const stripped = stripMessageArgs(code);
-  const joined = joinLineContinuations(stripped);
+  const joined = joinLineContinuations(stripped, powershell);
 
   for (const view of joined === stripped ? [stripped] : [stripped, joined]) {
     for (const segment of splitSimpleCommands(view, false)) {
@@ -960,7 +979,7 @@ function collectGit(command: string, powershell: boolean, depth: number, found: 
   for (const body of scannableBodies(code, lifted.bodies)) {
     if (body.hereString) continue;
     for (const segment of splitSimpleCommands(maskEscapedQuotes(body.text, false), false)) {
-      const git = gitSubcommand(commandWords(segment.text).map((word) => word.text));
+      const git = gitSubcommand(commandWords(segment.text, false).map((word) => word.text));
       if (git !== null) found.push(git);
     }
   }
