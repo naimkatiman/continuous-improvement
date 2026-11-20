@@ -43,9 +43,20 @@ function isObject(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 /**
+ * The tool name the rules know for `tool`. Claude Code on Windows has a
+ * first-class PowerShell tool with the same { command } input as Bash, so a
+ * test run through it is the same verification.
+ */
+function canonicalTool(tool) {
+    return tool === "PowerShell" ? "Bash" : tool;
+}
+/**
  * Rebuild the tool input the rules read from an observation row. The observer
  * (summariseInput in src/lib/observe-event.mts) keeps one field per tool: the
- * command for Bash, the file path for Edit/Write.
+ * command for Bash, the file path for Edit/Write. For every other tool it
+ * keeps the head of the JSON-serialised input, which for PowerShell holds the
+ * command; when the 500-character cut left that JSON unterminated the raw
+ * head still contains the command text.
  */
 function observationInput(tool, inputSummary) {
     if (tool === "Bash") {
@@ -54,7 +65,16 @@ function observationInput(tool, inputSummary) {
     if (tool === "Write" || tool === "Edit") {
         return { file_path: inputSummary };
     }
-    return {};
+    try {
+        const parsed = JSON.parse(inputSummary);
+        if (isObject(parsed)) {
+            return parsed;
+        }
+    }
+    catch {
+        // not JSON, or cut off mid-value
+    }
+    return tool === "PowerShell" ? { command: inputSummary } : {};
 }
 /**
  * An observation row is a hook event, not a tool call. The npm installer wires
@@ -99,7 +119,7 @@ function normaliseRow(row, pendingStarts) {
             for (const block of content) {
                 if (isObject(block) && block.type === "tool_use" && typeof block.name === "string") {
                     events.push({
-                        tool: block.name,
+                        tool: canonicalTool(block.name),
                         tool_input: isObject(block.input) ? block.input : {},
                         session_id: typeof row.sessionId === "string" ? row.sessionId : undefined,
                     });
@@ -116,13 +136,18 @@ function normaliseRow(row, pendingStarts) {
                 return [];
             }
             return [{
-                    tool: row.tool,
+                    tool: canonicalTool(row.tool),
                     tool_input: observationInput(row.tool, row.input_summary),
                     session_id: typeof row.session === "string" ? row.session : undefined,
                 }];
         }
+        // Flat tool events keep their fields; only the tool name is canonicalised.
+        const flatTool = typeof row.tool === "string" ? row.tool : row.tool_name;
+        if (typeof flatTool === "string" && canonicalTool(flatTool) !== flatTool) {
+            return [{ ...row, tool: canonicalTool(flatTool) }];
+        }
     }
-    // Flat tool events, and anything unrecognised, pass through untouched.
+    // Every other flat tool event, and anything unrecognised, passes through untouched.
     return [row];
 }
 function analyzeTranscript(events, parseFailures) {

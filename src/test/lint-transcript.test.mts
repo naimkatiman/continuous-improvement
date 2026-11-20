@@ -496,6 +496,68 @@ describe("lint-transcript.mjs", () => {
     });
   });
 
+  // Claude Code on Windows has a first-class PowerShell tool with the same
+  // { command } input as Bash. A test run through it is the same verification,
+  // and reading only `Bash` turned every Windows session into a Law 4 failure.
+  describe("a test run through the PowerShell tool counts as verification", () => {
+    it("in a Claude Code transcript", () => {
+      const rows = [
+        ...transcriptToolCall("toolu_21", "Read", { file_path: "/repo/src/fetch.ts" }),
+        ...transcriptToolCall("toolu_22", "Edit", { file_path: "/repo/src/fetch.ts", old_string: "a", new_string: "b" }),
+        ...transcriptToolCall("toolu_23", "PowerShell", { command: "npm test", description: "Run tests" }),
+      ];
+      const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
+      assert.equal(result.stats.verifyTools, 1);
+      assert.deepEqual(lawsOf(result), []);
+      assert.equal(lintRows(rows, ["--strict"]).status, 0);
+    });
+
+    it("in observations.jsonl, where the observer stores the PowerShell input as JSON", () => {
+      const rows = [
+        observation("Read", "/repo/src/fetch.ts"),
+        observation("Edit", "/repo/src/fetch.ts"),
+        observation("PowerShell", '{"command":"npm test","description":"Run tests"}', "ok"),
+      ];
+      const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
+      assert.equal(result.stats.verifyTools, 1);
+      assert.deepEqual(lawsOf(result), []);
+      assert.equal(lintRows(rows, ["--strict"]).status, 0);
+    });
+
+    it("in observations.jsonl when the 500-character cut left the JSON unterminated", () => {
+      const cut = `{"command":"npm test -- ${"--grep case ".repeat(60)}`.slice(0, 500);
+      const rows = [
+        observation("Read", "/repo/src/fetch.ts"),
+        observation("Edit", "/repo/src/fetch.ts"),
+        observation("PowerShell", cut, "ok"),
+      ];
+      const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
+      assert.equal(result.stats.verifyTools, 1);
+    });
+
+    it("in a flat tool event", () => {
+      const rows = [
+        { tool: "Read", tool_input: { file_path: "/repo/src/fetch.ts" } },
+        { tool: "Edit", tool_input: { file_path: "/repo/src/fetch.ts" } },
+        { tool_name: "PowerShell", tool_input: { command: "npm run build" } },
+      ];
+      const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
+      assert.equal(result.stats.verifyTools, 1);
+      assert.deepEqual(lawsOf(result), []);
+    });
+
+    it("a PowerShell command that is not a test or build run is still not verification", () => {
+      const rows = [
+        ...transcriptToolCall("toolu_31", "Read", { file_path: "/repo/src/fetch.ts" }),
+        ...transcriptToolCall("toolu_32", "Edit", { file_path: "/repo/src/fetch.ts", old_string: "a", new_string: "b" }),
+        ...transcriptToolCall("toolu_33", "PowerShell", { command: "Get-ChildItem src" }),
+      ];
+      const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
+      assert.equal(result.stats.verifyTools, 0);
+      assert.deepEqual(lawsOf(result), [4]);
+    });
+  });
+
   // The npm installer wires the observer on PreToolUse and PostToolUse, so its
   // log holds two rows per tool call: tool_start, then tool_complete. The
   // plugin wires PostToolUse only. A row is a hook event, not a tool call, and

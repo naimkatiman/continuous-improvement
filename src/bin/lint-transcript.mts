@@ -90,9 +90,21 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * The tool name the rules know for `tool`. Claude Code on Windows has a
+ * first-class PowerShell tool with the same { command } input as Bash, so a
+ * test run through it is the same verification.
+ */
+function canonicalTool(tool: string): string {
+  return tool === "PowerShell" ? "Bash" : tool;
+}
+
+/**
  * Rebuild the tool input the rules read from an observation row. The observer
  * (summariseInput in src/lib/observe-event.mts) keeps one field per tool: the
- * command for Bash, the file path for Edit/Write.
+ * command for Bash, the file path for Edit/Write. For every other tool it
+ * keeps the head of the JSON-serialised input, which for PowerShell holds the
+ * command; when the 500-character cut left that JSON unterminated the raw
+ * head still contains the command text.
  */
 function observationInput(tool: string, inputSummary: string): ToolPayload {
   if (tool === "Bash") {
@@ -101,7 +113,15 @@ function observationInput(tool: string, inputSummary: string): ToolPayload {
   if (tool === "Write" || tool === "Edit") {
     return { file_path: inputSummary };
   }
-  return {};
+  try {
+    const parsed: unknown = JSON.parse(inputSummary);
+    if (isObject(parsed)) {
+      return parsed as ToolPayload;
+    }
+  } catch {
+    // not JSON, or cut off mid-value
+  }
+  return tool === "PowerShell" ? { command: inputSummary } : {};
 }
 
 /**
@@ -149,7 +169,7 @@ function normaliseRow(row: unknown, pendingStarts: Map<string, number>): Transcr
       for (const block of content) {
         if (isObject(block) && block.type === "tool_use" && typeof block.name === "string") {
           events.push({
-            tool: block.name,
+            tool: canonicalTool(block.name),
             tool_input: isObject(block.input) ? (block.input as ToolPayload) : {},
             session_id: typeof row.sessionId === "string" ? row.sessionId : undefined,
           });
@@ -169,14 +189,20 @@ function normaliseRow(row: unknown, pendingStarts: Map<string, number>): Transcr
         return [];
       }
       return [{
-        tool: row.tool,
+        tool: canonicalTool(row.tool),
         tool_input: observationInput(row.tool, row.input_summary),
         session_id: typeof row.session === "string" ? row.session : undefined,
       }];
     }
+
+    // Flat tool events keep their fields; only the tool name is canonicalised.
+    const flatTool = typeof row.tool === "string" ? row.tool : row.tool_name;
+    if (typeof flatTool === "string" && canonicalTool(flatTool) !== flatTool) {
+      return [{ ...(row as TranscriptEvent), tool: canonicalTool(flatTool) }];
+    }
   }
 
-  // Flat tool events, and anything unrecognised, pass through untouched.
+  // Every other flat tool event, and anything unrecognised, passes through untouched.
   return [row as TranscriptEvent];
 }
 
