@@ -194,6 +194,96 @@ describe("summariseOutput", () => {
         assert.equal(summariseOutput(false), "false");
     });
 });
+// Rows are redacted when they are written, not when they are read: every
+// summary below ends up at rest in observations.jsonl. Both values are fakes.
+describe("secret redaction at write time", () => {
+    const BEARER = "sk-FAKE0123456789abcdefghijklmnopqrstuv";
+    const KV_SECRET = "FAKEvalue-9f8e7d6c5b4a";
+    const BEARER_LEAD = 'curl -H "Authorization: Bearer ';
+    // A command whose bearer token starts `before` chars ahead of `cut` and ends
+    // past it, so a cut-then-redact order would leave the token head in the row.
+    function straddling(cut, before) {
+        const padding = "pad ".repeat(cut).slice(0, cut - before - BEARER_LEAD.length);
+        const text = `${padding}${BEARER_LEAD}${BEARER}" https://api.example.test`;
+        assert.equal(text.indexOf(BEARER), cut - before, "fixture: token starts inside the budget");
+        assert.ok(text.indexOf(BEARER) + BEARER.length > cut, "fixture: token ends past the budget");
+        return text;
+    }
+    it("redacts a bearer token from a Bash command head and keeps the rest", () => {
+        const summary = summariseInput("Bash", {
+            command: `${BEARER_LEAD}${BEARER}" https://api.example.test/v1/items`,
+        });
+        assert.equal(summary, `${BEARER_LEAD}<redacted>" https://api.example.test/v1/items`);
+    });
+    it("redacts a KEY=value assignment from a Bash command head", () => {
+        const summary = summariseInput("Bash", {
+            command: `API_TOKEN=${KV_SECRET} ./deploy.sh --env staging`,
+        });
+        assert.equal(summary, "API_TOKEN=<redacted> ./deploy.sh --env staging");
+    });
+    it("redacts secrets from the JSON fallback of an unknown tool", () => {
+        const summary = summariseInput("WebFetch", {
+            url: "https://api.example.test",
+            headers: { Authorization: `Bearer ${BEARER}` },
+        });
+        assert.ok(!summary.includes(BEARER), summary);
+        assert.match(summary, /"url":"https:\/\/api\.example\.test"/);
+        assert.match(summary, /"Authorization":"Bearer <redacted>"/);
+    });
+    it("redacts secrets from string output", () => {
+        const summary = summariseOutput(`export API_TOKEN=${KV_SECRET}\nAuthorization: Bearer ${BEARER}\ndone`);
+        assert.equal(summary, "export API_TOKEN=<redacted>\nAuthorization: Bearer <redacted>\ndone");
+    });
+    it("redacts secrets from object output (the Bash tool_response shape)", () => {
+        const summary = summariseOutput({
+            stdout: `Authorization: Bearer ${BEARER}\nAPI_TOKEN=${KV_SECRET}\n`,
+            stderr: "",
+            interrupted: false,
+        });
+        assert.ok(!summary.includes(BEARER), summary);
+        assert.ok(!summary.includes(KV_SECRET), summary);
+        assert.match(summary, /^\{"stdout":"Authorization: Bearer <redacted>/);
+    });
+    it("leaves no token head behind when a secret straddles the 500-char input cut", () => {
+        const summary = summariseInput("Bash", { command: straddling(500, 10) });
+        assert.ok(summary.length <= 500, `input budget exceeded: ${summary.length}`);
+        assert.ok(!summary.includes(BEARER.slice(0, 8)), summary.slice(-60));
+        assert.match(summary, /Bearer <redacted>/);
+    });
+    it("leaves no token head behind when a secret straddles the 200-char output cut", () => {
+        const summary = summariseOutput(straddling(200, 10));
+        assert.ok(summary.length <= 200, `output budget exceeded: ${summary.length}`);
+        assert.ok(!summary.includes(BEARER.slice(0, 8)), summary.slice(-60));
+        assert.match(summary, /Bearer <redacted>/);
+    });
+    it("holds both budgets when redaction makes the text longer", () => {
+        // Each one-char value becomes a ten-char placeholder.
+        const many = "A_KEY=1 ".repeat(100);
+        const input = summariseInput("Bash", { command: many });
+        const output = summariseOutput(many);
+        assert.equal(input.length, 500);
+        assert.equal(output.length, 200);
+        assert.ok(input.startsWith("A_KEY=<redacted> A_KEY=<redacted> "), input.slice(0, 40));
+        assert.ok(output.startsWith("A_KEY=<redacted> A_KEY=<redacted> "), output.slice(0, 40));
+    });
+    it("leaves text with no secret shape untouched", () => {
+        const command = "git log --oneline -5 && npm run verify:all";
+        assert.equal(summariseInput("Bash", { command }), command);
+        assert.equal(summariseOutput(command), command);
+    });
+    it("stays cheap on a payload far larger than the budget", () => {
+        // Dash-separated text is the slow case for the JWT pattern: redacting these
+        // 30 KB whole takes seconds across the three calls, the bounded head takes
+        // milliseconds.
+        const blob = "ab-".repeat(10_000);
+        const started = process.hrtime.bigint();
+        summariseInput("Bash", { command: blob });
+        summariseOutput(blob);
+        summariseOutput({ stdout: blob });
+        const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+        assert.ok(elapsedMs < 1000, `three summaries took ${elapsedMs.toFixed(0)}ms`);
+    });
+});
 describe("HookPayload type contract", () => {
     it("exposes the documented fields", () => {
         // Type-only assertion: if the import compiles and the fields below

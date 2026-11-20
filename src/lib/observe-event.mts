@@ -7,10 +7,20 @@
 // touching the filesystem or computing project hashes.
 //
 // Truncation budgets match the prior bash/jq behavior to preserve the existing
-// privacy contract: input head ≤500 chars, output head ≤200 chars.
+// privacy contract: input head ≤500 chars, output head ≤200 chars. Every
+// summary is passed through redactSecrets before the cut, so the secret shapes
+// it knows are not written to observations.jsonl.
+
+import { redactSecrets } from "./redact-secrets.mjs";
 
 const INPUT_TRUNCATE = 500;
 const OUTPUT_TRUNCATE = 200;
+// How far past the budget redaction reads. A secret that straddles the cut is
+// matched whole instead of leaving its head in the row, and the regex work per
+// event stays bounded however large the payload is (this runs on every tool
+// call, and the redactor is quadratic on some long inputs). The one shape this
+// can miss is a bare JWT whose third segment starts past the lookahead.
+const REDACT_LOOKAHEAD = 1024;
 
 export interface HookPayload {
   tool_name: string;
@@ -73,7 +83,8 @@ export function parseHookPayload(raw: string): HookPayload | null {
  * Extract a tool-aware short summary from `tool_input`. Tool-specific cases
  * cover the high-frequency surfaces the linter/analyser reads (Bash command
  * head, Edit/Write/Read file_path, Grep/Glob pattern). Unknown tools fall
- * back to JSON.stringify(input) capped at INPUT_TRUNCATE.
+ * back to JSON.stringify(input) capped at INPUT_TRUNCATE. Every branch is
+ * redacted before the cut.
  *
  * Returns an empty string when the expected field is missing on a known tool
  * or when input is null/undefined — never returns "undefined" or "null"
@@ -85,19 +96,19 @@ export function summariseInput(toolName: string, input: unknown): string {
   switch (toolName) {
     case "Bash": {
       const cmd = readStringField(input, "command");
-      return cmd === null ? "" : truncate(cmd, INPUT_TRUNCATE);
+      return cmd === null ? "" : redactedHead(cmd, INPUT_TRUNCATE);
     }
     case "Edit":
     case "Write":
     case "Read":
     case "NotebookEdit": {
       const path = readStringField(input, "file_path");
-      return path === null ? "" : truncate(path, INPUT_TRUNCATE);
+      return path === null ? "" : redactedHead(path, INPUT_TRUNCATE);
     }
     case "Grep":
     case "Glob": {
       const pattern = readStringField(input, "pattern");
-      return pattern === null ? "" : truncate(pattern, INPUT_TRUNCATE);
+      return pattern === null ? "" : redactedHead(pattern, INPUT_TRUNCATE);
     }
     default: {
       // Unknown tool: stringify input so we record *something* useful for
@@ -108,19 +119,20 @@ export function summariseInput(toolName: string, input: unknown): string {
       } catch {
         serialised = "";
       }
-      return truncate(serialised ?? "", INPUT_TRUNCATE);
+      return redactedHead(serialised ?? "", INPUT_TRUNCATE);
     }
   }
 }
 
 /**
- * Extract a short summary from `tool_response`. Strings pass through (capped
- * at OUTPUT_TRUNCATE); numbers/booleans coerce to string; objects
- * JSON-stringify. Null/undefined collapse to "".
+ * Extract a short summary from `tool_response`. Strings pass through (redacted,
+ * then capped at OUTPUT_TRUNCATE); numbers/booleans coerce to string; objects
+ * JSON-stringify and get the same redaction and cap. Null/undefined collapse
+ * to "".
  */
 export function summariseOutput(output: unknown): string {
   if (output === null || output === undefined) return "";
-  if (typeof output === "string") return truncate(output, OUTPUT_TRUNCATE);
+  if (typeof output === "string") return redactedHead(output, OUTPUT_TRUNCATE);
   if (typeof output === "number" || typeof output === "boolean") {
     return String(output);
   }
@@ -130,7 +142,12 @@ export function summariseOutput(output: unknown): string {
   } catch {
     serialised = "";
   }
-  return truncate(serialised ?? "", OUTPUT_TRUNCATE);
+  return redactedHead(serialised ?? "", OUTPUT_TRUNCATE);
+}
+
+/** Redact secret shapes in the head of `value`, then cut it to the `max` budget. */
+function redactedHead(value: string, max: number): string {
+  return truncate(redactSecrets(truncate(value, max + REDACT_LOOKAHEAD)), max);
 }
 
 function readStringField(input: unknown, field: string): string | null {

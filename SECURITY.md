@@ -13,7 +13,7 @@
 continuous-improvement operates with these security properties:
 
 - **No network access** — hooks and MCP server are fully local
-- **No secrets** — no API keys, tokens, or credentials stored or transmitted
+- **Secrets redacted at write time, not guaranteed absent** — the observer stores the head of every tool call locally (up to 500 characters of the command or other input, 200 of the output) in `~/.claude/instincts/<hash>/observations.jsonl` and transmits nothing; common secret shapes (AWS access keys, bearer tokens, JWTs, `X_KEY=...` / `X_SECRET=...` / `X_TOKEN=...` / `X_PASSWORD=...` style assignments, long hex strings) are redacted before a row is written, but the match is pattern-based and can miss one, and rows written by earlier versions were not redacted, so review that file before sharing it
 - **Read-only hooks** — `observe.sh` only appends to local JSONL files, never modifies code
 - **No code execution** — instincts are text suggestions, never executed as code
 - **Project isolation** — instincts are scoped per-project by SHA-256 hash

@@ -11,7 +11,7 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
@@ -21,6 +21,9 @@ const __dirname = fileURLToPath(new URL(".", import.meta.url));
 // Compiled path is test/observe.test.mjs → repo root is one level up.
 const REPO_ROOT = join(__dirname, "..");
 const OBSERVE_BIN = join(REPO_ROOT, "bin", "observe.mjs");
+// The plugin bundle ships its own copy of the observer and of every lib module
+// it imports; `/plugin install` runs this one, not bin/observe.mjs.
+const BUNDLED_OBSERVE_BIN = join(REPO_ROOT, "plugins", "continuous-improvement", "bin", "observe.mjs");
 
 interface Observation {
   ts: string;
@@ -33,8 +36,8 @@ interface Observation {
   project_name: string;
 }
 
-function runObserve(payload: string, extraEnv: Record<string, string> = {}) {
-  const result = spawnSync("node", [OBSERVE_BIN], {
+function runObserve(payload: string, extraEnv: Record<string, string> = {}, bin = OBSERVE_BIN) {
+  const result = spawnSync("node", [bin], {
     input: payload,
     env: { ...process.env, ...extraEnv },
     encoding: "utf8",
@@ -300,4 +303,59 @@ describe("observe.mjs (Node observer entrypoint)", () => {
     const elapsed = Date.now() - start;
     assert.ok(elapsed < 500, `observe took ${elapsed}ms, budget is 500ms`);
   });
+});
+
+// What lands on disk is what leaks: these read observations.jsonl as raw text,
+// so a secret in any field of the row fails them. Both values are fakes.
+describe("observe.mjs keeps secrets out of observations.jsonl", () => {
+  const BEARER = "sk-FAKE0123456789abcdefghijklmnopqrstuv";
+  const KV_SECRET = "FAKEvalue-9f8e7d6c5b4a";
+  const payload = JSON.stringify({
+    tool_name: "Bash",
+    session_id: "session-secrets",
+    tool_input: {
+      command: `API_TOKEN=${KV_SECRET} curl -H "Authorization: Bearer ${BEARER}" https://api.example.test/v1/items`,
+    },
+    tool_response: {
+      stdout: `Authorization: Bearer ${BEARER}\nAPI_TOKEN=${KV_SECRET}\n`,
+      stderr: "",
+      interrupted: false,
+    },
+  });
+
+  const observers: ReadonlyArray<readonly [string, string]> = [
+    ["bin/observe.mjs", OBSERVE_BIN],
+    ["the plugin bundle's bin/observe.mjs", BUNDLED_OBSERVE_BIN],
+  ];
+
+  for (const [label, bin] of observers) {
+    it(`${label} writes a row with neither the bearer token nor the KEY=value secret`, () => {
+      const home = mkdtempSync(join(tmpdir(), "ci-node-observe-secrets-"));
+      try {
+        const result = runObserve(
+          payload,
+          { HOME: home, USERPROFILE: home, CLAUDE_PROJECT_DIR: "/tmp/test-project-secrets" },
+          bin,
+        );
+        assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+
+        const raw = readFileSync(join(findProjectDir(home), "observations.jsonl"), "utf8");
+        assert.ok(!raw.includes(BEARER), `bearer token at rest: ${raw}`);
+        assert.ok(!raw.includes(KV_SECRET), `KEY=value secret at rest: ${raw}`);
+
+        const lines = raw.split("\n").filter((line) => line.length > 0);
+        assert.equal(lines.length, 1, "exactly one row is written");
+        const row = JSON.parse(lines[0]!) as Observation;
+        assert.equal(row.tool, "Bash");
+        assert.equal(row.event, "tool_complete");
+        assert.equal(
+          row.input_summary,
+          'API_TOKEN=<redacted> curl -H "Authorization: Bearer <redacted>" https://api.example.test/v1/items',
+        );
+        assert.match(row.output_summary, /^\{"stdout":"Authorization: Bearer <redacted>/);
+      } finally {
+        rmSync(home, { recursive: true, force: true });
+      }
+    });
+  }
 });

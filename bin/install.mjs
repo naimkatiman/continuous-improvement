@@ -44,8 +44,10 @@ const COMMAND_FILES = [
 // is copied next to its importer: observe.mjs lands in instincts/bin (../lib is
 // instincts/lib) and session.mjs lands in instincts/ (../lib is ~/.claude/lib).
 // Keep both lists in step with the imports of src/bin/observe.mts and
-// src/hooks/session.mts; a hook with a missing import dies at module load.
-const OBSERVER_LIB_FILES = ["observe-event.mjs", "gateguard-state.mjs"];
+// src/hooks/session.mts, including what those lib modules import in turn
+// (observe-event.mjs imports redact-secrets.mjs); a hook with a missing import
+// dies at module load.
+const OBSERVER_LIB_FILES = ["observe-event.mjs", "redact-secrets.mjs", "gateguard-state.mjs"];
 const SESSION_LIB_FILES = ["gateguard-state.mjs", "resolve-home-dir.mjs"];
 const HOOK_TYPES = ["PreToolUse", "PostToolUse"];
 const SESSION_HOOK_TYPES = ["SessionStart", "SessionEnd"];
