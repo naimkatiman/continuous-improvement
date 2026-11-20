@@ -7,7 +7,9 @@
  * the 7 Laws of AI Agent Discipline.
  *
  * Accepted input is JSONL, one JSON object per line, in any of three row
- * shapes. Rows are normalised one at a time, so a file may mix them:
+ * shapes. Rows are normalised one at a time, so a file may mix them. A line
+ * that is JSON but not an object (null, a number, a string, an array) is
+ * skipped; a line that is not JSON is counted as a parse failure.
  *
  *   1. Claude Code transcript (~/.claude/projects/<project>/<session>.jsonl)
  *        {"type":"assistant","message":{"content":[{"type":"tool_use","name":"Edit","input":{...}}]}}
@@ -174,56 +176,60 @@ function isCompletionOfCountedStart(row: Record<string, unknown>, pendingStarts:
  * header comment for the three accepted row shapes.
  */
 function normaliseRow(row: unknown, pendingStarts: Map<string, number>): TranscriptEvent[] {
-  if (isObject(row)) {
-    const hasToolName = typeof row.tool === "string" || typeof row.tool_name === "string";
+  // A line that is valid JSON but not an object (null, a number, a string, an
+  // array) is not a tool call.
+  if (!isObject(row)) {
+    return [];
+  }
 
-    // Claude Code transcript: every row is an envelope with a `type`, and only
-    // the tool_use blocks of an assistant message are tool calls.
-    if (!hasToolName && typeof row.type === "string") {
-      const content = row.type === "assistant" && isObject(row.message) ? row.message.content : undefined;
-      if (!Array.isArray(content)) {
-        return [];
-      }
-      const events: TranscriptEvent[] = [];
-      for (const block of content) {
-        if (isObject(block) && block.type === "tool_use" && typeof block.name === "string") {
-          events.push({
-            tool: canonicalTool(block.name),
-            tool_input: isObject(block.input) ? withFilePath(block.input as ToolPayload) : {},
-            session_id: typeof row.sessionId === "string" ? row.sessionId : undefined,
-          });
-        }
-      }
-      return events;
-    }
+  const hasToolName = typeof row.tool === "string" || typeof row.tool_name === "string";
 
-    // observations.jsonl: the tool input is a summary string, not an object.
-    if (
-      typeof row.tool === "string"
-      && typeof row.input_summary === "string"
-      && !isObject(row.tool_input)
-      && !isObject(row.input)
-    ) {
-      if (isCompletionOfCountedStart(row, pendingStarts)) {
-        return [];
+  // Claude Code transcript: every row is an envelope with a `type`, and only
+  // the tool_use blocks of an assistant message are tool calls.
+  if (!hasToolName && typeof row.type === "string") {
+    const content = row.type === "assistant" && isObject(row.message) ? row.message.content : undefined;
+    if (!Array.isArray(content)) {
+      return [];
+    }
+    const events: TranscriptEvent[] = [];
+    for (const block of content) {
+      if (isObject(block) && block.type === "tool_use" && typeof block.name === "string") {
+        events.push({
+          tool: canonicalTool(block.name),
+          tool_input: isObject(block.input) ? withFilePath(block.input as ToolPayload) : {},
+          session_id: typeof row.sessionId === "string" ? row.sessionId : undefined,
+        });
       }
-      return [{
-        tool: canonicalTool(row.tool),
-        tool_input: observationInput(row.tool, row.input_summary),
-        session_id: typeof row.session === "string" ? row.session : undefined,
-      }];
     }
+    return events;
+  }
 
-    // Flat tool events keep their fields; only an aliased tool is rewritten.
-    const flatTool = typeof row.tool === "string" ? row.tool : row.tool_name;
-    if (typeof flatTool === "string" && canonicalTool(flatTool) !== flatTool) {
-      const flatInput = isObject(row.tool_input) ? row.tool_input : isObject(row.input) ? row.input : {};
-      return [{
-        ...(row as TranscriptEvent),
-        tool: canonicalTool(flatTool),
-        tool_input: withFilePath(flatInput as ToolPayload),
-      }];
+  // observations.jsonl: the tool input is a summary string, not an object.
+  if (
+    typeof row.tool === "string"
+    && typeof row.input_summary === "string"
+    && !isObject(row.tool_input)
+    && !isObject(row.input)
+  ) {
+    if (isCompletionOfCountedStart(row, pendingStarts)) {
+      return [];
     }
+    return [{
+      tool: canonicalTool(row.tool),
+      tool_input: observationInput(row.tool, row.input_summary),
+      session_id: typeof row.session === "string" ? row.session : undefined,
+    }];
+  }
+
+  // Flat tool events keep their fields; only an aliased tool is rewritten.
+  const flatTool = typeof row.tool === "string" ? row.tool : row.tool_name;
+  if (typeof flatTool === "string" && canonicalTool(flatTool) !== flatTool) {
+    const flatInput = isObject(row.tool_input) ? row.tool_input : isObject(row.input) ? row.input : {};
+    return [{
+      ...(row as TranscriptEvent),
+      tool: canonicalTool(flatTool),
+      tool_input: withFilePath(flatInput as ToolPayload),
+    }];
   }
 
   // Every other flat tool event, and anything unrecognised, passes through untouched.
@@ -404,6 +410,7 @@ Accepted input (JSONL, one JSON object per line, shapes may be mixed):
   observations.jsonl       rows written by this plugin's observer
                            {"tool":"Bash","input_summary":"npm test",...}
   Flat tool events         {"tool":"Edit","tool_input":{"file_path":"..."}}
+A line that is JSON but not an object (null, a number, an array) is skipped.
 
 A write is a Write, Edit, MultiEdit or NotebookEdit call.
 Not counted as a write: a file written through a shell command

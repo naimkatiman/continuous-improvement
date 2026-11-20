@@ -144,6 +144,20 @@ function lintRows(rows: unknown[], flags: string[] = []): { status: number | nul
   }
 }
 
+/** Lint raw JSONL lines exactly as given, for input that is not one object per line. */
+function lintLines(lines: string[], flags: string[] = []): { status: number | null; stdout: string; stderr: string } {
+  const dir = join(tmpdir(), `ci-lint-lines-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  mkdirSync(dir, { recursive: true });
+  const file = join(dir, "transcript.jsonl");
+  writeFileSync(file, lines.join("\n") + "\n");
+  try {
+    const result = spawnSync("node", [LINTER, file, ...flags], { encoding: "utf8" });
+    return { status: result.status, stdout: result.stdout, stderr: result.stderr };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 function lawsOf(result: LintJsonResult): number[] {
   return result.violations.map((violation) => violation.law);
 }
@@ -615,6 +629,36 @@ describe("lint-transcript.mjs", () => {
       const output = execFileSync("node", [LINTER, "--help"], { encoding: "utf8" });
       assert.match(output, /Not counted as a write/);
       assert.match(output, /shell command/);
+    });
+  });
+
+  // A line can be valid JSON without being an object. Such a line is not a tool
+  // call: `null` used to end the run with a TypeError and no report, and a
+  // number, a string or an array was counted as a call.
+  describe("a line that is JSON but not an object", () => {
+    const READ = JSON.stringify({ tool: "Read", tool_input: { file_path: "/repo/src/a.ts" } });
+    const EDIT = JSON.stringify({ tool: "Edit", tool_input: { file_path: "/repo/src/a.ts" } });
+
+    it("skips a null line and still reports on the rows around it", () => {
+      const { status, stdout, stderr } = lintLines([READ, "null", EDIT], ["--json"]);
+      assert.equal(stderr, "");
+      assert.equal(status, 0);
+      const result = JSON.parse(stdout) as LintJsonResult;
+      assert.equal(result.stats.toolCalls, 2);
+      assert.equal(result.stats.researchTools, 1);
+      assert.equal(result.stats.writeTools, 1);
+    });
+
+    it("does not count a number, a string or an array as a tool call", () => {
+      const result = JSON.parse(lintLines(["42", '"hello"', "[1,2]", "true", READ], ["--json"]).stdout) as LintJsonResult;
+      assert.equal(result.stats.totalEvents, 1);
+      assert.equal(result.stats.toolCalls, 1);
+    });
+
+    it("reports no events for a file that holds only such lines", () => {
+      const { status, stdout } = lintLines(["null", "42", "[]"]);
+      assert.match(stdout, /No events found/);
+      assert.equal(status, 0);
     });
   });
 
