@@ -424,6 +424,19 @@ describe("secret redaction of object summaries happens before they are serialise
     assert.ok(!output.includes(HEX.slice(0, 16)), output.slice(0, 120));
   });
 
+  // A header map holds the credential without the header name in front of it,
+  // so the Authorization rule needs the name of the property it sits under.
+  it("redacts an Authorization entry of a header map and keeps the scheme", () => {
+    const summary = summariseInput("WebFetch", {
+      url: "https://x.test",
+      headers: { Authorization: `Basic ${SECRET}`, "Proxy-Authorization": SECRET, Accept: "application/json" },
+    });
+    assert.equal(
+      summary,
+      '{"url":"https://x.test","headers":{"Authorization":"Basic <redacted>","Proxy-Authorization":"<redacted>","Accept":"application/json"}}',
+    );
+  });
+
   it("returns an empty summary for a value JSON cannot serialise", () => {
     const cyclic: Record<string, unknown> = { name: "loop" };
     cyclic.self = cyclic;

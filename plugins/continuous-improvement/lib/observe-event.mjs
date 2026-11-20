@@ -19,6 +19,8 @@ const OUTPUT_TRUNCATE = 200;
 // call, and the redactor is quadratic on some long inputs). The one shape this
 // can miss is a bare JWT whose third segment starts past the lookahead.
 const REDACT_LOOKAHEAD = 1024;
+const AUTHORIZATION_KEY_RE = /^(?:proxy-)?authorization$/i;
+const AUTHORIZATION_LABEL = "Authorization: ";
 /**
  * Parse the raw JSON stdin payload from a Claude Code PreToolUse/PostToolUse
  * hook event. Returns null for any unparseable or schema-invalid input —
@@ -143,11 +145,11 @@ function redactedJsonHead(value, max) {
  * still land inside the cut. Once it is spent a string becomes "", so no leaf
  * is ever written without having been redacted.
  */
-function redactLeaves(value, max, budget) {
+function redactLeaves(value, max, budget, label = "") {
     if (typeof value === "string") {
         if (budget.left <= 0)
             return "";
-        const redacted = redactedHead(value, max);
+        const redacted = redactedHead(label + value, max + label.length).slice(label.length);
         budget.left -= redacted.length + 1;
         return redacted;
     }
@@ -157,7 +159,15 @@ function redactLeaves(value, max, budget) {
         return value.map((item) => redactLeaves(item, max, budget));
     const copy = {};
     for (const [key, child] of Object.entries(value)) {
-        copy[key] = isSecretName(key) ? "<redacted>" : redactLeaves(child, max, budget);
+        if (isSecretName(key)) {
+            copy[key] = "<redacted>";
+        }
+        else {
+            // A header map holds the credential without the header name in front of
+            // it ({"Authorization": "Basic abc"}); the rule that reads that name gets
+            // it back for the redaction and loses it again afterwards.
+            copy[key] = redactLeaves(child, max, budget, AUTHORIZATION_KEY_RE.test(key) ? AUTHORIZATION_LABEL : "");
+        }
     }
     return copy;
 }

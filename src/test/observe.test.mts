@@ -400,6 +400,30 @@ describe("observe.mjs keeps secrets out of observations.jsonl", () => {
       { file_path: "config/app.json" },
       { type: "text", file: { filePath: "config/app.json", content: `{"clientSecret": "${LEAK}"}` } },
     ],
+    [
+      "a password inside a connection URL",
+      "Bash",
+      { command: `psql postgres://admin:${LEAK}@db.example.test:5432/app` },
+      { stdout: `DATABASE_URL=postgres://app:${LEAK}@db.test:5432/app\n`, stderr: "", interrupted: false },
+    ],
+    [
+      "curl -u credentials and a non-Bearer Authorization header",
+      "Bash",
+      { command: `curl -u admin:${LEAK} -H "Authorization: token ${LEAK}" https://x.test` },
+      { stdout: "ok", stderr: "", interrupted: false },
+    ],
+    [
+      "an Authorization entry of a header map",
+      "WebFetch",
+      { url: "https://x.test", headers: { Authorization: `Basic ${LEAK}`, Accept: "application/json" } },
+      "ok",
+    ],
+    [
+      "a secret flag whose value is the next argument",
+      "Bash",
+      { command: `mysql -u root --password ${LEAK} db` },
+      { stdout: "ok", stderr: "", interrupted: false },
+    ],
   ];
   for (const [label, bin] of observers) {
     for (const [what, toolName, toolInput, toolResponse] of leakCases) {

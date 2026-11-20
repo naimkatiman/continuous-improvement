@@ -134,3 +134,94 @@ describe("redactSecrets: JSON properties", () => {
         });
     }
 });
+// Credentials that sit in a command head with no KEY/TOKEN/PASSWORD name in
+// front of them: each of these had no rule at all.
+describe("redactSecrets: credential shapes without a secret name", () => {
+    const GH_TOKEN = "ghp_abcdefghijklmnopqrstuvwxyzABCDEFGHIJ";
+    const redacted = [
+        // user:password@ in a URL
+        [
+            `psql postgres://admin:${SECRET}@db.example.test:5432/app`,
+            "psql postgres://admin:<redacted>@db.example.test:5432/app",
+        ],
+        [`git clone https://deploy:${GH_TOKEN}@github.test/o/r.git`, "git clone https://deploy:<redacted>@github.test/o/r.git"],
+        // A user that is itself a secret name is caught by the assignment rule,
+        // which takes the rest of the word with it.
+        [
+            `git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/o/r.git`,
+            "git remote set-url origin https://x-access-token:<redacted>",
+        ],
+        [
+            `DATABASE_URL=postgres://app:${SECRET}@db.test:5432/app npm run migrate`,
+            "DATABASE_URL=postgres://app:<redacted>@db.test:5432/app npm run migrate",
+        ],
+        // an Authorization header with any scheme, or none
+        [
+            'curl -H "Authorization: Basic dXNlcjpodW50ZXIyU0VDUkVU" https://x.test',
+            'curl -H "Authorization: Basic <redacted>" https://x.test',
+        ],
+        [
+            `curl -H "Authorization: token ${GH_TOKEN}" https://x.test`,
+            'curl -H "Authorization: token <redacted>" https://x.test',
+        ],
+        ["Authorization: Bearer abc123SHORTtok", "Authorization: Bearer <redacted>"],
+        [`Authorization: ${SECRET}`, "Authorization: <redacted>"],
+        ['{"Authorization":"Basic dXNlcjpodW50ZXIyU0VDUkVU"}', '{"Authorization":"Basic <redacted>"}'],
+        // curl -u user:password
+        [`curl -u admin:${SECRET} https://x.test`, "curl -u admin:<redacted> https://x.test"],
+        [`curl --user admin:${SECRET} https://x.test`, "curl --user admin:<redacted> https://x.test"],
+        // a secret flag whose value is the next argument
+        [`mysql -u root --password ${SECRET} db`, "mysql -u root --password <redacted> db"],
+        [`deploy --api-key ${SECRET} --env staging`, "deploy --api-key <redacted> --env staging"],
+        [`cli login --token ${SECRET}`, "cli login --token <redacted>"],
+        [`Connect-Service -Password "two ${SECRET}" -Verbose`, 'Connect-Service -Password "<redacted>" -Verbose'],
+        // provider-prefixed tokens, wherever they appear
+        [`echo ${GH_TOKEN} | gh auth login --with-token`, "echo <token-redacted> | gh auth login --with-token"],
+        ["gho_abcdefghijklmnopqrstuvwxyzABCDEFGHIJ", "<token-redacted>"],
+        [
+            "github_pat_11ABCDEFG0abcdefghijkl_mnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghi",
+            "<token-redacted>",
+        ],
+        ["claude --key sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789", "claude --key <token-redacted>"],
+        ["xox" + "b-1234567890-abcdefghijklmnop", "<token-redacted>"],
+        ["npm_abcdefghijklmnopqrstuvwxyzABCDEFGHIJ", "<token-redacted>"],
+        ["glpat-abcdefghijklmnopqrst", "<token-redacted>"],
+        ["AccessKeyId: ASIAIOSFODNN7EXAMPLE", "AccessKeyId: ASIA<redacted>"],
+        // a private key, through its END line or to the end of a cut-off head
+        [
+            "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA\n-----END OPENSSH PRIVATE KEY-----\nnext",
+            "<private-key-redacted>\nnext",
+        ],
+        ["-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA7", "<private-key-redacted>"],
+    ];
+    for (const [text, expected] of redacted) {
+        it(`redacts ${JSON.stringify(text)}`, () => {
+            assert.equal(redactSecrets(text), expected);
+        });
+    }
+    // Near misses: the same punctuation with no credential in it.
+    const untouched = [
+        "curl https://example.test:8080/path@x",
+        "git clone git@github.com:o/r.git",
+        "git clone ssh://git@host.test:22/o/r.git",
+        "curl https://user@host.test/x",
+        "git push -u origin feat/x",
+        "sort -u names.txt",
+        'psql --no-password -c "select 1"',
+        "docker login --password-stdin registry.test",
+        "npm_config_registry=https://registry.npmjs.org",
+        "pip install sk-learn",
+        "open authorization_endpoint.md",
+        "-----BEGIN CERTIFICATE-----",
+    ];
+    for (const text of untouched) {
+        it(`leaves ${JSON.stringify(text)} alone`, () => {
+            assert.equal(redactSecrets(text), text);
+        });
+    }
+    it("is stable when run again over its own output", () => {
+        for (const [, expected] of redacted) {
+            assert.equal(redactSecrets(expected), expected);
+        }
+    });
+});
