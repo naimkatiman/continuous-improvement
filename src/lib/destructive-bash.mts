@@ -99,13 +99,6 @@ function splitSimpleCommands(command: string, blocks: boolean): SimpleCommand[] 
       current += ch;
       continue;
     }
-    // PowerShell line continuation: a backtick at the end of a line joins the
-    // next line to this command, so `Remove-Item` and its switches stay together.
-    if (ch === "`" && /^\r?\n/.test(command.slice(i + 1, i + 3))) {
-      i += command[i + 1] === "\r" ? 2 : 1;
-      current += " ";
-      continue;
-    }
     if (ch === "\n" || ch === ";" || (blocks && (ch === "{" || ch === "}" || ch === "(" || ch === ")"))) {
       end(false);
       continue;
@@ -123,12 +116,41 @@ function splitSimpleCommands(command: string, blocks: boolean): SimpleCommand[] 
   return segments;
 }
 
+// PowerShell line continuation: an unquoted backtick at the end of a line joins
+// the next line to this command, so `Remove-Item` and its switches stay together.
+function joinLineContinuations(command: string): string {
+  let joined = "";
+  let quote: '"' | "'" | null = null;
+  for (let i = 0; i < command.length; i++) {
+    const ch = command[i]!;
+    if (quote) {
+      if (ch === quote) quote = null;
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+    } else if (ch === "`" && /^\r?\n/.test(command.slice(i + 1, i + 3))) {
+      i += command[i + 1] === "\r" ? 2 : 1;
+      joined += " ";
+      continue;
+    }
+    joined += ch;
+  }
+  return joined;
+}
+
 // Every simple command the rules should look at. The plain split comes first
 // and stays authoritative for what it already caught: a brace expansion between
 // a command word and its flag (`find {src,test} -delete`) must not hide the
 // flag. The block split adds the commands that only start after `{` or `(`.
+// The continuation-joined view is an extra pass, never a replacement: in Bash
+// a backtick that ends a line closes a command substitution, and the next line
+// is still a command of its own.
 function allSimpleCommands(command: string): SimpleCommand[] {
-  return [...splitSimpleCommands(command, false), ...splitSimpleCommands(command, true)];
+  const segments = [...splitSimpleCommands(command, false), ...splitSimpleCommands(command, true)];
+  const joined = joinLineContinuations(command);
+  if (joined !== command) {
+    segments.push(...splitSimpleCommands(joined, false), ...splitSimpleCommands(joined, true));
+  }
+  return segments;
 }
 
 function tokenize(segment: string): string[] {

@@ -201,6 +201,27 @@ describe("lib/destructive-bash — classifier table", () => {
             assert.equal(verdict.destructive, false, `expected allowed: ${command} (rule ${verdict.rule})`);
         });
     }
+    // In Bash a backtick that ends a line closes a command substitution. Reading
+    // it as a PowerShell line continuation glued the next line onto this one, so
+    // the destructive command on that line was no longer a command start.
+    const AFTER_BACKTICK_SUBSTITUTION_CAUGHT = [
+        ["cd `git rev-parse --show-toplevel`\ngit clean -fdx", "git-clean-force"],
+        ["cd `git rev-parse --show-toplevel`\r\ngit clean -fdx", "git-clean-force"],
+        ["v=`git describe --tags`\ngit checkout -- .", "git-checkout-discard"],
+        ["branch=`git branch --show-current`\ngit stash drop", "git-stash-drop"],
+        ["export ROOT=`git rev-parse --show-toplevel`\ngit stash drop", "git-stash-drop"],
+        ["echo \"root is\" `pwd`\nfind . -name '*.orig' -delete", "find-delete"],
+        ["tag=`git describe --tags`\ngit push origin +main", "git-push-plus-refspec"],
+    ];
+    for (const [command, rule] of AFTER_BACKTICK_SUBSTITUTION_CAUGHT) {
+        it(`catches the line after a Bash backtick substitution: ${JSON.stringify(command)}`, () => {
+            assert.deepEqual(classifyDestructiveBash(command), { destructive: true, rule });
+        });
+    }
+    it("allows a harmless line after a Bash backtick substitution", () => {
+        assert.equal(classifyDestructiveBash("cd `git rev-parse --show-toplevel`\ngit status").destructive, false);
+        assert.equal(classifyDestructiveBash("v=`git describe --tags`\ngit clean -n").destructive, false);
+    });
     for (const [command, rule] of POWERSHELL_DELETE_CAUGHT) {
         it(`catches the PowerShell delete: ${JSON.stringify(command)}`, () => {
             const verdict = classifyDestructiveBash(command);
