@@ -512,6 +512,26 @@ describe("hooks/hook-pack.mjs (runtime PreToolUse hook)", () => {
     assert.equal(runHook("Bash", { command: "npm test" }, "block").decision, "allow");
   });
 
+  // The hook hands the tool name to the reader, which picks the escape
+  // character by it: the backtick under PowerShell, the backslash under Bash.
+  // Read with the wrong one, the escaped quote ends the string early, the next
+  // quote opens one that runs to the end of the text, and the push inside it
+  // is not seen. With the tool name dropped from the hook's calls every other
+  // test still passed.
+  it("reads a quote escaped the PowerShell way under the PowerShell tool, and the push after the string", () => {
+    const r = runHook("PowerShell", { command: 'Write-Host "a `" b"; git push origin main' }, "block");
+    assert.equal(r.decision, "block");
+    assert.match(r.reason ?? "", /protected branch "main"/);
+    assert.equal(runHook("PowerShell", { command: 'Write-Host "a `" b"; git push origin feature/x' }, "block").decision, "allow");
+  });
+
+  it("reads a quote escaped the Bash way under the Bash tool, and the push after the string", () => {
+    const r = runHook("Bash", { command: 'echo "a \\" b"; git push origin main' }, "block");
+    assert.equal(r.decision, "block");
+    assert.match(r.reason ?? "", /protected branch "main"/);
+    assert.equal(runHook("Bash", { command: 'echo "a \\" b"; git push origin feature/x' }, "block").decision, "allow");
+  });
+
   it("ignores non-Bash tools", () => {
     assert.equal(runHook("Read", { file_path: "/tmp/x" }, "block").decision, "allow");
   });
@@ -679,6 +699,20 @@ describe("hooks/hook-pack.mjs commit-size gate (temp repo)", () => {
       const r = runHook("PowerShell", { command: "git commit -m x" }, "block", dir);
       assert.equal(r.decision, "block");
       assert.match(r.reason ?? "", /15|one[- ]concern|split/i);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // The commit-size count gets the tool name too: the commit after a string
+  // with a backtick-escaped quote is only found when the reader is told the
+  // command is PowerShell.
+  it("counts the commit after a PowerShell string with a backtick-escaped quote", () => {
+    const dir = makeRepoWithStaged(16);
+    try {
+      const r = runHook("PowerShell", { command: 'Write-Host "a `" b"; git commit -m x' }, "block", dir);
+      assert.equal(r.decision, "block");
+      assert.match(r.reason ?? "", /more than 15 files/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
