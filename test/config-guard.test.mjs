@@ -487,6 +487,38 @@ describe("config-guard-gate: a target named by New-Item -Path/-Name or by a down
         });
     }
 });
+// The guard runs on every shell call, some of which carry a whole file in a
+// heredoc or a quoted argument. No pattern in it may rescan the rest of a long
+// run without spaces from every character: each of these is read in one pass.
+describe("config-guard-gate: classification time on a long run without spaces", () => {
+    const inputs = [
+        ["parentheses", "(a".repeat(100_000)],
+        ["separators", "a;b|c&".repeat(34_000)],
+        ["redirect signs", ">a".repeat(100_000)],
+        ["digits before a redirect", `${"7".repeat(200_000)}>out.txt`],
+        ["protected directory names", ".claude/".repeat(25_000)],
+        ["assignments", "a=b,".repeat(50_000)],
+        ["quotes", "'a".repeat(100_000)],
+        ["a path", "/usr/local/".repeat(18_000)],
+    ];
+    const shapes = [
+        ["as one token", (blob) => blob],
+        ["as the value of a write", (blob) => `Set-Content -Path out.txt -Value '${blob}'`],
+        ["after a copy", (blob) => `cp a.txt b.txt ${blob}`],
+    ];
+    for (const [name, blob] of inputs) {
+        for (const [shape, wrap] of shapes) {
+            it(`reads 200 KB of ${name} ${shape} in under a second`, () => {
+                const command = wrap(blob);
+                const started = performance.now();
+                classifyMutation("Bash", { command });
+                classifyMutation("PowerShell", { command });
+                const elapsed = performance.now() - started;
+                assert.ok(elapsed < 1000, `took ${elapsed.toFixed(0)} ms for ${command.length} chars`);
+            });
+        }
+    }
+});
 describe("config-guard-gate: decide", () => {
     it("off allows everything", () => {
         assert.equal(decide("off", true, "r").action, "allow");
