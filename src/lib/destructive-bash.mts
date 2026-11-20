@@ -775,37 +775,52 @@ function classify(command: string, powershell: boolean, depth: number): Destruct
   return ALLOWED;
 }
 
-// An escaped quote is a character of the string it sits in, not the end of it:
-// `"{\"note\": \"(git push)\"}"` is one Bash string. The escape character is
-// the backslash in Bash and the backtick in PowerShell, where a backslash
-// before a quote is the end of a Windows path (`"C:\repo\"`). The pair is
-// swapped for two private-use characters of the same length, so every
-// quote-tracking pass after it stays in step and every offset stays valid.
+// Two things make a quote-tracking pass lose its place, and both are taken out
+// before any splitting, without changing the length of the text (every offset
+// stays valid):
+//   - An escaped quote is a character of the string it sits in, not the end of
+//     it: `"{\"note\": \"(git push)\"}"` is one Bash string. The escape
+//     character is the backslash in Bash and the backtick in PowerShell, where
+//     a backslash before a quote is the end of a Windows path (`"C:\repo\"`).
+//     The pair is swapped for two private-use characters. Inside single quotes
+//     nothing is escaped, except in Bash's `$'…'`.
+//   - A comment is not code, and a quote character inside one opens no string:
+//     the apostrophe of `# don't forget` must not swallow the lines after it.
+//     A `#` that starts a word blanks the rest of its line.
 const ESCAPE_MASK = "\uE000";
 const MASKED_DOUBLE = "\uE001";
 const MASKED_SINGLE = "\uE002";
 
 function maskEscapedQuotes(text: string, powershell: boolean): string {
   const escape = powershell ? "`" : "\\";
-  if (!text.includes(escape)) return text;
+  if (!text.includes(escape) && !text.includes("#")) return text;
   let masked = "";
   let quote: '"' | "'" | null = null;
+  let ansi = false;
   for (let i = 0; i < text.length; i++) {
     const ch = text[i]!;
-    // Nothing is escaped inside single quotes. Elsewhere the escape character
-    // takes the next character with it, so `\\"` is a backslash and a real quote.
-    if (ch === escape && quote !== "'" && i + 1 < text.length) {
+    // The escape character takes the next character with it, so `\\"` is a
+    // backslash and a real quote.
+    if (ch === escape && (quote !== "'" || ansi) && i + 1 < text.length) {
       const next = text[i + 1]!;
-      if (next === '"') masked += ESCAPE_MASK + MASKED_DOUBLE;
-      else if (next === "'" && quote === null) masked += ESCAPE_MASK + MASKED_SINGLE;
+      if (next === '"' && quote !== "'") masked += ESCAPE_MASK + MASKED_DOUBLE;
+      else if (next === "'" && quote !== '"') masked += ESCAPE_MASK + MASKED_SINGLE;
       else masked += ch + next;
       i++;
+      continue;
+    }
+    if (quote === null && ch === "#" && (i === 0 || /[\s;|&(]/.test(text[i - 1]!))) {
+      const lineEnd = text.indexOf("\n", i);
+      const stop = lineEnd === -1 ? text.length : lineEnd;
+      masked += " ".repeat(stop - i);
+      i = stop - 1;
       continue;
     }
     if (quote) {
       if (ch === quote) quote = null;
     } else if (ch === '"' || ch === "'") {
       quote = ch;
+      ansi = ch === "'" && !powershell && text[i - 1] === "$";
     }
     masked += ch;
   }

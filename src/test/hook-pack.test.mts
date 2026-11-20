@@ -180,6 +180,38 @@ describe("hook-pack-gate: text that is data is not a push", () => {
     });
   }
 
+  // A comment is data too, and a quote character inside one opens no string:
+  // the apostrophe of "don't" must not swallow the lines that follow.
+  const afterComment: ReadonlyArray<[string, string | undefined]> = [
+    ["# don't forget to rebase first\ngit push origin main", "Bash"],
+    ["git status # it's clean\ngit push origin main", "Bash"],
+    ['git fetch origin # the "upstream" remote\ngit push origin main', "Bash"],
+    ["# can't skip the tests\ngit push origin main", "PowerShell"],
+    ["echo $'it\\'s done'; git push origin main", "Bash"],
+    ['echo "# it\'s"; git push origin main', "Bash"],
+    ["echo $#; git push origin main", "Bash"],
+    ['git commit -m "fix #12: don\'t crash" && git push origin main', undefined],
+  ];
+  for (const [command, tool] of afterComment) {
+    it(`still gates the push after a comment or an odd quote: ${JSON.stringify(command)}`, () => {
+      assert.equal(classifyCommand(command, tool), "push");
+      assert.equal(evaluatePush(command, "feature/x", tool).gated, true);
+    });
+  }
+
+  it("does not read a comment for pushes", () => {
+    assert.equal(classifyCommand("# next: (git push origin main)\necho ok"), "other");
+    assert.equal(classifyCommand("echo done # then (git push origin main) by hand"), "other");
+    assert.equal(classifyCommand("npm test # a failure here; git push origin main must not run"), "other");
+    assert.equal(
+      evaluatePush("git push origin feature/x # then merge; git push origin main happens in CI", "feature/x").gated,
+      false,
+    );
+    // `#` inside a word is not a comment
+    assert.equal(evaluatePush("git push origin feature#1", "main").gated, false);
+    assert.equal(classifyCommand("git push origin feature#1"), "push");
+  });
+
   it("reads --dry-run and --amend from the command they belong to", () => {
     assert.equal(evaluatePush("npm publish --dry-run; git push origin main", "feature/x").gated, true);
     assert.equal(evaluatePush("git push --dry-run origin main && git push origin main", "feature/x").gated, true);
@@ -480,6 +512,7 @@ describe("hooks/hook-pack.mjs — the PowerShell tool is gated like Bash", () =>
     "cat > NOTES.md <<'EOF'\n- (git push origin main) is blocked by hook-pack\nEOF",
   ];
   const hidden: ReadonlyArray<string> = [
+    "# don't forget to rebase first\ngit push origin main",
     "git -C ../wt push origin main",
     'bash -c "git push origin main"',
     'powershell -NoProfile -Command "git push origin main"',
