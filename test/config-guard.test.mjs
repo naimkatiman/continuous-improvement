@@ -383,6 +383,68 @@ describe("config-guard-gate: a copy onto a protected file, whatever follows the 
         });
     }
 });
+// Join-Path is the idiomatic way to build a home-relative path in PowerShell.
+// The operand was split at whitespace, so the path kept the `)` (and quote) of
+// the expression it sat in and matched nothing; the writer branch then returned
+// before any other scan.
+describe("config-guard-gate: a write whose path is an expression", () => {
+    const writes = [
+        ["PowerShell", "Set-Content -Path (Join-Path $HOME '.claude\\settings.json') -Value $json"],
+        ["PowerShell", "Set-Content (Join-Path $HOME '.claude\\settings.json') '{}'"],
+        ["PowerShell", "Set-Content -Force (Join-Path $HOME '.claude\\settings.json') '{}'"],
+        ["PowerShell", "$json | Out-File -FilePath (Join-Path $env:USERPROFILE '.claude\\settings.json') -Encoding utf8"],
+        ["PowerShell", "Out-File -FilePath:(Join-Path $HOME '.claude\\settings.json') -InputObject $json"],
+        ["PowerShell", "Set-Content -Path \"$(Join-Path $HOME '.claude\\settings.json')\" -Value $json"],
+        ["PowerShell", "$json | Set-Content -Path (Resolve-Path .claude\\settings.json)"],
+        ["PowerShell", "Set-Content -LiteralPath (Join-Path $HOME '.claude\\settings.json') -Value $x"],
+        ["PowerShell", "Add-Content -LiteralPath \"$(Resolve-Path .mcp.json)\" -Value 'x'"],
+        ["PowerShell", "Set-Content -Path (Join-Path (Join-Path $HOME '.claude') 'settings.json') -Value $json"],
+        ["PowerShell", "Set-Content -Path ([IO.Path]::Combine($HOME, '.claude', 'settings.json')) -Value $json"],
+        ["PowerShell", "Clear-Content (Join-Path $PWD '.mcp.json')"],
+        ["PowerShell", "New-Item -ItemType File -Force -Path (Join-Path $HOME '.claude\\settings.json')"],
+        ["PowerShell", "Remove-Item (Join-Path $HOME '.claude\\hooks') -Recurse"],
+        ["PowerShell", "Remove-Item -Path (Join-Path $HOME '.claude\\settings.json') -Force"],
+        ["PowerShell", "Copy-Item new.json (Join-Path $HOME '.claude\\settings.json') -Force"],
+        ["PowerShell", "Copy-Item -Destination (Join-Path $HOME '.claude\\settings.json') -Path new.json"],
+        ["PowerShell", "Move-Item (Join-Path $HOME '.claude\\settings.json') backup\\"],
+        ["PowerShell", "Move-Item new.json (Join-Path $HOME '.claude\\settings.json') -Force"],
+        ["PowerShell", "if ($?) { Set-Content -Path (Join-Path $HOME '.claude\\settings.json') -Value $json }"],
+        ["Bash", 'tee "$(git rev-parse --show-toplevel)/.claude/settings.json" < new.json'],
+        ["Bash", 'rm -f "$(git rev-parse --show-toplevel)/.mcp.json"'],
+        ["Bash", 'cp new.json "$(git rev-parse --show-toplevel)/.claude/settings.json"'],
+        ["Bash", 'mv "$(git rev-parse --show-toplevel)/.claude/settings.json" /tmp/'],
+    ];
+    for (const [tool, command] of writes) {
+        it(`${tool}: flags ${command}`, () => {
+            const hit = classifyMutation(tool, { command });
+            assert.notEqual(hit, null);
+            assert.equal(hit?.via, "bash");
+        });
+    }
+    // The expression is a read, or it is the value that is written, not the
+    // place it is written to.
+    const reads = [
+        ["PowerShell", "Get-Content (Join-Path $HOME '.claude\\settings.json') -Raw"],
+        ["PowerShell", "$s = Get-Content (Join-Path $HOME '.claude\\settings.json') -Raw | ConvertFrom-Json"],
+        ["PowerShell", "Test-Path (Join-Path $HOME '.claude\\hooks')"],
+        ["PowerShell", "Copy-Item (Join-Path $HOME '.claude\\settings.json') backup\\settings.json"],
+        ["PowerShell", "Copy-Item -Path (Join-Path $HOME '.claude\\settings.json') -Destination backup\\"],
+        ["PowerShell", "Set-Content -Path out.txt -Value (Join-Path $HOME '.claude\\settings.json')"],
+        ["PowerShell", "Set-Content out.txt (Join-Path $HOME '.claude\\settings.json')"],
+        ["PowerShell", "Set-Content -Path out.txt (Join-Path $HOME '.claude\\settings.json')"],
+        ["PowerShell", "Out-File -FilePath out.json -InputObject (Get-Content (Join-Path $HOME '.claude\\settings.json') -Raw)"],
+        ["PowerShell", "Add-Content -Path log.txt -Value (Get-Date)"],
+        ["PowerShell", "Set-Content -Path (Join-Path $out 'report.json') -Value $json"],
+        ["PowerShell", "Remove-Item (Join-Path $env:TEMP 'scratch') -Recurse -Force"],
+        ["Bash", 'cp "$(git rev-parse --show-toplevel)/.claude/settings.json" /tmp/settings.backup.json'],
+        ["Bash", 'cat "$(git rev-parse --show-toplevel)/.claude/settings.json" | head'],
+    ];
+    for (const [tool, command] of reads) {
+        it(`${tool}: allows ${command}`, () => {
+            assert.equal(classifyMutation(tool, { command }), null);
+        });
+    }
+});
 describe("config-guard-gate: decide", () => {
     it("off allows everything", () => {
         assert.equal(decide("off", true, "r").action, "allow");
@@ -478,6 +540,22 @@ describe("hooks/config-guard.mjs (runtime PreToolUse hook)", () => {
         const r = runHook("PowerShell", { command: "Copy-Item -Destination backup/settings.json -Path .claude/settings.json" }, { CI_CONFIG_GUARD: "block" });
         assert.equal(r.decision, "allow");
         assert.equal(r.stderr, "");
+    });
+    // The settings path built with Join-Path, the PowerShell idiom.
+    it("PowerShell in block mode: denies a write to a path built with Join-Path, and allows the read", () => {
+        const joined = "(Join-Path $HOME '.claude\\settings.json')";
+        for (const command of [
+            `Set-Content -Path ${joined} -Value $json`,
+            `$json | Out-File -FilePath ${joined} -Encoding utf8`,
+            `Copy-Item new.json ${joined} -Force`,
+        ]) {
+            const r = runHook("PowerShell", { command }, { CI_CONFIG_GUARD: "block" });
+            assert.equal(r.decision, "block", command);
+            assert.match(r.reason ?? "", /config-guard/);
+        }
+        const read = runHook("PowerShell", { command: `Get-Content ${joined} -Raw` }, { CI_CONFIG_GUARD: "block" });
+        assert.equal(read.decision, "allow");
+        assert.equal(read.stderr, "");
     });
     // A copy onto the settings file with something after the destination.
     const trailingCopies = [
