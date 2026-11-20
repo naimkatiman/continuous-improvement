@@ -36,6 +36,12 @@ describe("isReadOnlyLookup", () => {
         "Get-ChildItem -Recurse src",
         "Test-Path out.txt",
         "gc package.json",
+        // a PowerShell Get cmdlet retrieves and changes nothing
+        "Get-ScheduledTask | Where-Object { $_.State -ne 'Disabled' }",
+        "Get-Process node",
+        "Get-Item C:\\repo\\package.json",
+        "Get-ItemProperty HKCU:\\Software\\Example",
+        "Get-Command npm",
     ];
     for (const command of LOOKUPS) {
         it(`a lookup: ${command}`, () => {
@@ -121,6 +127,11 @@ describe("isReadOnlyLookup", () => {
         "echo done # ls",
         'Set-Content a.txt "x"',
         "New-Item -ItemType Directory out",
+        // the PowerShell spellings of date, pwd and a random number look nothing up
+        "Get-Date -Format o",
+        "Get-Location",
+        "Get-Random -Maximum 10",
+        "npm install | Get-Member",
         "node -e \"require('child_process').execSync('git log')\"",
         "git stash",
     ];

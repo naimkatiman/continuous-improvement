@@ -532,8 +532,8 @@ Law 1, research before executing:
   read-only shell command through Bash or PowerShell, at a command position
   of the line: cat, head, tail, less, sed -n, rg, grep, ls, find without
   -delete, git grep/show/log/diff/status/blame, gh view/list and a gh api
-  call that sends nothing, curl without an upload, Get-Content,
-  Select-String, Get-ChildItem, Test-Path.
+  call that sends nothing, curl without an upload, Select-String, Test-Path,
+  Get-Content, Get-ChildItem and any other PowerShell Get cmdlet.
   Judged once per session id: a session whose first write comes before its
   first lookup is one HIGH violation, however many writes came first.
   Not flagged: the writes at the head of a transcript whose session began

@@ -697,6 +697,17 @@ describe("lint-transcript.mjs", () => {
       assert.deepEqual(lawsOf(JSON.parse(lintRows(flat, ["--json"]).stdout) as LintJsonResult), []);
     });
 
+    it("counts a PowerShell Get cmdlet as research (a real session: scheduled tasks read, then a memory note)", () => {
+      const rows = [
+        ...transcriptToolCall("toolu_1", "PowerShell", { command: "Get-ScheduledTask | Where-Object { $_.State -ne 'Disabled' } | Select-Object TaskName" }),
+        ...transcriptToolCall("toolu_2", "PowerShell", { command: "$names = 'Daily-Standup','Weekly-Refresh'; $names | ForEach-Object { Get-ScheduledTaskInfo -TaskName $_ }" }),
+        ...edit("toolu_3", "C:\\Users\\dev\\.claude\\projects\\d--repo\\memory\\project_scheduled_tasks.md"),
+      ];
+      const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
+      assert.equal(result.stats.researchTools, 2);
+      assert.deepEqual(lawsOf(result), []);
+    });
+
     it("still reports a write that follows only shell commands that look nothing up", () => {
       const rows = [
         ...transcriptToolCall("toolu_1", "Bash", { command: "npm install" }),

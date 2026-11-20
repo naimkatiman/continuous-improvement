@@ -445,6 +445,9 @@ function isReadOnlySed(args: string[]): boolean {
   return prints && !edits;
 }
 
+/** The PowerShell spellings of date, pwd and a random number: they look nothing up. */
+const UNINFORMATIVE_GET_CMDLETS: ReadonlySet<string> = new Set(["get-date", "get-location", "get-random"]);
+
 function isLookup(invocation: Invocation): boolean {
   const { name, args } = invocation;
   // A filter on another command's output looks nothing up: `npm install | tail -5`.
@@ -469,17 +472,18 @@ function isLookup(invocation: Invocation): boolean {
     case "curl":
       return isReadOnlyCurl(args);
     default:
-      return false;
+      // A PowerShell Get cmdlet retrieves and changes nothing: Get-Process, Get-ScheduledTask.
+      return name.startsWith("get-") && !UNINFORMATIVE_GET_CMDLETS.has(name);
   }
 }
 
 /**
  * True when a shell command line looks something up and the lookup changes
  * nothing: a reader (cat, head, tail, less, sed -n, rg, grep, ls, find without
- * -delete, Get-Content, Select-String, Get-ChildItem, Test-Path), a read-only
- * git or gh command (git grep/show/log/diff/status/blame, gh view/list, a gh
- * api call that sends nothing), or a curl that uploads nothing, at a command
- * position of the line.
+ * -delete, Select-String, Test-Path, Get-Content, Get-ChildItem and any other
+ * PowerShell Get cmdlet), a read-only git or gh command (git
+ * grep/show/log/diff/status/blame, gh view/list, a gh api call that sends
+ * nothing), or a curl that uploads nothing, at a command position of the line.
  */
 export function isReadOnlyLookup(commandLine: string): boolean {
   return invocations(commandLine).some(isLookup);
