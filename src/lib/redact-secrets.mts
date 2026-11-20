@@ -67,8 +67,14 @@ const AUTHORIZATION_RE =
 // user:password@ in a URL, or :password@ with no user (the Redis URL form).
 // The scheme, user and host are kept.
 const URL_USERINFO_RE = /(:\/\/[^\s/:@"']*:)[^\s/?#"']+(?=@)/g;
-// curl -u user:password / --user user:password. The user is kept.
-const USER_FLAG_RE = /((?:^|\s)(?:-u|--user)(?:\s+|=)["']?[^\s:"']+:)[^\s"']+/g;
+// curl -u user:password / --user user:password. The user is kept. -u is also
+// UTC for date, unbuffered for python, unique for sort and uid:gid for docker,
+// and --user is a pip switch, so three shapes are not credentials: a value
+// that starts with `+` (a date format) or a drive letter (a Windows path), a
+// numeric uid:gid, and a URL (`-u redis://host`, `--user git+https://host`,
+// whose password, if it has one, the URL rule above has already taken).
+const USER_FLAG_RE =
+  /((?:^|\s)(?:-u|--user)(?:\s+|=)["']?(?!\+|[A-Za-z]:[\\/]|[0-9]+:[0-9]+(?![^\s"']))[^\s:"']+:)(?!\/\/)[^\s"']+/g;
 // A secret flag whose value is the next argument: `--password v`, `--api-key v`,
 // `--token v`, PowerShell's `-Password v`. A following flag is not a value.
 const SECRET_FLAG_RE = new RegExp(

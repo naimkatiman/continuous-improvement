@@ -263,6 +263,15 @@ describe("redactSecrets: credential shapes without a secret name", () => {
     // curl -u user:password
     [`curl -u admin:${SECRET} https://x.test`, "curl -u admin:<redacted> https://x.test"],
     [`curl --user admin:${SECRET} https://x.test`, "curl --user admin:<redacted> https://x.test"],
+    [`curl -u "admin:${SECRET}" https://x.test`, 'curl -u "admin:<redacted>" https://x.test'],
+    [`curl -u 1000:${SECRET} https://x.test`, "curl -u 1000:<redacted> https://x.test"],
+    ["curl -u admin:123456 https://x.test", "curl -u admin:<redacted> https://x.test"],
+    // a URL after -u is left to the URL rule, which keeps the host
+    [`redis-cli -u redis://:${SECRET}@10.0.0.5:6379/0 ping`, "redis-cli -u redis://:<redacted>@10.0.0.5:6379/0 ping"],
+    [
+      `redis-cli -u redis://default:${SECRET}@10.0.0.5:6379/0 ping`,
+      "redis-cli -u redis://default:<redacted>@10.0.0.5:6379/0 ping",
+    ],
     // a secret flag whose value is the next argument
     [`mysql -u root --password ${SECRET} db`, "mysql -u root --password <redacted> db"],
     [`deploy --api-key ${SECRET} --env staging`, "deploy --api-key <redacted> --env staging"],
@@ -304,6 +313,18 @@ describe("redactSecrets: credential shapes without a secret name", () => {
     "psql postgres://localhost:5432/app",
     "git push -u origin feat/x",
     "sort -u names.txt",
+    // -u is also UTC for date, unbuffered for python, unique for sort and
+    // uid:gid for docker, and --user is a pip switch: none of these is
+    // user:password.
+    "date -u +%Y-%m-%dT%H:%M:%SZ",
+    'date -u "+%Y-%m-%dT%H:%M:%SZ"',
+    "python -u D:/Ai/tools/run.py --fast",
+    'python -u "D:\\Ai\\tools\\run.py" --fast',
+    "sort -u D:/tmp/names.txt",
+    "docker run -u 1000:1000 node:22 npm test",
+    "docker run --user=1000:1000 node:22 npm test",
+    "pip install --user git+https://github.com/psf/requests.git",
+    "redis-cli -u redis://localhost:6379/0 ping",
     'psql --no-password -c "select 1"',
     "docker login --password-stdin registry.test",
     "npm_config_registry=https://registry.npmjs.org",
