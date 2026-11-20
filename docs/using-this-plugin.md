@@ -6,7 +6,7 @@ A practical guide to getting the most out of this plugin. It is organized around
 
 The persistent-memory and runtime-discipline layer for Claude Code, built on the 7 Laws of AI Agent Discipline (research, plan, verify, reflect, learn). Three things do the work:
 
-- **Mulahazah instinct engine** — observes your sessions, turns each correction into a reusable instinct, and applies it automatically next time so a lesson taught once is not re-taught.
+- **Mulahazah instinct engine** — hooks log your tool calls, `/continuous-improvement` records a correction as an instinct when you run it, and `hooks/session.mjs` loads the instincts at 0.5 confidence and above (at most 10) into the next session's context. Nothing applies an instinct for you: it works because the model reads it.
 - **Boundary hooks** — `hooks/gateguard.mjs` blocks Edit/Write/Bash until you present grounding facts; `hooks/goal-drift-stop.mjs` flags drift at the Stop boundary.
 - **Memory + recall** — auto-memory, MemoryCore, and the instinct index carry context across sessions.
 
@@ -21,7 +21,7 @@ If you do nothing else, do this:
 3. **Edit through the gate.** `gateguard` (`hooks/gateguard.mjs`) makes you name importers, data shapes, and the user instruction before a mutation. Answer it; do not route around it.
 4. **Verify before you claim done.** `verification-loop` / `npm run verify:all`. "Should work" is not a pass.
 5. **Reflect.** `/continuous-improvement` (alias `/seven-laws`) mines the session's observations into instincts.
-6. **Let recall do the rest.** Next session the instincts and memory apply on their own.
+6. **Let recall do the rest.** Next session `hooks/session.mjs` loads the instincts at 0.5 confidence and above at session start, and `/recall` searches the tool-call log.
 
 *Before you even plan, if the idea itself is unproven: `/roast` convenes a 5-persona adversarial council to pressure-test it (GO / RESHAPE / KILL) so you do not plan the wrong thing.*
 

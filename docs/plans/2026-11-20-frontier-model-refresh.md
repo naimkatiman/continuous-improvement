@@ -67,7 +67,7 @@ Stacked, one concern each, merged in order. Each PR runs `npm run build`,
   `CLAUDE_THREE_SECTION_CLOSE_DISABLED=1` and `CI_ROUTE_PROMPT_DISABLE=1` keep
   working.
 - **One loader, existing store.** The instinct YAML store stays. The loader is
-  capped (ten instincts, about 1.5 KB) and prints one line when there are none.
+  capped (ten instincts, about 1.5 KB) and prints nothing when there are none.
 - **Docs describe the shipped default, with the hook file named beside every
   runtime claim** (the `verify:doc-runtime-claims` rule).
 

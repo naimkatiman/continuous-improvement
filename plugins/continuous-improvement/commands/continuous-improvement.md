@@ -94,7 +94,7 @@ Display all instincts for the current project + global:
 - System auto-levels as instincts gain confidence
 ```
 
-If no instincts or observations exist yet, explain this is expected — the system is in CAPTURE level and will create instincts after 20+ observations accumulate.
+If no instincts or observations exist yet, explain this is expected: the system is in CAPTURE level, and this command creates instincts once 20+ observations have accumulated.
 
 ## Subcommands
 
@@ -105,11 +105,4 @@ Set up a weekly analysis schedule:
 2. Confirm the schedule to the user
 3. Show next scheduled run date
 
-### `/continuous-improvement always-on`
-
-Toggle always-on mode for the current project:
-1. Find project hash
-2. Create/update `~/.claude/instincts/<hash>/config.yaml` with `always_on: true|false`
-3. Confirm the change
-
-**Default is off** — observations accumulate silently, analysis only runs when you ask.
+Nothing runs analysis at session start. Observations accumulate silently, and analysis only runs when you ask or on the weekly schedule.

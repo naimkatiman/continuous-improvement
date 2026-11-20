@@ -6,7 +6,7 @@ description: "Install structured self-improvement loops with instinct-based lear
 
 # continuous-improvement
 
-You follow the continuous-improvement framework. These 7 laws make every task sharper — each is a capability that compounds: research deeper, plan tighter, verify with evidence, reflect, and learn so the same lesson is never re-taught.
+You follow the continuous-improvement framework. These 7 laws make every task sharper — each is a capability that compounds: research deeper, plan tighter, verify with evidence, reflect, and record what you learn so the next session starts with it.
 
 ## Law 1: Research Before Executing
 
@@ -94,15 +94,15 @@ Never: add features before fixing bugs, make multiple untested changes, "improve
 
 Your sessions create knowledge. Capture it.
 
-- Patterns you repeat become instincts (automatic via hooks)
+- Patterns you repeat become instincts when analysis runs (hooks only log the tool calls)
 - Rules you discover become instincts (explicit via reflection)
 - Corrections you receive reduce confidence in wrong behaviors
 - Instincts you confirm strengthen over time
 
-Low-confidence instincts suggest. High-confidence instincts apply.
-If the user corrects you, the instinct weakens. If they don't, it strengthens.
+Instincts at 0.5 or above reach you in the session-start block (see Instinct System below). Suggest the ones below 0.7 and follow the ones at 0.7 or above. No code applies an instinct: it changes what you do only because you read it.
+Nothing changes an instinct's confidence in the background: it moves when analysis runs or `ci_reinforce` is called. A user correction lowers it and a confirmation raises it.
 
-Nothing learned is permanent. Everything decays without reinforcement.
+Nothing learned is permanent. Decay is applied when analysis runs, not by a background job.
 
 ### Friction Harvest Pipeline (`/harvest`)
 
@@ -137,9 +137,8 @@ Analysis does **NOT** run automatically at session start. This saves tokens. Loa
 |------|-------------|------------|
 | **On-demand** (default) | Only when user runs `/continuous-improvement` or `/dashboard` | Zero overhead per session |
 | **Weekly** | User schedules via `/loop 7d /continuous-improvement analyze` or cron | One analysis per week |
-| **Always-on** (opt-in) | Set `always_on: true` in project instinct config | Runs at every session start |
 
-**To enable always-on:** Create `~/.claude/instincts/<hash>/config.yaml` with `always_on: true`. Otherwise, analysis only runs when explicitly requested.
+No setting changes that: no code reads a `config.yaml` in the instinct directory. Analysis only runs when explicitly requested or on the schedule you set.
 
 **Recorded instincts load at session start.** On SessionStart, `hooks/session.mjs` (wired by the plugin install and by `--mode expert`) prints this project's instincts and the `global/` ones that are at 0.5 or above, and Claude Code adds that output to the model's context. The block is one line per instinct (trigger, start of the body, confidence), highest confidence first, capped at 10 instincts and about 1,500 characters. With no instinct at 0.5 or above it prints nothing, so a project with no lessons costs zero tokens. Set `CI_INSTINCT_LOAD=off` to disable it.
 
@@ -147,7 +146,7 @@ Analysis does **NOT** run automatically at session start. This saves tokens. Loa
 
 ### Auto-Level Detection
 
-When analysis is triggered (on-demand, weekly, or always-on), determine level:
+When analysis is triggered (on-demand or weekly), determine level:
 
 1. **Find project hash:** Run `git rev-parse --show-toplevel 2>/dev/null`, then SHA-256 first 12 chars of the path
 2. **Check observations:** Count lines in `~/.claude/instincts/<hash>/observations.jsonl`
@@ -158,13 +157,13 @@ When analysis is triggered (on-demand, weekly, or always-on), determine level:
 | <20 observations, no instincts | **CAPTURE** | Work normally. Hooks are capturing silently. |
 | 20+ observations OR instincts exist | **ANALYZE** | Process observations: read last 500 lines, detect patterns, create/update instinct YAML files. Then load instincts. |
 | Any instinct at 0.5–0.69 confidence | **SUGGEST** | Mention relevant instincts inline: "Consider: [action]" |
-| Any instinct at 0.7+ confidence | **AUTO-APPLY** | Apply the behavior automatically. |
+| Any instinct at 0.7+ confidence | **AUTO-APPLY** | Follow the instinct without asking first. |
 
-Multiple levels can be active simultaneously — you might auto-apply some instincts while suggesting others.
+Multiple levels can be active simultaneously — you might auto-apply some instincts while suggesting others. A level is a label computed from the observation count and the instinct files. It names what you do with an instinct you have read; no hook suggests or applies one.
 
 ### Analysis (On-Demand)
 
-When triggered by `/continuous-improvement analyze`, weekly schedule, or always-on mode:
+When triggered by `/continuous-improvement analyze` or the weekly schedule:
 
 1. Read `observations.jsonl` (last 500 lines)
 2. Read existing instincts (project + global `*.yaml` files)
@@ -211,7 +210,7 @@ Always search with Grep to confirm location before using Edit.
 |-------|----------|
 | 0.0–0.49 | **Silent** — stored, not surfaced |
 | 0.5–0.69 | **Suggest** — mention inline when relevant |
-| 0.7–0.9 | **Auto-apply** — apply automatically |
+| 0.7–0.9 | **Auto-apply** — follow it without asking first |
 
 ### Confidence Changes
 
@@ -237,7 +236,6 @@ Subcommands:
 - `/continuous-improvement status` — Instinct overview only (lightweight, reads YAML only)
 - `/continuous-improvement analyze` — Process pending observations into instincts
 - `/continuous-improvement weekly` — Set up weekly analysis schedule
-- `/continuous-improvement always-on` — Enable/disable always-on mode for this project
 
 ## Planning-With-Files (Opt-In)
 
