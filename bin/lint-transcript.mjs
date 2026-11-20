@@ -48,6 +48,21 @@
  * not flagged for the writes at its head: the research, if any, is in rows the
  * file does not have.
  *
+ * Law 4, verify before reporting. A code change is a write to a source or
+ * config file. A write that is only a note or a doc needs no test run:
+ * anything under a .claude/ directory (memory notes, plans, settings), a
+ * Markdown file, a file under a tmp, temp, scratch or scratchpad directory
+ * (also one named with a suffix: scratch-2026-11-20, tmp.x1). A
+ * git worktree under .claude/worktrees/<name>/ is a checkout of the source, so
+ * a path inside one is judged by the rest of the path. A write whose path was
+ * not recorded counts as a code change. Verification is a test, build or
+ * check runner at a command position of a Bash or PowerShell command line
+ * (npm test, npx tsc, node --test, python -m pytest, cargo clippy,
+ * Invoke-Pester and the rest of the list in lib/shell-intent.mjs). The word
+ * test or build in a path, a search pattern or a quoted string does not
+ * count. A file with at least one code change and no verification run is one
+ * HIGH violation.
+ *
  * Usage:
  *   node bin/lint-transcript.mjs <file.jsonl>         # Lint a transcript file
  *   cat observations.jsonl | node bin/lint-transcript.mjs --stdin  # Pipe input
@@ -59,7 +74,7 @@
  */
 import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
-import { isReadOnlyLookup } from "../lib/shell-intent.mjs";
+import { isReadOnlyLookup, isVerificationRun } from "../lib/shell-intent.mjs";
 const LAWS = {
     1: { name: "Research Before Executing", patterns: [] },
     2: { name: "Plan Is Sacred", patterns: [] },
@@ -99,7 +114,7 @@ function withFilePath(input) {
  * command for Bash, the file path for Edit/Write/NotebookEdit. For every other
  * tool it keeps the head of the JSON-serialised input, which holds the command
  * for PowerShell and the file path for MultiEdit; when the 500-character cut
- * left that JSON unterminated the raw head still contains the command text.
+ * left that JSON unterminated the leading field is read out of the head.
  */
 function observationInput(tool, inputSummary) {
     if (tool === "Bash") {
@@ -117,7 +132,37 @@ function observationInput(tool, inputSummary) {
     catch {
         // not JSON, or cut off mid-value
     }
-    return tool === "PowerShell" ? { command: inputSummary } : {};
+    if (tool === "PowerShell") {
+        return { command: leadingStringField(inputSummary, "command") ?? inputSummary };
+    }
+    const filePath = leadingStringField(inputSummary, "file_path");
+    return filePath === null ? {} : { file_path: filePath };
+}
+/**
+ * The first field of a JSON object whose text was cut before its end, when
+ * that field is `key` and holds a string: {"command":"npm test -- --grep ...
+ * Returns null for any other text.
+ */
+function leadingStringField(cutJson, key) {
+    const opener = new RegExp(`^\\{\\s*"${key}"\\s*:\\s*"`).exec(cutJson);
+    if (!opener) {
+        return null;
+    }
+    let end = opener[0].length;
+    while (end < cutJson.length && cutJson[end] !== '"') {
+        end += cutJson[end] === "\\" ? 2 : 1;
+    }
+    // The cut can land inside an escape sequence: shorten until the string parses.
+    let body = cutJson.slice(opener[0].length, end);
+    for (let attempt = 0; attempt < 8 && body.length > 0; attempt++) {
+        try {
+            return JSON.parse(`"${body}"`);
+        }
+        catch {
+            body = body.slice(0, -1);
+        }
+    }
+    return null;
 }
 /**
  * An observation row is a hook event, not a tool call. The npm installer wires
@@ -270,6 +315,27 @@ const WRITE_TOOLS = new Set(["Write", "Edit"]);
 function isResearchCall(tool, command) {
     return RESEARCH_TOOLS.has(tool) || (tool === "Bash" && isReadOnlyLookup(command));
 }
+/**
+ * True for a write that Law 4 wants verified: a write to a source or config
+ * file. A note or a doc needs no test run: anything under a .claude/
+ * directory, a Markdown file, a scratch or temp file (a directory named tmp,
+ * temp, scratch or scratchpad, with or without a suffix such as
+ * scratch-2026-11-20 or tmp.x1, and the macOS /var/folders). A git worktree
+ * under .claude/worktrees/<name>/ is a checkout of the source, so a path
+ * inside one is judged by what follows the worktree. A write whose path was
+ * not recorded counts as a code change.
+ */
+function isCodeChange(filePath) {
+    if (typeof filePath !== "string" || filePath === "") {
+        return true;
+    }
+    const path = filePath.replace(/\\/g, "/");
+    const insideCheckout = path.replace(/^(?:.*\/)?\.claude\/worktrees\/[^/]+\//, "");
+    return !(/(?:^|\/)\.claude\//.test(insideCheckout)
+        || /\.(?:md|markdown)$/i.test(path)
+        || /(?:^|\/)(?:tmp|temp|scratch|scratchpad)(?:[-_.][^/]*)?\//i.test(path)
+        || path.includes("/var/folders/"));
+}
 function plural(count, noun) {
     return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
@@ -282,6 +348,7 @@ function analyzeTranscript(events, context) {
         rowsWithoutInput,
         researchTools: 0,
         writeTools: 0,
+        codeWrites: 0,
         verifyTools: 0,
         sessions: new Set(),
         parseFailures,
@@ -308,6 +375,9 @@ function analyzeTranscript(events, context) {
         }
         if (WRITE_TOOLS.has(tool)) {
             stats.writeTools++;
+            if (isCodeChange(input.file_path)) {
+                stats.codeWrites++;
+            }
             session.writes++;
             if (session.research === 0) {
                 session.writesBeforeResearch++;
@@ -316,7 +386,7 @@ function analyzeTranscript(events, context) {
                 }
             }
         }
-        if (tool === "Bash" && /\b(test|build|npm run|jest|vitest|bun test|deno test|ava|tap|mocha|pytest|go test|cargo test|gradle test|mvn test)\b/.test(command)) {
+        if (tool === "Bash" && isVerificationRun(command)) {
             stats.verifyTools++;
         }
     }
@@ -368,11 +438,11 @@ function analyzeTranscript(events, context) {
             consecutiveEdits = 0;
         }
     }
-    if (stats.writeTools > 0 && stats.verifyTools === 0) {
+    if (stats.codeWrites > 0 && stats.verifyTools === 0) {
         violations.push({
             law: 4,
             severity: "high",
-            message: `${stats.writeTools} code changes with 0 verification commands (test/build). Agent may have declared done without verifying.`,
+            message: `${plural(stats.codeWrites, "code change")} with 0 verification commands (test/build). Agent may have declared done without verifying.`,
         });
     }
     if (editedFiles.size > 8) {
@@ -398,7 +468,7 @@ function formatReport(result) {
     lines.push(`**Score:** ${score}/100`);
     lines.push(`**Events analyzed:** ${stats.totalEvents}`);
     lines.push(`**Tool calls:** ${stats.toolCalls}`);
-    lines.push(`**Research ops:** ${stats.researchTools} | **Write ops:** ${stats.writeTools} | **Verify ops:** ${stats.verifyTools}`);
+    lines.push(`**Research ops:** ${stats.researchTools} | **Write ops:** ${stats.writeTools} (${stats.codeWrites} to source or config files) | **Verify ops:** ${stats.verifyTools}`);
     if (parseFailures > 0) {
         lines.push(`**Parse failures:** ${parseFailures} (malformed JSON lines skipped)`);
     }
@@ -467,6 +537,23 @@ Law 1, research before executing:
   first lookup is one HIGH violation, however many writes came first.
   Not flagged: the writes at the head of a transcript whose session began
   before the file did (it opens with a compaction summary).
+
+Law 4, verify before reporting:
+  A code change is a write to a source or config file. A note or a doc needs
+  no test run: anything under a .claude/ directory (memory notes, settings),
+  a *.md file, a file under a tmp, temp, scratch or scratchpad directory
+  (also one named with a suffix: scratch-2026-11-20, tmp.x1).
+  A path inside a git worktree under .claude/worktrees/<name>/ is judged by
+  the rest of the path. A write with no recorded path is a code change.
+  Verification is a runner at a command position of a Bash or PowerShell
+  command line: npm/pnpm/yarn/bun test or run <script>; vitest, jest, mocha,
+  tsc, eslint, playwright test, craco or react-scripts test/build, vite
+  build or next build/lint, direct or through npx; node --test; pytest,
+  python -m pytest or unittest; go test/vet/build; cargo
+  test/build/check/clippy; dotnet test/build; mvn test or verify; gradle or
+  make test/check/build; deno test; Invoke-Pester.
+  The word test or build in a path, a search pattern or a quoted string does
+  not count. Code changes with no verification run are one HIGH violation.
 
 Options:
   --stdin     Read from stdin

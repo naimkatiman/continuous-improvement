@@ -15,6 +15,7 @@ interface TranscriptEvent {
 interface LintJsonResult {
   score: number;
   stats: {
+    codeWrites?: number;
     researchTools: number;
     rowsWithoutInput?: number;
     toolCalls: number;
@@ -222,9 +223,10 @@ describe("lint-transcript.mjs", () => {
   });
 
   it("detects Law 4 violation (no verification)", () => {
+    // A source path: a file under /tmp is a scratch file and needs no test run.
     const events: TranscriptEvent[] = [
-      { tool: "Read", event: "tool_start", tool_input: { file_path: "/tmp/a.ts" } },
-      { tool: "Edit", event: "tool_start", tool_input: { file_path: "/tmp/a.ts" } },
+      { tool: "Read", event: "tool_start", tool_input: { file_path: "/repo/src/a.ts" } },
+      { tool: "Edit", event: "tool_start", tool_input: { file_path: "/repo/src/a.ts" } },
     ];
     const output = lintEvents(events);
     assert.match(output, /Law 4/);
@@ -837,6 +839,140 @@ describe("lint-transcript.mjs", () => {
       assert.match(output, /WebFetch/);
       assert.match(output, /read-only shell command/);
       assert.match(output, /once per session/);
+    });
+  });
+
+  // Law 4 was wrong in both directions on real sessions. Every write was a
+  // "code change", so 44 of 45 flagged transcripts had changed no code (33 had
+  // only written Claude Code memory notes). And verification was the bare word
+  // test or build anywhere in a shell command, so a path or a grep pattern
+  // cleared the law while `npx tsc --noEmit` and `python -m unittest` did not.
+  describe("Law 4: a code change needs a test, build or check run at a command position", () => {
+    const read = (id: string): unknown[] => transcriptToolCall(id, "Read", { file_path: "/repo/src/a.ts" });
+    const edit = (id: string, file = "/repo/src/a.ts"): unknown[] =>
+      transcriptToolCall(id, "Edit", { file_path: file, old_string: "a", new_string: "b" });
+    const shell = (id: string, command: string, tool = "Bash"): unknown[] => transcriptToolCall(id, tool, { command });
+    const lint = (rows: unknown[]): LintJsonResult => JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
+
+    for (const [tool, command] of [
+      ["Bash", "ls test/"],
+      ["Bash", "cd /repo/hub-owned-intel-build-20261016 && ls"],
+      ["Bash", "grep -i test README.md"],
+      ["Bash", "sed -n '/test -z/p' scripts/run.sh"],
+      ["Bash", 'node -e "console.log(/re/.test(process.argv[1]))"'],
+      ["Bash", 'git commit -m "build: bump the version"'],
+      ["PowerShell", "Get-ChildItem test"],
+      ["PowerShell", "Test-Path build/out.js"],
+    ] as const) {
+      it(`${tool} \`${command}\` does not clear the law`, () => {
+        const result = lint([...read("toolu_1"), ...edit("toolu_2"), ...shell("toolu_3", command, tool)]);
+        assert.equal(result.stats.verifyTools, 0);
+        assert.deepEqual(lawsOf(result), [4]);
+      });
+    }
+
+    for (const [tool, command] of [
+      ["Bash", "npx tsc --noEmit"],
+      ["Bash", ".venv/Scripts/python -m unittest discover -s tests"],
+      ["Bash", "cd /repo && node --test test/a.test.mjs 2>&1 | tail -5"],
+      ["Bash", "cargo clippy"],
+      ["PowerShell", "Invoke-Pester"],
+      ["PowerShell", "Set-Location web; npm run build"],
+    ] as const) {
+      it(`${tool} \`${command}\` clears the law`, () => {
+        const result = lint([...read("toolu_1"), ...edit("toolu_2"), ...shell("toolu_3", command, tool)]);
+        assert.equal(result.stats.verifyTools, 1);
+        assert.deepEqual(lawsOf(result), []);
+      });
+    }
+
+    for (const file of [
+      "C:\\Users\\dev\\.claude\\projects\\d--repo\\memory\\MEMORY.md",
+      "/home/dev/.claude/projects/-repo/memory/feedback_tests.md",
+      "/repo/.claude/settings.local.json",
+      "/repo/docs/plans/2026-11-20-plan.md",
+      "/repo/README.md",
+      "/tmp/probe.py",
+      "C:\\Users\\dev\\AppData\\Local\\Temp\\claude\\scratchpad\\probe.mjs",
+      "/repo/scratch/try.ts",
+      "/work/scratch-2026-10-25-8d0d00/telegram/caption.txt",
+      "/work/tmp.x1/probe.py",
+    ]) {
+      it(`a write to ${file} is a note, a doc or a scratch file and needs no test run`, () => {
+        const result = lint([...read("toolu_1"), ...edit("toolu_2", file)]);
+        assert.equal(result.stats.writeTools, 1);
+        assert.equal(result.stats.codeWrites, 0);
+        assert.deepEqual(lawsOf(result), []);
+      });
+    }
+
+    for (const file of [
+      "/repo/src/a.ts",
+      "C:\\repo\\src\\a.ts",
+      "/repo/package.json",
+      "/repo/.github/workflows/ci.yml",
+      "/repo/templates/report.html",
+      "/repo/src/temporal/clock.ts",
+      "/repo/requirements.txt",
+      // a git worktree under .claude/worktrees is a checkout of the source
+      "/repo/.claude/worktrees/fix-retry/src/a.ts",
+      "D:\\repo\\.claude\\worktrees\\fix-retry\\package.json",
+    ]) {
+      it(`a write to ${file} is a code change`, () => {
+        const result = lint([...read("toolu_1"), ...edit("toolu_2", file)]);
+        assert.equal(result.stats.codeWrites, 1);
+        assert.deepEqual(lawsOf(result), [4]);
+      });
+    }
+
+    it("treats a file under .claude inside a worktree as a note", () => {
+      const result = lint([...read("toolu_1"), ...edit("toolu_2", "/repo/.claude/worktrees/fix-retry/.claude/settings.json")]);
+      assert.equal(result.stats.codeWrites, 0);
+      assert.deepEqual(lawsOf(result), []);
+    });
+
+    it("counts only the code changes in the violation", () => {
+      const rows = [
+        ...read("toolu_1"),
+        ...edit("toolu_2", "/repo/src/a.ts"),
+        ...edit("toolu_3", "/home/dev/.claude/projects/-repo/memory/MEMORY.md"),
+        ...edit("toolu_4", "/repo/CHANGELOG.md"),
+      ];
+      const result = lint(rows);
+      assert.equal(result.stats.writeTools, 3);
+      assert.equal(result.stats.codeWrites, 1);
+      assert.deepEqual(lawsOf(result), [4]);
+      assert.match(result.violations[0]?.message ?? "", /^1 code change with 0 verification commands/);
+    });
+
+    it("treats a write whose path was not recorded as a code change", () => {
+      const result = lint([{ tool: "Read", tool_input: {} }, { tool: "Edit", tool_input: {} }]);
+      assert.equal(result.stats.codeWrites, 1);
+      assert.deepEqual(lawsOf(result), [4]);
+    });
+
+    it("reads the command of a PowerShell observation row that the 500-character cut left unterminated", () => {
+      const head = (command: string): string => JSON.stringify({ command, description: "x".repeat(600) }).slice(0, 500);
+      const flagged = [
+        observation("Read", "/repo/src/a.ts"),
+        observation("Edit", "/repo/src/a.ts"),
+        observation("PowerShell", head("Get-ChildItem test")),
+      ];
+      assert.deepEqual(lawsOf(lint(flagged)), [4], "the path `test` is not a test run");
+      const clean = [
+        observation("Read", "/repo/src/a.ts"),
+        observation("Edit", "/repo/src/a.ts"),
+        observation("PowerShell", head('Set-Location "C:\\repo"; npm run build')),
+      ];
+      assert.deepEqual(lawsOf(lint(clean)), []);
+    });
+
+    it("--help states what a code change and a verification run are", () => {
+      const output = execFileSync("node", [LINTER, "--help"], { encoding: "utf8" });
+      assert.match(output, /Law 4/);
+      assert.match(output, /source or config file/);
+      assert.match(output, /node --test/);
+      assert.match(output, /command position/);
     });
   });
 

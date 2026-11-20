@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { isReadOnlyLookup } from "../lib/shell-intent.mjs";
+import { isReadOnlyLookup, isVerificationRun } from "../lib/shell-intent.mjs";
 // The transcript linter asks of every Bash or PowerShell call whether it looked
 // something up without changing anything. The answer comes from the command
 // word of each simple command on the line, never from a word that merely
@@ -127,6 +127,188 @@ describe("isReadOnlyLookup", () => {
     for (const command of NOT_LOOKUPS) {
         it(`not a lookup: ${JSON.stringify(command)}`, () => {
             assert.equal(isReadOnlyLookup(command), false);
+        });
+    }
+});
+// Law 4 asks whether a session ran a test, a build or a check. The words
+// `test` and `build` turn up in paths, search patterns and script text, so the
+// answer comes from a runner invoked at a command position.
+describe("isVerificationRun", () => {
+    const RUNS = [
+        "npm test",
+        "npm t",
+        "npm run build",
+        "npm run typecheck",
+        "npm run verify:all",
+        "npm --prefix web run build",
+        "npm.cmd run build",
+        "pnpm test",
+        "pnpm run lint",
+        "pnpm --filter @app/web test",
+        "pnpm vitest run",
+        "pnpm build",
+        "yarn test",
+        "yarn run build",
+        "yarn lint",
+        "yarn tsc --noEmit",
+        "bun test",
+        "bun run build",
+        "npx tsc --noEmit",
+        "npx --no-install vitest run src/a.test.ts",
+        "npx jest --runInBand",
+        "npx playwright test",
+        "npx eslint src",
+        "npx mocha",
+        "npx craco test --watchAll=false",
+        "node node_modules/@craco/craco/dist/bin/craco.js test --watchAll=false",
+        "npx react-scripts build",
+        "npx vite build --outDir dist",
+        "node ./node_modules/vite/bin/vite.js build",
+        "npx next build",
+        "pnpm exec tsc -p tsconfig.json",
+        "bunx vitest",
+        "tsc --noEmit",
+        "tsc -p tsconfig.json",
+        "vitest run",
+        "jest",
+        "eslint .",
+        "playwright test",
+        "./node_modules/.bin/vitest run",
+        ".\\node_modules\\.bin\\tsc.cmd --noEmit",
+        "node node_modules/vitest/vitest.mjs run",
+        "node node_modules/typescript/bin/tsc --noEmit",
+        "node --test",
+        "node --test test/a.test.mjs",
+        "node --import tsx --test test/a.test.ts",
+        "node --test-reporter spec --test test/",
+        "pytest -q",
+        "python -m pytest tests/",
+        "python3 -m unittest discover -s tests",
+        ".venv/Scripts/python -m unittest discover -s tests",
+        "py -3 -m pytest",
+        "uv run pytest -q",
+        "poetry run pytest",
+        "go test ./...",
+        "go vet ./...",
+        "go build ./cmd/app",
+        "cargo test",
+        "cargo +nightly clippy",
+        "cargo build --release",
+        "cargo check",
+        "dotnet test",
+        "dotnet build -c Release",
+        "mvn -q test",
+        "mvn clean verify",
+        "./mvnw test",
+        "gradle test",
+        "./gradlew clean build",
+        ".\\gradlew.bat test",
+        "make test",
+        "make check",
+        "make -j4 build",
+        "deno test",
+        "Invoke-Pester",
+        "Invoke-Pester -Path tests",
+    ];
+    for (const command of RUNS) {
+        it(`a run: ${command}`, () => {
+            assert.equal(isVerificationRun(command), true);
+        });
+    }
+    const RUNS_INSIDE_A_LONGER_LINE = [
+        "cd /repo && npm test",
+        "npm install && npm run build",
+        "npm test 2>&1 | tail -20",
+        "CI=1 npm test",
+        "NODE_ENV=test npx vitest run",
+        "(cd web && npm run build)",
+        "npm run build; echo done",
+        "if npm test; then echo ok; fi",
+        "npm test || true",
+        "git status\nnpm test",
+        "time npm test",
+        "timeout 600 npm test",
+        'bash -lc "npm test"',
+        "bash -c 'cd web && npx tsc --noEmit'",
+        'pwsh -NoProfile -Command "npm run build"',
+        'powershell -Command "Invoke-Pester"',
+        'cmd /c "npm run build"',
+        "& npm test",
+        "$out = npm test 2>&1",
+        "Set-Location web; npm run build",
+        "if ($LASTEXITCODE -eq 0) { npm run build }",
+        'Invoke-Expression "npm test"',
+        "result=$(npm test 2>&1)",
+        "cross-env CI=1 vitest run",
+        "dotenv -e .env.test -- jest",
+    ];
+    for (const command of RUNS_INSIDE_A_LONGER_LINE) {
+        it(`a run at a command position: ${JSON.stringify(command)}`, () => {
+            assert.equal(isVerificationRun(command), true);
+        });
+    }
+    const NOT_RUNS = [
+        "",
+        // the bare word in a path, a pattern or an argument
+        "ls test/",
+        "ls build",
+        "cat test/a.test.ts",
+        "Get-ChildItem test",
+        "Test-Path out.txt",
+        "cd hub-owned-intel-build-20261016",
+        "mkdir -p build/out",
+        "grep -i test README.md",
+        'grep -rn "npm test" .',
+        'rg "npm run build" docs',
+        "git checkout -b test",
+        "git log --grep build",
+        "git add test/a.test.ts",
+        "cp build/a.js dist/",
+        "sed -n '/test -z/p' scripts/run.sh",
+        // script text
+        'node -e "console.log(/re/.test(process.argv[1]))"',
+        'node -e "require(\'child_process\').execSync(\'npm test\')"',
+        "python -c \"print('pytest')\"",
+        'echo "npm test"',
+        'echo "run npm test next" > notes.txt',
+        "cat > run.sh <<'EOF'\nnpm test\nEOF",
+        'git commit -m "$(cat <<\'EOF\'\nfix: retry\n\nnpm test passes\nEOF\n)"',
+        'git commit -m "build: bump"',
+        "# npm test",
+        // a package manager doing something else
+        "npm install",
+        "npm ci",
+        "npm run",
+        "npm view vitest version",
+        "npm ls jest",
+        "pnpm add -D vitest",
+        "yarn add jest",
+        "bun install",
+        "npx prettier --write src",
+        "npx playwright install",
+        "npx vite preview --port 4173",
+        "npx vite",
+        "npx next dev",
+        "npx craco start",
+        // a tool that is not a runner
+        "node scripts/test-data.js",
+        "node build.js",
+        "node server.js --test",
+        "python manage.py runserver",
+        "python -m http.server",
+        "go run ./cmd/app",
+        "go mod tidy",
+        "cargo add serde",
+        "cargo run",
+        "dotnet run",
+        "make install",
+        "make clean",
+        "gradle wrapper",
+        "mvn dependency:tree",
+    ];
+    for (const command of NOT_RUNS) {
+        it(`not a run: ${JSON.stringify(command)}`, () => {
+            assert.equal(isVerificationRun(command), false);
         });
     }
 });

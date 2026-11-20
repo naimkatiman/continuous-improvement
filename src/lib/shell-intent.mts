@@ -2,11 +2,12 @@
 // linter needs to know.
 //
 // The linter (bin/lint-transcript.mjs) reads the command of a Bash or
-// PowerShell tool call and asks whether the call looked something up without
-// changing anything (research, Law 1). The answer comes from the command word
-// of each simple command on the line, never from a word that merely appears
-// somewhere in it: `node scripts/cat.js` is not a lookup, `cd repo && cat a.ts`
-// is.
+// PowerShell tool call and asks two things: did the call look something up
+// without changing anything (research, Law 1), and did it run a test, a build
+// or a check (verification, Law 4). Both answers come from the command word of
+// each simple command on the line, never from a word that merely appears
+// somewhere in it: `node scripts/cat.js` is not a lookup and `ls test/` is not
+// a test run, `cd repo && cat a.ts` and `cd repo && npm test` are.
 //
 // The line is split the way a shell would split it, far enough for that
 // purpose: quotes, here-documents, comments, `;` `&&` `||` `|` and newlines,
@@ -307,9 +308,12 @@ const POSIX_SHELLS: ReadonlySet<string> = new Set(["bash", "sh", "zsh", "dash", 
 const POWERSHELLS: ReadonlySet<string> = new Set(["pwsh", "powershell"]);
 const MAX_NESTED_SHELLS = 3;
 
-/** The script a nested shell is asked to run (bash -c, pwsh -Command, cmd /c), or null. */
+/** The script a nested shell is asked to run (bash -c, pwsh -Command, cmd /c, Invoke-Expression), or null. */
 function nestedScript(invocation: Invocation): string | null {
   const { name, args } = invocation;
+  if (name === "invoke-expression" || name === "iex") {
+    return args.length > 0 && !invocation.piped ? args.join(" ") : null;
+  }
   let scriptAt = -1;
   let wholeTail = false;
   if (POSIX_SHELLS.has(name)) {
@@ -479,4 +483,155 @@ function isLookup(invocation: Invocation): boolean {
  */
 export function isReadOnlyLookup(commandLine: string): boolean {
   return invocations(commandLine).some(isLookup);
+}
+
+/** Programs that are a test runner, a type checker or a linter whatever their arguments. */
+const CHECK_PROGRAMS: ReadonlySet<string> = new Set([
+  "vitest", "jest", "mocha", "ava", "tap", "tsc", "eslint", "pytest", "py.test", "invoke-pester",
+]);
+/** Programs that verify when given one of these subcommands or targets. */
+const CHECK_SUBCOMMANDS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
+  ["go", new Set(["test", "vet", "build"])],
+  ["cargo", new Set(["test", "build", "check", "clippy"])],
+  ["dotnet", new Set(["test", "build"])],
+  ["deno", new Set(["test"])],
+  ["playwright", new Set(["test"])],
+  ["craco", new Set(["test", "build"])],
+  ["react-scripts", new Set(["test", "build"])],
+  ["vite", new Set(["build"])],
+  ["next", new Set(["build", "lint"])],
+  ["mvn", new Set(["test", "verify"])],
+  ["mvnw", new Set(["test", "verify"])],
+  ["gradle", new Set(["test", "check", "build"])],
+  ["gradlew", new Set(["test", "check", "build"])],
+  ["make", new Set(["test", "check", "build"])],
+]);
+/** Build tools take several targets (`mvn clean verify`); the others one subcommand. */
+const TARGET_TOOLS: ReadonlySet<string> = new Set(["mvn", "mvnw", "gradle", "gradlew", "make"]);
+const PACKAGE_MANAGERS: ReadonlySet<string> = new Set(["npm", "pnpm", "yarn", "bun"]);
+const PACKAGE_MANAGER_OPTIONS_WITH_VALUE: ReadonlySet<string> = new Set([
+  "--prefix", "-C", "--dir", "--cwd", "--filter", "-F", "--workspace",
+]);
+/** A script run without `run` (`pnpm build`, `yarn test:unit`) counts when its name says what it checks. */
+const CHECK_SCRIPT_NAME_RE = /^(?:test|build|lint|typecheck|type-check|check|verify)(?::|$)/;
+/** Programs that run the program named after their own options: npx tsc, bunx vitest. */
+const PACKAGE_RUNNERS: ReadonlySet<string> = new Set(["npx", "pnpx", "bunx", "cross-env", "dotenv"]);
+/** Environment managers that run a program after `run` or `exec`: uv run pytest, bundle exec rspec. */
+const ENVIRONMENT_RUNNERS: ReadonlySet<string> = new Set(["uv", "poetry", "pipenv", "pdm", "hatch", "bundle"]);
+const NODE_OPTIONS_WITH_VALUE: ReadonlySet<string> = new Set([
+  "--import", "-r", "--require", "--loader", "--experimental-loader", "--env-file", "--conditions", "-C",
+  "--test-reporter", "--test-reporter-destination", "--test-name-pattern", "--test-skip-pattern",
+  "--test-concurrency", "--test-timeout", "--test-shard",
+]);
+const MAX_RUNNER_DEPTH = 4;
+
+/** `args` without leading options, assignments and the values of `optionsWithValue`. */
+function afterOptions(args: string[], optionsWithValue: ReadonlySet<string> = new Set()): string[] {
+  let i = 0;
+  while (i < args.length) {
+    const arg = args[i] as string;
+    if (optionsWithValue.has(arg)) {
+      i += 2;
+    } else if (arg.startsWith("-") || ASSIGNMENT_RE.test(arg)) {
+      i++;
+    } else {
+      break;
+    }
+  }
+  return args.slice(i);
+}
+
+/** `words` read as a command of their own: the program a wrapper was asked to run. */
+function runsCheck(words: string[], depth: number): boolean {
+  const [program, ...args] = words;
+  return program !== undefined && depth < MAX_RUNNER_DEPTH && isCheck(programName(program), args, depth + 1);
+}
+
+/** npm test, npm run <script>, pnpm exec tsc, yarn lint, bun test. */
+function isPackageManagerCheck(name: string, args: string[], depth: number): boolean {
+  const withValue = name === "npm" ? new Set([...PACKAGE_MANAGER_OPTIONS_WITH_VALUE, "-w"]) : PACKAGE_MANAGER_OPTIONS_WITH_VALUE;
+  const [subcommand, ...rest] = afterOptions(args, withValue);
+  if (subcommand === undefined) {
+    return false;
+  }
+  if (subcommand === "test" || subcommand === "t" || subcommand === "tst") {
+    return true;
+  }
+  if (subcommand === "run" || subcommand === "run-script") {
+    return afterOptions(rest).length > 0;
+  }
+  if (subcommand === "exec" || subcommand === "x" || subcommand === "dlx") {
+    return runsCheck(afterOptions(rest), depth);
+  }
+  // pnpm, yarn and bun run a script or a local binary named directly.
+  return name !== "npm" && (CHECK_SCRIPT_NAME_RE.test(subcommand) || runsCheck([subcommand, ...rest], depth));
+}
+
+/** node --test, or node running a check program's own script (node_modules/vitest/vitest.mjs). */
+function isNodeCheck(args: string[], depth: number): boolean {
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i] as string;
+    if (arg === "--test") {
+      return true;
+    }
+    if (arg === "-e" || arg === "--eval" || arg === "-p" || arg === "--print") {
+      return false;
+    }
+    if (NODE_OPTIONS_WITH_VALUE.has(arg)) {
+      i++;
+    } else if (!arg.startsWith("-")) {
+      const script = programName(arg).replace(/\.[cm]?js$/, "");
+      return runsCheck([script, ...args.slice(i + 1)], depth);
+    }
+  }
+  return false;
+}
+
+/** python -m pytest, python -m unittest. */
+function isPythonCheck(args: string[]): boolean {
+  const module = args[args.indexOf("-m") + 1];
+  return args.includes("-m") && (module === "pytest" || module === "unittest");
+}
+
+function isCheck(name: string, args: string[], depth = 0): boolean {
+  if (CHECK_PROGRAMS.has(name)) {
+    return true;
+  }
+  const subcommands = CHECK_SUBCOMMANDS.get(name);
+  if (subcommands) {
+    const words = operands(args).filter((arg) => !arg.startsWith("+"));
+    return TARGET_TOOLS.has(name) ? words.some((word) => subcommands.has(word)) : subcommands.has(words[0] ?? "");
+  }
+  if (PACKAGE_MANAGERS.has(name)) {
+    return isPackageManagerCheck(name, args, depth);
+  }
+  if (name === "node") {
+    return isNodeCheck(args, depth);
+  }
+  if (/^(?:python[\d.]*|py)$/.test(name)) {
+    return isPythonCheck(args);
+  }
+  if (PACKAGE_RUNNERS.has(name)) {
+    const separator = args.indexOf("--");
+    return runsCheck(afterOptions(separator === -1 ? args : args.slice(separator + 1), new Set(["-p", "--package", "-e"])), depth);
+  }
+  if (ENVIRONMENT_RUNNERS.has(name)) {
+    const [subcommand, ...rest] = afterOptions(args);
+    return (subcommand === "run" || subcommand === "exec") && runsCheck(afterOptions(rest, new Set(["--with", "-p", "--python"])), depth);
+  }
+  return false;
+}
+
+/**
+ * True when a shell command line runs a test, a build or a check, with the
+ * runner at a command position of the line: npm/pnpm/yarn/bun test or
+ * run <script>; vitest, jest, mocha, tsc, eslint, playwright test, craco or
+ * react-scripts test/build, vite build or next build/lint, direct or through
+ * npx; node --test; pytest, python -m pytest or unittest; go test/vet/build;
+ * cargo test/build/check/clippy; dotnet test/build; mvn test or verify; gradle
+ * or make test/check/build; deno test; Invoke-Pester. The word test or build
+ * in a path, a search pattern or a quoted string does not count.
+ */
+export function isVerificationRun(commandLine: string): boolean {
+  return invocations(commandLine).some((invocation) => isCheck(invocation.name, invocation.args));
 }
