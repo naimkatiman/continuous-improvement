@@ -335,6 +335,13 @@ describe("secret redaction at write time", () => {
     }
   });
 
+  it("keeps a dotted file name and a dotted test id, which are not JWTs", () => {
+    const file_path = "D:/proj/src/users/user-preferences.controller.integration.spec.ts";
+    assert.equal(summariseInput("Edit", { file_path, old_string: "a", new_string: "b" }), file_path);
+    const stdout = "FAIL: test_upload_link_unlink (test_server.CrmServerTests.test_upload_link_unlink)";
+    assert.equal(summariseOutput({ stdout, stderr: "" }), JSON.stringify({ stdout, stderr: "" }));
+  });
+
   it("keeps the command that follows an empty assignment, and the next line of a blank .env entry", () => {
     const command = "OPENAI_API_KEY= pytest -q";
     assert.equal(summariseInput("Bash", { command }), command);
@@ -345,10 +352,11 @@ describe("secret redaction at write time", () => {
   });
 
   it("stays cheap on a payload far larger than the budget", () => {
-    // Dash-separated text is the slow case for the JWT pattern: redacting these
-    // 30 KB whole takes seconds across the three calls, the bounded head takes
+    // A run of `eyJ-` is the slow case for the JWT pattern, which retries at
+    // every `eyJ` and walks the rest of the run: redacting these 200 KB whole
+    // takes many seconds across the three calls, the bounded head takes
     // milliseconds.
-    const blob = "ab-".repeat(10_000);
+    const blob = "eyJ-".repeat(50_000);
     const started = process.hrtime.bigint();
     summariseInput("Bash", { command: blob });
     summariseOutput(blob);

@@ -325,3 +325,42 @@ describe("redactSecrets: credential shapes without a secret name", () => {
         }
     });
 });
+// The JWT rule used to take any three dot-separated runs of 10 or more word
+// characters. On real logs that never matched a JWT, only dotted identifiers:
+// test ids, type names, property chains and file names. A JWT's header is
+// base64 of a JSON object, so it always starts with eyJ.
+describe("redactSecrets: JWTs", () => {
+    const JWT = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpM";
+    const redacted = [
+        [`session ${JWT} issued`, "session <jwt-redacted> issued"],
+        [`curl -H "X-Session: ${JWT}" https://x.test`, 'curl -H "X-Session: <jwt-redacted>" https://x.test'],
+        [`{"note":"issued ${JWT}"}`, '{"note":"issued <jwt-redacted>"}'],
+        [`https://x.test/cb?jwt=${JWT}&state=1`, "https://x.test/cb?jwt=<jwt-redacted>&state=1"],
+    ];
+    for (const [text, expected] of redacted) {
+        it(`redacts ${JSON.stringify(text)}`, () => {
+            assert.equal(redactSecrets(text), expected);
+        });
+    }
+    const untouched = [
+        "FAIL: test_upload_link_unlink (test_server.CrmServerTests.test_upload_link_unlink)",
+        "src/users/user-preferences.controller.integration.spec.ts",
+        "el.parentElement.previousElementSibling.getBoundingClientRect()",
+        "Microsoft.Extensions.DependencyInjection.Abstractions 8.0.0",
+        "continuous-improvement.example-account.workers.dev",
+    ];
+    for (const text of untouched) {
+        it(`leaves ${JSON.stringify(text)} alone`, () => {
+            assert.equal(redactSecrets(text), text);
+        });
+    }
+    it("scans long dash-separated text in linear time", () => {
+        // The old pattern tried a match at every word boundary and walked the rest
+        // of the run each time: 60 KB of this took seconds.
+        const blob = "ab-".repeat(20_000);
+        const started = process.hrtime.bigint();
+        assert.equal(redactSecrets(blob), blob);
+        const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+        assert.ok(elapsedMs < 500, `60 KB took ${elapsedMs.toFixed(0)}ms`);
+    });
+});
