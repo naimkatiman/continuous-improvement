@@ -44,13 +44,17 @@ function isSafeDraftId(id) {
 // Instinct ids become a file name (`<instincts dir>/<id>.yaml`). They arrive from
 // model-controlled tool arguments (ci_create_instinct, ci_import), pack files
 // (ci_load_pack) and on-disk YAML (ci_reinforce, ci_distill_promote), so
-// writeInstinct checks this shape before it builds a path. Same character set as
-// isSafeDraftId without the prefix, so a promoted draft keeps its id. No length
-// cap: generated draft ids run past 130 characters (src/lib/skill-distill.mts).
+// writeInstinct checks this shape before it builds a path. The rule is path
+// safety, not style: any single file name with no separator, colon or leading
+// dot, so "." and ".." and dot-files are out while the underscore, capital and
+// dotted ids already on disk (instinct YAML is also written by hand) can still
+// be reinforced, imported and promoted. It is a superset of isSafeDraftId, so a
+// promoted draft keeps its id. No length cap: generated draft ids run past 130
+// characters (src/lib/skill-distill.mts).
 function isSafeInstinctId(id) {
-    return /^[a-z0-9][a-z0-9-]*$/.test(id);
+    return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id);
 }
-const INSTINCT_ID_RULE = "Instinct ids are kebab-case: lowercase letters, digits and hyphens, starting with a letter or digit (for example prefer-grep-before-edit).";
+const INSTINCT_ID_RULE = "An instinct id is a single file name: letters, digits, dots, underscores and hyphens, starting with a letter or digit (for example prefer-grep-before-edit).";
 function invalidInstinctId(id) {
     return `Invalid instinct id ${JSON.stringify(id)}. ${INSTINCT_ID_RULE} Nothing was written.`;
 }
@@ -588,7 +592,7 @@ function handleTool(name, params) {
             }
             const updated = update.instinct;
             if (!update.written) {
-                return error(`${invalidInstinctId(updated.id)} Correct the id: line in that instinct's file before reinforcing it.`);
+                return error(`${invalidInstinctId(updated.id)} Correct the id: line in that instinct's file and rename the file to <new id>.yaml before reinforcing it.`);
             }
             return text(`${getBoolean(params.accepted) ? "Accepted" : "Rejected"} **${updated.id}** — confidence now ${updated.confidence}`);
         }

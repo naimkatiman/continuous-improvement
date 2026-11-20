@@ -649,6 +649,62 @@ describe("MCP server — an instinct id cannot leave the instincts dir (expert)"
             assert.deepEqual(created, ids.map((id) => `${projectRel}/${id}.yaml`).sort(), `every id in the ${pack} pack must be written inside the project instincts dir`);
         }
     });
+    // Regression: the first id rule was kebab-case only, which is narrower than
+    // path safety needs. Instinct YAML is also written by hand during reflection,
+    // so ids with an underscore, a capital or a dot exist on disk. They name a
+    // direct child of the instincts dir, and the kebab rule locked them out of
+    // ci_reinforce, ci_import and ci_distill_promote.
+    const SAFE_NON_KEBAB_IDS = ["use_snake_case", "React-Hooks-Deps", "tdd.red-first"];
+    for (const id of SAFE_NON_KEBAB_IDS) {
+        it(`ci_reinforce updates the on-disk instinct ${id} in place`, async () => {
+            mkdirSync(projectDir, { recursive: true });
+            const filePath = join(projectDir, `${id}.yaml`);
+            writeFileSync(filePath, [`id: ${id}`, 'trigger: "when writing code"', "confidence: 0.5", "scope: project", "---", "Keep the convention", ""].join("\n"));
+            const { created, response } = await createdBy(() => call("ci_reinforce", { instinct_id: id, accepted: true }));
+            assert.ok(!response.result.isError, response.result.content[0].text);
+            assert.match(response.result.content[0].text, /confidence now 0\.65/);
+            assert.deepEqual(created, [], "the instinct must be rewritten in place, not duplicated under another name");
+            assert.match(readFileSync(filePath, "utf8"), /^confidence: 0\.65$/m);
+        });
+    }
+    it("ci_import keeps path-safe ids that are not kebab-case", async () => {
+        const ids = ["Import_Snake", "Import-Caps", "import.dotted"];
+        const payload = JSON.stringify(ids.map((id) => ({ id, trigger: "when importing", body: "Keep it" })));
+        const { created, response } = await createdBy(() => call("ci_import", { instincts_json: payload }));
+        assert.ok(!response.result.isError, response.result.content[0].text);
+        assert.match(response.result.content[0].text, /Imported 3 instincts \(0 skipped as duplicates\)/);
+        assert.deepEqual(created, ids.map((id) => `${projectRel}/${id}.yaml`).sort());
+    });
+    it("ci_distill_promote promotes a draft whose id line is path-safe but not kebab-case", async () => {
+        const draftsDir = join(projectDir, "drafts");
+        mkdirSync(draftsDir, { recursive: true });
+        const draftPath = join(draftsDir, "draft-renamed-recipe.yaml");
+        writeFileSync(draftPath, ["id: my_renamed_recipe", 'trigger: "when repeating the recipe"', "confidence: 0.3", "---", "Run the recipe", ""].join("\n"));
+        const { created, response } = await createdBy(() => call("ci_distill_promote", { id: "draft-renamed-recipe" }));
+        assert.ok(!response.result.isError, response.result.content[0].text);
+        assert.deepEqual(created, [`${projectRel}/my_renamed_recipe.yaml`]);
+        assert.equal(existsSync(draftPath), false, "a promoted draft is consumed");
+    });
+    // Dots are allowed inside an id, never as the first character, so "." and ".."
+    // and dot-files stay out. A colon would open an NTFS alternate data stream.
+    for (const id of [".", "..", ".hidden", "a/../b", "stream:alt", "tab\tid", "space id"]) {
+        it(`ci_create_instinct still rejects the id ${JSON.stringify(id)}`, async () => {
+            const { created, response } = await createdBy(() => call("ci_create_instinct", { id, trigger: "when escaping", body: "escape" }));
+            assert.deepEqual(created, [], `id ${JSON.stringify(id)} must not create a file`);
+            assert.ok(response.result.isError, `id ${JSON.stringify(id)} must return a tool error`);
+            assert.match(response.result.content[0].text, /Invalid instinct id/);
+        });
+    }
+    // ci_reinforce rewrites <id>.yaml. Correcting only the id: line of a refused
+    // instinct would leave the old file beside the new one, both with the same id.
+    it("the ci_reinforce refusal tells the user to rename the file with the id", async () => {
+        mkdirSync(projectDir, { recursive: true });
+        writeFileSync(join(projectDir, "planted-hint.yaml"), ["id: ../../../ESCAPED-HINT", 'trigger: "when escaping"', "confidence: 0.5", "scope: project", "---", "escape", ""].join("\n"));
+        const { created, response } = await createdBy(() => call("ci_reinforce", { instinct_id: "../../../ESCAPED-HINT", accepted: true }));
+        assert.deepEqual(created, []);
+        assert.ok(response.result.isError);
+        assert.match(response.result.content[0].text, /rename the file to <new id>\.yaml/);
+    });
 });
 describe("Plugin configs", () => {
     it("beginner.json matches the shared plugin manifest", () => {
