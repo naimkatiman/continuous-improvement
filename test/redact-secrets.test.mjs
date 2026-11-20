@@ -61,6 +61,74 @@ describe("redactSecrets: assignment names", () => {
         });
     }
 });
+// `key`, `keys` and `token` with nothing else in the name are ordinary words far
+// more often than secrets: a React key, a sort key, a keyboard key, a count of
+// keys, a variable called token. They were the most frequent matches on real
+// logs. Such a name marks a secret only when its value is credential-shaped: it
+// holds a run of 16 or more letters, digits, `_`, `-` or `+` with both a letter
+// and a digit in it.
+describe("redactSecrets: the bare names key, keys and token", () => {
+    const untouched = [
+        "<Row key={entry.user_id} />",
+        "sorted(words, key=lambda w: w.lower())",
+        "sorted(rows, key=operator.itemgetter(1))",
+        "keys: 76 clean",
+        "curl https://api.example.com/search?key=value",
+        "const token = params.get('t')",
+        "token = localStorage.getItem('auth_token_v2')",
+        "rotate api key: done",
+        "echo primary key: id",
+        `node -e "const key = 'a'; console.log(key)"`,
+        "token: ${{ secrets.GITHUB_TOKEN }}",
+        "- key: node-role.kubernetes.io/control-plane",
+        "key: /etc/letsencrypt/live/example.com/privkey.pem",
+        '{"key":"Enter"}',
+        '{"namespace":"sessions","key":"user:42:profile"}',
+        '{"keys":["a","b"]}',
+        '{"token":123456,"ok":true}',
+        // A short value is not credential-shaped either.
+        "TOKEN=abc ./run.sh",
+    ];
+    for (const text of untouched) {
+        it(`leaves ${JSON.stringify(text)} alone`, () => {
+            assert.equal(redactSecrets(text), text);
+        });
+    }
+    const SESSION = "550e8400-e29b-41d4-a716-446655440000";
+    const BOT = "1234567890:AAFakeFakeFakeFake0123456789abcdefghi";
+    const redacted = [
+        [`KEY=${SECRET} node x.js`, "KEY=<redacted> node x.js"],
+        [`export TOKEN=${SECRET}`, "export TOKEN=<redacted>"],
+        [`TOKEN=${BOT} ./bot.sh`, "TOKEN=<redacted> ./bot.sh"],
+        [`token: ${SESSION}`, "token: <redacted>"],
+        [`$key = '${SECRET}'`, "$key = '<redacted>'"],
+        ['token = "abc def 1234567890abcdefgh"', 'token = "<redacted>"'],
+        [`{"token":"${SECRET}"}`, '{"token":"<redacted>"}'],
+        // The value runs to the next whitespace, as it does for every other name.
+        [
+            'curl "https://maps.example.test/js?key=AIzaFAKE0123456789abcdefghijklmnopqrstu&callback=init"',
+            'curl "https://maps.example.test/js?key=<redacted>',
+        ],
+        // A value that is not a secret can still hold one under another name.
+        [`curl "https://x.test/login?key=name&password=${SECRET}"`, 'curl "https://x.test/login?key=name&password=<redacted>'],
+        ['key="note PASSWORD=hunter2 end"', 'key="note PASSWORD=<redacted> end"'],
+        // Every other name stays a secret whatever its value looks like.
+        ["api_key=abc x-api-key: abc DEPLOY_TOKEN=abc", "api_key=<redacted> x-api-key: <redacted> DEPLOY_TOKEN=<redacted>"],
+        ["client_secret=abc password=abc --token=abc", "client_secret=<redacted> password=<redacted> --token=<redacted>"],
+        ["KEY_1=abc _authToken=abc", "KEY_1=<redacted> _authToken=<redacted>"],
+        ['{"apiKey":"abc","pin_token":123456}', '{"apiKey":"<redacted>","pin_token":<redacted>}'],
+    ];
+    for (const [text, expected] of redacted) {
+        it(`redacts ${JSON.stringify(text)}`, () => {
+            assert.equal(redactSecrets(text), expected);
+        });
+    }
+    it("is stable when run again over its own output", () => {
+        for (const [, expected] of redacted) {
+            assert.equal(redactSecrets(expected), expected);
+        }
+    });
+});
 // The separator used to let any whitespace, a line break included, sit between
 // the name and the value. `NAME= command` is the shell idiom for running one
 // command with the variable blanked, and a name at the end of a line has no

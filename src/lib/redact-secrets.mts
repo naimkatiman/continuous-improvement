@@ -15,14 +15,22 @@
 
 // The name side of a `NAME=value` / `name: value` secret assignment: anything
 // that ends in KEY, SECRET, TOKEN, PASSWORD, PASSWD or PWD. The keyword alone is
-// a name (`PASSWORD=`, `--password=`, `TOKEN=`), and so is a hyphenated,
+// a name (`PASSWORD=`, `--password=`, `SECRET=`), and so is a hyphenated,
 // dotted or underscore-led one (`x-api-key`, `_authToken`). A plural or a short
 // numeric suffix still counts (`API_KEYS`, `GITHUB_TOKEN_2`); `max_tokens` and
 // `keyword` do not, because the keyword has to end the name. A name starts at a
 // boundary, so the scan stays linear on long dash- or dot-separated text.
 // The shell's own PWD and OLDPWD are left alone when the value is a path.
+//
+// Three names are set apart: `key`, `keys` and `token` with nothing else in
+// them. They are ordinary words far more often than secrets (a React or sort
+// key, a key press, a count of keys, a variable called token), so SECRET_NAME
+// does not match them and BARE_SECRET_NAME does. A value under SECRET_NAME is
+// always redacted; a value under a bare name only when it is credential-shaped.
+const NAME_BOUNDARY = String.raw`(?<![A-Za-z0-9_.-])`;
+const BARE_SECRET_NAME = String.raw`${NAME_BOUNDARY}(?:KEYS?|TOKEN)(?![A-Za-z0-9_.-])`;
 const SECRET_NAME =
-  String.raw`(?<![A-Za-z0-9_.-])(?!(?:OLD)?PWD\s*[:=]\s*(?:[/~.]|[A-Za-z]:[\\/]))` +
+  String.raw`${NAME_BOUNDARY}(?!(?:OLD)?PWD\s*[:=]\s*(?:[/~.]|[A-Za-z]:[\\/]))(?!(?:KEYS?|TOKEN)(?![A-Za-z0-9_.-]))` +
   String.raw`[A-Za-z0-9_.-]*(?:(?:KEY|SECRET|PASSWORD)S?|TOKEN|PASSWD|PWD)(?:_?[0-9]{1,3})?`;
 // The value side. A quoted value is taken whole, spaces included, in the three
 // spellings it shows up in: escaped quotes (the assignment sits inside
@@ -42,20 +50,23 @@ const NOT_A_CLOSING_QUOTE = String.raw`(?!(?:\\?["'])+(?:\s|$))`;
 // pytest with the variable blanked), and so is a name at the end of a line:
 // the next word, or the next line, is not the value.
 const ASSIGNMENT_SEPARATOR = String.raw`[ \t]*:[ \t]*|[ \t]+=[ \t]*|=(?=\S)|=[ \t]+(?=\\?["'])`;
-const SECRET_ASSIGNMENT_RE = new RegExp(
-  String.raw`(${SECRET_NAME})(${ASSIGNMENT_SEPARATOR})${NOT_A_CLOSING_QUOTE}(${QUOTED_VALUE}|\S+)`,
-  "gi",
-);
+const assignmentRule = (name: string): RegExp =>
+  new RegExp(String.raw`(${name})(${ASSIGNMENT_SEPARATOR})${NOT_A_CLOSING_QUOTE}(${QUOTED_VALUE}|\S+)`, "gi");
+const SECRET_ASSIGNMENT_RE = assignmentRule(SECRET_NAME);
+const BARE_ASSIGNMENT_RE = assignmentRule(BARE_SECRET_NAME);
 // The same assignment as a JSON property, where a quote closes the name before
 // the colon: "password":"v", or \"password\":\"v\" when the JSON sits inside a
 // JSON string. JSON is the shape of every MCP tool input and most API replies.
 // A value that is not a string (a number, true, null) ends at the next comma
 // or bracket, so the rest of the object survives. The value is on the same
 // line as the name here too.
-const SECRET_PROPERTY_RE = new RegExp(
-  String.raw`(${SECRET_NAME})(\\?["'][ \t]*[:=][ \t]*)${NOT_A_CLOSING_QUOTE}(${QUOTED_VALUE}|[^\s,}\]]+)`,
-  "gi",
-);
+const propertyRule = (name: string): RegExp =>
+  new RegExp(
+    String.raw`(${name})(\\?["'][ \t]*[:=][ \t]*)${NOT_A_CLOSING_QUOTE}(${QUOTED_VALUE}|[^\s,}\]]+)`,
+    "gi",
+  );
+const SECRET_PROPERTY_RE = propertyRule(SECRET_NAME);
+const BARE_PROPERTY_RE = propertyRule(BARE_SECRET_NAME);
 
 // Credentials that carry no KEY/TOKEN/PASSWORD name. Each rule is anchored on
 // fixed punctuation, so it is linear on the bounded text callers pass.
@@ -103,14 +114,40 @@ const LONG_HEX_RE = /\b[a-f0-9]{32,}\b/gi;
 export const HEX_KEPT_PREFIX = 8;
 
 const SECRET_NAME_ONLY_RE = new RegExp(`^(?:${SECRET_NAME})$`, "i");
+const BARE_SECRET_NAME_ONLY_RE = /^(?:keys?|token)$/i;
+// The characters a generated key or token is made of (base64url plus `+`).
+// `/`, `.` and `:` are left out so a path, a property chain and a cache key
+// break into short runs.
+const CREDENTIAL_RUN_RE = /[A-Za-z0-9_+-]{16,}/g;
 
 /**
  * True when `name` alone names a secret (`password`, `API_TOKEN`, `x-api-key`).
  * For a caller that holds structured data and can drop the value of such a
- * property outright instead of pattern-matching serialised text.
+ * property outright instead of pattern-matching serialised text. False for the
+ * bare names `key`, `keys` and `token`: see isBareSecretName.
  */
 export function isSecretName(name: string): boolean {
   return SECRET_NAME_ONLY_RE.test(name);
+}
+
+/**
+ * True for `key`, `keys` and `token` with nothing else in the name. A value
+ * under such a name is a secret only when isCredentialShaped says so.
+ */
+export function isBareSecretName(name: string): boolean {
+  return BARE_SECRET_NAME_ONLY_RE.test(name);
+}
+
+/**
+ * True when `value` holds a run of 16 or more letters, digits, `_`, `-` or `+`
+ * with both a letter and a digit in it: the shape of a generated key or token,
+ * and not of a word, a number, a path, a property chain or a call.
+ */
+export function isCredentialShaped(value: string): boolean {
+  for (const run of value.match(CREDENTIAL_RUN_RE) ?? []) {
+    if (/[A-Za-z]/.test(run) && /[0-9]/.test(run)) return true;
+  }
+  return false;
 }
 
 // Replace a matched value, keeping the quotes it was written in.
@@ -120,12 +157,21 @@ function redactedValue(value: string): string {
   return quote === '"' || quote === "'" ? `${quote}<redacted>${quote}` : "<redacted>";
 }
 
+const redactNamedValue = (_match: string, name: string, separator: string, value: string): string =>
+  `${name}${separator}${redactedValue(value)}`;
+// A bare name whose value is an ordinary word is left exactly as written. The
+// always-secret names are redacted before this runs, so a secret that sits
+// inside such a value (`?key=name&password=...`) is already gone.
+const redactNamedValueIfShaped = (match: string, name: string, separator: string, value: string): string =>
+  isCredentialShaped(value) ? `${name}${separator}${redactedValue(value)}` : match;
+
 /**
  * Redact common secret shapes from text. Pattern-based, so it covers the shapes
  * below and nothing else: private key blocks, AWS access key ids, Authorization
  * headers, a password inside a URL, `curl -u` credentials, KEY/SECRET/TOKEN/
- * PASSWORD assignments, JSON properties and flags, provider-prefixed tokens,
- * JWTs, and long hex strings (all but their first 8 characters).
+ * PASSWORD assignments, JSON properties and flags (under a bare `key`, `keys`
+ * or `token` only a credential-shaped value), provider-prefixed tokens, JWTs,
+ * and long hex strings (all but their first 8 characters).
  */
 export function redactSecrets(text: string): string {
   return text
@@ -135,14 +181,10 @@ export function redactSecrets(text: string): string {
     .replace(AUTHORIZATION_RE, "$1$2<redacted>")
     .replace(URL_USERINFO_RE, "$1<redacted>")
     .replace(USER_FLAG_RE, "$1<redacted>")
-    .replace(
-      SECRET_PROPERTY_RE,
-      (_match, name: string, separator: string, value: string) => `${name}${separator}${redactedValue(value)}`,
-    )
-    .replace(
-      SECRET_ASSIGNMENT_RE,
-      (_match, name: string, separator: string, value: string) => `${name}${separator}${redactedValue(value)}`,
-    )
+    .replace(SECRET_PROPERTY_RE, redactNamedValue)
+    .replace(BARE_PROPERTY_RE, redactNamedValueIfShaped)
+    .replace(SECRET_ASSIGNMENT_RE, redactNamedValue)
+    .replace(BARE_ASSIGNMENT_RE, redactNamedValueIfShaped)
     .replace(SECRET_FLAG_RE, (_match, flag: string, value: string) => `${flag}${redactedValue(value)}`)
     .replace(PROVIDER_TOKEN_RE, "<token-redacted>")
     .replace(JWT_RE, "<jwt-redacted>")

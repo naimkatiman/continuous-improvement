@@ -361,6 +361,37 @@ describe("secret redaction of object summaries happens before they are serialise
         });
         assert.equal(summary, '{"API_TOKEN":"<redacted>","pin_token":"<redacted>","nested":{"password":"<redacted>"},"list":[{"x-api-key":"<redacted>"},"plain"],"keep":"v"}');
     });
+    // `key`, `keys` and `token` are ordinary property names (a key press, a cache
+    // key, a list of keys). Under one of them a value is replaced only when it is
+    // credential-shaped; everything else is treated like any other leaf.
+    it("keeps an ordinary value under a property named key, keys or token", () => {
+        const cases = [
+            ["mcp__playwright__browser_press_key", { key: "Enter" }],
+            ["mcp__kv__get", { namespace: "sessions", key: "user:42:profile" }],
+            ["mcp__db__query", { sql: "select * from t", keys: ["a", "b"], token: 123456 }],
+            ["TodoWrite", { todos: [{ content: "rotate api key: done", status: "completed" }] }],
+        ];
+        for (const [tool, input] of cases) {
+            assert.equal(summariseInput(tool, input), JSON.stringify(input));
+            assert.equal(summariseOutput(input), JSON.stringify(input));
+        }
+    });
+    it("replaces a credential-shaped value under a property named key, keys or token, however it is nested", () => {
+        const summary = summariseInput("mcp__x__y", {
+            key: SECRET,
+            keys: [SECRET, "a"],
+            token: { value: SECRET, type: "Bearer", note: `PASSWORD=${SECRET}` },
+            keep: SECRET,
+        });
+        assert.equal(summary, '{"key":"<redacted>","keys":["<redacted>","a"],"token":{"value":"<redacted>","type":"Bearer","note":"<redacted>"},"keep":"hunter2SECRETvalue"}');
+    });
+    it("decides on the part of a long value that can reach the row", () => {
+        // The credential sits 2 MB into the value, far past the cut: the head is
+        // ordinary text and is kept.
+        const summary = summariseInput("mcp__x__y", { key: `${"word ".repeat(400_000)}${SECRET}` });
+        assert.equal(summary.length, 500);
+        assert.match(summary, /^\{"key":"word word /);
+    });
     it("serialises what JSON.stringify would for a payload with nothing to redact", () => {
         const input = { url: "https://example.test/a?b=1", depth: 2, flags: [true, null, "x"], nested: { n: 1.5 } };
         assert.equal(summariseInput("WebFetch", input), JSON.stringify(input));
