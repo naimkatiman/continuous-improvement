@@ -735,4 +735,91 @@ describe("lint-transcript.mjs", () => {
             }
         });
     });
+    // The legacy bash observer wrote a thin row: the tool name inside the
+    // observer's envelope and no tool input. Where it ran beside the Node
+    // observer a call is three rows (rich start, rich complete, thin), and the
+    // thin row was counted as a second call. A log that holds only thin rows
+    // names the tools and nothing else, so no rule can be judged on it.
+    describe("observations.jsonl rows that carry no tool input (thin rows)", () => {
+        /** A row as the legacy observer wrote it; the backfill adds `schema: "thin"`. */
+        function thin(tool, extra = {}) {
+            return {
+                ts: "2026-05-01T09:00:00Z",
+                event: "tool_start",
+                session: "sess-observations",
+                tool,
+                project_id: "0123456789ab",
+                project_name: "repo",
+                ...extra,
+            };
+        }
+        /** One call in a log both observers wrote: rich start, rich complete, then the thin row. */
+        function tripled(tool, inputSummary) {
+            const complete = observation(tool, inputSummary, "ok");
+            return [{ ...complete, event: "tool_start", output_summary: "" }, complete, thin(tool)];
+        }
+        const SESSION = [
+            ["Grep", "retry"],
+            ["Read", "/repo/src/fetch.ts"],
+            ["Edit", "/repo/src/fetch.ts"],
+            ["Edit", "/repo/src/fetch.ts"],
+            ["Edit", "/repo/src/fetch.ts"],
+            ["Bash", "npm test"],
+        ];
+        it("counts a call once when a thin row sits beside its rich rows", () => {
+            const rows = SESSION.flatMap(([tool, summary]) => tripled(tool, summary));
+            const result = JSON.parse(lintRows(rows, ["--json"]).stdout);
+            assert.equal(result.stats.totalEvents, 6, "six calls, not twelve");
+            assert.equal(result.stats.researchTools, 2);
+            assert.equal(result.stats.writeTools, 3);
+            assert.equal(result.stats.verifyTools, 1);
+            assert.equal(result.stats.rowsWithoutInput, 6);
+            assert.deepEqual(lawsOf(result), [], "three edits are not six consecutive edits");
+            assert.equal(lintRows(rows, ["--strict"]).status, 0);
+        });
+        it("gives the same result as the log without its thin rows", () => {
+            const withThin = SESSION.flatMap(([tool, summary]) => tripled(tool, summary));
+            const withoutThin = SESSION.flatMap(([tool, summary]) => tripled(tool, summary).slice(0, 2));
+            const a = JSON.parse(lintRows(withThin, ["--json"]).stdout);
+            const b = JSON.parse(lintRows(withoutThin, ["--json"]).stdout);
+            assert.deepEqual({ ...a.stats, rowsWithoutInput: 0 }, { ...b.stats, rowsWithoutInput: 0 });
+            assert.deepEqual(a.violations, b.violations);
+            assert.equal(a.score, b.score);
+        });
+        it("reads a row the backfill tagged schema: thin the same way", () => {
+            const rows = SESSION.flatMap(([tool, summary]) => {
+                const [start, complete] = tripled(tool, summary);
+                return [start, complete, thin(tool, { schema: "thin" })];
+            });
+            const result = JSON.parse(lintRows(rows, ["--json"]).stdout);
+            assert.equal(result.stats.totalEvents, 6);
+            assert.deepEqual(lawsOf(result), []);
+        });
+        it("does not lint a log that holds only thin rows, and says why", () => {
+            // One read and three edits, each logged on PreToolUse and PostToolUse.
+            const rows = ["Read", "Read", "Edit", "Edit", "Edit", "Edit", "Edit", "Edit"].map((tool) => thin(tool));
+            const { status, stdout } = lintRows(rows, ["--strict"]);
+            assert.doesNotMatch(stdout, /Law \d/, "six writes and a Law 3 violation were reported for three edits");
+            assert.match(stdout, /No events found/);
+            assert.match(stdout, /8 rows/);
+            assert.match(stdout, /no tool input/);
+            assert.equal(status, 0);
+        });
+        it("lints the rich sessions of a log and reports how many thin rows it set aside", () => {
+            const oldSession = ["Edit", "Edit", "Bash", "Bash"].map((tool) => thin(tool, { session: "sess-legacy" }));
+            const rows = [...oldSession, ...SESSION.map(([tool, summary]) => observation(tool, summary, "ok"))];
+            const json = JSON.parse(lintRows(rows, ["--json"]).stdout);
+            assert.equal(json.stats.totalEvents, 6);
+            assert.equal(json.stats.rowsWithoutInput, 4);
+            assert.deepEqual(lawsOf(json), []);
+            const report = lintRows(rows).stdout;
+            assert.match(report, /Rows without tool input:\*\* 4/);
+        });
+        it("still counts a flat row that has a tool name and no input", () => {
+            // The shape CI smoke-tests the linter with: no observer envelope around it.
+            const result = JSON.parse(lintRows([{ tool: "Bash", event: "tool_start" }], ["--json"]).stdout);
+            assert.equal(result.stats.toolCalls, 1);
+            assert.equal(result.stats.rowsWithoutInput, 0);
+        });
+    });
 });

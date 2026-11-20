@@ -21,6 +21,13 @@
  *        {"ts":"...","event":"tool_complete","session":"...","tool":"Bash","input_summary":"npm test",...}
  *      A tool_start row followed by its tool_complete row (the observer wired
  *      on both PreToolUse and PostToolUse) is one tool call, not two.
+ *      A thin row, which the legacy bash observer wrote, names the tool and
+ *      records no input: {"ts":"...","event":"tool_start","session":"...","tool":"Bash","project_id":"..."}.
+ *      It is not counted as a tool call. Beside rich rows it repeats a call
+ *      they already record; a session that has only thin rows cannot be
+ *      judged, because no rule can tell a test run from a listing or a source
+ *      file from a note without the input. The report states how many thin
+ *      rows were set aside.
  *   3. Flat tool events
  *        {"tool":"Edit","tool_input":{"file_path":"..."}}   (tool_name / input also read)
  *
@@ -123,8 +130,22 @@ function isCompletionOfCountedStart(row, pendingStarts) {
     }
     return false;
 }
+/**
+ * A thin row is what the legacy bash observer wrote: the tool name inside the
+ * observer's envelope (an event and a project id) and no tool input. The
+ * backfill (bin/backfill.mjs) tags such a row `schema: "thin"`. A flat tool
+ * event that happens to have no input carries no such envelope and stays a
+ * call.
+ */
+function isThinObservationRow(row) {
+    return typeof row.tool === "string"
+        && typeof row.input_summary !== "string"
+        && !isObject(row.tool_input)
+        && !isObject(row.input)
+        && (row.schema === "thin" || (typeof row.event === "string" && typeof row.project_id === "string"));
+}
 function newNormaliseState() {
-    return { pendingStarts: new Map(), seenToolUseIds: new Set() };
+    return { pendingStarts: new Map(), rowsWithoutInput: 0, seenToolUseIds: new Set() };
 }
 /**
  * Turn one parsed JSONL row into the tool events the rules consume. See the
@@ -177,6 +198,12 @@ function normaliseRow(row, state) {
                 session_id: typeof row.session === "string" ? row.session : undefined,
             }];
     }
+    // A thin observation row is not a call the rules can read: beside rich rows
+    // it repeats one of theirs, and alone it names a tool and nothing else.
+    if (isThinObservationRow(row)) {
+        state.rowsWithoutInput++;
+        return [];
+    }
     // Flat tool events keep their fields; only an aliased tool is rewritten.
     const flatTool = typeof row.tool === "string" ? row.tool : row.tool_name;
     if (typeof flatTool === "string" && canonicalTool(flatTool) !== flatTool) {
@@ -190,11 +217,12 @@ function normaliseRow(row, state) {
     // Every other flat tool event, and anything unrecognised, passes through untouched.
     return [row];
 }
-function analyzeTranscript(events, parseFailures) {
+function analyzeTranscript(events, parseFailures, rowsWithoutInput) {
     const violations = [];
     const stats = {
         totalEvents: events.length,
         toolCalls: 0,
+        rowsWithoutInput,
         researchTools: 0,
         writeTools: 0,
         verifyTools: 0,
@@ -294,6 +322,7 @@ function analyzeTranscript(events, parseFailures) {
     const score = Math.max(0, Math.round(100 - (violationWeight / maxViolations) * 100));
     return { violations, stats, score, parseFailures };
 }
+const THIN_ROWS_NOTE = "written by the legacy observer, not counted as tool calls and not linted";
 function formatReport(result) {
     const { violations, stats, score, parseFailures } = result;
     const lines = [];
@@ -305,6 +334,9 @@ function formatReport(result) {
     lines.push(`**Research ops:** ${stats.researchTools} | **Write ops:** ${stats.writeTools} | **Verify ops:** ${stats.verifyTools}`);
     if (parseFailures > 0) {
         lines.push(`**Parse failures:** ${parseFailures} (malformed JSON lines skipped)`);
+    }
+    if (stats.rowsWithoutInput > 0) {
+        lines.push(`**Rows without tool input:** ${stats.rowsWithoutInput} (${THIN_ROWS_NOTE})`);
     }
     lines.push("");
     if (violations.length === 0) {
@@ -346,6 +378,9 @@ Accepted input (JSONL, one JSON object per line, shapes may be mixed):
                            a block whose id was already seen is counted once
   observations.jsonl       rows written by this plugin's observer
                            {"tool":"Bash","input_summary":"npm test",...}
+                           a row with a tool name and no input_summary (the
+                           legacy observer wrote these) is not counted and
+                           not linted; the report says how many there were
   Flat tool events         {"tool":"Edit","tool_input":{"file_path":"..."}}
 A line that is JSON but not an object (null, a number, an array) is skipped.
 
@@ -400,9 +435,12 @@ async function main() {
     }
     if (events.length === 0) {
         console.log("No events found to analyze.");
+        if (state.rowsWithoutInput > 0) {
+            console.log(`${state.rowsWithoutInput} rows carry a tool name and no tool input (${THIN_ROWS_NOTE}).`);
+        }
         process.exit(0);
     }
-    const result = analyzeTranscript(events, parseFailures);
+    const result = analyzeTranscript(events, parseFailures, state.rowsWithoutInput);
     const report = formatReport(result);
     if (isJson) {
         console.log(JSON.stringify(result, null, 2));
