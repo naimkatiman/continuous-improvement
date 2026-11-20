@@ -625,6 +625,31 @@ describe("lib/destructive-bash — classifier table", () => {
     });
   }
 
+  // A one-word message written without quotes ends at the separator that
+  // follows it. The value pattern took every non-blank character, so the `;`
+  // or `&&` went with the message and the next command was glued to the commit.
+  const AFTER_UNQUOTED_MESSAGE_CAUGHT: ReadonlyArray<[string, string, string | undefined]> = [
+    ["git commit -m wip; git clean -fdx", "git-clean-force", undefined],
+    ["git commit -m wip&&git clean -fdx", "git-clean-force", undefined],
+    ["git commit --message=wip; git stash drop", "git-stash-drop", undefined],
+    ["git commit -m wip|| git checkout -- .", "git-checkout-discard", undefined],
+    ["git commit -m wip; Remove-Item build -Recurse -Force", "powershell-remove-item", "PowerShell"],
+  ];
+  for (const [command, rule, tool] of AFTER_UNQUOTED_MESSAGE_CAUGHT) {
+    it(`catches the command after an unquoted one-word message: ${command}`, () => {
+      assert.deepEqual(classifyDestructiveBash(command, tool), { destructive: true, rule });
+    });
+  }
+
+  it("an unquoted message ends at a separator, and a quoted one keeps its separators", () => {
+    assert.equal(stripMessageArgs("git commit -m wip; git push"), "git commit -m ; git push");
+    assert.equal(stripMessageArgs("git commit -m wip&&git push"), "git commit -m &&git push");
+    assert.equal(stripMessageArgs("git commit --message=wip|cat"), "git commit --message |cat");
+    assert.equal(stripMessageArgs('git commit -m "a; b && c"'), "git commit -m ");
+    assert.equal(classifyDestructiveBash("git commit -m wip; git status").destructive, false);
+    assert.equal(classifyDestructiveBash('git commit -m "wip; git clean -fdx"').destructive, false);
+  });
+
   it("stripMessageArgs blanks message and body values but keeps the flag", () => {
     assert.equal(stripMessageArgs('git commit -m "rm -rf x"'), "git commit -m ");
     assert.equal(stripMessageArgs("gh pr create --body-file body.md"), "gh pr create --body-file ");

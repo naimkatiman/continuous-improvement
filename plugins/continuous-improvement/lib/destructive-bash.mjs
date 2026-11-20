@@ -60,7 +60,9 @@ export const DESTRUCTIVE_PATTERNS = [
 // `-C` is not here: before the subcommand it is git's "run in this directory"
 // option, and blanking its value made the parser read the subcommand as the
 // directory (`git -C ../wt clean -fdx`).
-const MESSAGE_FLAG_RE = /(^|\s)(-m|--message|-F|--file|--body|--body-file|--title|--notes|--reuse-message)(=|\s+)('[^']*'|"[^"]*"|\S+)/g;
+// An unquoted value ends at whitespace or at a separator: in
+// `git commit -m wip; git push` the `;` belongs to the shell, not to the message.
+const MESSAGE_FLAG_RE = /(^|\s)(-m|--message|-F|--file|--body|--body-file|--title|--notes|--reuse-message)(=|\s+)('[^']*'|"[^"]*"|[^\s;|&]+)/g;
 /** Blank the value of every message/body flag; the flag itself is preserved. */
 export function stripMessageArgs(command) {
     return command.replace(MESSAGE_FLAG_RE, (_match, lead, flag) => `${lead}${flag} `);

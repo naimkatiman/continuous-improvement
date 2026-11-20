@@ -199,6 +199,21 @@ describe("hook-pack-gate: text that is data is not a push", () => {
     });
   }
 
+  // A one-word commit message written without quotes ends at the separator
+  // that follows it: the push after it is a command of its own.
+  const afterUnquotedMessage: ReadonlyArray<[string, string]> = [
+    ["git commit -m wip; git push origin main", "feature/x"],
+    ["git commit --message=wip; git push origin main", "feature/x"],
+    ["git commit -m wip&&git push origin main", "feature/x"],
+    ["git add -A && git commit -m checkpoint; git push", "main"],
+  ];
+  for (const [command, current] of afterUnquotedMessage) {
+    it(`still gates the push after an unquoted one-word message: ${command}`, () => {
+      assert.equal(classifyCommand(command), "push");
+      assert.deepEqual(evaluatePush(command, current), { gated: true, branch: "main" });
+    });
+  }
+
   it("does not read a comment for pushes", () => {
     assert.equal(classifyCommand("# next: (git push origin main)\necho ok"), "other");
     assert.equal(classifyCommand("echo done # then (git push origin main) by hand"), "other");
