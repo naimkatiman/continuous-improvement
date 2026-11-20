@@ -6,8 +6,15 @@
 // Implements Law 4 + Law 5 in-band: verify before reporting, reflect at
 // the end. See SKILL.md for the discipline rationale.
 //
+// Opt-in: runs only when CLAUDE_THREE_SECTION_CLOSE is 1/on/true/yes
+// (case-insensitive). Default off, because the close is one reply format and
+// not a rule every install should pay for. CLAUDE_THREE_SECTION_CLOSE_DISABLED=1
+// still forces it off, even when enabled.
+//
 // Behavior:
 //   - exit 0 to allow the response to stand
+//   - allow when the payload carries stop_hook_active: true, so a re-prompted
+//     reply is never re-prompted again
 //   - emit {"decision":"block","reason":"..."} on stdout to re-prompt
 //   - never block on internal failure (parse error, missing transcript,
 //     unexpected message shape) — fail open
@@ -29,6 +36,13 @@ import { performance } from "node:perf_hooks";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 
 const MIN_LENGTH_TO_GATE = 600;
+
+const ENABLED_VALUES = new Set(["1", "on", "true", "yes"]);
+
+function isEnabled(): boolean {
+  const flag = (process.env.CLAUDE_THREE_SECTION_CLOSE ?? "").trim().toLowerCase();
+  return ENABLED_VALUES.has(flag);
+}
 
 interface Section {
   heading: string;
@@ -56,6 +70,7 @@ const REQUIRED_SECTIONS: Section[] = [
 
 interface Payload {
   transcript_path: string;
+  stop_hook_active?: boolean;
 }
 
 interface TelemetryEntry {
@@ -146,12 +161,9 @@ function recordTelemetry(entry: TelemetryEntry, transcriptPath: string): void {
 }
 
 function main(): void {
-  // Per-operator opt-out. When CLAUDE_THREE_SECTION_CLOSE_DISABLED=1, the hook
-  // short-circuits entirely: no enforcement, no telemetry. Public default is
-  // unchanged (rule still fires for everyone else). See feedback memory
-  // 2026-05-04 for rationale: an audit found 22,876 observations produced
-  // only 2 graduated instincts, so visible end-of-turn reflection earns its
-  // keep poorly enough that operators may want to run it as internal thinking.
+  // Opt-in, and the older opt-out still wins: with either switch off the hook
+  // short-circuits entirely, with no enforcement and no telemetry.
+  if (!isEnabled()) return;
   if (process.env.CLAUDE_THREE_SECTION_CLOSE_DISABLED === "1") return;
   const startedAt = performance.now();
   const stdin = readStdinSync();
@@ -159,6 +171,8 @@ function main(): void {
 
   const payload = safeJsonParse(stdin) as Payload | null;
   if (!payload || typeof payload.transcript_path !== "string") return;
+  // A Stop hook already continued this turn; blocking again could loop.
+  if (payload.stop_hook_active === true) return;
   if (!existsSync(payload.transcript_path)) return;
 
   let lastText: string | null;
