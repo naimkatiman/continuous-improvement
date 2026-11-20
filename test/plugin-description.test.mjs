@@ -11,10 +11,12 @@
  * the same rule.
  */
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
+import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 import { getClaudePluginManifest, getPluginHooksConfig } from "../lib/plugin-metadata.mjs";
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const REPO_ROOT = join(__dirname, "..");
@@ -111,6 +113,52 @@ describe("core skill and command docs", () => {
         });
         it(`${doc} does not say a lesson is created or applied with nobody acting`, () => {
             assert.deepEqual(matchingLines(doc, UNATTENDED_CLAIMS), []);
+        });
+    }
+});
+// Where a project's instinct files live. hooks/session.mjs and the MCP server
+// name the directory with hashProjectRoot (src/lib/gateguard-state.mts): the
+// project root written with forward slashes, a lower-case drive letter and no
+// trailing slash, then SHA-256 and the first 12 hex characters. A doc that says
+// only "SHA-256 of the git root" sends a hand-written lesson on Windows, where
+// git prints D:/..., to a directory the runtime does not write to.
+const HASH_RULE_DOCS = [
+    "SKILL.md",
+    "commands/continuous-improvement.md",
+    "commands/dashboard.md",
+    "plugins/continuous-improvement/skills/continuous-improvement/SKILL.md",
+    "plugins/continuous-improvement/commands/continuous-improvement.md",
+    "plugins/continuous-improvement/commands/dashboard.md",
+];
+const WORKED_EXAMPLE = /`([^`]+)` is hashed as `([^`]+)`, which gives `([0-9a-f]{12})`/;
+describe("docs that say how a project's instinct directory is named", () => {
+    for (const doc of HASH_RULE_DOCS) {
+        it(`${doc} states the form of the path that is hashed`, () => {
+            const lines = readRepoFile(doc)
+                .split(/\r?\n/)
+                .filter((line) => /SHA-256/i.test(line));
+            assert.ok(lines.length > 0, `${doc} no longer says how the directory is named`);
+            for (const line of lines) {
+                assert.match(line, /CLAUDE_PROJECT_DIR/);
+                assert.match(line, /forward slashes/);
+                assert.match(line, /lower-case drive letter/);
+                assert.match(line, /no trailing slash or newline/);
+            }
+        });
+        it(`${doc} gives a worked example that hashProjectRoot agrees with`, () => {
+            const example = readRepoFile(doc).match(WORKED_EXAMPLE);
+            assert.ok(example, `${doc} has no worked example of the form: \`<path>\` is hashed as \`<path>\`, which gives \`<12 hex>\``);
+            const [, asGiven, asHashed, hash] = example;
+            assert.match(asGiven, /^[A-Z]:\\/, "the example starts from a Windows path");
+            assert.equal(createHash("sha256").update(asHashed).digest("hex").slice(0, 12), hash);
+            assert.equal(hashProjectRoot(asGiven), hash);
+        });
+    }
+    // In expert mode, which is how the plugin install starts the server, the tool
+    // writes the file to that directory, so the reflect command names it first.
+    for (const doc of HASH_RULE_DOCS.filter((path) => path.endsWith("commands/continuous-improvement.md"))) {
+        it(`${doc} names ci_create_instinct as the way to record a rule`, () => {
+            assert.match(readRepoFile(doc), /`ci_create_instinct`/);
         });
     }
 });

@@ -23,7 +23,7 @@ Generate a reflection for this session based on what happened:
   3. <alternative — smaller/larger scope>
 ```
 
-If there's a "Rule to add", create an instinct YAML file with 0.6 starting confidence in the project's instinct directory.
+If there's a "Rule to add", record it as an instinct with 0.6 starting confidence. When the `ci_create_instinct` MCP tool is available (the plugin install starts the server in expert mode), call it: it writes the file to the project's instinct directory. Otherwise write `<id>.yaml` in that directory by hand; Step 2 says how the directory is named, and the Instinct Format section of the core skill shows the file layout.
 
 The "Iteration — Next best recommendations" field is the Law 6 handoff. List the **top 3 ranked** core-development moves — what to build, fix, refactor, or investigate next so the feature/system advances. Item #1 is the strongest; #2 and #3 are alternatives the user can pivot to. NOT git steps (commit, push, PR), NOT verification re-runs, NOT deploy actions — those belong in the end-of-run summary.
 
@@ -33,7 +33,7 @@ Rules: always exactly 3 distinct directions, not padding. If fewer real moves ex
 
 ## Step 2: Analyze Observations
 
-Check `~/.claude/instincts/` for the current project (detect via git root → SHA-256 first 12 chars).
+The current project's files are in `~/.claude/instincts/<hash>/`. `<hash>` is the first 12 hex characters of the SHA-256 of the project root (`CLAUDE_PROJECT_DIR`, the directory the session was started in; when that is not set, the output of `git rev-parse --show-toplevel`), written with forward slashes, a lower-case drive letter and no trailing slash or newline. `D:\Work\app` is hashed as `d:/Work/app`, which gives `00c6de01c97c`.
 
 Look at `~/.claude/instincts/<hash>/observations.jsonl`. If 20+ lines exist:
 

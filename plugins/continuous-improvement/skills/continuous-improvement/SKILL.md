@@ -148,7 +148,7 @@ No setting changes that: no code reads a `config.yaml` in the instinct directory
 
 When analysis is triggered (on-demand or weekly), determine level:
 
-1. **Find project hash:** Run `git rev-parse --show-toplevel 2>/dev/null`, then SHA-256 first 12 chars of the path
+1. **Find project hash:** the first 12 hex characters of the SHA-256 of the project root (`CLAUDE_PROJECT_DIR`, the directory the session was started in; when that is not set, the output of `git rev-parse --show-toplevel`), written with forward slashes, a lower-case drive letter and no trailing slash or newline. `D:\Work\app` is hashed as `d:/Work/app`, which gives `00c6de01c97c`.
 2. **Check observations:** Count lines in `~/.claude/instincts/<hash>/observations.jsonl`
 3. **Check instincts:** List `*.yaml` files in the project directory + `global/`
 
