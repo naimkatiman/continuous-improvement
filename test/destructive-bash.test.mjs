@@ -593,6 +593,97 @@ describe("lib/destructive-bash — classifier table", () => {
             assert.equal(verdict.destructive, false, `expected allowed: ${command} (rule ${verdict.rule})`);
         });
     }
+    // A comment is not code. The classifier read it as code in two ways: the
+    // block split cut a command out of a comment that mentions one inside
+    // parentheses or braces (allowed before the split existed, denied after),
+    // and an apostrophe in a comment opened a string that swallowed the lines
+    // below it, so a real command on the next line was never seen. An escaped
+    // quote inside a string lost the pass its place the same way.
+    const COMMENT_ALLOWED = [
+        ["# stash note (git stash drop would lose it)\nnpm test", "Bash"],
+        ["# cleanup (git clean -fd) is manual, do not automate\nnpm run build", "Bash"],
+        ["npm test # then maybe (git checkout -- .) by hand", "Bash"],
+        ["# the old helper was { git restore . } and it is gone\nnpm run lint", "Bash"],
+        ["# cleanup (Remove-Item build -Recurse) happens in CI\nnpm test", "PowerShell"],
+        ["# note (git stash drop would lose the wip)\ngit status", "PowerShell"],
+        ["# never run rm -rf here\nnpm test", "Bash"],
+        ["git status # then git reset --hard, by hand", undefined],
+        // An escaped quote does not end the message it sits in.
+        ['git commit -m "docs: say \\"rm -rf\\" is gated"', "Bash"],
+        ['git commit -m "docs: say `"rm -rf`" is gated"', "PowerShell"],
+    ];
+    for (const [command, tool] of COMMENT_ALLOWED) {
+        it(`allows a command that is only mentioned in a comment: ${JSON.stringify(command)}`, () => {
+            assert.deepEqual(classifyDestructiveBash(command, tool), { destructive: false, rule: null });
+        });
+    }
+    const AFTER_COMMENT_CAUGHT = [
+        ["# don't skip this step\ngit clean -fdx", "git-clean-force", "Bash"],
+        ["# it's safe: the tree was committed\ngit checkout -- .", "git-checkout-discard", "Bash"],
+        ['echo "it\\"s" ; git clean -fdx', "git-clean-force", "Bash"],
+        ["# don't skip this step\nRemove-Item build -Recurse -Force", "powershell-remove-item", "PowerShell"],
+        ['Write-Host "a `" b"; git clean -fdx', "git-clean-force", "PowerShell"],
+        ["npm test # don't stop here\ngit stash drop", "git-stash-drop", undefined],
+        ["npm test # then clean up\ngit clean -fdx", "git-clean-force", "Bash"],
+        // A heredoc body that is a script keeps its reach past a comment line.
+        ["cat > cleanup.sh <<'EOF'\n# don't run this twice\ngit clean -fdx\nEOF", "git-clean-force", "Bash"],
+        // The command line of a wrapper has lost one layer of escaping.
+        ['bash -c "git commit -m \\"x\\" && git clean -fdx"', "git-clean-force", "Bash"],
+        ['bash -c "echo \\"# not a comment\\"; git clean -fdx"', "git-clean-force", "Bash"],
+        // cmd.exe has no `#` comment: the rest of the line still runs.
+        ['cmd /c "echo #1 & rd /s /q build"', "cmd-rmdir-tree", "Bash"],
+        // `#` inside a word or a string is not a comment.
+        ["echo issue#12; git clean -fdx", "git-clean-force", "Bash"],
+        ['echo "# heading" > notes.md; git clean -fdx', "git-clean-force", "Bash"],
+    ];
+    for (const [command, rule, tool] of AFTER_COMMENT_CAUGHT) {
+        it(`catches the command after a comment or an odd quote: ${JSON.stringify(command)}`, () => {
+            assert.deepEqual(classifyDestructiveBash(command, tool), { destructive: true, rule });
+        });
+    }
+    // PowerShell's block comment, `<#` to `#>`, is a comment too. It is read as
+    // one only under PowerShell: in Bash `<#` opens no comment block.
+    it("reads a PowerShell block comment as a comment, under PowerShell only", () => {
+        const allowed = [
+            "<# block (git clean -fd) #>\ngit status",
+            "git status <# tail (git stash drop) #>",
+            "<#\n  cleanup (Remove-Item build -Recurse) happens in CI\n  don't automate it\n#>\nnpm test",
+            'pwsh -c "<# note (git stash drop) #> git status"',
+        ];
+        for (const command of allowed) {
+            const tool = command.startsWith("pwsh") ? "Bash" : "PowerShell";
+            assert.deepEqual(classifyDestructiveBash(command, tool), { destructive: false, rule: null }, command);
+        }
+        const caught = [
+            ["<# note #> git clean -fdx", "git-clean-force", "PowerShell"],
+            ["<# don't\n skip #>\nRemove-Item build -Recurse -Force", "powershell-remove-item", "PowerShell"],
+            ["<# first #> git status; <# second #> git stash drop", "git-stash-drop", "PowerShell"],
+            // No closing `#>`: not a comment block, the text stays code.
+            ["git status <# (git clean -fdx)", "git-clean-force", "PowerShell"],
+            ["cat <#x; git clean -fdx #>", "git-clean-force", "Bash"],
+        ];
+        for (const [command, rule, tool] of caught) {
+            assert.deepEqual(classifyDestructiveBash(command, tool), { destructive: true, rule }, command);
+        }
+    });
+    // The comment pass is one walk over the text: an opener with no closer must
+    // not send it looking through the rest of the text again and again.
+    const LONG_COMMENT_INPUTS = [
+        ["unclosed block comment openers", "<# ".repeat(70_000)],
+        ["closed block comments", "<# c #> ".repeat(25_000)],
+        ["comment lines", "# c\n".repeat(50_000)],
+        ["escaped quotes", '\\" `" '.repeat(34_000)],
+    ];
+    for (const [name, command] of LONG_COMMENT_INPUTS) {
+        it(`reads 200 KB of ${name} in under a second`, () => {
+            for (const tool of ["Bash", "PowerShell"]) {
+                const started = performance.now();
+                classifyDestructiveBash(command, tool);
+                const elapsed = performance.now() - started;
+                assert.ok(elapsed < 1000, `${tool} took ${elapsed.toFixed(0)} ms for ${command.length} chars`);
+            }
+        });
+    }
     // `git branch -d` is the safe delete: git refuses it for an unmerged branch.
     // The substring `git branch -D` was compared in lower case, so every `-d`
     // that no global option separated from `branch` was denied as a force delete.

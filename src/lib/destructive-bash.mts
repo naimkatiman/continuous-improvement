@@ -400,6 +400,8 @@ interface Wrapped {
   text: string;
   /** True when the wrapper is PowerShell, where `rm` is the Remove-Item alias. */
   powershell: boolean;
+  /** True when the wrapper is cmd.exe, which has no `#` comment. */
+  cmd?: boolean;
 }
 
 // A shell started to run one command line: `bash -c "…"`, `pwsh -Command "…"`,
@@ -429,7 +431,7 @@ function wrappedCommand(segment: string, words: readonly Word[]): Wrapped | null
   if (shell === "cmd") {
     for (const word of args) {
       // `//c` is the Git Bash spelling, which stops MSYS rewriting `/c` as a path.
-      if (/^\/{1,2}[ck]$/i.test(word.text)) return after(word, false);
+      if (/^\/{1,2}[ck]$/i.test(word.text)) return { ...after(word, false), cmd: true };
       if (!word.text.startsWith("/")) return null;
     }
     return null;
@@ -735,11 +737,17 @@ export function classifyDestructiveBash(command: string, tool?: string): Destruc
   return classify(command, tool === "PowerShell", 0);
 }
 
-function classify(command: string, powershell: boolean, depth: number): DestructiveVerdict {
+// `cmd` says the text is a cmd.exe command line (the argument of `cmd /c`),
+// where `#` starts no comment.
+function classify(command: string, powershell: boolean, depth: number, cmd = false): DestructiveVerdict {
   if (typeof command !== "string" || command.trim() === "") return ALLOWED;
-  const { code, bodies } = extractHereBodies(command);
+  const lifted = extractHereBodies(command);
+  // Comments blanked and escaped quotes masked, as collectGit does for the push
+  // gate: a comment that mentions a command is not one, and neither an
+  // apostrophe in a comment nor an escaped quote may swallow the next command.
+  const code = maskEscapedQuotes(lifted.code, powershell, !cmd);
   const stripped = stripMessageArgs(code);
-  const scanned = scannableBodies(code, bodies);
+  const scanned = scannableBodies(code, lifted.bodies);
 
   for (const segment of allSimpleCommands(stripped)) {
     const words = commandWords(segment.text);
@@ -749,7 +757,7 @@ function classify(command: string, powershell: boolean, depth: number): Destruct
     if (rule !== null) return { destructive: true, rule };
     const wrapped = depth < MAX_WRAPPER_DEPTH ? wrappedCommand(segment.text, words) : null;
     if (wrapped !== null) {
-      const inner = classify(wrapped.text, wrapped.powershell, depth + 1);
+      const inner = classify(unmaskQuotes(wrapped.text), wrapped.powershell, depth + 1, wrapped.cmd === true);
       if (inner.destructive) return inner;
     }
   }
@@ -760,7 +768,7 @@ function classify(command: string, powershell: boolean, depth: number): Destruct
   // reached by the substring list below.
   for (const body of scanned) {
     if (body.hereString) continue;
-    for (const segment of splitSimpleCommands(body.text, false)) {
+    for (const segment of splitSimpleCommands(maskEscapedQuotes(body.text, false), false)) {
       const tokens = commandWords(segment.text).map((word) => word.text);
       if (tokens.length === 0) continue;
       const rule = matchStructuredRule(tokens, false, false);
@@ -797,17 +805,20 @@ function classify(command: string, powershell: boolean, depth: number): Destruct
 //     nothing is escaped, except in Bash's `$'…'`.
 //   - A comment is not code, and a quote character inside one opens no string:
 //     the apostrophe of `# don't forget` must not swallow the lines after it.
-//     A `#` that starts a word blanks the rest of its line.
+//     A `#` that starts a word blanks the rest of its line, and under
+//     PowerShell `<#` blanks through its `#>`. Not in a cmd.exe command line
+//     (`comments` false), where `#` is an ordinary character.
 const ESCAPE_MASK = "\uE000";
 const MASKED_DOUBLE = "\uE001";
 const MASKED_SINGLE = "\uE002";
 
-function maskEscapedQuotes(text: string, powershell: boolean): string {
+function maskEscapedQuotes(text: string, powershell: boolean, comments = true): string {
   const escape = powershell ? "`" : "\\";
-  if (!text.includes(escape) && !text.includes("#")) return text;
+  if (!text.includes(escape) && !(comments && text.includes("#"))) return text;
   let masked = "";
   let quote: '"' | "'" | null = null;
   let ansi = false;
+  let blockComments = powershell && comments;
   for (let i = 0; i < text.length; i++) {
     const ch = text[i]!;
     // The escape character takes the next character with it, so `\\"` is a
@@ -820,12 +831,25 @@ function maskEscapedQuotes(text: string, powershell: boolean): string {
       i++;
       continue;
     }
-    if (quote === null && ch === "#" && (i === 0 || /[\s;|&(]/.test(text[i - 1]!))) {
+    if (comments && quote === null && ch === "#" && (i === 0 || /[\s;|&(]/.test(text[i - 1]!))) {
       const lineEnd = text.indexOf("\n", i);
       const stop = lineEnd === -1 ? text.length : lineEnd;
       masked += " ".repeat(stop - i);
       i = stop - 1;
       continue;
+    }
+    // PowerShell's block comment, `<#` to `#>`, blanked with its line breaks
+    // kept. With no closing `#>` the text is left as code, and the search for
+    // one is not repeated: every later opener would walk the same text again.
+    if (blockComments && quote === null && ch === "<" && text[i + 1] === "#" && (i === 0 || /[\s;|&({]/.test(text[i - 1]!))) {
+      const close = text.indexOf("#>", i + 2);
+      if (close === -1) {
+        blockComments = false;
+      } else {
+        masked += text.slice(i, close + 2).replace(/[^\r\n]/g, " ");
+        i = close + 1;
+        continue;
+      }
     }
     if (quote) {
       if (ch === quote) quote = null;

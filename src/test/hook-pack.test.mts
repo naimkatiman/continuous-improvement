@@ -227,6 +227,12 @@ describe("hook-pack-gate: text that is data is not a push", () => {
     assert.equal(classifyCommand("git push origin feature#1"), "push");
   });
 
+  it("reads a PowerShell block comment as a comment, and the push after it as a push", () => {
+    assert.equal(classifyCommand("<# then (git push origin main) by hand #>\ngit status", "PowerShell"), "other");
+    assert.equal(classifyCommand("<# don't skip #> git push origin main", "PowerShell"), "push");
+    assert.equal(evaluatePush("<# don't skip #> git push origin main", "feature/x", "PowerShell").gated, true);
+  });
+
   it("reads --dry-run and --amend from the command they belong to", () => {
     assert.equal(evaluatePush("npm publish --dry-run; git push origin main", "feature/x").gated, true);
     assert.equal(evaluatePush("git push --dry-run origin main && git push origin main", "feature/x").gated, true);
