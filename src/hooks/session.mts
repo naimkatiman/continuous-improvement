@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { closeSync, openSync, readFileSync, readSync, readdirSync } from "node:fs";
-import { join } from "node:path";
-import { hashProjectRoot } from "../lib/gateguard-state.mjs";
+import { basename, join } from "node:path";
+import { canonicalizeProjectRoot, hashProjectRoot } from "../lib/gateguard-state.mjs";
 import { parseYamlInstinct } from "../lib/instinct-yaml.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 type SessionEvent = "SessionStart" | "SessionEnd" | "unknown";
@@ -82,6 +83,39 @@ function yamlFiles(dir: string): string[] {
     return [];
   }
 }
+// One Windows directory has several spellings: `D:/repo`, `d:\repo`, `D:\repo`.
+// hashProjectRoot folds them into one bucket (lower-case drive, forward
+// slashes). A lesson written before that rule existed, or by a model that hashed
+// the path the way git prints it, sits under the hash of another spelling of the
+// same root. These are those hashes. A POSIX root has one spelling, so the list
+// is empty there and nothing extra is read.
+function otherSpellingHashes(root: string, canonicalHash: string): string[] {
+  const canonical = canonicalizeProjectRoot(root);
+  const spellings = [root];
+  if (/^[a-z]:/.test(canonical)) {
+    const upperDrive = canonical.charAt(0).toUpperCase() + canonical.slice(1);
+    spellings.push(upperDrive, canonical.replace(/\//g, "\\"), upperDrive.replace(/\//g, "\\"));
+  }
+  const hashes = spellings.map((spelling) =>
+    createHash("sha256").update(spelling).digest("hex").slice(0, 12),
+  );
+  return [...new Set(hashes)].filter((hash) => hash !== canonicalHash);
+}
+// The project's instinct files: the canonical bucket first, then the buckets of
+// the root's other spellings. A file name already listed is skipped, so a lesson
+// copied between buckets is read once and the canonical copy is the one read.
+function projectYamlFiles(instinctsRoot: string, root: string, canonicalHash: string): string[] {
+  const files = yamlFiles(join(instinctsRoot, canonicalHash));
+  const names = new Set(files.map((file) => basename(file)));
+  for (const hash of otherSpellingHashes(root, canonicalHash)) {
+    for (const file of yamlFiles(join(instinctsRoot, hash))) {
+      if (names.has(basename(file))) continue;
+      names.add(basename(file));
+      files.push(file);
+    }
+  }
+  return files;
+}
 // Instinct text is data: a model wrote it, or it came from an imported pack. It
 // is printed inside a system reminder, so each field becomes one line of plain
 // text. Compatibility forms are folded (a full-width bracket becomes the ASCII
@@ -150,9 +184,13 @@ function main(): void {
   const home = resolveHomeDir();
   if (!home) return;
   const instinctsRoot = join(home, ".claude", "instincts");
-  const hash = hashProjectRoot(projectRoot());
+  const root = projectRoot();
+  const hash = hashProjectRoot(root);
   const projectDir = join(instinctsRoot, hash);
-  const files = [...yamlFiles(projectDir), ...yamlFiles(join(instinctsRoot, "global"))];
+  const files = [
+    ...projectYamlFiles(instinctsRoot, root, hash),
+    ...yamlFiles(join(instinctsRoot, "global")),
+  ];
   const contents = files.slice(0, MAX_FILES_READ).map(readHead);
   const observations = read(join(projectDir, "observations.jsonl")).split(/\r?\n/).filter(Boolean).length;
   let level = observations >= 20 || files.length > 0 ? "ANALYZE" : "CAPTURE";

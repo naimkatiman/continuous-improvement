@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -452,6 +453,95 @@ describe("SessionStart loads recorded lessons into context", () => {
             assert.equal(result.status, 0, `stderr: ${result.stderr}`);
             assert.equal(result.stdout, "");
             assert.match(result.stderr, /\[continuous-improvement\] Level: ANALYZE \| Observations: 0 \| Instincts: 1/);
+        });
+    });
+    // One Windows directory has several spellings: Claude Code and git hand out
+    // `C:/x/y`, `c:\x\y` or `C:\x\y`. The hook hashes the canonical one (lower-case
+    // drive, forward slashes). A lesson written before that rule existed, or by a
+    // model that hashed the path the way git prints it, sits under the hash of
+    // another spelling of the same root and has to load all the same.
+    const WINDOWS_ROOT_SPELLINGS = ["c:/x/y", "C:/x/y", "c:\\x\\y", "C:\\x\\y"];
+    const rawBucket = (home, spelling) => join(home, ".claude", "instincts", createHash("sha256").update(spelling).digest("hex").slice(0, 12));
+    const startSessionAt = (home, projectRoot) => runSession(JSON.stringify({ hook_event_name: "SessionStart", session_id: "lessons", source: "startup" }), home, projectRoot);
+    for (const stored of WINDOWS_ROOT_SPELLINGS) {
+        it(`loads a lesson stored under the hash of ${JSON.stringify(stored)} when the session root is C:\\x\\y`, () => {
+            withSessionFixture((fixture) => {
+                const bucket = rawBucket(fixture.home, stored);
+                mkdirSync(bucket, { recursive: true });
+                writeLesson(bucket, {
+                    id: "stored-under-a-spelling",
+                    trigger: "when staging on Windows",
+                    body: "Stage by explicit file name.",
+                    confidence: 0.7,
+                });
+                // Same drive and parent, another directory: a different project.
+                const foreign = rawBucket(fixture.home, "C:/x/other");
+                mkdirSync(foreign, { recursive: true });
+                writeLesson(foreign, {
+                    id: "foreign-lesson",
+                    trigger: "when deploying the other project",
+                    body: "Run its migration first.",
+                    confidence: 0.9,
+                });
+                const result = startSessionAt(fixture.home, "C:\\x\\y");
+                assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+                assert.equal(result.stdout, `${lessonHeader(1, 1)}\n- when staging on Windows: Stage by explicit file name. (0.7)\n`);
+                assert.match(result.stderr, /\[continuous-improvement\] Level: AUTO-APPLY \| Observations: 0 \| Instincts: 1/);
+            });
+        });
+    }
+    it("loads the lesson stored as git prints the root when the session root has a lower-case drive", () => {
+        withSessionFixture((fixture) => {
+            const bucket = rawBucket(fixture.home, "C:/x/y");
+            mkdirSync(bucket, { recursive: true });
+            writeLesson(bucket, {
+                id: "stored-as-git-prints-it",
+                trigger: "when staging on Windows",
+                body: "Stage by explicit file name.",
+                confidence: 0.7,
+            });
+            for (const sessionRoot of ["c:/x/y", "c:\\x\\y", "C:/x/y/"]) {
+                const result = startSessionAt(fixture.home, sessionRoot);
+                assert.equal(result.status, 0, `${sessionRoot} stderr: ${result.stderr}`);
+                assert.equal(result.stdout, `${lessonHeader(1, 1)}\n- when staging on Windows: Stage by explicit file name. (0.7)\n`, `session root ${sessionRoot}`);
+            }
+        });
+    });
+    it("prints a lesson once when two spellings of the root hold the same file, and the canonical copy wins", () => {
+        withSessionFixture((fixture) => {
+            const canonical = join(fixture.home, ".claude", "instincts", hashProjectRoot("C:\\x\\y"));
+            const legacy = rawBucket(fixture.home, "C:/x/y");
+            assert.notEqual(canonical, legacy);
+            mkdirSync(canonical, { recursive: true });
+            mkdirSync(legacy, { recursive: true });
+            // What bin/reconcile-instinct-hashes.mjs leaves behind: the same file in both.
+            writeLesson(canonical, {
+                id: "copied",
+                trigger: "when staging on Windows",
+                body: "The canonical copy.",
+                confidence: 0.8,
+            });
+            writeLesson(legacy, {
+                id: "copied",
+                trigger: "when staging on Windows",
+                body: "The stale copy.",
+                confidence: 0.6,
+            });
+            writeLesson(legacy, {
+                id: "only-in-legacy",
+                trigger: "when naming a branch",
+                body: "Prefix it with the ticket number.",
+                confidence: 0.6,
+            });
+            const result = startSessionAt(fixture.home, "C:\\x\\y");
+            assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+            assert.equal(result.stdout, [
+                lessonHeader(2, 2),
+                "- when staging on Windows: The canonical copy. (0.8)",
+                "- when naming a branch: Prefix it with the ticket number. (0.6)",
+                "",
+            ].join("\n"));
+            assert.match(result.stderr, /\[continuous-improvement\] Level: AUTO-APPLY \| Observations: 0 \| Instincts: 2/);
         });
     });
     it("prints the same block from the plugin bundle's copy of the hook", () => {
