@@ -11,7 +11,7 @@
 // volumes (well under 100k rows) the rebuild is sub-50ms; a node:sqlite FTS5
 // migration is a follow-up if volumes grow.
 
-import { redactSecrets } from "./redact-secrets.mjs";
+import { HEX_KEPT_PREFIX, redactSecrets } from "./redact-secrets.mjs";
 
 const STOPWORDS = new Set<string>([
   "the", "and", "for", "with", "that", "this", "from", "into", "your", "are",
@@ -23,6 +23,10 @@ const BM25_K1 = 1.5;
 const BM25_B = 0.75;
 const DEFAULT_K = 5;
 const SNIPPET_RADIUS = 60;
+// The observer writes a run of 32 or more hex characters (a commit id, a
+// checksum) as <hex-redacted:XXXXXXXX>, keeping its first characters. A query
+// for the whole value also searches for that prefix, so it reaches the row.
+const LONG_HEX_TERM_RE = /^[a-f0-9]{32,}$/;
 
 export interface RecallObservation {
   ts?: string;
@@ -168,7 +172,13 @@ function makeSnippet(text: string, queryTerms: string[]): string {
  * older than an ISO timestamp or relative window. Snippets are redacted.
  */
 export function query(index: RecallIndex, queryString: string, opts: RecallOpts = {}): RecallHit[] {
-  const queryTerms = [...new Set(tokenize(queryString))];
+  const queryTerms = [
+    ...new Set(
+      tokenize(queryString).flatMap((term) =>
+        LONG_HEX_TERM_RE.test(term) ? [term, term.slice(0, HEX_KEPT_PREFIX)] : [term],
+      ),
+    ),
+  ];
   if (queryTerms.length === 0) return [];
 
   const k = opts.k && opts.k > 0 ? opts.k : DEFAULT_K;

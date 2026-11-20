@@ -376,7 +376,7 @@ describe("secret redaction of object summaries happens before they are serialise
 
   it("redacts a hex key on the second line of Bash stdout", () => {
     const summary = summariseOutput({ stdout: `Generated:\n${HEX}\ndone\n`, stderr: "", interrupted: false });
-    assert.equal(summary, '{"stdout":"Generated:\\n<hex-redacted>\\ndone\\n","stderr":"","interrupted":false}');
+    assert.equal(summary, '{"stdout":"Generated:\\n<hex-redacted:9f8e7d6c>\\ndone\\n","stderr":"","interrupted":false}');
 
     const labelled = summariseOutput({ stdout: `Your API key:\n${HEX}\n`, stderr: "", interrupted: false });
     assert.ok(!labelled.includes(HEX), labelled);
@@ -392,7 +392,7 @@ describe("secret redaction of object summaries happens before they are serialise
 
   it("redacts a hex key inside a PowerShell here-string command", () => {
     const summary = summariseInput("PowerShell", { command: `$k = @'\n${HEX}\n'@` });
-    assert.equal(summary, `{"command":"$k = @'\\n<hex-redacted>\\n'@"}`);
+    assert.equal(summary, `{"command":"$k = @'\\n<hex-redacted:9f8e7d6c>\\n'@"}`);
   });
 
   it("keeps the lines after a redacted assignment in Bash stdout", () => {

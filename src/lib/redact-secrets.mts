@@ -93,6 +93,15 @@ const PROVIDER_TOKEN_RE =
 // dotted identifiers (test ids, type names, `a.b.c()` chains, file names).
 const JWT_RE = /\beyJ[A-Za-z0-9_-]{7,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g;
 
+// A bare run of 32 or more hex characters: a key, or far more often a git
+// object id, a checksum or a bundle file name. The placeholder keeps the first
+// HEX_KEPT_PREFIX characters, so a row is still found by short SHA; of a
+// 40-character value 128 bits stay hidden. A hex value on the value side of a
+// secret name never gets here: the rules above have replaced it whole.
+const LONG_HEX_RE = /\b[a-f0-9]{32,}\b/gi;
+/** How many leading characters of a long hex run its placeholder keeps. */
+export const HEX_KEPT_PREFIX = 8;
+
 const SECRET_NAME_ONLY_RE = new RegExp(`^(?:${SECRET_NAME})$`, "i");
 
 /**
@@ -116,7 +125,7 @@ function redactedValue(value: string): string {
  * below and nothing else: private key blocks, AWS access key ids, Authorization
  * headers, a password inside a URL, `curl -u` credentials, KEY/SECRET/TOKEN/
  * PASSWORD assignments, JSON properties and flags, provider-prefixed tokens,
- * JWT-shaped triplets, and long hex strings.
+ * JWTs, and long hex strings (all but their first 8 characters).
  */
 export function redactSecrets(text: string): string {
   return text
@@ -137,5 +146,5 @@ export function redactSecrets(text: string): string {
     .replace(SECRET_FLAG_RE, (_match, flag: string, value: string) => `${flag}${redactedValue(value)}`)
     .replace(PROVIDER_TOKEN_RE, "<token-redacted>")
     .replace(JWT_RE, "<jwt-redacted>")
-    .replace(/\b[a-f0-9]{32,}\b/gi, "<hex-redacted>");
+    .replace(LONG_HEX_RE, (hex) => `<hex-redacted:${hex.slice(0, HEX_KEPT_PREFIX)}>`);
 }

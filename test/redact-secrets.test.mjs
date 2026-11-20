@@ -325,6 +325,54 @@ describe("redactSecrets: credential shapes without a secret name", () => {
         }
     });
 });
+// A bare run of 32 or more hex characters is usually a git object id, a
+// checksum or a bundle file name, and sometimes a key. Replacing all of it made
+// half of all redactions on real logs a commit id nobody could search for any
+// more. The placeholder keeps the first 8 characters, so the row is still
+// found by short SHA, and hides the rest (128 bits of a 40-character value).
+describe("redactSecrets: long hex strings", () => {
+    const SHA = "c5810ad91a7dd663c6706c955a7a1b37c92aae1e";
+    const redacted = [
+        [`git cherry-pick ${SHA}`, "git cherry-pick <hex-redacted:c5810ad9>"],
+        [`gh pr merge 12 --match-head-commit ${SHA}`, "gh pr merge 12 --match-head-commit <hex-redacted:c5810ad9>"],
+        ["sha 0123456789abcdef0123456789abcdef done", "sha <hex-redacted:01234567> done"],
+        ["dist/assets/entry-0123456789abcdef0123456789abcdef.js", "dist/assets/entry-<hex-redacted:01234567>.js"],
+        [`${SHA}${SHA.slice(0, 24)}  release.tgz`, "<hex-redacted:c5810ad9>  release.tgz"],
+        ["ABCDEF0123456789ABCDEF0123456789", "<hex-redacted:ABCDEF01>"],
+        // On the value side of a secret name the whole value still goes.
+        [`API_KEY=${SHA} node x.js`, "API_KEY=<redacted> node x.js"],
+        [`{"api_key":"${SHA}"}`, '{"api_key":"<redacted>"}'],
+        [`deploy --token ${SHA}`, "deploy --token <redacted>"],
+    ];
+    for (const [text, expected] of redacted) {
+        it(`redacts ${JSON.stringify(text)}`, () => {
+            assert.equal(redactSecrets(text), expected);
+        });
+    }
+    it("never keeps more than the first 8 characters", () => {
+        for (const [text] of redacted) {
+            const out = redactSecrets(text);
+            assert.ok(!out.includes(SHA.slice(0, 9)), out);
+            assert.ok(!out.toLowerCase().includes("0123456789abcdef".slice(0, 9)), out);
+        }
+    });
+    // A short SHA (git prints 7 to 12 characters) is not long enough to be a key.
+    const untouched = [
+        `git show ${SHA.slice(0, 7)} --stat`,
+        `git diff ${SHA.slice(0, 31)}..HEAD`,
+        "<hex-redacted:c5810ad9>",
+    ];
+    for (const text of untouched) {
+        it(`leaves ${JSON.stringify(text)} alone`, () => {
+            assert.equal(redactSecrets(text), text);
+        });
+    }
+    it("is stable when run again over its own output", () => {
+        for (const [, expected] of redacted) {
+            assert.equal(redactSecrets(expected), expected);
+        }
+    });
+});
 // The JWT rule used to take any three dot-separated runs of 10 or more word
 // characters. On real logs that never matched a JWT, only dotted identifiers:
 // test ids, type names, property chains and file names. A JWT's header is
