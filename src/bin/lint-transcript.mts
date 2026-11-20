@@ -15,6 +15,8 @@
  *      row (user/tool_result, system, summary, ...) is not a tool call.
  *   2. observations.jsonl, written by this plugin's observer (bin/observe.mjs)
  *        {"ts":"...","event":"tool_complete","session":"...","tool":"Bash","input_summary":"npm test",...}
+ *      A tool_start row followed by its tool_complete row (the observer wired
+ *      on both PreToolUse and PostToolUse) is one tool call, not two.
  *   3. Flat tool events
  *        {"tool":"Edit","tool_input":{"file_path":"..."}}   (tool_name / input also read)
  *
@@ -103,10 +105,36 @@ function observationInput(tool: string, inputSummary: string): ToolPayload {
 }
 
 /**
+ * An observation row is a hook event, not a tool call. The npm installer wires
+ * the observer on PreToolUse and PostToolUse, so one call is two rows:
+ * tool_start, then tool_complete with the same session, tool and
+ * input_summary. The plugin wires PostToolUse only, one row per call.
+ *
+ * Returns true for a tool_complete row that answers a pending tool_start: the
+ * same call seen a second time. A row with no partner stays a call of its own,
+ * which covers a PostToolUse-only log and a start that never completed (a
+ * command that exited non-zero, a call a hook denied). `pendingStarts` carries
+ * the open starts from row to row.
+ */
+function isCompletionOfCountedStart(row: Record<string, unknown>, pendingStarts: Map<string, number>): boolean {
+  const key = JSON.stringify([row.session ?? "", row.tool, row.input_summary]);
+  const open = pendingStarts.get(key) ?? 0;
+  if (row.event === "tool_start") {
+    pendingStarts.set(key, open + 1);
+    return false;
+  }
+  if (row.event === "tool_complete" && open > 0) {
+    pendingStarts.set(key, open - 1);
+    return true;
+  }
+  return false;
+}
+
+/**
  * Turn one parsed JSONL row into the tool events the rules consume. See the
  * header comment for the three accepted row shapes.
  */
-function normaliseRow(row: unknown): TranscriptEvent[] {
+function normaliseRow(row: unknown, pendingStarts: Map<string, number>): TranscriptEvent[] {
   if (isObject(row)) {
     const hasToolName = typeof row.tool === "string" || typeof row.tool_name === "string";
 
@@ -137,6 +165,9 @@ function normaliseRow(row: unknown): TranscriptEvent[] {
       && !isObject(row.tool_input)
       && !isObject(row.input)
     ) {
+      if (isCompletionOfCountedStart(row, pendingStarts)) {
+        return [];
+      }
       return [{
         tool: row.tool,
         tool_input: observationInput(row.tool, row.input_summary),
@@ -360,6 +391,7 @@ async function main(): Promise<void> {
   }
 
   const events: TranscriptEvent[] = [];
+  const pendingStarts = new Map<string, number>();
   let parseFailures = 0;
   for (const line of lines) {
     let row: unknown;
@@ -369,7 +401,7 @@ async function main(): Promise<void> {
       parseFailures++;
       continue;
     }
-    events.push(...normaliseRow(row));
+    events.push(...normaliseRow(row, pendingStarts));
   }
 
   if (events.length === 0) {

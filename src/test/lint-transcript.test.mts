@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -28,6 +28,7 @@ interface LintJsonResult {
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const LINTER = join(__dirname, "..", "bin", "lint-transcript.mjs");
+const OBSERVER = join(__dirname, "..", "bin", "observe.mjs");
 
 // A Claude Code session transcript (~/.claude/projects/<project>/<session>.jsonl)
 // as the CLI writes it: every row is an envelope with a `type`, a tool call is a
@@ -492,6 +493,112 @@ describe("lint-transcript.mjs", () => {
       const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
       assert.deepEqual(lawsOf(result), [6]);
       assert.equal(lintRows(rows, ["--strict"]).status, 1);
+    });
+  });
+
+  // The npm installer wires the observer on PreToolUse and PostToolUse, so its
+  // log holds two rows per tool call: tool_start, then tool_complete. The
+  // plugin wires PostToolUse only. A row is a hook event, not a tool call, and
+  // reading each row as a call counted every call of an npm install twice.
+  describe("observations.jsonl rows written on both PreToolUse and PostToolUse", () => {
+    /** One tool call as an npm-installed observer logs it: a start row, then a complete row. */
+    function paired(tool: string, inputSummary: string): unknown[] {
+      const complete = observation(tool, inputSummary, "ok") as Record<string, unknown>;
+      return [{ ...complete, event: "tool_start", output_summary: "" }, complete];
+    }
+
+    const DISCIPLINED: ReadonlyArray<readonly [string, string]> = [
+      ["Read", "/repo/src/fetch.ts"],
+      ["Edit", "/repo/src/fetch.ts"],
+      ["Edit", "/repo/src/fetch.ts"],
+      ["Edit", "/repo/src/fetch.ts"],
+      ["Bash", "npm test"],
+    ];
+
+    it("lints a paired log the same as the PostToolUse-only log of the same session", () => {
+      const pairedRows = DISCIPLINED.flatMap(([tool, summary]) => paired(tool, summary));
+      const postOnlyRows = DISCIPLINED.map(([tool, summary]) => observation(tool, summary, "ok"));
+      const fromPaired = JSON.parse(lintRows(pairedRows, ["--json"]).stdout) as LintJsonResult;
+      const fromPostOnly = JSON.parse(lintRows(postOnlyRows, ["--json"]).stdout) as LintJsonResult;
+
+      assert.equal(fromPaired.stats.totalEvents, 5, "five tool calls, not ten hook events");
+      assert.equal(fromPaired.stats.writeTools, 3);
+      assert.equal(fromPaired.stats.verifyTools, 1);
+      assert.deepEqual(lawsOf(fromPaired), []);
+      assert.deepEqual(fromPaired, fromPostOnly);
+
+      const strict = lintRows(pairedRows, ["--strict"]);
+      assert.match(strict.stdout, /No law violations/);
+      assert.equal(strict.status, 0, "three edits with research and a test run are not six consecutive edits");
+    });
+
+    it("pairs interleaved calls and repeated identical calls one to one", () => {
+      const [readStart, readComplete] = paired("Read", "/repo/a.ts");
+      const [grepStart, grepComplete] = paired("Grep", "retry");
+      const rows = [
+        readStart, grepStart, readComplete, grepComplete, // two calls in parallel
+        ...paired("Edit", "/repo/a.ts"),
+        ...paired("Edit", "/repo/a.ts"), // the same edit target twice is two calls
+        ...paired("Bash", "npm test"),
+      ];
+      const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
+      assert.equal(result.stats.totalEvents, 5);
+      assert.equal(result.stats.researchTools, 2);
+      assert.equal(result.stats.writeTools, 2);
+    });
+
+    it("keeps a start row that never completed (a failed or denied call)", () => {
+      const [testStart] = paired("Bash", "npm test");
+      const rows = [...paired("Read", "/repo/a.ts"), ...paired("Edit", "/repo/a.ts"), testStart];
+      const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
+      assert.equal(result.stats.totalEvents, 3);
+      assert.equal(result.stats.verifyTools, 1, "a test run that exited non-zero has no PostToolUse row");
+      assert.deepEqual(lawsOf(result), []);
+    });
+
+    it("does not pair rows of different sessions", () => {
+      const [start, complete] = paired("Edit", "/repo/a.ts") as Array<Record<string, unknown>>;
+      const rows = [{ ...start, session: "sess-a" }, { ...complete, session: "sess-b" }];
+      const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
+      assert.equal(result.stats.totalEvents, 2);
+    });
+
+    it("lints a log the real observer wrote for PreToolUse and PostToolUse", () => {
+      const home = join(tmpdir(), `ci-lint-observer-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+      mkdirSync(home, { recursive: true });
+      try {
+        const env = { ...process.env, HOME: home, USERPROFILE: home, CLAUDE_PROJECT_DIR: join(home, "project") };
+        const calls: ReadonlyArray<readonly [string, Record<string, unknown>]> = [
+          ["Read", { file_path: "/repo/src/fetch.ts" }],
+          ["Edit", { file_path: "/repo/src/fetch.ts", old_string: "a", new_string: "b" }],
+          ["Edit", { file_path: "/repo/src/fetch.ts", old_string: "b", new_string: "c" }],
+          ["Edit", { file_path: "/repo/src/fetch.ts", old_string: "c", new_string: "d" }],
+          ["Bash", { command: "npm test" }],
+        ];
+        for (const [toolName, toolInput] of calls) {
+          for (const toolResponse of [undefined, { stdout: "ok" }]) {
+            const run = spawnSync("node", [OBSERVER], {
+              input: JSON.stringify({ session_id: "sess-real", tool_name: toolName, tool_input: toolInput, tool_response: toolResponse }),
+              env,
+              encoding: "utf8",
+            });
+            assert.equal(run.status, 0, run.stderr);
+          }
+        }
+        const instincts = join(home, ".claude", "instincts");
+        const projectDir = readdirSync(instincts).find((entry) => entry !== "global");
+        assert.ok(projectDir, "the observer should have written a project bucket");
+        const log = join(instincts, projectDir, "observations.jsonl");
+        assert.equal(readFileSync(log, "utf8").trim().split("\n").length, 10, "two rows per call");
+
+        const result = spawnSync("node", [LINTER, log, "--strict", "--json"], { encoding: "utf8" });
+        const parsed = JSON.parse(result.stdout) as LintJsonResult;
+        assert.equal(parsed.stats.totalEvents, 5);
+        assert.deepEqual(lawsOf(parsed), []);
+        assert.equal(result.status, 0);
+      } finally {
+        rmSync(home, { recursive: true, force: true });
+      }
     });
   });
 });
