@@ -393,18 +393,24 @@ function detectLevel(projectHash: string): Level {
   return "CAPTURE";
 }
 
-// The one place an instinct id becomes a filesystem path. Returns false, having
-// written nothing, when the id is not a safe file name; every caller must turn
-// that into a tool error.
-function writeInstinct(projectHash: string, instinct: Instinct): boolean {
+// "invalid-id" means the id is not a safe file name; `error` carries the
+// filesystem message when the directory or file could not be written. Nothing
+// is written in either case, and every caller must turn both into a tool error.
+type WriteOutcome = "written" | "invalid-id" | { error: string };
+
+function writeFailed(id: string, reason: string): string {
+  return `Could not write instinct ${JSON.stringify(id)}: ${reason}`;
+}
+
+// The one place an instinct id becomes a filesystem path.
+function writeInstinct(projectHash: string, instinct: Instinct): WriteOutcome {
   const scope = instinct.scope === "global" ? "global" : "project";
   const dir = scope === "global" ? GLOBAL_DIR : join(INSTINCTS_DIR, projectHash);
   const filePath = resolve(dir, `${instinct.id}.yaml`);
   // The containment check is the backstop should the id pattern ever be widened.
   if (!isSafeInstinctId(instinct.id) || dirname(filePath) !== resolve(dir)) {
-    return false;
+    return "invalid-id";
   }
-  mkdirSync(dir, { recursive: true });
 
   const today = new Date().toISOString().split("T")[0];
   const yaml = [
@@ -422,17 +428,21 @@ function writeInstinct(projectHash: string, instinct: Instinct): boolean {
     instinct.body,
   ].join("\n");
 
-  writeFileSync(filePath, `${yaml}\n`);
-  return true;
+  try {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(filePath, `${yaml}\n`);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
+  return "written";
 }
 
-// null when no instinct has that id; `written` is false when writeInstinct
-// refused the id the instinct carries on disk.
+// null when no instinct has that id; otherwise what writeInstinct did with it.
 function updateInstinctConfidence(
   projectHash: string,
   instinctId: string,
   delta: number,
-): { instinct: Instinct; written: boolean } | null {
+): { instinct: Instinct; outcome: WriteOutcome } | null {
   const instincts = readInstincts(projectHash);
   const instinct = instincts.find((candidate) => candidate.id === instinctId);
   if (!instinct) {
@@ -442,7 +452,7 @@ function updateInstinctConfidence(
   const newConfidence = Math.max(0, Math.min(0.9, instinct.confidence + delta));
   instinct.confidence = Math.round(newConfidence * 100) / 100;
   instinct.last_seen = new Date().toISOString().split("T")[0];
-  return { instinct, written: writeInstinct(projectHash, instinct) };
+  return { instinct, outcome: writeInstinct(projectHash, instinct) };
 }
 
 function getWorkspaceRoot(): string {
@@ -645,6 +655,17 @@ function error(value: string): ToolResult {
   return { content: [{ type: "text", text: value }], isError: true };
 }
 
+// Result of a bulk write (ci_import, ci_load_pack): the summary, then a line for
+// the ids writeInstinct refused and one per entry whose file could not be written.
+function bulkResult(summary: string, rejected: string[], failed: string[]): ToolResult {
+  const lines = [summary];
+  if (rejected.length > 0) {
+    lines.push(rejectedIdsReport(rejected));
+  }
+  lines.push(...failed);
+  return lines.length > 1 ? error(lines.join("\n")) : text(summary);
+}
+
 function handleTool(name: string, params: Record<string, unknown>): ToolResult {
   const project = getProjectHash();
 
@@ -782,8 +803,11 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
         return error(`Instinct "${instinctId}" not found`);
       }
       const updated = update.instinct;
-      if (!update.written) {
+      if (update.outcome === "invalid-id") {
         return error(`${invalidInstinctId(updated.id)} Correct the id: line in that instinct's file and rename the file to <new id>.yaml before reinforcing it.`);
+      }
+      if (update.outcome !== "written") {
+        return error(writeFailed(updated.id, update.outcome.error));
       }
       return text(`${getBoolean(params.accepted) ? "Accepted" : "Rejected"} **${updated.id}** — confidence now ${updated.confidence}`);
     }
@@ -804,8 +828,12 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
         scope,
         observation_count: 1,
       };
-      if (!writeInstinct(project.hash, instinct)) {
+      const outcome = writeInstinct(project.hash, instinct);
+      if (outcome === "invalid-id") {
         return error(invalidInstinctId(instinct.id));
+      }
+      if (outcome !== "written") {
+        return error(writeFailed(instinct.id, outcome.error));
       }
       return text(`Created instinct **${instinct.id}** with confidence ${instinct.confidence}`);
     }
@@ -856,27 +884,33 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
 
       const scope = getString(params.scope, "project") === "global" ? "global" : "project";
       const existing = readInstincts(project.hash);
-      const existingIds = new Set(existing.map((instinct) => instinct.id));
+      const existingIds = new Set(existing.map((instinct) => instinct.id.toLowerCase()));
       const rejected: string[] = [];
+      const failed: string[] = [];
       let imported = 0;
 
       for (const candidate of parsed) {
         const instinct = toInstinct(candidate);
-        if (!instinct || existingIds.has(instinct.id)) {
+        if (!instinct || existingIds.has(instinct.id.toLowerCase())) {
           continue;
         }
 
         instinct.scope = instinct.scope || scope;
         instinct.source = "imported";
-        if (!writeInstinct(project.hash, instinct)) {
+        const outcome = writeInstinct(project.hash, instinct);
+        if (outcome === "invalid-id") {
           rejected.push(instinct.id);
+          continue;
+        }
+        if (outcome !== "written") {
+          failed.push(writeFailed(instinct.id, outcome.error));
           continue;
         }
         imported++;
       }
 
-      const summary = `Imported ${imported} instincts (${parsed.length - imported - rejected.length} skipped as duplicates)`;
-      return rejected.length > 0 ? error(`${summary}\n${rejectedIdsReport(rejected)}`) : text(summary);
+      const summary = `Imported ${imported} instincts (${parsed.length - imported - rejected.length - failed.length} skipped as duplicates)`;
+      return bulkResult(summary, rejected, failed);
     }
 
     case "ci_plan_init": {
@@ -1230,8 +1264,12 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
         scope: "project",
         observation_count: 1,
       };
-      if (!writeInstinct(project.hash, promoted)) {
+      const outcome = writeInstinct(project.hash, promoted);
+      if (outcome === "invalid-id") {
         return error(`${invalidInstinctId(promoted.id)} The draft at ${draftPath} was kept: correct its id: line and promote again.`);
+      }
+      if (outcome !== "written") {
+        return error(`${writeFailed(promoted.id, outcome.error)}. The draft at ${draftPath} was kept.`);
       }
       try {
         rmSync(draftPath);
@@ -1340,28 +1378,34 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
 
       const packInstincts = JSON.parse(readFileSync(packPath, "utf8")) as unknown[];
       const existing = readInstincts(project.hash);
-      const existingIds = new Set(existing.map((instinct) => instinct.id));
+      const existingIds = new Set(existing.map((instinct) => instinct.id.toLowerCase()));
       const rejected: string[] = [];
+      const failed: string[] = [];
       let loaded = 0;
 
       for (const candidate of packInstincts) {
         const instinct = toInstinct(candidate);
-        if (!instinct || existingIds.has(instinct.id)) {
+        if (!instinct || existingIds.has(instinct.id.toLowerCase())) {
           continue;
         }
 
         instinct.source = `pack-${packName}`;
         instinct.scope = "project";
         instinct.observation_count = 0;
-        if (!writeInstinct(project.hash, instinct)) {
+        const outcome = writeInstinct(project.hash, instinct);
+        if (outcome === "invalid-id") {
           rejected.push(instinct.id);
+          continue;
+        }
+        if (outcome !== "written") {
+          failed.push(writeFailed(instinct.id, outcome.error));
           continue;
         }
         loaded++;
       }
 
-      const summary = `Loaded ${loaded}/${packInstincts.length} instincts from **${packName}** pack (${packInstincts.length - loaded - rejected.length} already existed)`;
-      return rejected.length > 0 ? error(`${summary}\n${rejectedIdsReport(rejected)}`) : text(summary);
+      const summary = `Loaded ${loaded}/${packInstincts.length} instincts from **${packName}** pack (${packInstincts.length - loaded - rejected.length - failed.length} already existed)`;
+      return bulkResult(summary, rejected, failed);
     }
 
     default:
@@ -1374,12 +1418,31 @@ let buffer = "";
 
 rl.on("line", (line: string) => {
   buffer += line;
+  let parsed: unknown;
   try {
-    const message = JSON.parse(buffer) as JsonRpcMessage;
-    buffer = "";
-    handleMessage(message);
+    parsed = JSON.parse(buffer);
   } catch {
     // incomplete JSON, keep buffering
+    return;
+  }
+  buffer = "";
+  const message = asRecord(parsed) as JsonRpcMessage | null;
+  if (!message) {
+    return;
+  }
+  // A handler that throws (a filesystem error, a malformed file on disk) is
+  // answered with a JSON-RPC error so the client is not left waiting, and the
+  // server goes on reading.
+  try {
+    handleMessage(message);
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    const params = asRecord(message.params);
+    const label = message.method === "tools/call" && params ? getString(params.name, "tools/call") : getString(message.method, "request");
+    console.error(`${PACKAGE_NAME} MCP server: ${label} failed: ${reason}`);
+    if (message.id !== undefined) {
+      send({ jsonrpc: "2.0", id: message.id, error: { code: -32603, message: `${label} failed: ${reason}` } });
+    }
   }
 });
 
