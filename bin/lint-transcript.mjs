@@ -13,7 +13,10 @@
  *   1. Claude Code transcript (~/.claude/projects/<project>/<session>.jsonl)
  *        {"type":"assistant","message":{"content":[{"type":"tool_use","name":"Edit","input":{...}}]}}
  *      Each tool_use block of an assistant row is one tool call. Every other
- *      row (user/tool_result, system, summary, ...) is not a tool call.
+ *      row (user/tool_result, system, summary, ...) is not a tool call. A block
+ *      whose id was already seen is the same call written again (Claude Code
+ *      rewrites earlier rows into the file on a long or resumed session) and
+ *      is counted once.
  *   2. observations.jsonl, written by this plugin's observer (bin/observe.mjs)
  *        {"ts":"...","event":"tool_complete","session":"...","tool":"Bash","input_summary":"npm test",...}
  *      A tool_start row followed by its tool_complete row (the observer wired
@@ -120,11 +123,14 @@ function isCompletionOfCountedStart(row, pendingStarts) {
     }
     return false;
 }
+function newNormaliseState() {
+    return { pendingStarts: new Map(), seenToolUseIds: new Set() };
+}
 /**
  * Turn one parsed JSONL row into the tool events the rules consume. See the
  * header comment for the three accepted row shapes.
  */
-function normaliseRow(row, pendingStarts) {
+function normaliseRow(row, state) {
     // A line that is valid JSON but not an object (null, a number, a string, an
     // array) is not a tool call.
     if (!isObject(row)) {
@@ -141,6 +147,13 @@ function normaliseRow(row, pendingStarts) {
         const events = [];
         for (const block of content) {
             if (isObject(block) && block.type === "tool_use" && typeof block.name === "string") {
+                // The same id again is the same call, written into the file a second time.
+                if (typeof block.id === "string") {
+                    if (state.seenToolUseIds.has(block.id)) {
+                        continue;
+                    }
+                    state.seenToolUseIds.add(block.id);
+                }
                 events.push({
                     tool: canonicalTool(block.name),
                     tool_input: isObject(block.input) ? withFilePath(block.input) : {},
@@ -155,7 +168,7 @@ function normaliseRow(row, pendingStarts) {
         && typeof row.input_summary === "string"
         && !isObject(row.tool_input)
         && !isObject(row.input)) {
-        if (isCompletionOfCountedStart(row, pendingStarts)) {
+        if (isCompletionOfCountedStart(row, state.pendingStarts)) {
             return [];
         }
         return [{
@@ -329,7 +342,8 @@ Usage:
 
 Accepted input (JSONL, one JSON object per line, shapes may be mixed):
   Claude Code transcript   ~/.claude/projects/<project>/<session>.jsonl
-                           each tool_use block of an assistant row is a tool call
+                           each tool_use block of an assistant row is a tool call;
+                           a block whose id was already seen is counted once
   observations.jsonl       rows written by this plugin's observer
                            {"tool":"Bash","input_summary":"npm test",...}
   Flat tool events         {"tool":"Edit","tool_input":{"file_path":"..."}}
@@ -371,7 +385,7 @@ async function main() {
         lines = content.split("\n").filter((line) => line.trim().length > 0);
     }
     const events = [];
-    const pendingStarts = new Map();
+    const state = newNormaliseState();
     let parseFailures = 0;
     for (const line of lines) {
         let row;
@@ -382,7 +396,7 @@ async function main() {
             parseFailures++;
             continue;
         }
-        events.push(...normaliseRow(row, pendingStarts));
+        events.push(...normaliseRow(row, state));
     }
     if (events.length === 0) {
         console.log("No events found to analyze.");

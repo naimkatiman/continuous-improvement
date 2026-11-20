@@ -571,6 +571,47 @@ describe("lint-transcript.mjs", () => {
             assert.match(output, /shell command/);
         });
     });
+    // On a long or resumed session Claude Code writes earlier rows into the same
+    // file again, so one call (same tool_use id) appears two to five times. Each
+    // copy used to be counted: the two longest real transcripts reported 3,664
+    // and 3,830 calls for 1,541 and 2,023 distinct ones.
+    describe("a transcript row written into the file more than once", () => {
+        const edit = (id, file) => transcriptToolCall(id, "Edit", { file_path: file, old_string: "a", new_string: "b" });
+        it("counts a tool_use block once, however often its row is repeated", () => {
+            const firstThreeEdits = [
+                ...edit("toolu_e1", "/repo/src/a.ts"),
+                ...edit("toolu_e2", "/repo/src/a.ts"),
+                ...edit("toolu_e3", "/repo/src/a.ts"),
+            ];
+            const rows = [
+                ...transcriptToolCall("toolu_g1", "Grep", { pattern: "retry" }),
+                ...transcriptToolCall("toolu_r1", "Read", { file_path: "/repo/src/a.ts" }),
+                ...firstThreeEdits,
+                ...firstThreeEdits, // the same three rows, written a second time
+                ...firstThreeEdits, // and a third
+                ...edit("toolu_e4", "/repo/src/a.ts"),
+                ...transcriptToolCall("toolu_t1", "Bash", { command: "npm test" }),
+            ];
+            const result = JSON.parse(lintRows(rows, ["--json"]).stdout);
+            assert.equal(result.stats.toolCalls, 7, "two lookups, four edits, one test run");
+            assert.equal(result.stats.writeTools, 4);
+            assert.deepEqual(lawsOf(result), [], "four edits in a row are not ten consecutive edits");
+            assert.equal(lintRows(rows, ["--strict"]).status, 0);
+        });
+        it("still counts two calls that have the same input and different ids", () => {
+            const rows = [
+                ...transcriptToolCall("toolu_r1", "Read", { file_path: "/repo/src/a.ts" }),
+                ...transcriptToolCall("toolu_r2", "Read", { file_path: "/repo/src/a.ts" }),
+            ];
+            const result = JSON.parse(lintRows(rows, ["--json"]).stdout);
+            assert.equal(result.stats.toolCalls, 2);
+        });
+        it("counts every tool_use block that carries no id", () => {
+            const noId = { type: "assistant", sessionId: "sess-transcript", message: { role: "assistant", content: [{ type: "tool_use", name: "Read", input: { file_path: "/repo/src/a.ts" } }] } };
+            const result = JSON.parse(lintRows([noId, noId], ["--json"]).stdout);
+            assert.equal(result.stats.toolCalls, 2);
+        });
+    });
     // A line can be valid JSON without being an object. Such a line is not a tool
     // call: `null` used to end the run with a TypeError and no report, and a
     // number, a string or an array was counted as a call.

@@ -14,7 +14,10 @@
  *   1. Claude Code transcript (~/.claude/projects/<project>/<session>.jsonl)
  *        {"type":"assistant","message":{"content":[{"type":"tool_use","name":"Edit","input":{...}}]}}
  *      Each tool_use block of an assistant row is one tool call. Every other
- *      row (user/tool_result, system, summary, ...) is not a tool call.
+ *      row (user/tool_result, system, summary, ...) is not a tool call. A block
+ *      whose id was already seen is the same call written again (Claude Code
+ *      rewrites earlier rows into the file on a long or resumed session) and
+ *      is counted once.
  *   2. observations.jsonl, written by this plugin's observer (bin/observe.mjs)
  *        {"ts":"...","event":"tool_complete","session":"...","tool":"Bash","input_summary":"npm test",...}
  *      A tool_start row followed by its tool_complete row (the observer wired
@@ -171,11 +174,23 @@ function isCompletionOfCountedStart(row: Record<string, unknown>, pendingStarts:
   return false;
 }
 
+/** What normaliseRow carries from one row of a file to the next. */
+interface NormaliseState {
+  /** Open tool_start rows of an observation log, see isCompletionOfCountedStart. */
+  pendingStarts: Map<string, number>;
+  /** The tool_use ids of a transcript that are already counted. */
+  seenToolUseIds: Set<string>;
+}
+
+function newNormaliseState(): NormaliseState {
+  return { pendingStarts: new Map<string, number>(), seenToolUseIds: new Set<string>() };
+}
+
 /**
  * Turn one parsed JSONL row into the tool events the rules consume. See the
  * header comment for the three accepted row shapes.
  */
-function normaliseRow(row: unknown, pendingStarts: Map<string, number>): TranscriptEvent[] {
+function normaliseRow(row: unknown, state: NormaliseState): TranscriptEvent[] {
   // A line that is valid JSON but not an object (null, a number, a string, an
   // array) is not a tool call.
   if (!isObject(row)) {
@@ -194,6 +209,13 @@ function normaliseRow(row: unknown, pendingStarts: Map<string, number>): Transcr
     const events: TranscriptEvent[] = [];
     for (const block of content) {
       if (isObject(block) && block.type === "tool_use" && typeof block.name === "string") {
+        // The same id again is the same call, written into the file a second time.
+        if (typeof block.id === "string") {
+          if (state.seenToolUseIds.has(block.id)) {
+            continue;
+          }
+          state.seenToolUseIds.add(block.id);
+        }
         events.push({
           tool: canonicalTool(block.name),
           tool_input: isObject(block.input) ? withFilePath(block.input as ToolPayload) : {},
@@ -211,7 +233,7 @@ function normaliseRow(row: unknown, pendingStarts: Map<string, number>): Transcr
     && !isObject(row.tool_input)
     && !isObject(row.input)
   ) {
-    if (isCompletionOfCountedStart(row, pendingStarts)) {
+    if (isCompletionOfCountedStart(row, state.pendingStarts)) {
       return [];
     }
     return [{
@@ -406,7 +428,8 @@ Usage:
 
 Accepted input (JSONL, one JSON object per line, shapes may be mixed):
   Claude Code transcript   ~/.claude/projects/<project>/<session>.jsonl
-                           each tool_use block of an assistant row is a tool call
+                           each tool_use block of an assistant row is a tool call;
+                           a block whose id was already seen is counted once
   observations.jsonl       rows written by this plugin's observer
                            {"tool":"Bash","input_summary":"npm test",...}
   Flat tool events         {"tool":"Edit","tool_input":{"file_path":"..."}}
@@ -452,7 +475,7 @@ async function main(): Promise<void> {
   }
 
   const events: TranscriptEvent[] = [];
-  const pendingStarts = new Map<string, number>();
+  const state = newNormaliseState();
   let parseFailures = 0;
   for (const line of lines) {
     let row: unknown;
@@ -462,7 +485,7 @@ async function main(): Promise<void> {
       parseFailures++;
       continue;
     }
-    events.push(...normaliseRow(row, pendingStarts));
+    events.push(...normaliseRow(row, state));
   }
 
   if (events.length === 0) {
