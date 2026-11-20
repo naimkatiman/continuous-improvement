@@ -534,25 +534,31 @@ export function getPluginHooksConfig() {
     };
     return {
         hooks: {
-            // gateguard runs FIRST on PreToolUse so its block decision short-circuits
-            // before companion-preference sees the call. companion-preference runs
-            // second on Skill tool calls; it is a no-op under ci-first (the default)
-            // and never blocks under companions-first. The observer only runs on
-            // PostToolUse: gateguard-blocked calls are intentionally not observed so
-            // PreToolUse stays at two subprocesses on the hot path. route-prompt
-            // fires on UserPromptSubmit and, only when CI_ROUTE_PROMPT is on (default
-            // off), emits a system-reminder when a prompt pattern in
-            // hooks/route-table.json matches; otherwise prompts pass through with
-            // no output.
+            // Every PreToolUse group has a matcher naming the tools its hook can act
+            // on, so a read-only call (Read, Grep, Glob, Task, any MCP tool) starts
+            // no PreToolUse process. An Edit or Write starts two (gateguard,
+            // config-guard); a shell call starts three (gateguard, hook-pack,
+            // config-guard); a Skill call starts one (companion-preference). The
+            // shell tools are Bash, the PowerShell tool Claude Code exposes on
+            // Windows, and Monitor, whose command runs in the same shell as Bash.
+            // gateguard is the first group so its deny is the first decision. The
+            // observer only runs on PostToolUse, on every tool: the gateguard
+            // evidence file gate reads its rows, and gateguard-blocked calls are
+            // intentionally not observed. route-prompt fires on UserPromptSubmit
+            // and, only when CI_ROUTE_PROMPT is on (default off), emits a
+            // system-reminder when a prompt pattern in hooks/route-table.json
+            // matches; otherwise prompts pass through with no output.
             PreToolUse: [
-                { hooks: [gateguardCommand, companionPreferenceCommand] },
+                // gateguard denies only the file tools (the file gate) and the shell
+                // tools (destructive commands, unquoted @{...} git refs). Every other
+                // tool is allowed with nothing recorded.
+                { matcher: "Bash|PowerShell|Monitor|Edit|MultiEdit|Write|NotebookEdit", hooks: [gateguardCommand] },
+                // companion-preference acts only on Skill calls; it is a no-op under
+                // ci-first (the default) and never blocks under companions-first.
+                { matcher: "Skill", hooks: [companionPreferenceCommand] },
                 // hook-pack gates a shell `git push` to protected branches and oversized
-                // `git commit`s. The matcher names every shell tool (Bash, the
-                // PowerShell tool Claude Code exposes on Windows, and Monitor, whose
-                // command runs in the same shell as Bash) and scopes it off the hot
-                // path for every other tool, so the two-subprocess note above still
-                // holds for Edit/Read/etc. Warn-default (CLAUDE_CI_HOOKPACK_GATE) —
-                // never blocks until the operator opts in.
+                // `git commit`s. Warn-default (CLAUDE_CI_HOOKPACK_GATE) — never blocks
+                // until the operator opts in.
                 { matcher: "Bash|PowerShell|Monitor", hooks: [hookPackCommand] },
                 // config-guard watches the files that wire the guardrails
                 // (.claude/settings*.json, .mcp.json, hooks.json, .claude/hooks/,
