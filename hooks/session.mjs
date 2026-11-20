@@ -183,10 +183,14 @@ function lessonBlock(contents, projectCount) {
                 body: instinct.body,
                 confidence,
                 global: index >= projectCount,
+                pack: (instinct.source ?? "").startsWith("pack-"),
             });
         }
     }
-    lessons.sort((left, right) => right.confidence - left.confidence);
+    // Starter-pack entries go last. They ship at 0.6 to 0.7 with long bodies, so
+    // ranked by confidence alone they filled the block ahead of a lesson recorded
+    // at the default 0.6. Within each group the highest confidence comes first.
+    lessons.sort((left, right) => Number(left.pack) - Number(right.pack) || right.confidence - left.confidence);
     const lines = [];
     let room = MAX_BLOCK_CHARS - lessonHeader(MAX_LESSONS, MAX_FILES_READ).length - 1;
     for (const lesson of lessons) {

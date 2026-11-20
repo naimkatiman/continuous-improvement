@@ -12,6 +12,8 @@ interface Lesson {
   confidence: number;
   // Read from global/, so it is printed in every repository.
   global: boolean;
+  // Loaded from a starter pack (ci_load_pack writes `source: pack-<name>`).
+  pack: boolean;
   trigger: string;
 }
 // Claude Code adds a SessionStart hook's plain-text stdout to the model's
@@ -174,10 +176,16 @@ function lessonBlock(contents: string[], projectCount: number): string {
         body: instinct.body,
         confidence,
         global: index >= projectCount,
+        pack: (instinct.source ?? "").startsWith("pack-"),
       });
     }
   }
-  lessons.sort((left, right) => right.confidence - left.confidence);
+  // Starter-pack entries go last. They ship at 0.6 to 0.7 with long bodies, so
+  // ranked by confidence alone they filled the block ahead of a lesson recorded
+  // at the default 0.6. Within each group the highest confidence comes first.
+  lessons.sort(
+    (left, right) => Number(left.pack) - Number(right.pack) || right.confidence - left.confidence,
+  );
   const lines: string[] = [];
   let room = MAX_BLOCK_CHARS - lessonHeader(MAX_LESSONS, MAX_FILES_READ).length - 1;
   for (const lesson of lessons) {

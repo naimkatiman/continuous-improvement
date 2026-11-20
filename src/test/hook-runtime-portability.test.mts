@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -63,6 +63,8 @@ interface LessonFixture {
   body: string;
   confidence: number;
   id: string;
+  // "manual" unless given. ci_load_pack writes "pack-<name>".
+  source?: string;
   trigger: string;
 }
 
@@ -81,7 +83,7 @@ function instinctYaml(lesson: LessonFixture): string {
     `trigger: "${lesson.trigger}"`,
     `confidence: ${lesson.confidence}`,
     "domain: workflow",
-    "source: manual",
+    `source: ${lesson.source ?? "manual"}`,
     "scope: project",
     "project_id: 0123456789ab",
     'created: "2026-11-20"',
@@ -385,6 +387,63 @@ describe("SessionStart loads recorded lessons into context", () => {
           return `- when case ${index} comes up: Do the thing learned in case ${index}. (${(50 + index) / 100})`;
         }),
       );
+      assert.ok(
+        result.stdout.length <= MAX_BLOCK_CHARS,
+        `block is ${result.stdout.length} characters`,
+      );
+    });
+  });
+
+  // A starter pack ships its entries at 0.6 to 0.7 with bodies of 120 characters
+  // and more. Ranked by confidence alone they come ahead of a lesson recorded at
+  // the default 0.6 and fill the block before that lesson is reached.
+  it("lists the lessons recorded for the project ahead of a loaded starter pack's entries", () => {
+    withSessionFixture((fixture) => {
+      const pack = JSON.parse(
+        readFileSync(join(REPO_ROOT, "instinct-packs", "react.json"), "utf8"),
+      ) as Array<{ body: string; confidence: number; id: string; trigger: string }>;
+      assert.ok(
+        pack.some((entry) => entry.confidence > 0.6),
+        "the react pack is expected to ship entries above the default 0.6",
+      );
+      for (const entry of pack) {
+        writeLesson(fixture.projectDir, {
+          id: entry.id,
+          trigger: entry.trigger,
+          body: entry.body,
+          confidence: entry.confidence,
+          source: "pack-react",
+        });
+      }
+      // File names that sort after every pack file, at the default confidence.
+      writeLesson(fixture.projectDir, {
+        id: "zz-own-build-first",
+        trigger: "when staging generated files",
+        body: "Run npm run build first.",
+        confidence: 0.6,
+      });
+      writeLesson(fixture.projectDir, {
+        id: "zz-own-stage-by-name",
+        trigger: "when committing on Windows",
+        body: "Stage by explicit file name, never with git add -A.",
+        confidence: 0.6,
+      });
+
+      const result = startSession(fixture);
+      const { header, lessons } = blockLines(result.stdout);
+
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.equal(header, lessonHeader(lessons.length, pack.length + 2));
+      assert.deepEqual(lessons.slice(0, 2), [
+        "- when staging generated files: Run npm run build first. (0.6)",
+        "- when committing on Windows: Stage by explicit file name, never with git add -A. (0.6)",
+      ]);
+      // The pack's entries take what room is left, highest confidence first.
+      const packConfidences = lessons
+        .slice(2)
+        .map((line) => Number(line.match(/\((\d(?:\.\d+)?)\)$/)?.[1]));
+      assert.ok(packConfidences.length >= 1, "at least one pack entry still fits");
+      assert.deepEqual(packConfidences, [...packConfidences].sort((left, right) => right - left));
       assert.ok(
         result.stdout.length <= MAX_BLOCK_CHARS,
         `block is ${result.stdout.length} characters`,
