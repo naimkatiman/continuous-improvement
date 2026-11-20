@@ -358,4 +358,42 @@ describe("observe.mjs keeps secrets out of observations.jsonl", () => {
       }
     });
   }
+
+  // One PostToolUse payload per secret shape. Each row is checked against the
+  // raw file, so the fake value in any field of the written row fails it.
+  const LEAK = "hunter2SECRETvalue";
+  const leakCases: ReadonlyArray<readonly [string, string, unknown, unknown]> = [
+    // [what leaks, tool_name, tool_input, tool_response]
+    [
+      "a bare PASSWORD= / --password= name",
+      "Bash",
+      { command: `mysql -uroot --password=${LEAK} app` },
+      { stdout: `SECRET=${LEAK}\nPASSWORD=${LEAK}\n`, stderr: "", interrupted: false },
+    ],
+  ];
+  for (const [label, bin] of observers) {
+    for (const [what, toolName, toolInput, toolResponse] of leakCases) {
+      it(`${label} keeps ${what} out of the row`, () => {
+        const home = mkdtempSync(join(tmpdir(), "ci-node-observe-leak-"));
+        try {
+          const result = runObserve(
+            JSON.stringify({
+              tool_name: toolName,
+              session_id: "session-leak",
+              tool_input: toolInput,
+              tool_response: toolResponse,
+            }),
+            { HOME: home, USERPROFILE: home, CLAUDE_PROJECT_DIR: "/tmp/test-project-leak" },
+            bin,
+          );
+          assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+          const raw = readFileSync(join(findProjectDir(home), "observations.jsonl"), "utf8");
+          assert.equal(raw.split("\n").filter((line) => line.length > 0).length, 1, "exactly one row is written");
+          assert.ok(!raw.includes(LEAK), `secret at rest: ${raw}`);
+        } finally {
+          rmSync(home, { recursive: true, force: true });
+        }
+      });
+    }
+  }
 });

@@ -10,6 +10,17 @@
 //
 // Cost: the JWT pattern is quadratic on long dash-separated text (60 KB takes
 // seconds). Callers pass a bounded slice, never a whole payload.
+// The name side of a `NAME=value` / `name: value` secret assignment: anything
+// that ends in KEY, SECRET, TOKEN, PASSWORD, PASSWD or PWD. The keyword alone is
+// a name (`PASSWORD=`, `--password=`, `TOKEN=`), and so is a hyphenated,
+// dotted or underscore-led one (`x-api-key`, `_authToken`). A plural or a short
+// numeric suffix still counts (`API_KEYS`, `GITHUB_TOKEN_2`); `max_tokens` and
+// `keyword` do not, because the keyword has to end the name. A name starts at a
+// boundary, so the scan stays linear on long dash- or dot-separated text.
+// The shell's own PWD and OLDPWD are left alone when the value is a path.
+const SECRET_NAME = String.raw `(?<![A-Za-z0-9_.-])(?!(?:OLD)?PWD\s*[:=]\s*(?:[/~.]|[A-Za-z]:[\\/]))` +
+    String.raw `[A-Za-z0-9_.-]*(?:(?:KEY|SECRET|PASSWORD)S?|TOKEN|PASSWD|PWD)(?:_?[0-9]{1,3})?`;
+const SECRET_ASSIGNMENT_RE = new RegExp(String.raw `(${SECRET_NAME})(\s*[:=]\s*)(\S+)`, "gi");
 /**
  * Redact common secret shapes from text. Conservative by design: matches AWS
  * access keys, JWT-shaped triplets, bearer tokens, KEY/SECRET/TOKEN/PASSWORD
@@ -19,7 +30,7 @@ export function redactSecrets(text) {
     return text
         .replace(/AKIA[0-9A-Z]{16}/g, "AKIA<redacted>")
         .replace(/Bearer\s+[A-Za-z0-9._~+/-]{20,}=*/gi, "Bearer <redacted>")
-        .replace(/\b([A-Za-z][A-Za-z0-9_]*(?:KEY|SECRET|TOKEN|PASSWORD|PASSWD|PWD))(\s*[:=]\s*)(\S+)/gi, "$1$2<redacted>")
+        .replace(SECRET_ASSIGNMENT_RE, "$1$2<redacted>")
         .replace(/\b[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, "<jwt-redacted>")
         .replace(/\b[a-f0-9]{32,}\b/gi, "<hex-redacted>");
 }
