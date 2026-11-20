@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative, sep } from "node:path";
 import { after, before, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
+import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 import { PACKAGE_NAME, VERSION, getPluginHooksConfig, getClaudePluginManifest, getClaudePluginMarketplaceManifest, getClaudeRepoMarketplaceManifest, getPluginManifest, getToolNames, } from "../lib/plugin-metadata.mjs";
 class McpTestClient {
     buffer = Buffer.alloc(0);
@@ -72,6 +73,24 @@ class McpTestClient {
 }
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const MCP_SERVER = join(__dirname, "..", "bin", "mcp-server.mjs");
+// Every file under `root`, as sorted forward-slash paths relative to it.
+// Hand-rolled because readdirSync's `recursive` option is missing on early Node 18.
+function listFilesUnder(root) {
+    const files = [];
+    const walk = (dir) => {
+        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+            const full = join(dir, entry.name);
+            if (entry.isDirectory()) {
+                walk(full);
+            }
+            else {
+                files.push(relative(root, full).split(sep).join("/"));
+            }
+        }
+    };
+    walk(root);
+    return files.sort();
+}
 describe("MCP server — stdio wire format", () => {
     // The MCP stdio transport spec requires newline-delimited JSON-RPC
     // (NDJSON) over stdout/stdin. NOT LSP-style Content-Length framing.
@@ -507,6 +526,128 @@ describe("MCP server — expert mode", () => {
         const response = await client.send({ jsonrpc: "2.0", id: 18, method: "nonexistent/method", params: {} });
         assert.ok(response.error, "Should return error for unknown method");
         assert.equal(response.error?.code, -32601);
+    });
+});
+// An instinct id becomes a file name (`<instincts dir>/<id>.yaml`). It is
+// model-controlled through ci_create_instinct and ci_import, and read back from
+// disk by ci_reinforce and ci_distill_promote, so an unvalidated `../../../x`
+// wrote a .yaml file anywhere the process could reach. HOME is a fresh temp dir
+// and the traversal ids below climb exactly to it, so an escape stays inside the
+// sandbox and shows up as a new file outside .claude/instincts/.
+describe("MCP server — an instinct id cannot leave the instincts dir (expert)", () => {
+    let client;
+    let tempHome = "";
+    let projectDir = "";
+    let projectRel = "";
+    let nextId = 200;
+    const call = (name, args) => client.send({ jsonrpc: "2.0", id: nextId++, method: "tools/call", params: { name, arguments: args } });
+    // Runs one tool call and reports every file it created anywhere under HOME.
+    const createdBy = async (run) => {
+        const before = new Set(listFilesUnder(tempHome));
+        const response = await run();
+        const created = listFilesUnder(tempHome).filter((file) => !before.has(file));
+        return { created, response };
+    };
+    before(async () => {
+        tempHome = mkdtempSync(join(tmpdir(), "ci-mcp-instinct-id-"));
+        mkdirSync(join(tempHome, ".claude", "instincts", "global"), { recursive: true });
+        const tempWorkspace = join(tempHome, "workspace");
+        mkdirSync(tempWorkspace, { recursive: true });
+        // CLAUDE_PROJECT_DIR pins the project hash, so the project instincts dir is
+        // known up front instead of depending on whether tmpdir sits in a git repo.
+        const projectHash = hashProjectRoot(tempWorkspace);
+        projectRel = `.claude/instincts/${projectHash}`;
+        projectDir = join(tempHome, ".claude", "instincts", projectHash);
+        const proc = spawn("node", [MCP_SERVER, "--mode", "expert"], {
+            env: { ...process.env, HOME: tempHome, USERPROFILE: tempHome, CLAUDE_PROJECT_DIR: tempWorkspace },
+            cwd: tempWorkspace,
+            stdio: ["pipe", "pipe", "pipe"],
+        });
+        client = new McpTestClient(proc);
+        await new Promise((resolve) => setTimeout(resolve, 200));
+    });
+    after(async () => {
+        client.destroy();
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        try {
+            rmSync(tempHome, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+        }
+        catch {
+            // Windows can briefly keep stdio handles open after the child exits.
+        }
+    });
+    it("ci_create_instinct rejects a path-traversal id and writes nothing", async () => {
+        const { created, response } = await createdBy(() => call("ci_create_instinct", { id: "../../../ESCAPED-CREATE", trigger: "when escaping", body: "escape" }));
+        assert.deepEqual(created, [], "a traversal id must not create a file, least of all outside the instincts dir");
+        assert.ok(response.result.isError, "a traversal id must return a tool error");
+        assert.match(response.result.content[0].text, /Invalid instinct id/);
+    });
+    // Backslash is a path separator on Windows only, a bare separator never
+    // escapes but used to throw inside the handler (no response at all), and a
+    // missing id used to write a file named ".yaml".
+    for (const id of ["..\\..\\..\\ESCAPED-BACKSLASH", "nested/child", ""]) {
+        it(`ci_create_instinct rejects the id ${JSON.stringify(id)} and writes nothing`, async () => {
+            const { created, response } = await createdBy(() => call("ci_create_instinct", { id, trigger: "when escaping", body: "escape" }));
+            assert.deepEqual(created, [], `id ${JSON.stringify(id)} must not create a file`);
+            assert.ok(response.result.isError, `id ${JSON.stringify(id)} must return a tool error`);
+            assert.match(response.result.content[0].text, /Invalid instinct id/);
+        });
+    }
+    it("ci_import reports a path-traversal entry as rejected and still imports the valid ones", async () => {
+        const payload = JSON.stringify([
+            { id: "import-safe-one", trigger: "when deploying", body: "Check CI first" },
+            { id: "../../../ESCAPED-IMPORT", trigger: "when escaping", body: "escape" },
+            { id: "import-safe-two", trigger: "when reviewing", body: "Check coverage" },
+        ]);
+        const { created, response } = await createdBy(() => call("ci_import", { instincts_json: payload }));
+        assert.deepEqual(created, [`${projectRel}/import-safe-one.yaml`, `${projectRel}/import-safe-two.yaml`], "only the two valid entries may be written, both inside the project instincts dir");
+        const text = response.result.content[0].text;
+        assert.match(text, /Imported 2 instincts \(0 skipped as duplicates\)/);
+        assert.match(text, /Rejected 1/);
+        assert.ok(text.includes("../../../ESCAPED-IMPORT"), "the rejected entry must be named in the report");
+        assert.ok(response.result.isError, "a rejected entry must flag the result as an error");
+    });
+    it("ci_reinforce refuses to rewrite an on-disk instinct whose id is a path traversal", async () => {
+        mkdirSync(projectDir, { recursive: true });
+        writeFileSync(join(projectDir, "planted-reinforce.yaml"), ["id: ../../../ESCAPED-REINFORCE", 'trigger: "when escaping"', "confidence: 0.5", "scope: project", "---", "escape", ""].join("\n"));
+        const { created, response } = await createdBy(() => call("ci_reinforce", { instinct_id: "../../../ESCAPED-REINFORCE", accepted: true }));
+        assert.deepEqual(created, [], "an on-disk traversal id must not be written back outside the instincts dir");
+        assert.ok(response.result.isError, "the refused update must return a tool error");
+        assert.match(response.result.content[0].text, /Invalid instinct id/);
+    });
+    it("ci_distill_promote refuses a draft whose id line is a path traversal and keeps the draft", async () => {
+        const draftsDir = join(projectDir, "drafts");
+        mkdirSync(draftsDir, { recursive: true });
+        const draftPath = join(draftsDir, "draft-edited-id.yaml");
+        writeFileSync(draftPath, ["id: ../../../ESCAPED-PROMOTE", 'trigger: "when escaping"', "confidence: 0.3", "---", "escape", ""].join("\n"));
+        const { created, response } = await createdBy(() => call("ci_distill_promote", { id: "draft-edited-id" }));
+        assert.deepEqual(created, [], "a traversal id inside a draft must not be promoted outside the instincts dir");
+        assert.ok(response.result.isError, "the refused promotion must return a tool error");
+        assert.match(response.result.content[0].text, /Invalid instinct id/);
+        assert.ok(existsSync(draftPath), "a refused promotion must not consume the draft");
+    });
+    // The accepted shape must not reject a real id. The longest id the plugin
+    // generates itself is draft-workflow-<120-char slug> (src/lib/skill-distill.mts).
+    it("a valid id is written as a direct child of the instincts dir, project and global", async () => {
+        const longestGenerated = `draft-workflow-${"a".repeat(120)}`;
+        const project = await createdBy(() => call("ci_create_instinct", { id: longestGenerated, trigger: "when promoting", body: "keep the name" }));
+        assert.ok(!project.response.result.isError, project.response.result.content[0].text);
+        assert.deepEqual(project.created, [`${projectRel}/${longestGenerated}.yaml`]);
+        const global = await createdBy(() => call("ci_create_instinct", { id: "prefer-grep-before-edit", trigger: "when modifying code", body: "Grep first", scope: "global" }));
+        assert.ok(!global.response.result.isError, global.response.result.content[0].text);
+        assert.deepEqual(global.created, [".claude/instincts/global/prefer-grep-before-edit.yaml"]);
+    });
+    it("ci_load_pack still loads every id in every shipped starter pack", async () => {
+        const packsDir = join(__dirname, "..", "instinct-packs");
+        const packFiles = readdirSync(packsDir).filter((name) => name.endsWith(".json")).sort();
+        assert.ok(packFiles.length > 0, "expected at least one shipped starter pack");
+        for (const file of packFiles) {
+            const pack = file.replace(/\.json$/, "");
+            const ids = JSON.parse(readFileSync(join(packsDir, file), "utf8")).map((entry) => entry.id);
+            const { created, response } = await createdBy(() => call("ci_load_pack", { pack }));
+            assert.ok(!response.result.isError, response.result.content[0].text);
+            assert.deepEqual(created, ids.map((id) => `${projectRel}/${id}.yaml`).sort(), `every id in the ${pack} pack must be written inside the project instincts dir`);
+        }
     });
 });
 describe("Plugin configs", () => {
