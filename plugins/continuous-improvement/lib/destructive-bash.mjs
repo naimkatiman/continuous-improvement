@@ -30,6 +30,12 @@
  * `git commit -m "rm -rf the old helper"` stays allowed. `-c` is not a message
  * flag: `bash -c "rm -rf /"` carries a real command and still gates.
  *
+ * Data by its command: the substring list also skips the message after git's
+ * clustered `-am` and gh's short `-b` / `-t` / `-n`, the quoted pattern of a
+ * search command (`grep "rm -rf" docs/`) and the quoted text a print command
+ * sends to the terminal (`echo "next: rm -rf build"`). A print command that
+ * feeds a pipe or a file keeps its reach (`echo "DROP TABLE t" | psql`).
+ *
  * Heredoc and here-string bodies are data too. They are lifted out before the
  * block split and the pipeline rule run, so a note or a table that mentions a
  * command is not read as one. A body that is a message (`-m "$(cat <<'EOF'`)
@@ -165,8 +171,11 @@ const STDIN_MESSAGE_RE = /(?:^|[\s;|&(])(?:git|gh)(?:\.exe)?\s(?:[^\n;|&]*\s)?(?
 // The bodies that still have to be scanned. A body that is the value of a
 // message or body flag (`git commit -m "$(cat <<'EOF' … EOF)"`) is prose and is
 // dropped whole, exactly like a quoted message.
-function scannableBodies(code, bodies) {
-    const messageSpans = [...code.matchAll(MESSAGE_FLAG_RE)].map((m) => [m.index ?? 0, (m.index ?? 0) + m[0].length]);
+function scannableBodies(code, bodies, messages = []) {
+    const messageSpans = [
+        ...[...code.matchAll(MESSAGE_FLAG_RE)].map((m) => [m.index ?? 0, (m.index ?? 0) + m[0].length]),
+        ...messages,
+    ];
     return bodies
         .filter((body) => !messageSpans.some(([start, end]) => body.at >= start && body.at < end))
         .filter((body) => !STDIN_MESSAGE_RE.test(code.slice(0, body.at)))
@@ -716,6 +725,154 @@ function matchStructuredRule(tokens, piped, powershell) {
     }
     return powershellDelete(tokens, piped, powershell);
 }
+// Commands that only search: a quoted argument is a pattern or a path, and
+// what they send down a pipe is what they found, never the pattern.
+const SEARCH_COMMANDS = new Set(["grep", "egrep", "fgrep", "rg", "findstr", "select-string", "sls"]);
+// Commands that only print their arguments.
+const PRINT_COMMANDS = new Set(["echo", "printf", "write-host", "write-output"]);
+// git's short flags that take no value, clustered in front of `m`: `-am`, `-sm`.
+// The letters are spelled out so that no PowerShell parameter (`-Confirm`,
+// `-From`) and no other program's flag is read as a message flag.
+const GIT_MESSAGE_CLUSTER_RE = /^-[aenpqsv]{1,4}m$/;
+// gh's short spellings of --body, --title and --notes.
+const GH_MESSAGE_FLAG_RE = /^-[btn]$/;
+// The parts of a command text that are data because of the command they are
+// written on. The substring list is the fallback for text that no rule reads
+// as a command (SQL handed to psql, a command handed to ssh or xargs); these
+// parts are not such text and it must not read them:
+//   - `messages`: the value after a short message flag that only git or gh
+//     has (`git commit -am "…"`, `gh pr create -t "…" -b "…"`). The long flags
+//     and `-m` are MESSAGE_FLAG_RE's.
+//   - `quoted`: the quoted arguments of a search command, and of a print
+//     command whose output goes to the terminal. A print command that feeds a
+//     pipe or a file, or that sits inside a group, a block or a substitution,
+//     keeps its reach: `echo "DROP TABLE t" | psql` runs what it prints.
+// One walk over the text, one simple command at a time. An unclosed quote
+// yields no span.
+function dataSpans(code, powershell) {
+    const messages = [];
+    const quoted = [];
+    let start = 0;
+    let quote = null;
+    let quoteAt = 0;
+    let closedQuotes = [];
+    // How many groups and blocks are open, and whether a backtick substitution
+    // is: what a command prints in there belongs to whatever reads the group.
+    let nesting = 0;
+    let substitution = false;
+    let redirected = false;
+    // One simple command ends at `at`. `plainEnd` says it ended the way a command
+    // that prints to the terminal ends: at a `;`, a line break, `&`, `||` or the
+    // end of the text, and not at a pipe or at the edge of a group.
+    const end = (at, plainEnd) => {
+        const text = code.slice(start, at);
+        const strings = closedQuotes;
+        const toTerminal = plainEnd && !redirected && nesting === 0 && !substitution;
+        const offset = start;
+        start = at + 1;
+        closedQuotes = [];
+        redirected = false;
+        if (text.trim() === "")
+            return;
+        const command = commandWords(text)[0]?.text;
+        if (command === "git" || command === "gh") {
+            const flag = command === "git" ? GIT_MESSAGE_CLUSTER_RE : GH_MESSAGE_FLAG_RE;
+            const words = splitWords(text);
+            for (let k = 1; k + 1 < words.length; k++) {
+                if (!flag.test(words[k].text))
+                    continue;
+                const value = words[k + 1];
+                messages.push([offset + value.end - value.text.length, offset + value.end]);
+                k++;
+            }
+        }
+        else if (command !== undefined && (SEARCH_COMMANDS.has(command) || (PRINT_COMMANDS.has(command) && toTerminal))) {
+            quoted.push(...strings);
+        }
+    };
+    // A line break after an odd run of the continuation character does not end
+    // the command: the backslash in Bash, the backtick in PowerShell.
+    const continuesPast = (lineBreak) => {
+        const mark = powershell ? "`" : "\\";
+        let at = code[lineBreak - 1] === "\r" ? lineBreak - 2 : lineBreak - 1;
+        let run = 0;
+        while (at >= 0 && code[at] === mark) {
+            run++;
+            at--;
+        }
+        return run % 2 === 1;
+    };
+    for (let i = 0; i < code.length; i++) {
+        const ch = code[i];
+        if (quote) {
+            if (ch === quote) {
+                closedQuotes.push([quoteAt + 1, i]);
+                quote = null;
+            }
+            continue;
+        }
+        if (ch === '"' || ch === "'") {
+            quote = ch;
+            quoteAt = i;
+        }
+        else if (ch === ">") {
+            redirected = true;
+        }
+        else if (ch === "\n") {
+            if (continuesPast(i))
+                continue;
+            // A pipeline may put its `|` at the start of the next line.
+            let next = i + 1;
+            while (code[next] === " " || code[next] === "\t")
+                next++;
+            end(i, !(code[next] === "|" && code[next + 1] !== "|"));
+        }
+        else if (ch === "&" && code[i + 1] === ">") {
+            redirected = true; // `&>file`
+        }
+        else if (ch === ";" || ch === "&") {
+            end(i, true);
+        }
+        else if (ch === "|") {
+            const doubled = code[i + 1] === "|";
+            end(i, doubled);
+            if (doubled) {
+                i++;
+                start = i + 1;
+            }
+        }
+        else if (ch === "(" || ch === "{") {
+            end(i, false);
+            nesting++;
+        }
+        else if (ch === ")" || ch === "}") {
+            end(i, false);
+            if (nesting > 0)
+                nesting--;
+        }
+        else if (ch === "`" && !powershell) {
+            end(i, false);
+            substitution = !substitution;
+        }
+    }
+    if (quote === null)
+        end(code.length, true);
+    return { messages, quoted };
+}
+// `text` with every span turned into blanks: the same length, so offsets hold.
+function blankSpans(text, spans) {
+    if (spans.length === 0)
+        return text;
+    let blanked = "";
+    let at = 0;
+    for (const [from, to] of [...spans].sort((a, b) => a[0] - b[0])) {
+        if (from < at)
+            continue;
+        blanked += text.slice(at, from) + " ".repeat(to - from);
+        at = to;
+    }
+    return blanked + text.slice(at);
+}
 const ALLOWED = { destructive: false, rule: null };
 // A wrapper can wrap a wrapper (`bash -c "pwsh -c '…'"`); past this depth the
 // text is no longer something a person or an agent writes.
@@ -742,7 +899,8 @@ function classify(command, powershell, depth, cmd = false) {
     // apostrophe in a comment nor an escaped quote may swallow the next command.
     const code = maskEscapedQuotes(lifted.code, powershell, !cmd);
     const stripped = stripMessageArgs(code);
-    const scanned = scannableBodies(code, lifted.bodies);
+    const data = dataSpans(code, powershell);
+    const scanned = scannableBodies(code, lifted.bodies, data.messages);
     for (const segment of allSimpleCommands(stripped, powershell)) {
         const words = commandWords(segment.text);
         if (words.length === 0)
@@ -774,7 +932,10 @@ function classify(command, powershell, depth, cmd = false) {
                 return { destructive: true, rule };
         }
     }
-    const text = [stripped, ...scanned.map((body) => body.text)].join("\n");
+    // What is left for the fallback: text that no rule read as a command, without
+    // the parts that are data by the command they are written on (see dataSpans).
+    const unread = stripMessageArgs(blankSpans(code, [...data.messages, ...data.quoted]));
+    const text = [unread, ...scanned.map((body) => body.text)].join("\n");
     const switchFirst = switchFirstDelete(text);
     if (switchFirst !== null)
         return { destructive: true, rule: switchFirst };

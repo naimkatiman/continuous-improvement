@@ -666,6 +666,95 @@ describe("lib/destructive-bash — classifier table", () => {
             assert.deepEqual(classifyDestructiveBash(command, tool), { destructive: true, rule }, command);
         }
     });
+    // The substring list is the fallback for text that no rule reads as a
+    // command, and it read text that is data by the command it is written on:
+    // the message after git's clustered `-am` and gh's short `-b` / `-t` / `-n`,
+    // the pattern of a search command, and the text a print command sends to the
+    // terminal. Each of these was denied with no way to clear the deny.
+    const DATA_BY_ITS_COMMAND_ALLOWED = [
+        ['git commit -am "docs: explain why rm -rf is gated"', "Bash"],
+        ['git commit -am "chore: drop table of contents from the README"', "Bash"],
+        ['git commit -sm "fix(ci): stop calling git reset --hard in the release script"', "Bash"],
+        ['git tag -am "release: the drop table migration is 0043" v1.2.0', "Bash"],
+        ["git commit -am \"$(cat <<'EOF'\nfix: the helper ran rm -rf on the cache\nEOF\n)\"", "Bash"],
+        ['gh pr comment 271 -b "the gate now covers rm -rf behind pwsh -c"', "Bash"],
+        ['gh pr create -t "fix(hooks): gate git reset --hard behind -C" -b "see the plan doc"', "Bash"],
+        ['gh release create v1.2.0 -n "drop table users moved to a migration" -t "v1.2.0"', "Bash"],
+        ['grep -rn "git reset --hard" docs/ README.md', "Bash"],
+        ['rg "rm -rf" --glob "*.sh" scripts/', "Bash"],
+        ['grep -rni "drop table" migrations/ | head', "Bash"],
+        ['cd repo && grep -n -i "create table\\|drop table\\|rename to" migrations/0043.sql', "Bash"],
+        ['findstr /s /c:"rmdir /s" *.cmd', "Bash"],
+        ["Select-String -Path .\\src\\*.ts -Pattern 'Remove-Item -Recurse'", "PowerShell"],
+        ['Select-String -Path .\\docs\\*.md -Pattern "git reset --hard"', "PowerShell"],
+        ['Write-Host "Next step: Remove-Item -Recurse -Force .\\dist (ask first)"', "PowerShell"],
+        ['npm test; Write-Host "git reset --hard was not needed"', "PowerShell"],
+        ['Write-Output "git push --force is blocked by the gate"', "PowerShell"],
+        ['echo "next: rm -rf build, by hand"', "Bash"],
+        ['npm test && echo "git reset --hard was not needed"', "Bash"],
+        ['printf "%s\\n" "drop table users is in migration 0043"', "Bash"],
+    ];
+    for (const [command, tool] of DATA_BY_ITS_COMMAND_ALLOWED) {
+        it(`allows text that is data by the command it is written on (${tool}): ${JSON.stringify(command)}`, () => {
+            assert.deepEqual(classifyDestructiveBash(command, tool), { destructive: false, rule: null });
+        });
+    }
+    // Text handed to something that runs it keeps the reach the substring list
+    // gave it, and so does a print command whose output goes anywhere but the
+    // terminal: into a pipe, a file or a substitution.
+    const TEXT_THAT_RUNS_CAUGHT = [
+        ['psql -c "DROP TABLE users"', "substring:drop table", "Bash"],
+        ['ssh build-host "rm -rf /srv/app/build"', "substring:rm -rf", "Bash"],
+        ['echo "DROP TABLE users;" | psql "$DATABASE_URL"', "substring:drop table", "Bash"],
+        ['echo "rm -rf build" | bash', "substring:rm -rf", "Bash"],
+        ['echo "DROP TABLE users;" \\\n  | psql "$DATABASE_URL"', "substring:drop table", "Bash"],
+        ['echo "DROP TABLE users;"\n  | psql $env:DATABASE_URL', "substring:drop table", "PowerShell"],
+        ['printf "%s" "git reset --hard" | sh', "substring:git reset --hard", "Bash"],
+        ['echo "rm -rf build" > cleanup.sh', "substring:rm -rf", "Bash"],
+        ['echo "rm -rf build" \\\n  >> cleanup.sh', "substring:rm -rf", "Bash"],
+        ["eval \"$(echo 'rm -rf build')\"", "substring:rm -rf", "Bash"],
+        ['x=$(echo "rm -rf build"); $x', "substring:rm -rf", "Bash"],
+        ['x=`echo "rm -rf build"`; $x', "substring:rm -rf", "Bash"],
+        ['{ echo "DROP TABLE users;"; echo "COMMIT;"; } | psql "$DATABASE_URL"', "substring:drop table", "Bash"],
+        ['(echo "rm -rf build") | bash', "substring:rm -rf", "Bash"],
+        ['echo "rm -rf build" ${EXTRA} | bash', "substring:rm -rf", "Bash"],
+        ['echo "rm -rf build" &> cleanup.sh', "substring:rm -rf", "Bash"],
+        ['echo "a" \\\\\npsql -c "DROP TABLE users"', "substring:drop table", "Bash"],
+        ['Write-Output "Remove-Item -Recurse -Force build" | Invoke-Expression', "powershell-remove-item", "PowerShell"],
+        ['grep -rl "TODO" . | xargs rm -rf', "substring:rm -rf", "Bash"],
+        ['grep -q "x" notes.txt && rm -rf build', "rm-recursive-force", "Bash"],
+        ['git commit -am "wip"; rm -rf build', "rm-recursive-force", "Bash"],
+        ["git commit -am wip; git reset --hard HEAD~1", "git-reset-hard", "Bash"],
+        ['gh pr comment 1 -b "x"; git push --force origin main', "git-push-force", "Bash"],
+        // Outside git and gh these letters are other flags, and their next word is not a message.
+        ["xargs -t rm -rf < list.txt", "substring:rm -rf", "Bash"],
+        ["docker exec -t app rm -rf /data", "substring:rm -rf", "Bash"],
+        ["Remove-Item build -Confirm -Recurse", "powershell-remove-item", "PowerShell"],
+        // An unclosed quote hides nothing.
+        ['grep "rm -rf build', "substring:rm -rf", "Bash"],
+    ];
+    for (const [command, rule, tool] of TEXT_THAT_RUNS_CAUGHT) {
+        it(`still catches text that something runs (${tool}): ${JSON.stringify(command)}`, () => {
+            assert.deepEqual(classifyDestructiveBash(command, tool), { destructive: true, rule });
+        });
+    }
+    const LONG_DATA_INPUTS = [
+        ["clustered message flags", 'git commit -am "x" '.repeat(11_000)],
+        ["search commands", 'grep "a" b; '.repeat(17_000)],
+        ["print commands", "echo 'x' ; ".repeat(19_000)],
+        ["indented line breaks", "\n      ".repeat(29_000)],
+        ["backslash line breaks", "a \\\n".repeat(50_000)],
+    ];
+    for (const [name, command] of LONG_DATA_INPUTS) {
+        it(`finds the data of 200 KB of ${name} in under a second`, () => {
+            for (const tool of ["Bash", "PowerShell"]) {
+                const started = performance.now();
+                classifyDestructiveBash(command, tool);
+                const elapsed = performance.now() - started;
+                assert.ok(elapsed < 1000, `${tool} took ${elapsed.toFixed(0)} ms for ${command.length} chars`);
+            }
+        });
+    }
     // Two ordinary Bash shapes hid a command from every structured rule. A shell
     // keyword (`then`, `do`, `else`) was read as the command word, and a line
     // that ends in a backslash was not joined to the next, so the flags written

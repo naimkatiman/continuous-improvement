@@ -649,6 +649,12 @@ describe("hooks/gateguard.mjs — the PowerShell tool is gated like Bash", () =>
         "git status",
         "git push origin feat/x",
         '$headers = @{ Accept = "application/json" }',
+        // Text that is data by the command it is written on: a search pattern, a
+        // message after git's clustered -am or gh's short -b, a line printed to the terminal.
+        'grep -rn "git reset --hard" docs/ README.md',
+        'git commit -am "docs: explain why rm -rf is gated"',
+        'gh pr comment 271 -b "the gate now covers rm -rf behind pwsh -c"',
+        'Write-Host "Next step: Remove-Item -Recurse -Force .\\dist (ask first)"',
     ];
     for (const tool of shellTools) {
         for (const command of allowed) {
