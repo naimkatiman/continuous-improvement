@@ -41,9 +41,11 @@ const CAUGHT: ReadonlyArray<[string, string]> = [
   ["git stash drop", "git-stash-drop"],
   ["git stash drop stash@{2}", "git-stash-drop"],
   ["git stash clear", "git-stash-drop"],
-  ["git reset --hard origin/main", "substring:git reset --hard"],
-  ["git push --force origin main", "substring:git push --force"],
-  ["git branch -D feat/old", "substring:git branch -D"],
+  ["git reset --hard origin/main", "git-reset-hard"],
+  ["git push --force origin main", "git-push-force"],
+  ["git push -f origin main", "git-push-force"],
+  ["git push --force-with-lease origin feat/x", "git-push-force"],
+  ["git branch -D feat/old", "git-branch-force-delete"],
   ["psql -c 'DROP TABLE users'", "substring:drop table"],
   ["Remove-Item -Recurse -Force .\\dist", "powershell-remove-item"],
 ];
@@ -156,6 +158,71 @@ describe("lib/destructive-bash — classifier table", () => {
   ];
   for (const command of FORMAT_PARAMETER_ALLOWED) {
     it(`allows a format parameter: ${command}`, () => {
+      const verdict = classifyDestructiveBash(command);
+      assert.equal(verdict.destructive, false, `expected allowed: ${command} (rule ${verdict.rule})`);
+    });
+  }
+
+  // `git -C <dir>` is how an agent addresses another worktree. The value of -C
+  // was blanked as if it were a commit message, which made the parser swallow
+  // the subcommand, and reset --hard, push --force and branch -D only existed
+  // as contiguous substrings, so any global option in between hid them.
+  const GIT_GLOBAL_OPTION_CAUGHT: ReadonlyArray<[string, string]> = [
+    ["git -C ../wt clean -fdx", "git-clean-force"],
+    ["git -C ../wt reset --hard origin/main", "git-reset-hard"],
+    ["git -C ../wt checkout -- .", "git-checkout-discard"],
+    ["git -C ../wt stash drop", "git-stash-drop"],
+    ["git -C ../wt restore .", "git-restore-discard"],
+    ["git -C ../wt push --force origin feat/x", "git-push-force"],
+    ["git -C ../wt push -f origin feat/x", "git-push-force"],
+    ["git -C ../wt push -fu origin feat/x", "git-push-force"],
+    ["git -C ../wt push --force-with-lease origin feat/x", "git-push-force"],
+    ["git -C ../wt push --force-with-lease=feat/x:abc123 origin feat/x", "git-push-force"],
+    ["git -C ../wt push origin +main", "git-push-plus-refspec"],
+    ["git -C ../wt branch -D feat/x", "git-branch-force-delete"],
+    ["git -C D:\\repo\\wt clean -fdx", "git-clean-force"],
+    ['git -C "D:\\my repo\\wt" clean -fdx', "git-clean-force"],
+    ['git -C "$d" reset --hard', "git-reset-hard"],
+    ["git --no-pager reset --hard", "git-reset-hard"],
+    ["git -c user.name=x reset --hard HEAD~1", "git-reset-hard"],
+    ['git -c user.name="A B" reset --hard HEAD~1', "git-reset-hard"],
+    ["git --git-dir=.git --work-tree=. reset --hard", "git-reset-hard"],
+    ["git --git-dir .git --work-tree . clean -fd", "git-clean-force"],
+    ["git -c core.hooksPath=/dev/null push --force origin feat/x", "git-push-force"],
+    ["git --no-pager branch -D feat/x", "git-branch-force-delete"],
+    ["git branch --delete --force feat/x", "git-branch-force-delete"],
+    ["git branch -d -f feat/x", "git-branch-force-delete"],
+  ];
+  for (const [command, rule] of GIT_GLOBAL_OPTION_CAUGHT) {
+    it(`catches git behind a global option: ${command}`, () => {
+      assert.deepEqual(classifyDestructiveBash(command), { destructive: true, rule });
+    });
+  }
+
+  const GIT_GLOBAL_OPTION_ALLOWED: ReadonlyArray<string> = [
+    "git -C ../wt status",
+    "git -C ../wt log --oneline -5",
+    "git -C ../wt clean -n",
+    "git -C ../wt push origin feat/x",
+    "git -C ../wt push -u origin feat/x",
+    "git -C ../wt branch -d feat/merged",
+    "git -C ../wt branch --delete feat/merged",
+    "git -C ../wt reset --soft HEAD~1",
+    "git -C ../wt reset HEAD~1",
+    "git -C ../wt checkout -b feat/y",
+    "git -C ../wt restore --staged a.ts",
+    "git -C ../wt stash list",
+    'git -C ../wt commit -m "reset --hard was the wrong call"',
+    "git commit -C HEAD~1",
+    "git -c core.autocrlf=false diff --stat",
+    "git --no-pager log -3",
+    "tar -C /tmp -xf a.tar",
+    // A flag-looking word inside a quoted argument is data, not a flag.
+    'git push origin "refs/heads/feat/x" --follow-tags',
+    'rm -r "notes -f draft"',
+  ];
+  for (const command of GIT_GLOBAL_OPTION_ALLOWED) {
+    it(`allows a harmless git command behind a global option: ${command}`, () => {
       const verdict = classifyDestructiveBash(command);
       assert.equal(verdict.destructive, false, `expected allowed: ${command} (rule ${verdict.rule})`);
     });
@@ -340,6 +407,10 @@ describe("lib/destructive-bash — classifier table", () => {
     assert.equal(stripMessageArgs('git commit -m "rm -rf x"'), "git commit -m ");
     assert.equal(stripMessageArgs("gh pr create --body-file body.md"), "gh pr create --body-file ");
     assert.equal(stripMessageArgs('bash -c "rm -rf /tmp/x"'), 'bash -c "rm -rf /tmp/x"');
+  });
+
+  it("stripMessageArgs leaves the directory of git -C alone", () => {
+    assert.equal(stripMessageArgs("git -C ../wt clean -fdx"), "git -C ../wt clean -fdx");
   });
 
   it("is case-insensitive for SQL and PowerShell forms", () => {

@@ -59,8 +59,11 @@ export const DESTRUCTIVE_PATTERNS: readonly string[] = [
 
 // Flags whose VALUE is human prose (a commit message, a PR body) or a filename —
 // never a command to execute. Their contents must not trip the destructive scan.
+// `-C` is not here: before the subcommand it is git's "run in this directory"
+// option, and blanking its value made the parser read the subcommand as the
+// directory (`git -C ../wt clean -fdx`).
 const MESSAGE_FLAG_RE =
-  /(^|\s)(-m|--message|-F|--file|--body|--body-file|--title|--notes|-C|--reuse-message)(=|\s+)('[^']*'|"[^"]*"|\S+)/g;
+  /(^|\s)(-m|--message|-F|--file|--body|--body-file|--title|--notes|--reuse-message)(=|\s+)('[^']*'|"[^"]*"|\S+)/g;
 
 /** Blank the value of every message/body flag; the flag itself is preserved. */
 export function stripMessageArgs(command: string): string {
@@ -284,8 +287,29 @@ function allSimpleCommands(command: string): SimpleCommand[] {
   return segments;
 }
 
+// Split at whitespace outside quotes. A quoted argument stays one token with
+// its quotes on, so a directory with a space in it (`git -C "my repo" …`) is one
+// option value and a flag-looking word inside a string is not a flag.
 function tokenize(segment: string): string[] {
-  return segment.split(/\s+/).filter((t) => t !== "");
+  const tokens: string[] = [];
+  let current = "";
+  let quote: '"' | "'" | null = null;
+  for (const ch of segment) {
+    if (quote) {
+      current += ch;
+      if (ch === quote) quote = null;
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+      current += ch;
+    } else if (/\s/.test(ch)) {
+      if (current !== "") tokens.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  if (current !== "") tokens.push(current);
+  return tokens;
 }
 
 // Drop `sudo`, `env`, leading VAR=value assignments and a `cmd /c` wrapper so
@@ -304,7 +328,8 @@ function commandTokens(segment: string): string[] {
       // `cmd /c "rd /s /q build"`: the quoted argument is the command line, so
       // its first word is a command word. This is the only place a quote is
       // peeled off: anywhere else a word that starts with a quote is a string.
-      if (i < tokens.length) tokens[i] = tokens[i]!.replace(/^["']/, "");
+      const quoted = /^(["'])(.*)\1$/s.exec(tokens[i] ?? "");
+      if (quoted) tokens.splice(i, 1, ...tokenize(quoted[2]!));
       continue;
     }
     // PowerShell output capture: `$out = git clean -fdx`.
@@ -317,14 +342,26 @@ function commandTokens(segment: string): string[] {
   return tokens.slice(i);
 }
 
-// For `git`, skip global options (`-C <dir>`, `-c k=v`, `--git-dir=…`) to find
-// the subcommand and its own arguments.
+// The git global options that take their value as the next word.
+const GIT_VALUE_OPTIONS: ReadonlySet<string> = new Set([
+  "-C",
+  "-c",
+  "--git-dir",
+  "--work-tree",
+  "--namespace",
+  "--super-prefix",
+  "--config-env",
+  "--attr-source",
+]);
+
+// For `git`, skip global options (`-C <dir>`, `-c k=v`, `--git-dir=…`,
+// `--no-pager`) to find the subcommand and its own arguments. Every destructive
+// git rule goes through here, so a global option cannot hide the subcommand.
 function gitSubcommand(tokens: string[]): { sub: string; args: string[] } | null {
   if (tokens[0] !== "git") return null;
   let i = 1;
   while (i < tokens.length && tokens[i]!.startsWith("-")) {
-    const t = tokens[i]!;
-    i += t === "-C" || t === "-c" || t === "--git-dir" || t === "--work-tree" ? 2 : 1;
+    i += GIT_VALUE_OPTIONS.has(tokens[i]!) ? 2 : 1;
   }
   const sub = tokens[i];
   if (!sub) return null;
@@ -446,6 +483,33 @@ const STRUCTURED_RULES: readonly Rule[] = [
       const git = gitSubcommand(tokens);
       if (!git || git.sub !== "stash") return false;
       return git.args[0] === "drop" || git.args[0] === "clear";
+    },
+  },
+  {
+    id: "git-reset-hard",
+    test: (tokens) => {
+      const git = gitSubcommand(tokens);
+      return git !== null && git.sub === "reset" && git.args.includes("--hard");
+    },
+  },
+  {
+    id: "git-push-force",
+    test: (tokens) => {
+      const git = gitSubcommand(tokens);
+      if (!git || git.sub !== "push") return false;
+      return git.args.some((t) => t === "--force" || t.startsWith("--force-with-lease") || hasShortLetter(t, /f/));
+    },
+  },
+  {
+    // `-D`, or `-d` / `--delete` together with `-f` / `--force`.
+    id: "git-branch-force-delete",
+    test: (tokens) => {
+      const git = gitSubcommand(tokens);
+      if (!git || git.sub !== "branch") return false;
+      if (git.args.some((t) => hasShortLetter(t, /D/))) return true;
+      const del = git.args.some((t) => t === "--delete" || hasShortLetter(t, /d/));
+      const force = git.args.some((t) => t === "--force" || hasShortLetter(t, /f/));
+      return del && force;
     },
   },
 ];

@@ -612,8 +612,13 @@ describe("hooks/gateguard.mjs — the PowerShell tool is gated like Bash", () =>
         ["if ($LASTEXITCODE -eq 0) { git clean -fdx }", "git-clean-force"],
         ["$out = git clean -fdx", "git-clean-force"],
         ["try { git clean -fdx } catch {}", "git-clean-force"],
-        ["git push --force origin main", "substring:git push --force"],
-        ["git reset --hard origin/main", "substring:git reset --hard"],
+        ["git push --force origin main", "git-push-force"],
+        ["git reset --hard origin/main", "git-reset-hard"],
+        // `git -C <dir>` is the normal spelling for work across worktrees.
+        ["git -C ../wt clean -fdx", "git-clean-force"],
+        ["git -C ../wt reset --hard origin/main", "git-reset-hard"],
+        ["git -C ../wt push --force origin feat/x", "git-push-force"],
+        ["git -C ../wt branch -D feat/x", "git-branch-force-delete"],
         [["rm", "-r", "-f", "dist"].join(" "), "rm-recursive-force"],
         ["Get-ChildItem; git clean -fdx", "git-clean-force"],
     ];
