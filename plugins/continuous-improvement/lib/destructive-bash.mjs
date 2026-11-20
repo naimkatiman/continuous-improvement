@@ -148,8 +148,9 @@ function extractHereBodies(command) {
 }
 // `git commit -F - <<'EOF'` and `gh pr create --body-file - <<'EOF'` read the
 // message from stdin, so the heredoc that follows on the same command is the
-// message.
-const STDIN_MESSAGE_RE = /(?:^|\s)(?:-F|--file|--body-file)(?:=|\s+)-\s[^\n;|&]*$/;
+// message. Only git and gh: another program's `--file -` is its input, and
+// `psql --file - <<'SQL'` runs what the heredoc holds.
+const STDIN_MESSAGE_RE = /(?:^|[\s;|&(])(?:git|gh)(?:\.exe)?\s(?:[^\n;|&]*\s)?(?:-F|--file|--body-file)(?:=|\s+)-\s[^\n;|&]*$/;
 // The bodies that still have to be scanned. A body that is the value of a
 // message or body flag (`git commit -m "$(cat <<'EOF' … EOF)"`) is prose and is
 // dropped whole, exactly like a quoted message.

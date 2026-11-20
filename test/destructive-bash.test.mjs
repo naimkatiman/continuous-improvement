@@ -565,6 +565,10 @@ describe("lib/destructive-bash — classifier table", () => {
         ["cat > cleanup.sh <<'EOF'\ngit clean -fdx\nEOF", "git-clean-force"],
         ["cat > cleanup.sh <<'EOF'\n#!/bin/sh\ncd /tmp && rm -r -f cache\nEOF", "rm-recursive-force"],
         ["psql \"$DATABASE_URL\" <<'SQL'\nDROP TABLE users;\nSQL", "substring:drop table"],
+        // Only git and gh read a message from `-F -` or `--body-file -`. Another
+        // program's `--file -` is its input, and SQL on that input is still read.
+        ["psql --file - <<'SQL'\nDROP TABLE users;\nSQL", "substring:drop table"],
+        ["psql \"$DATABASE_URL\" --file=- <<'SQL'\nTRUNCATE users;\nSQL", "substring:truncate "],
         // A pipeline into the cmdlet, however the pipe is spaced or wrapped.
         ["Get-ChildItem build -Recurse |Remove-Item", "powershell-remove-item-pipeline"],
         ["Get-ChildItem build -Recurse |\n  Remove-Item", "powershell-remove-item-pipeline"],
