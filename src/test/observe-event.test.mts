@@ -240,14 +240,67 @@ describe("secret redaction at write time", () => {
   const KV_SECRET = "FAKEvalue-9f8e7d6c5b4a";
   const BEARER_LEAD = 'curl -H "Authorization: Bearer ';
 
-  // A command whose bearer token starts `before` chars ahead of `cut` and ends
-  // past it, so a cut-then-redact order would leave the token head in the row.
-  function straddling(cut: number, before: number): string {
-    const padding = "pad ".repeat(cut).slice(0, cut - before - BEARER_LEAD.length);
-    const text = `${padding}${BEARER_LEAD}${BEARER}" https://api.example.test`;
-    assert.equal(text.indexOf(BEARER), cut - before, "fixture: token starts inside the budget");
-    assert.ok(text.indexOf(BEARER) + BEARER.length > cut, "fixture: token ends past the budget");
-    return text;
+  // Secrets that only a length-thresholded rule catches: cut down to their
+  // first `inside` characters they are no longer a match, so a cut-then-redact
+  // order writes that head into the row. A named secret would not show the
+  // order: `Authorization: Bearer x` is redacted at any length.
+  const JWT_HEAD = "eyJhbGciOiJIUzI1NiJ9";
+  const STRADDLERS: ReadonlyArray<{ shape: string; lead: string; secret: string; inside: number; placeholder: string }> = [
+    {
+      shape: "a bare 48-hex key",
+      lead: "",
+      secret: "9f8e7d6c5b4a39281706f5e4d3c2b1a09f8e7d6c5b4a3928",
+      inside: 25,
+      placeholder: "<hex-redacted:9f8e7d6c>",
+    },
+    {
+      shape: "a provider-prefixed token",
+      lead: "",
+      secret: `ghp_${"Zk9Qw2".repeat(6)}`,
+      inside: 15,
+      placeholder: "<token-redacted>",
+    },
+    {
+      shape: "a Bearer token with no header name",
+      lead: "Bearer ",
+      secret: "Qm9x7KpL2".repeat(4),
+      inside: 12,
+      placeholder: "Bearer <redacted>",
+    },
+    {
+      shape: "a JWT",
+      lead: "",
+      secret: `${JWT_HEAD}.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpM`,
+      inside: 30,
+      placeholder: "<jwt-redacted>",
+    },
+    {
+      // Its third segment starts 600 characters past the cut: the redactor has
+      // to read that far ahead to see a JWT at all.
+      shape: "a JWT with a 600-character payload",
+      lead: "",
+      secret: `${JWT_HEAD}.${"eyJzdWIiOiIxMjM0NTY3ODkwIn0".repeat(23).slice(0, 600)}.SflKxwRJSMeKKF2QT4fwpM`,
+      inside: 30,
+      placeholder: "<jwt-redacted>",
+    },
+  ];
+
+  // Text whose secret starts `inside` chars ahead of `cut` and ends past it,
+  // and the same text with the secret already replaced. The padding ends in a
+  // space, so the secret starts at a word boundary.
+  function straddling(
+    cut: number,
+    lead: string,
+    secret: string,
+    inside: number,
+    placeholder = "",
+  ): { text: string; redacted: string } {
+    const start = cut - inside;
+    const padding = `${"pad ".repeat(cut).slice(0, start - lead.length - 1)} `;
+    const text = `${padding}${lead}${secret} tail`;
+    assert.equal(text.indexOf(secret), start, "fixture: the secret starts inside the budget");
+    assert.ok(start + secret.length > cut, "fixture: the secret ends past the budget");
+    return { text, redacted: `${padding}${placeholder} tail` };
   }
 
   it("redacts a bearer token from a Bash command head and keeps the rest", () => {
@@ -292,18 +345,41 @@ describe("secret redaction at write time", () => {
     assert.match(summary, /^\{"stdout":"Authorization: Bearer <redacted>/);
   });
 
-  it("leaves no token head behind when a secret straddles the 500-char input cut", () => {
-    const summary = summariseInput("Bash", { command: straddling(500, 10) });
-    assert.ok(summary.length <= 500, `input budget exceeded: ${summary.length}`);
-    assert.ok(!summary.includes(BEARER.slice(0, 8)), summary.slice(-60));
-    assert.match(summary, /Bearer <redacted>/);
+  // The row is the redacted text cut to the budget, never the cut text redacted.
+  for (const { shape, lead, secret, inside, placeholder } of STRADDLERS) {
+    it(`leaves no head of ${shape} behind when it straddles the 500-char input cut`, () => {
+      const { text, redacted } = straddling(500, lead, secret, inside, placeholder);
+      const summary = summariseInput("Bash", { command: text });
+      assert.ok(!summary.includes(secret.slice(0, 12)), summary.slice(-60));
+      assert.equal(summary, redacted.slice(0, 500));
+    });
+
+    it(`leaves no head of ${shape} behind when it straddles the 200-char output cut`, () => {
+      const { text, redacted } = straddling(200, lead, secret, inside, placeholder);
+      const summary = summariseOutput(text);
+      assert.ok(!summary.includes(secret.slice(0, 12)), summary.slice(-60));
+      assert.equal(summary, redacted.slice(0, 200));
+    });
+  }
+
+  it("leaves no key head behind when it straddles the cut inside Bash stdout", () => {
+    // 30 of the key's 48 characters sit inside the leaf's own 200-char budget,
+    // fewer than the 32 the hex rule needs, and 19 of them inside the row.
+    const { secret, placeholder } = STRADDLERS[0]!;
+    const { text, redacted } = straddling(200, "", secret, 30, placeholder);
+    const summary = summariseOutput({ stdout: text, stderr: "", interrupted: false });
+    assert.ok(!summary.includes(secret.slice(0, 12)), summary.slice(-60));
+    assert.equal(summary, JSON.stringify({ stdout: redacted }).slice(0, 200));
   });
 
-  it("leaves no token head behind when a secret straddles the 200-char output cut", () => {
-    const summary = summariseOutput(straddling(200, 10));
-    assert.ok(summary.length <= 200, `output budget exceeded: ${summary.length}`);
-    assert.ok(!summary.includes(BEARER.slice(0, 8)), summary.slice(-60));
-    assert.match(summary, /Bearer <redacted>/);
+  it("leaves no token head behind when a named secret straddles either cut", () => {
+    for (const cut of [500, 200]) {
+      const { text } = straddling(cut, BEARER_LEAD, BEARER, 10);
+      const summary = cut === 500 ? summariseInput("Bash", { command: text }) : summariseOutput(text);
+      assert.ok(summary.length <= cut, `budget exceeded: ${summary.length}`);
+      assert.ok(!summary.includes(BEARER.slice(0, 8)), summary.slice(-60));
+      assert.match(summary, /Bearer <redacted>/);
+    }
   });
 
   it("holds both budgets when redaction makes the text longer", () => {
@@ -363,6 +439,22 @@ describe("secret redaction at write time", () => {
     summariseOutput({ stdout: blob });
     const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
     assert.ok(elapsedMs < 1000, `three summaries took ${elapsedMs.toFixed(0)}ms`);
+  });
+
+  it("bounds the redaction work of one event, however many long leaves it has", () => {
+    // Every string leaf is redacted on its own, and a run of `eyJ-` costs most
+    // of a millisecond per leaf. The work budget stops after the few leaves
+    // that can reach the row; without it these 8,000 leaves take many seconds.
+    const leaf = "eyJ-".repeat(50_000);
+    const leaves = Array.from({ length: 8_000 }, () => leaf);
+    const content = leaves.map((text) => ({ type: "text", text }));
+    const started = process.hrtime.bigint();
+    const input = summariseInput("mcp__x__y", { items: leaves });
+    const output = summariseOutput({ content });
+    const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+    assert.equal(input.length, 500);
+    assert.equal(output.length, 200);
+    assert.ok(elapsedMs < 1000, `two summaries took ${elapsedMs.toFixed(0)}ms`);
   });
 });
 
