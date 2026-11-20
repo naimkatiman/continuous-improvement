@@ -58,8 +58,6 @@ const POWERSHELL_DELETE_CAUGHT = [
     ["Remove-Item $env:USERPROFILE\\.claude\\plugins -Recurse -Force", "powershell-remove-item"],
     ["Remove-Item -Rec -Fo x", "powershell-remove-item"],
     ["Remove-Item x -Recurse", "powershell-remove-item"],
-    ["Remove-Item x -Force", "powershell-remove-item"],
-    ["Remove-Item x -Force:$true", "powershell-remove-item"],
     ["remove-item x -recurse -force", "powershell-remove-item"],
     ["ri -r -fo build", "powershell-remove-item"],
     ["rd -Recurse -Force build", "powershell-remove-item"],
@@ -329,6 +327,72 @@ describe("lib/destructive-bash — classifier table", () => {
         it(`allows the harmless command a shell wrapper runs: ${command}`, () => {
             const verdict = classifyDestructiveBash(command);
             assert.equal(verdict.destructive, false, `expected allowed: ${command} (rule ${verdict.rule})`);
+        });
+    }
+    // The policy for PowerShell's delete. -Recurse gates, alone or with -Force,
+    // and so does a delete fed by a pipeline. -Force alone is the PowerShell
+    // spelling of `rm -f file` and passes like it, for the cmdlet and every
+    // alias, wherever the switch sits. -WhatIf is a dry run, like `git clean -n`.
+    // A provider path that is not a file tree (Env:, Function:, Alias:,
+    // Variable:) is not a tree delete.
+    const POWERSHELL_POLICY_ALLOWED = [
+        "Remove-Item scratch.txt -Force",
+        "Remove-Item -Force scratch.txt",
+        "Remove-Item x -Force:$true",
+        "Remove-Item $tmp -Force -ErrorAction SilentlyContinue",
+        "if (Test-Path out.zip) { Remove-Item out.zip -Force }",
+        "del scratch.txt -Force",
+        "ri *.tmp -Force",
+        "erase -Force a.log, b.log",
+        "rm -Force scratch.txt",
+        "Remove-Item .\\dist\\app.zip -Force -ErrorAction SilentlyContinue; Compress-Archive -Path dist\\* -DestinationPath dist\\app.zip",
+        'pwsh -c "Remove-Item scratch.txt -Force"',
+        'Write-Host "Remove-Item -Force deletes a read-only file"',
+        "Remove-Item x.txt -Recurse:$false",
+        // A dry run.
+        "Remove-Item build -Recurse -Force -WhatIf",
+        "Remove-Item -Recurse -Force build -WhatIf",
+        "Remove-Item (Join-Path $root build) -Recurse -WhatIf",
+        'Write-Host "Remove-Item -Recurse build -WhatIf shows what would go"',
+        "Get-ChildItem -Recurse | Remove-Item -WhatIf",
+        // A provider path that is not a file tree.
+        "Remove-Item Env:\\FOO -Force",
+        "Remove-Item Env:\\FOO",
+        "Remove-Item Alias:\\ll -Force",
+        "Remove-Item -Path Function:\\Invoke-Thing -Recurse -Force",
+        "Remove-Item Variable:\\tmp -Recurse -ErrorAction SilentlyContinue",
+    ];
+    for (const command of POWERSHELL_POLICY_ALLOWED) {
+        it(`allows the PowerShell delete that is not a tree delete: ${command}`, () => {
+            const verdict = classifyDestructiveBash(command);
+            assert.equal(verdict.destructive, false, `expected allowed: ${command} (rule ${verdict.rule})`);
+        });
+    }
+    const POWERSHELL_POLICY_CAUGHT = [
+        ["Remove-Item -Force -Recurse build", "powershell-remove-item"],
+        ["Remove-Item build -Force -Recurse:$true", "powershell-remove-item"],
+        ["Remove-Item build -Recurse -Force -WhatIf:$false", "powershell-remove-item"],
+        ["Remove-Item HKCU:\\Software\\Acme -Recurse", "powershell-remove-item"],
+        ["Remove-Item Env:\\FOO, build -Recurse", "powershell-remove-item"],
+        ["rm -Force -r build", "powershell-remove-item"],
+        ["Get-ChildItem *.tmp | Remove-Item", "powershell-remove-item-pipeline"],
+        ["Get-ChildItem *.tmp | Remove-Item -Force", "powershell-remove-item-pipeline"],
+        // The pipeline item as the operand is a delete fed by a pipeline too.
+        [
+            "Get-ChildItem build -Recurse | ForEach-Object { Remove-Item $_.FullName -Force }",
+            "powershell-remove-item-pipeline",
+        ],
+        ["Get-ChildItem *.tmp | ForEach-Object { Remove-Item $_ }", "powershell-remove-item-pipeline"],
+        ["gci build | % { ri $_ -r -fo }", "powershell-remove-item"],
+        // The switch-first spelling inside a quoted argument keeps the reach the
+        // "Remove-Item -Recurse" and "Remove-Item -Force" substrings gave it.
+        ['Start-Process powershell -ArgumentList "Remove-Item -Recurse -Force build"', "powershell-remove-item"],
+        ['Start-Process powershell -ArgumentList "Remove-Item -Force -Recurse build"', "powershell-remove-item"],
+        ["Set-Content clean.ps1 'Remove-Item -Recurse -Force build'", "powershell-remove-item"],
+    ];
+    for (const [command, rule] of POWERSHELL_POLICY_CAUGHT) {
+        it(`catches the PowerShell tree delete: ${command}`, () => {
+            assert.deepEqual(classifyDestructiveBash(command), { destructive: true, rule });
         });
     }
     // A string literal is an expression, not a command. The rules stripped a

@@ -52,8 +52,6 @@ export const DESTRUCTIVE_PATTERNS: readonly string[] = [
   "rmdir /s",
   "del /f /q",
   "del /q /f",
-  "Remove-Item -Recurse",
-  "Remove-Item -Force",
   "io.directory]::delete(",
 ];
 
@@ -453,18 +451,105 @@ const isShortFlag = (t: string): boolean => /^-[A-Za-z]+$/.test(t);
 const hasShortLetter = (t: string, letters: RegExp): boolean => isShortFlag(t) && letters.test(t.slice(1));
 
 // PowerShell's Remove-Item by cmdlet name or alias. Command names are
-// case-insensitive, a switch can sit anywhere after the command word, and any
-// unambiguous prefix of a switch name is accepted (`-r`, `-rec`, `-fo`), with
-// an optional `:value` suffix (`-Force:$true`).
+// case-insensitive and a switch can sit anywhere after the command word.
 const PS_REMOVE_COMMANDS: ReadonlySet<string> = new Set(["remove-item", "ri", "rd", "rmdir", "del", "erase"]);
 // The names that are only ever the PowerShell cmdlet, for the pipeline rule.
 const PS_REMOVE_PIPE_TARGETS: ReadonlySet<string> = new Set(["remove-item", "ri", "rd", "del", "erase"]);
-const PS_RECURSE_RE = /^-r(?:e(?:c(?:u(?:r(?:s(?:e)?)?)?)?)?)?(?::.*)?$/i;
-const PS_FORCE_RE = /^-fo(?:r(?:c(?:e)?)?)?(?::.*)?$/i;
-// `rm` is also the POSIX command, whose `-r` and `-f` belong to
-// rm-recursive-force. It only counts as Remove-Item when a switch is spelled
-// the way POSIX rm cannot be: at least `-re` or `-fo`.
-const PS_RECURSE_LONG_RE = /^-re(?:c(?:u(?:r(?:s(?:e)?)?)?)?)?(?::.*)?$/i;
+// Provider drives that hold no file tree: deleting an environment variable, a
+// function, an alias or a variable is not a tree delete.
+const PS_DATA_PROVIDER_RE = /^["']?(?:env|function|alias|variable):/i;
+// The current pipeline item: `ForEach-Object { Remove-Item $_.FullName }`.
+const PS_PIPELINE_ITEM_RE = /^["']?\$(?:_|psitem)(?!\w)/i;
+const PS_SWITCH_NAMES: readonly string[] = ["recurse", "force", "whatif", "confirm", "verbose", "debug"];
+const PS_SWITCH_ALIASES: ReadonlySet<string> = new Set(["wi", "cf", "vb", "db"]);
+
+// PowerShell accepts any unambiguous prefix of a parameter name (`-r`, `-rec`,
+// `-fo`) and an optional `:value` suffix. A switch given `:$false` is off.
+function psSwitchOn(args: readonly string[], name: string, minLength: number): boolean {
+  return args.some((t) => {
+    const param = /^-([A-Za-z]+)(?::(.*))?$/.exec(t);
+    if (!param) return false;
+    const given = param[1]!.toLowerCase();
+    if (given.length < minLength || !name.startsWith(given)) return false;
+    return !/^\$?(?:false|0)$/i.test(param[2] ?? "");
+  });
+}
+
+// The paths a Remove-Item call names: every word that is not a parameter, and
+// not the value of a parameter other than -Path / -LiteralPath.
+function psPathOperands(args: readonly string[]): string[] {
+  const operands: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const param = /^-([A-Za-z]+)(:.*)?$/.exec(args[i]!);
+    if (!param) {
+      operands.push(args[i]!);
+      continue;
+    }
+    if (param[2] !== undefined) continue;
+    const name = param[1]!.toLowerCase();
+    if (PS_SWITCH_NAMES.some((s) => s.startsWith(name)) || PS_SWITCH_ALIASES.has(name)) continue;
+    if ("path".startsWith(name) || "literalpath".startsWith(name) || name === "lp" || name === "pspath") continue;
+    i++; // any other named parameter (-ErrorAction, -Include, -Filter) takes the next word
+  }
+  return operands;
+}
+
+// The policy for PowerShell's delete, for the cmdlet and every alias:
+//   - `-Recurse` gates, alone or with `-Force`: that is the tree delete.
+//   - A delete fed by a pipeline gates: the pipeline decides what is deleted,
+//     which this classifier cannot see. `$_` as the operand is the same thing.
+//   - `-Force` alone on named files or a wildcard passes. It is the PowerShell
+//     spelling of `rm -f file`, which passes for Bash.
+//   - `-WhatIf` is a dry run and passes, the way `git clean -n` does.
+//   - A provider path that holds no file tree passes.
+// Returns the rule id, or null.
+function powershellDelete(tokens: readonly string[], piped: boolean): string | null {
+  const cmd = tokens[0]!;
+  const args = tokens.slice(1);
+  if (cmd === "rm") {
+    // `rm` is also the POSIX command, whose `-r` and `-f` belong to
+    // rm-recursive-force. It is read as Remove-Item only when a switch is
+    // spelled the way POSIX rm cannot be: at least `-re` or `-fo`.
+    if (!psSwitchOn(args, "recurse", 2) && !psSwitchOn(args, "force", 2)) return null;
+  } else if (!PS_REMOVE_COMMANDS.has(cmd)) {
+    return null;
+  }
+  if (psSwitchOn(args, "whatif", 2) || psSwitchOn(args, "wi", 2)) return null;
+  const operands = psPathOperands(args);
+  if (operands.length > 0 && operands.every((t) => PS_DATA_PROVIDER_RE.test(t))) return null;
+  if (psSwitchOn(args, "recurse", 1)) return "powershell-remove-item";
+  const fed = (piped && PS_REMOVE_PIPE_TARGETS.has(cmd)) || operands.some((t) => PS_PIPELINE_ITEM_RE.test(t));
+  return fed ? "powershell-remove-item-pipeline" : null;
+}
+
+// The substring list used to carry "Remove-Item -Recurse" and "Remove-Item
+// -Force". As substrings they also matched inside a quoted argument
+// (`Start-Process powershell -ArgumentList "Remove-Item -Recurse …"`), where no
+// command starts. That reach is kept, but the text found is judged by the same
+// policy, so `-Force` alone and a `-WhatIf` dry run pass here too.
+function switchFirstDelete(text: string): string | null {
+  const opener = /remove-item -(?=recurse|force)/gi;
+  for (let m = opener.exec(text); m !== null; m = opener.exec(text)) {
+    // Read to the end of this command: a separator, or the quote that closes
+    // the string the command sits in.
+    let end = m.index;
+    while (end < text.length) {
+      const ch = text[end]!;
+      if (/[;|&\n]/.test(ch)) break;
+      if (ch === '"' || ch === "'") {
+        const close = text.indexOf(ch, end + 1);
+        if (close === -1 || /[;|&\n]/.test(text.slice(end, close))) break;
+        end = close;
+      }
+      end++;
+    }
+    const tokens = splitWords(text.slice(m.index, end)).map((word) => word.text);
+    tokens[0] = "remove-item";
+    const rule = powershellDelete(tokens, false);
+    if (rule !== null) return rule;
+  }
+  return null;
+}
 
 // cmd.exe's "and every subdirectory" switch.
 const CMD_SUBTREE_RE = /^\/{1,2}s$/i;
@@ -483,21 +568,6 @@ const STRUCTURED_RULES: readonly Rule[] = [
       const recursive = flags.some((t) => t === "--recursive" || hasShortLetter(t, /[rR]/));
       const force = flags.some((t) => t === "--force" || hasShortLetter(t, /f/));
       return recursive && force;
-    },
-  },
-  {
-    // Either switch gates, the same reach as the "Remove-Item -Recurse" and
-    // "Remove-Item -Force" substrings this rule generalises: those only matched
-    // with the switch directly after the cmdlet name.
-    id: "powershell-remove-item",
-    test: (tokens) => {
-      const cmd = tokens[0]!.toLowerCase();
-      const switches = tokens.slice(1);
-      if (cmd === "rm") {
-        return switches.some((t) => PS_RECURSE_LONG_RE.test(t) || PS_FORCE_RE.test(t));
-      }
-      if (!PS_REMOVE_COMMANDS.has(cmd)) return false;
-      return switches.some((t) => PS_RECURSE_RE.test(t) || PS_FORCE_RE.test(t));
     },
   },
   {
@@ -602,11 +672,13 @@ const STRUCTURED_RULES: readonly Rule[] = [
   },
 ];
 
-function matchStructuredRule(tokens: string[]): string | null {
+// The id of the rule this simple command trips, or null. `piped` says a
+// pipeline feeds the command.
+function matchStructuredRule(tokens: string[], piped: boolean): string | null {
   for (const rule of STRUCTURED_RULES) {
     if (rule.test(tokens)) return rule.id;
   }
-  return null;
+  return powershellDelete(tokens, piped);
 }
 
 const ALLOWED: DestructiveVerdict = { destructive: false, rule: null };
@@ -630,13 +702,8 @@ function classify(command: string, depth: number): DestructiveVerdict {
     const words = commandWords(segment.text);
     if (words.length === 0) continue;
     const tokens = words.map((word) => word.text);
-    const rule = matchStructuredRule(tokens);
+    const rule = matchStructuredRule(tokens, segment.piped);
     if (rule !== null) return { destructive: true, rule };
-    // `Get-ChildItem build -Recurse | Remove-Item`: the pipeline decides what is
-    // deleted, which this classifier cannot see, so a piped delete always gates.
-    if (segment.piped && PS_REMOVE_PIPE_TARGETS.has(tokens[0]!)) {
-      return { destructive: true, rule: "powershell-remove-item-pipeline" };
-    }
     const wrapped = depth < MAX_WRAPPER_DEPTH ? wrappedCommand(segment.text, words) : null;
     if (wrapped !== null) {
       const inner = classify(wrapped, depth + 1);
@@ -653,16 +720,17 @@ function classify(command: string, depth: number): DestructiveVerdict {
     for (const segment of splitSimpleCommands(body.text, false)) {
       const tokens = commandWords(segment.text).map((word) => word.text);
       if (tokens.length === 0) continue;
-      const rule = matchStructuredRule(tokens);
+      const rule = matchStructuredRule(tokens, false);
       if (rule !== null) return { destructive: true, rule };
     }
   }
 
+  const text = [stripped, ...scanned.map((body) => body.text)].join("\n");
+  const switchFirst = switchFirstDelete(text);
+  if (switchFirst !== null) return { destructive: true, rule: switchFirst };
+
   // The substring list reads `git.exe` as `git`, like the rules above.
-  const lower = [stripped, ...scanned.map((body) => body.text)]
-    .join("\n")
-    .toLowerCase()
-    .replace(/\bgit\.exe(?=\s)/g, "git");
+  const lower = text.toLowerCase().replace(/\bgit\.exe(?=\s)/g, "git");
   const hit = DESTRUCTIVE_PATTERNS.find((p) => lower.includes(p.toLowerCase()));
   if (hit !== undefined) return { destructive: true, rule: `substring:${hit}` };
   return ALLOWED;
