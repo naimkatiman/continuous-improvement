@@ -132,11 +132,24 @@ function getNumber(value: unknown, fallback = 0): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
+// Instinct and draft ids become `<id>.yaml`. A file name may be at most 255
+// bytes on NTFS, ext4 and APFS, and an id past that made writeFileSync throw
+// ENAMETOOLONG inside the tool handler. 160 covers the longest id the plugin
+// writes itself (draft-workflow-<120-char slug>, 135, in src/lib/skill-distill.mts;
+// starter-pack ids stay under 40) and keeps
+// <home>/.claude/instincts/<hash>/drafts/<id>.yaml under the 260-character
+// Windows path limit for an ordinary user profile.
+const MAX_ID_LENGTH = 160;
+
 // Draft ids are derived from slugified tool n-grams (src/lib/skill-distill.mts)
 // and are joined into a filesystem path, so a caller-supplied id must match the
 // safe shape before it is used to read/write/delete a draft file.
 function isSafeDraftId(id: string): boolean {
-  return /^draft-[a-z0-9-]+$/.test(id);
+  return id.length <= MAX_ID_LENGTH && /^draft-[a-z0-9-]+$/.test(id);
+}
+
+function invalidDraftId(id: string): string {
+  return `Invalid draft id "${id}". Draft ids look like draft-<slug> (lowercase letters, digits, hyphens), at most ${MAX_ID_LENGTH} characters.`;
 }
 
 // Instinct ids become a file name (`<instincts dir>/<id>.yaml`). They arrive from
@@ -147,14 +160,13 @@ function isSafeDraftId(id: string): boolean {
 // dot, so "." and ".." and dot-files are out while the underscore, capital and
 // dotted ids already on disk (instinct YAML is also written by hand) can still
 // be reinforced, imported and promoted. It is a superset of isSafeDraftId, so a
-// promoted draft keeps its id. No length cap: generated draft ids run past 130
-// characters (src/lib/skill-distill.mts).
+// promoted draft keeps its id.
 function isSafeInstinctId(id: string): boolean {
-  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id);
+  return id.length <= MAX_ID_LENGTH && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id);
 }
 
 const INSTINCT_ID_RULE =
-  "An instinct id is a single file name: letters, digits, dots, underscores and hyphens, starting with a letter or digit (for example prefer-grep-before-edit).";
+  `An instinct id is a single file name: letters, digits, dots, underscores and hyphens, starting with a letter or digit, at most ${MAX_ID_LENGTH} characters (for example prefer-grep-before-edit).`;
 
 function invalidInstinctId(id: string): string {
   return `Invalid instinct id ${JSON.stringify(id)}. ${INSTINCT_ID_RULE} Nothing was written.`;
@@ -1112,7 +1124,7 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
         return error("id is required — run ci_distill_candidates to list current candidate ids");
       }
       if (!isSafeDraftId(id)) {
-        return error(`Invalid draft id "${id}". Draft ids look like draft-<slug> (lowercase letters, digits, hyphens).`);
+        return error(invalidDraftId(id));
       }
 
       const distillObservations = readDistillObservations(project.hash);
@@ -1193,7 +1205,7 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
         return error("id is required");
       }
       if (!isSafeDraftId(id)) {
-        return error(`Invalid draft id "${id}". Draft ids look like draft-<slug> (lowercase letters, digits, hyphens).`);
+        return error(invalidDraftId(id));
       }
 
       const draftPath = join(INSTINCTS_DIR, project.hash, "drafts", `${id}.yaml`);

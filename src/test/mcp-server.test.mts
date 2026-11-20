@@ -872,6 +872,88 @@ describe("MCP server — an instinct id cannot leave the instincts dir (expert)"
     assert.ok(response.result.isError);
     assert.match(response.result.content[0].text, /rename the file to <new id>\.yaml/);
   });
+
+  // A file name has a 255-byte limit on NTFS, ext4 and APFS, so an id of 251+
+  // characters made writeFileSync throw ENAMETOOLONG inside the tool handler and
+  // the tool call got no response at all. The cap is 160 characters: the longest
+  // id the plugin itself writes is draft-workflow-<120-char slug> (135), and 160
+  // keeps <home>/.claude/instincts/<hash>/drafts/<id>.yaml under the 260-character
+  // Windows path limit for an ordinary user profile.
+  const TOO_LONG_ID = "a".repeat(300);
+
+  it("ci_create_instinct rejects a 300-character id, names the limit and writes nothing", async () => {
+    const { created, response } = await createdBy(() =>
+      call("ci_create_instinct", { id: TOO_LONG_ID, trigger: "when naming", body: "keep it short" }),
+    );
+    assert.deepEqual(created, [], "an over-long id must not create a file");
+    assert.ok(response.result.isError, "an over-long id must return a tool error");
+    assert.match(response.result.content[0].text, /Invalid instinct id/);
+    assert.match(response.result.content[0].text, /at most 160 characters/);
+  });
+
+  it("ci_create_instinct accepts an id of exactly 160 characters", async () => {
+    const id = `b${"c".repeat(159)}`;
+    const { created, response } = await createdBy(() =>
+      call("ci_create_instinct", { id, trigger: "when naming", body: "the limit itself is allowed" }),
+    );
+    assert.ok(!response.result.isError, response.result.content[0].text);
+    assert.deepEqual(created, [`${projectRel}/${id}.yaml`]);
+  });
+
+  it("ci_import imports the valid entries around a 300-character id and reports the rejected one", async () => {
+    const payload = JSON.stringify([
+      { id: "long-import-before", trigger: "when importing", body: "first" },
+      { id: TOO_LONG_ID, trigger: "when importing", body: "too long" },
+      { id: "long-import-after", trigger: "when importing", body: "last" },
+    ]);
+    const { created, response } = await createdBy(() => call("ci_import", { instincts_json: payload }));
+    assert.deepEqual(created, [`${projectRel}/long-import-after.yaml`, `${projectRel}/long-import-before.yaml`]);
+    const text = response.result.content[0].text;
+    assert.ok(response.result.isError, "a rejected entry must flag the result as an error");
+    assert.match(text, /Imported 2 instincts \(0 skipped as duplicates\)/);
+    assert.match(text, /Rejected 1/);
+    assert.ok(text.includes(TOO_LONG_ID), "the rejected entry must be named in the report");
+    assert.match(text, /at most 160 characters/);
+  });
+
+  it("ci_reinforce refuses an on-disk instinct whose id line is 300 characters", async () => {
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(
+      join(projectDir, "planted-long.yaml"),
+      [`id: ${TOO_LONG_ID}`, 'trigger: "when naming"', "confidence: 0.5", "scope: project", "---", "too long", ""].join("\n"),
+    );
+    const { created, response } = await createdBy(() =>
+      call("ci_reinforce", { instinct_id: TOO_LONG_ID, accepted: true }),
+    );
+    assert.deepEqual(created, []);
+    assert.ok(response.result.isError, "the refused update must return a tool error");
+    assert.match(response.result.content[0].text, /at most 160 characters/);
+  });
+
+  it("ci_distill_promote refuses a draft whose id line is 300 characters and keeps the draft", async () => {
+    const draftsDir = join(projectDir, "drafts");
+    mkdirSync(draftsDir, { recursive: true });
+    const draftPath = join(draftsDir, "draft-long-id-line.yaml");
+    writeFileSync(
+      draftPath,
+      [`id: ${TOO_LONG_ID}`, 'trigger: "when naming"', "confidence: 0.3", "---", "too long", ""].join("\n"),
+    );
+    const { created, response } = await createdBy(() => call("ci_distill_promote", { id: "draft-long-id-line" }));
+    assert.deepEqual(created, []);
+    assert.ok(response.result.isError, "the refused promotion must return a tool error");
+    assert.match(response.result.content[0].text, /at most 160 characters/);
+    assert.ok(existsSync(draftPath), "a refused promotion must not consume the draft");
+  });
+
+  for (const tool of ["ci_distill_propose", "ci_distill_promote"]) {
+    it(`${tool} rejects a 300-character draft id and names the limit`, async () => {
+      const { created, response } = await createdBy(() => call(tool, { id: `draft-${TOO_LONG_ID}` }));
+      assert.deepEqual(created, []);
+      assert.ok(response.result.isError, "an over-long draft id must return a tool error");
+      assert.match(response.result.content[0].text, /Invalid draft id/);
+      assert.match(response.result.content[0].text, /at most 160 characters/);
+    });
+  }
 });
 
 describe("Plugin configs", () => {
