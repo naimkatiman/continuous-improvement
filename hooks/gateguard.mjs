@@ -51,12 +51,15 @@ const TOOL_ROUTE = {
     NotebookEdit: "mutating-file",
     Bash: "allow",
     PowerShell: "allow",
+    Monitor: "allow",
 };
 // The tools whose input is a shell command. Claude Code on Windows exposes a
-// first-class PowerShell tool with the same { command } input as Bash, and a
-// destructive command is as destructive through either, so every shell rule
-// below applies to both.
-const SHELL_TOOLS = new Set(["Bash", "PowerShell"]);
+// first-class PowerShell tool with the same { command } input as Bash, and the
+// Monitor tool runs its { command } in the same shell as Bash. A destructive
+// command is as destructive through any of them, so every shell rule below
+// applies to all three. A Monitor call in its { ws } form has no command and
+// is allowed.
+const SHELL_TOOLS = new Set(["Bash", "PowerShell", "Monitor"]);
 // The destructive-Bash classifier lives in lib/destructive-bash.mjs: structured
 // rules (flag order and spelling do not matter: `rm -r -f`, `git clean -fdx`,
 // `git checkout -- .`, `git restore .`, `find -delete`, `git push +ref`,

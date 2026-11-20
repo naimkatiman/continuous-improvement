@@ -906,6 +906,73 @@ describe("hooks/gateguard.mjs — the PowerShell tool is gated like Bash", () =>
   });
 });
 
+// Claude Code's Monitor tool takes { command, description, timeout_ms } and runs
+// the command in the same shell as Bash (or takes { ws: { url } } and runs no
+// command). A destructive command is as destructive through Monitor. Each row
+// runs under both: the Bash rows are the control, the Monitor rows are the
+// defect (they were allowed).
+describe("hooks/gateguard.mjs — the Monitor tool is gated like Bash", () => {
+  let sessionDir = "";
+  let homeDir = "";
+  before(() => {
+    sessionDir = mkdtempSync(join(tmpdir(), "gateguard-monitor-"));
+    homeDir = mkdtempSync(join(tmpdir(), "gateguard-monitor-home-"));
+  });
+  after(() => {
+    if (sessionDir) rmSync(sessionDir, { recursive: true, force: true });
+    if (homeDir) rmSync(homeDir, { recursive: true, force: true });
+  });
+
+  const run = (tool: string, toolInput: Record<string, unknown>): HookRun =>
+    runHookRaw(tool, toolInput, sessionDir, { HOME: homeDir, USERPROFILE: homeDir });
+  const monitorInput = (command: string): Record<string, unknown> => ({
+    command,
+    description: "watch",
+    timeout_ms: 60000,
+  });
+
+  const blocked: ReadonlyArray<[string, string]> = [
+    // [command, rule id the deny must name]
+    ["git push --force origin main", "git-push-force"],
+    ["git reset --hard origin/main", "git-reset-hard"],
+    ["git clean -fdx", "git-clean-force"],
+    [["rm", "-r", "-f", "dist"].join(" "), "rm-recursive-force"],
+    ['bash -c "git clean -fdx"', "git-clean-force"],
+    ["sleep 30; git push --force origin main", "git-push-force"],
+  ];
+  for (const tool of ["Bash", "Monitor"]) {
+    for (const [command, rule] of blocked) {
+      it(`${tool} blocks: ${command}`, () => {
+        const decision = run(tool, monitorInput(command));
+        assert.equal(decision.decision, "block", `${tool} must not let a destructive command through`);
+        assert.match(decision.reason ?? "", /Destructive command requested/);
+        assert.ok(
+          (decision.reason ?? "").includes(`Matched rule: ${rule}`),
+          `expected the deny to name ${rule}, got: ${decision.reason}`,
+        );
+      });
+    }
+
+    for (const command of ["tail -f build.log", "git status", "git push origin feat/x", "rm -r build"]) {
+      it(`${tool} allows: ${command}`, () => {
+        assert.equal(run(tool, monitorInput(command)).decision, "allow");
+      });
+    }
+
+    it(`${tool} blocks an unquoted @{u} ref and prints the quoted fix`, () => {
+      const decision = run(tool, monitorInput("git rev-list --left-right --count @{u}...HEAD"));
+      assert.equal(decision.decision, "block");
+      assert.match(decision.reason ?? "", /'@\{u\}\.\.\.HEAD'/, "reason prints the quoted replacement");
+    });
+  }
+
+  it("a Monitor call with no command (the ws form) is allowed without error", () => {
+    const result = run("Monitor", { ws: { url: "ws://127.0.0.1:9229" }, description: "watch", timeout_ms: 60000 });
+    assert.equal(result.decision, "allow");
+    assert.equal(result.stderr, "");
+  });
+});
+
 describe("hooks/gateguard.mjs — CI_GATEGUARD_EXCLUDE is observable", () => {
   let sessionDir = "";
   before(() => {

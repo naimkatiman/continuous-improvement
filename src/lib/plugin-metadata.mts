@@ -699,18 +699,19 @@ export function getPluginHooksConfig(): PluginHooksConfig {
       PreToolUse: [
         { hooks: [gateguardCommand, companionPreferenceCommand] },
         // hook-pack gates a shell `git push` to protected branches and oversized
-        // `git commit`s. The matcher names both shell tools (Bash, and the
-        // PowerShell tool Claude Code exposes on Windows) and scopes it off the
-        // hot path for every other tool, so the two-subprocess note above still
+        // `git commit`s. The matcher names every shell tool (Bash, the
+        // PowerShell tool Claude Code exposes on Windows, and Monitor, whose
+        // command runs in the same shell as Bash) and scopes it off the hot
+        // path for every other tool, so the two-subprocess note above still
         // holds for Edit/Read/etc. Warn-default (CLAUDE_CI_HOOKPACK_GATE) —
         // never blocks until the operator opts in.
-        { matcher: "Bash|PowerShell", hooks: [hookPackCommand] },
+        { matcher: "Bash|PowerShell|Monitor", hooks: [hookPackCommand] },
         // config-guard watches the files that wire the guardrails
         // (.claude/settings*.json, .mcp.json, hooks.json, .claude/hooks/,
         // .claude/plugins/, .claude-plugin/) and the `claude plugin|mcp|config`
         // CLI forms. Matcher keeps read-only tools off the hot path.
         // Warn-default (CI_CONFIG_GUARD) — denies only under block.
-        { matcher: "Bash|PowerShell|Edit|MultiEdit|Write|NotebookEdit", hooks: [configGuardCommand] },
+        { matcher: "Bash|PowerShell|Monitor|Edit|MultiEdit|Write|NotebookEdit", hooks: [configGuardCommand] },
       ],
       PostToolUse: [{ hooks: [observeCommand] }],
       UserPromptSubmit: [{ hooks: [routePromptCommand, recallBriefingCommand] }],

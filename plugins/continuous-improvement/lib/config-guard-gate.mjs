@@ -80,10 +80,12 @@ function fileToolPaths(toolInput) {
 }
 const FILE_MUTATING_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
 // The tools whose input is a shell command. Claude Code on Windows exposes a
-// first-class PowerShell tool with the same { command } input as Bash; a write
-// to a protected file is the same write through either, so both run the shell
-// classifier below (and both report `via: "bash"`).
-const SHELL_TOOLS = new Set(["Bash", "PowerShell"]);
+// first-class PowerShell tool with the same { command } input as Bash, and the
+// Monitor tool runs its { command } in the same shell as Bash; a write to a
+// protected file is the same write through any of them, so all three run the
+// shell classifier below (and all report `via: "bash"`). A Monitor call in its
+// { ws } form has no command and is allowed.
+const SHELL_TOOLS = new Set(["Bash", "PowerShell", "Monitor"]);
 // --- Bash --------------------------------------------------------------------
 // Split at shell separators that sit outside single or double quotes. With
 // `blocks`, an unquoted `{`, `}`, `(` or `)` ends a command too, so the body of

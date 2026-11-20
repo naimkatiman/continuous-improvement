@@ -543,6 +543,52 @@ describe("hooks/hook-pack.mjs — the PowerShell tool is gated like Bash", () =>
   }
 });
 
+// Claude Code's Monitor tool takes { command, description, timeout_ms } and runs
+// the command in the same shell as Bash (or takes { ws: { url } } and runs no
+// command). A `git push` to main is the same push through Monitor. Each row
+// runs under both tool names: the Bash rows are the control, the Monitor rows
+// are the defect (they were allowed).
+describe("hooks/hook-pack.mjs — the Monitor tool is gated like Bash", () => {
+  const monitorInput = (command: string): Record<string, unknown> => ({
+    command,
+    description: "watch",
+    timeout_ms: 60000,
+  });
+  const cases: ReadonlyArray<[string, "allow" | "block"]> = [
+    ["git push origin main", "block"],
+    ["git push --force origin main", "block"],
+    ["git push -u origin HEAD:main", "block"],
+    ["sleep 30; git push origin main", "block"],
+    ['bash -c "git push origin main"', "block"],
+    ["git push origin feature/x", "allow"],
+    ["git push --dry-run origin main", "allow"],
+    ["tail -f build.log", "allow"],
+  ];
+  for (const tool of ["Bash", "Monitor"]) {
+    for (const [command, expected] of cases) {
+      it(`${tool} in block mode: ${expected} for ${command}`, () => {
+        const r = runHook(tool, monitorInput(command), "block");
+        assert.equal(r.decision, expected);
+        if (expected === "block") assert.match(r.reason ?? "", /protected branch "main"/);
+      });
+    }
+
+    it(`${tool} in warn mode: a push to main is allowed with a stderr notice`, () => {
+      const r = runHook(tool, monitorInput("git push origin main"), "warn");
+      assert.equal(r.decision, "allow");
+      assert.match(r.stderr, /\[hook-pack\] Direct push to protected branch "main"/);
+    });
+  }
+
+  it("a Monitor call with no command (the ws form) is allowed without error or notice", () => {
+    const input = { ws: { url: "ws://127.0.0.1:9229" }, description: "watch", timeout_ms: 60000 };
+    const blocked = runHook("Monitor", input, "block");
+    assert.equal(blocked.decision, "allow");
+    assert.equal(blocked.stderr, "");
+    assert.equal(runHook("Monitor", input, "warn").stderr, "");
+  });
+});
+
 describe("hooks/hook-pack.mjs commit-size gate (temp repo)", () => {
   let repo = "";
 

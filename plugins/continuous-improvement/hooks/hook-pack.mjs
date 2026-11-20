@@ -67,9 +67,11 @@ function gitStagedCount(dirs) {
 }
 const ALLOW = { action: "allow", reason: "" };
 // The tools whose input is a shell command. Claude Code on Windows exposes a
-// first-class PowerShell tool with the same { command } input as Bash; a
-// `git push` to main is the same push through either.
-const SHELL_TOOLS = new Set(["Bash", "PowerShell"]);
+// first-class PowerShell tool with the same { command } input as Bash, and the
+// Monitor tool runs its { command } in the same shell as Bash; a `git push` to
+// main is the same push through any of them. A Monitor call in its { ws } form
+// has no command and is allowed.
+const SHELL_TOOLS = new Set(["Bash", "PowerShell", "Monitor"]);
 function compute() {
     const mode = parseMode(process.env.CLAUDE_CI_HOOKPACK_GATE);
     if (mode === "off")

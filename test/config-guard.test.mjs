@@ -667,6 +667,47 @@ describe("hooks/config-guard.mjs (runtime PreToolUse hook)", () => {
             assert.equal(runHook(tool, { command }, {}).stderr, "");
         });
     }
+    // Claude Code's Monitor tool takes { command, description, timeout_ms } and
+    // runs the command in the same shell as Bash (or takes { ws: { url } } and
+    // runs no command). The Bash rows are the control, the Monitor rows are the
+    // defect (they were allowed).
+    const monitorInput = (command) => ({
+        command,
+        description: "watch",
+        timeout_ms: 60000,
+    });
+    const monitorEdits = [
+        "printf '{}' > .mcp.json",
+        "cp new.json .claude/settings.json",
+        "claude mcp remove context7",
+        "sleep 30; echo '{}' > .claude/settings.local.json",
+    ];
+    for (const tool of ["Bash", "Monitor"]) {
+        for (const command of monitorEdits) {
+            it(`${tool} (Monitor input shape) in block mode: denies ${command}`, () => {
+                const r = runHook(tool, monitorInput(command), { CI_CONFIG_GUARD: "block" });
+                assert.equal(r.decision, "block");
+                assert.match(r.reason ?? "", /config-guard/);
+            });
+        }
+        it(`${tool} (Monitor input shape) in warn mode: a shell write to .mcp.json is allowed with a stderr notice`, () => {
+            const r = runHook(tool, monitorInput(monitorEdits[0]), {});
+            assert.equal(r.decision, "allow");
+            assert.ok(r.stderr.includes(`config-guard: ${tool} would modify .mcp.json`), `expected a warning naming ${tool}, got: ${r.stderr}`);
+        });
+        it(`${tool} (Monitor input shape) in block mode: allows tail -f of a protected file`, () => {
+            const r = runHook(tool, monitorInput("tail -f .claude/settings.json"), { CI_CONFIG_GUARD: "block" });
+            assert.equal(r.decision, "allow", r.reason ?? "");
+            assert.equal(r.stderr, "");
+        });
+    }
+    it("a Monitor call with no command (the ws form) is allowed without error or notice", () => {
+        const input = { ws: { url: "ws://127.0.0.1:9229" }, description: "watch", timeout_ms: 60000 };
+        const blocked = runHook("Monitor", input, { CI_CONFIG_GUARD: "block" });
+        assert.equal(blocked.decision, "allow");
+        assert.equal(blocked.stderr, "");
+        assert.equal(runHook("Monitor", input, {}).stderr, "");
+    });
     it("ignores unrelated tools and paths", () => {
         assert.equal(runHook("Read", { file_path: ".claude/settings.json" }, { CI_CONFIG_GUARD: "block" }).decision, "allow");
         assert.equal(runHook("Edit", { file_path: "src/index.ts", old_string: "a", new_string: "b" }, { CI_CONFIG_GUARD: "block" }).decision, "allow");
