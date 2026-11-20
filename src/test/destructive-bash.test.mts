@@ -228,6 +228,66 @@ describe("lib/destructive-bash — classifier table", () => {
     });
   }
 
+  // The rules compared the command word to the bare name, so `git.exe`, a path
+  // to the program, a quoted path behind the call operator and a capture
+  // written without spaces (`$out=git …`) all hid the command.
+  const COMMAND_WORD_SPELLING_CAUGHT: ReadonlyArray<[string, string]> = [
+    ["git.exe reset --hard origin/main", "git-reset-hard"],
+    ["git.exe clean -fdx", "git-clean-force"],
+    ["git.exe checkout -- .", "git-checkout-discard"],
+    ["git.exe push --force origin feat/x", "git-push-force"],
+    ["GIT.EXE stash drop", "git-stash-drop"],
+    ["Git clean -fdx", "git-clean-force"],
+    ['& "C:\\Program Files\\Git\\cmd\\git.exe" reset --hard origin/main', "git-reset-hard"],
+    ['& "C:\\Program Files\\Git\\cmd\\git.exe" clean -fdx', "git-clean-force"],
+    ['"C:\\Program Files\\Git\\cmd\\git.exe" clean -fdx', "git-clean-force"],
+    ["& 'C:\\Program Files\\Git\\cmd\\git.exe' -C D:\\repo restore .", "git-restore-discard"],
+    ["/usr/bin/git clean -fdx", "git-clean-force"],
+    ["C:\\tools\\git\\bin\\git.exe branch -D feat/x", "git-branch-force-delete"],
+    ["$out=git clean -fdx", "git-clean-force"],
+    ["$r=git stash drop", "git-stash-drop"],
+    ["$out= git clean -fdx", "git-clean-force"],
+    ["$out =git clean -fdx", "git-clean-force"],
+    ["$script:out=git.exe reset --hard", "git-reset-hard"],
+    ["/bin/rm -r -f build", "rm-recursive-force"],
+    ["/usr/bin/find . -name '*.orig' -delete", "find-delete"],
+    ["Microsoft.PowerShell.Management\\Remove-Item build -Recurse -Force", "powershell-remove-item"],
+    ["C:\\Windows\\System32\\format.com d: /q", "format-volume"],
+    ["C:\\Windows\\System32\\cmd.exe /c rd /s /q build", "cmd-rmdir-tree"],
+    // The substring fallback reads git.exe as git too.
+    ["xargs -n1 git.exe reset --hard", "substring:git reset --hard"],
+  ];
+  for (const [command, rule] of COMMAND_WORD_SPELLING_CAUGHT) {
+    it(`catches the command however its word is spelled: ${command}`, () => {
+      assert.deepEqual(classifyDestructiveBash(command), { destructive: true, rule });
+    });
+  }
+
+  const COMMAND_WORD_SPELLING_ALLOWED: ReadonlyArray<string> = [
+    "git.exe status",
+    "git.exe clean -n",
+    "git.exe push origin feat/x",
+    '& "C:\\Program Files\\Git\\cmd\\git.exe" status',
+    '"C:\\Program Files\\Git\\cmd\\git.exe" push origin feat/x',
+    "/usr/bin/git log --oneline -3",
+    "$out=git status",
+    "$r=git stash list",
+    "$count=5",
+    "$env:GIT_PAGER='cat'; git log -3",
+    "$git = 'C:\\Program Files\\Git\\cmd\\git.exe'",
+    "/bin/rm -f scratch.txt",
+    "./node_modules/.bin/prettier --write .",
+    // A quoted word with no directory in it is a string, not a program.
+    "'format' -f $name",
+    '"Format complete" | Out-File build.log',
+  ];
+  for (const command of COMMAND_WORD_SPELLING_ALLOWED) {
+    it(`allows a harmless command however its word is spelled: ${command}`, () => {
+      const verdict = classifyDestructiveBash(command);
+      assert.equal(verdict.destructive, false, `expected allowed: ${command} (rule ${verdict.rule})`);
+    });
+  }
+
   // A string literal is an expression, not a command. The rules stripped a
   // leading quote from the first word, so a PowerShell string that begins with
   // "Format" was read as the volume formatter, and one that begins with "rd"

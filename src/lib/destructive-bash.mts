@@ -312,8 +312,24 @@ function tokenize(segment: string): string[] {
   return tokens;
 }
 
-// Drop `sudo`, `env`, leading VAR=value assignments and a `cmd /c` wrapper so
-// the command word is the first token the rules look at.
+// The command word as the rules compare it: directory off, `.exe` off, lower
+// case. `git.exe`, `/usr/bin/git`, `"C:\Program Files\Git\cmd\git.exe"` and
+// `Microsoft.PowerShell.Management\Remove-Item` all name the plain command. A
+// quoted word with no directory in it is left alone: that is a string literal
+// (`"Format complete" | Out-File log.txt`), not a program.
+function commandWord(token: string): string {
+  const quoted = /^(["'])(.*)\1$/s.exec(token);
+  if (quoted && !/[\\/]/.test(quoted[2]!)) return token;
+  const bare = quoted ? quoted[2]! : token;
+  return bare
+    .replace(/^.*[\\/]/s, "")
+    .replace(/\.exe$/i, "")
+    .toLowerCase();
+}
+
+// Drop `sudo`, `env`, leading VAR=value assignments, a PowerShell capture and a
+// `cmd /c` wrapper, then normalise the command word, so the first token is the
+// command the rules look at.
 function commandTokens(segment: string): string[] {
   const tokens = tokenize(segment);
   let i = 0;
@@ -323,7 +339,7 @@ function commandTokens(segment: string): string[] {
       i++;
       continue;
     }
-    if (/^cmd(?:\.exe)?$/i.test(t) && /^\/[ck]$/i.test(tokens[i + 1] ?? "")) {
+    if (commandWord(t) === "cmd" && /^\/[ck]$/i.test(tokens[i + 1] ?? "")) {
       i += 2;
       // `cmd /c "rd /s /q build"`: the quoted argument is the command line, so
       // its first word is a command word. This is the only place a quote is
@@ -332,14 +348,26 @@ function commandTokens(segment: string): string[] {
       if (quoted) tokens.splice(i, 1, ...tokenize(quoted[2]!));
       continue;
     }
-    // PowerShell output capture: `$out = git clean -fdx`.
-    if (/^\$[A-Za-z_][\w:]*$/.test(t) && /^\+?=$/.test(tokens[i + 1] ?? "")) {
-      i += 2;
+    // PowerShell output capture, with or without spaces around the `=`:
+    // `$out = git clean -fdx`, `$out=git clean -fdx`, `$out= git …`, `$out =git …`.
+    const capture = /^\$[A-Za-z_][\w:]*(\+?=(.*))?$/s.exec(t);
+    if (capture && capture[1] !== undefined) {
+      if (capture[2] === "") i++;
+      else tokens[i] = capture[2]!;
+      continue;
+    }
+    const assigned = capture ? /^\+?=(.*)$/s.exec(tokens[i + 1] ?? "") : null;
+    if (assigned) {
+      i++;
+      if (assigned[1] === "") i++;
+      else tokens[i] = assigned[1]!;
       continue;
     }
     break;
   }
-  return tokens.slice(i);
+  const rest = tokens.slice(i);
+  if (rest.length > 0) rest[0] = commandWord(rest[0]!);
+  return rest;
 }
 
 // The git global options that take their value as the next word.
@@ -430,7 +458,7 @@ const STRUCTURED_RULES: readonly Rule[] = [
     // `-UFormat` and `--output-format` parameter. A word that starts with a
     // quote is a string literal (`"Format complete" | Out-File log.txt`).
     id: "format-volume",
-    test: (tokens) => tokens.length > 1 && /^format(?:\.com|\.exe)?$/i.test(tokens[0]!),
+    test: (tokens) => tokens.length > 1 && /^format(?:\.com)?$/.test(tokens[0]!),
   },
   {
     id: "git-clean-force",
@@ -554,7 +582,11 @@ export function classifyDestructiveBash(command: string): DestructiveVerdict {
     }
   }
 
-  const lower = [stripped, ...scanned.map((body) => body.text)].join("\n").toLowerCase();
+  // The substring list reads `git.exe` as `git`, like the rules above.
+  const lower = [stripped, ...scanned.map((body) => body.text)]
+    .join("\n")
+    .toLowerCase()
+    .replace(/\bgit\.exe(?=\s)/g, "git");
   const hit = DESTRUCTIVE_PATTERNS.find((p) => lower.includes(p.toLowerCase()));
   if (hit !== undefined) return { destructive: true, rule: `substring:${hit}` };
   return { destructive: false, rule: null };

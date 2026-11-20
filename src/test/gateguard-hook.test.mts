@@ -824,6 +824,9 @@ describe("hooks/gateguard.mjs — the PowerShell tool is gated like Bash", () =>
     ["git -C ../wt reset --hard origin/main", "git-reset-hard"],
     ["git -C ../wt push --force origin feat/x", "git-push-force"],
     ["git -C ../wt branch -D feat/x", "git-branch-force-delete"],
+    // git.exe, and a capture written without spaces.
+    ["git.exe clean -fdx", "git-clean-force"],
+    ["$out=git clean -fdx", "git-clean-force"],
     [["rm", "-r", "-f", "dist"].join(" "), "rm-recursive-force"],
     ["Get-ChildItem; git clean -fdx", "git-clean-force"],
   ];
