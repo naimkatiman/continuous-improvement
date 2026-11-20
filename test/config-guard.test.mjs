@@ -251,6 +251,79 @@ describe("config-guard-gate: classifyMutation", () => {
         });
     }
 });
+// 655bd96 made a protected directory match by its bare name, which is right for
+// a delete or a rename, but the same match fed the generic scan, whose write
+// indicator was any `>`. A read of the directory with `2>/dev/null` became a
+// write. A redirect to another descriptor or to the null device writes no file.
+describe("config-guard-gate: a read with an fd redirect is a read", () => {
+    const reads = [
+        ["Bash", "ls -la ~/.claude/plugins 2>/dev/null"],
+        ["Bash", "ls .claude/hooks 2>/dev/null"],
+        ["Bash", "ls -la .claude-plugin 2>&1"],
+        ["Bash", "ls ~/.claude/plugins/ 2>/dev/null"],
+        ["Bash", "ls -d .claude/hooks .claude/plugins 2>/dev/null"],
+        ["Bash", "find ~/.claude/plugins -name '*.json' 2>/dev/null"],
+        ["Bash", "du -sh ~/.claude/plugins 2>/dev/null"],
+        ["Bash", "git status --short .claude-plugin 2>&1"],
+        ["Bash", "git diff --stat -- .claude-plugin plugins 2>&1"],
+        ["Bash", "git -C ~/.claude/plugins status 2>&1"],
+        ["Bash", "stat .claude-plugin >/dev/null 2>&1 && echo ok"],
+        ["Bash", "test -d .claude/hooks &>/dev/null && echo yes"],
+        ["Bash", "mkdir -p .claude/hooks 2>/dev/null"],
+        ["Bash", "tar -czf backup.tgz .claude/hooks > /dev/null"],
+        ["Bash", 'echo "$(ls .claude/hooks)" > /tmp/hooks-list.txt'],
+        ["Bash", "git diff --stat -- .claude-plugin plugins > /tmp/stat.txt"],
+        // the same redirects after a read of a protected file
+        ["Bash", "cat .claude/settings.json 2>/dev/null"],
+        ["Bash", "cat .claude/settings.json 2>&1 | head"],
+        ["Bash", "grep -c hooks .claude/settings.json 2>/dev/null"],
+        ["Bash", "git add .claude-plugin/marketplace.json 2>&1"],
+        ["Bash", "git diff --stat -- hooks/hooks.json 2>&1"],
+        ["Bash", "cat hooks/hooks.json >&2"],
+        ["PowerShell", "Get-ChildItem $HOME\\.claude\\plugins 2>$null"],
+        ["PowerShell", "Get-ChildItem .claude\\hooks 2>$null"],
+        ["PowerShell", "Get-Content .mcp.json 2>$null"],
+        ["PowerShell", "Get-Content .claude\\settings.json -ErrorAction SilentlyContinue 2>$null"],
+        ["PowerShell", "Test-Path .claude\\hooks *>$null"],
+        ["PowerShell", "git status --short .claude-plugin 2>&1"],
+        ["PowerShell", "Get-Item .claude-plugin 3>&1 2>&1 | Out-Null"],
+        // creating the directory changes no file in it
+        ["PowerShell", "New-Item -ItemType Directory -Force .claude\\hooks | Out-Null"],
+    ];
+    for (const [tool, command] of reads) {
+        it(`${tool}: allows ${command}`, () => {
+            assert.equal(classifyMutation(tool, { command }), null);
+        });
+    }
+    const writes = [
+        ["Bash", "echo '{}' > .mcp.json 2>&1"],
+        ["Bash", "cat new.json > .claude/settings.json 2>/dev/null"],
+        ["Bash", "echo x 2>&1 > .mcp.json"],
+        ["Bash", "echo x &> .mcp.json"],
+        ["Bash", "echo x &>> .claude/settings.json"],
+        ["Bash", "echo x >> .claude/hooks/pre.sh 2>&1"],
+        ["Bash", "tee .mcp.json < new.json > /dev/null"],
+        ["Bash", "sed -i 's/block/off/' .claude/settings.json 2>/dev/null"],
+        ["Bash", "rm -r .claude/plugins 2>/dev/null"],
+        ["Bash", "rmdir .claude/hooks 2>&1"],
+        ["Bash", "mv .claude/hooks .claude/hooks.off 2>/dev/null"],
+        ["Bash", "mv notes.txt .claude/hooks"],
+        ["Bash", "node -e \"require('fs').writeFileSync('.claude/settings.json','{}')\" 2>&1"],
+        ["Bash", "node -e \"require('fs').rmSync('.claude/hooks',{recursive:true})\" 2>/dev/null"],
+        ["PowerShell", "Remove-Item .claude\\hooks -Recurse -Force 2>$null"],
+        ["PowerShell", "Remove-Item $env:USERPROFILE\\.claude\\plugins -Recurse *>$null"],
+        ["PowerShell", "'{}' | Out-File .mcp.json 2>&1"],
+        ["PowerShell", "'{}' > .claude\\settings.json 2>$null"],
+        ["PowerShell", "'{}' *> .mcp.json"],
+        ["PowerShell", "[IO.Directory]::Delete(\"$HOME\\.claude\\hooks\", $true) 2>$null"],
+        ["PowerShell", "New-Item -ItemType File -Force .claude\\hooks\\pre.js 2>$null"],
+    ];
+    for (const [tool, command] of writes) {
+        it(`${tool}: still flags ${command}`, () => {
+            assert.notEqual(classifyMutation(tool, { command }), null);
+        });
+    }
+});
 describe("config-guard-gate: decide", () => {
     it("off allows everything", () => {
         assert.equal(decide("off", true, "r").action, "allow");
@@ -347,6 +420,20 @@ describe("hooks/config-guard.mjs (runtime PreToolUse hook)", () => {
         assert.equal(r.decision, "allow");
         assert.equal(r.stderr, "");
     });
+    // A read of a protected directory or file that silences stderr.
+    const silencedReads = [
+        ["Bash", "ls -la ~/.claude/plugins 2>/dev/null"],
+        ["Bash", "git status --short .claude-plugin 2>&1"],
+        ["Bash", "cat .claude/settings.json 2>/dev/null"],
+        ["PowerShell", "Get-ChildItem $HOME\\.claude\\plugins 2>$null"],
+    ];
+    for (const [tool, command] of silencedReads) {
+        it(`${tool}: ${command} is allowed in block mode and prints nothing in warn mode`, () => {
+            const blocked = runHook(tool, { command }, { CI_CONFIG_GUARD: "block" });
+            assert.equal(blocked.decision, "allow", blocked.reason ?? "");
+            assert.equal(runHook(tool, { command }, {}).stderr, "");
+        });
+    }
     it("ignores unrelated tools and paths", () => {
         assert.equal(runHook("Read", { file_path: ".claude/settings.json" }, { CI_CONFIG_GUARD: "block" }).decision, "allow");
         assert.equal(runHook("Edit", { file_path: "src/index.ts", old_string: "a", new_string: "b" }, { CI_CONFIG_GUARD: "block" }).decision, "allow");

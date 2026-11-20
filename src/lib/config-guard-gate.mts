@@ -59,19 +59,27 @@ function normalizePath(p: string): string {
   return p.replace(/\\/g, "/").toLowerCase();
 }
 
-export function matchProtectedPath(filePath: string): string | null {
+// `directoryItself` says whether a protected directory named by its bare name
+// (`.claude/hooks`) counts. It does for a delete, a move or a copy into it; it
+// does not where the path is only mentioned, because `ls .claude/hooks` and
+// `mkdir -p .claude/hooks` change no file in it.
+function matchProtected(filePath: string, directoryItself: boolean): string | null {
   if (typeof filePath !== "string" || filePath === "") return null;
   const n = normalizePath(filePath);
   for (const pattern of PROTECTED_PATTERNS) {
     const lp = pattern.toLowerCase();
     if (lp.endsWith("/")) {
       const dir = lp.slice(0, -1);
-      if (n.includes(lp) || n === dir || n.endsWith(`/${dir}`)) return pattern;
+      if (n.includes(lp) || (directoryItself && (n === dir || n.endsWith(`/${dir}`)))) return pattern;
       continue;
     }
     if (n === lp || n.endsWith(`/${lp}`)) return pattern;
   }
   return null;
+}
+
+export function matchProtectedPath(filePath: string): string | null {
+  return matchProtected(filePath, true);
 }
 
 // --- file tools ------------------------------------------------------------
@@ -122,6 +130,16 @@ function splitSimpleCommands(command: string, blocks: boolean): string[] {
     if (ch === "\n" || ch === ";" || (blocks && (ch === "{" || ch === "}" || ch === "(" || ch === ")"))) {
       segments.push(current);
       current = "";
+      continue;
+    }
+    // The `&` of a redirect is not a separator: `2>&1`, `>&2`, `<&3`. Nor is
+    // the one that opens `&>file`, which becomes a word of its own.
+    if (ch === "&" && (command[i - 1] === ">" || command[i - 1] === "<")) {
+      current += ch;
+      continue;
+    }
+    if (ch === "&" && command[i + 1] === ">") {
+      current += /\S/.test(current.slice(-1)) ? " &" : "&";
       continue;
     }
     if (ch === "|" || ch === "&") {
@@ -175,16 +193,12 @@ function commandWord(tokens: string[]): { cmd: string; rest: string[] } {
 // Copy: only the destination is written. Move and rename: the source goes too.
 const COPY_COMMANDS = new Set(["cp", "copy-item", "copy", "cpi"]);
 const MOVE_COMMANDS = new Set(["mv", "move-item", "move", "mi", "rename-item", "ren", "rni"]);
+// Delete: a protected directory named itself goes with everything in it.
+const DELETE_COMMANDS = new Set(["rm", "rmdir", "rd", "remove-item", "ri", "del", "erase"]);
+// Content writers: an operand is a file that is written or created.
 const OPERAND_WRITERS = new Set([
-  "rm",
   "tee",
   "truncate",
-  "remove-item",
-  "ri",
-  "rd",
-  "rmdir",
-  "del",
-  "erase",
   "set-content",
   "sc",
   "out-file",
@@ -202,6 +216,13 @@ const OPERAND_WRITERS = new Set([
 // or a .NET call such as `[IO.File]::WriteAllText('.mcp.json', '{}')`).
 const GENERIC_WRITE_RE =
   /writefilesync|writefile\(|appendfile|unlink|rename\(|copyfile|rmsync|truncate|set-content|out-file|add-content|remove-item|writealltext|writealllines|writeallbytes|appendalltext|appendalllines|\]::delete\(|\]::move\(|\]::copy\(|\bdel\b|\bsed\s+-i\b|\btee\b|>{1,2}/i;
+// The indicators above that remove or rename what they name. Next to one of
+// these a protected directory named itself counts, as it does for `rm`.
+const GENERIC_REMOVE_RE = /unlink|rename\(|rmsync|remove-item|\]::delete\(|\]::move\(|\bdel\b/i;
+// A redirect to another descriptor or to the null device writes no file:
+// `2>&1`, `>&2`, `2>/dev/null`, `>/dev/null`, `&>/dev/null`, `2>$null`, `*>$null`,
+// `>NUL`. It is not a write indicator.
+const FD_REDIRECT_RE = /[\d*&]?>{1,2}\s*(?:&(?:\d|-)|(?:\/dev\/null|\$null|nul)(?![\w./\\-]))/gi;
 
 // The path-like values a command names: its bare operands, plus the value of a
 // PowerShell colon-bound parameter (`-Path:settings.json`). Switch names and
@@ -273,29 +294,35 @@ function classifyBashSegment(segment: string): ConfigMutation | null {
     return null;
   }
 
-  // Redirects: `> path`, `>> path`, `2>path`, `>path`.
+  // Redirects: `> path`, `>> path`, `2>path`, `>path`, `&>path`, `*> path`.
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i]!;
-    const m = /^(\d?>{1,2})(.*)$/.exec(t);
+    const m = /^((?:\d+|[*&])?>{1,2})(.*)$/.exec(t);
     if (!m) continue;
     const target = m[2] !== "" ? m[2]! : (tokens[i + 1] ?? "");
-    const pattern = matchProtectedPath(stripQuotes(target));
+    const pattern = matchProtected(stripQuotes(target), false);
     if (pattern) return { target: stripQuotes(target), pattern, via: "bash" };
   }
 
-  // Operand writers: any operand that is a protected path.
+  // Deletes and content writers: any operand that is a protected path. Only a
+  // delete takes a directory with it, so only there does the directory named
+  // itself count.
   const sedInPlace = cmd === "sed" && rest.some((t) => /^-[a-zA-Z]*i/.test(t) || t === "--in-place");
-  if (OPERAND_WRITERS.has(cmd) || sedInPlace) {
+  const deletes = DELETE_COMMANDS.has(cmd);
+  if (deletes || OPERAND_WRITERS.has(cmd) || sedInPlace) {
     for (const clean of operandValues(rest)) {
-      const pattern = matchProtectedPath(clean);
+      const pattern = matchProtected(clean, deletes);
       if (pattern) return { target: clean, pattern, via: "bash" };
     }
     return null;
   }
 
   // Generic scan: a protected path quoted inside a scripting one-liner, next
-  // to a write indicator. Reads (`cat`, `grep`) carry no indicator and pass.
-  if (GENERIC_WRITE_RE.test(segment)) {
+  // to a write indicator. Reads (`cat`, `grep`) carry no indicator and pass,
+  // with or without `2>/dev/null` behind them.
+  const indicators = segment.replace(FD_REDIRECT_RE, " ");
+  if (GENERIC_WRITE_RE.test(indicators)) {
+    const removes = GENERIC_REMOVE_RE.test(indicators);
     const candidates: string[] = [];
     const quoted = /'([^']+)'|"([^"]+)"/g;
     let q: RegExpExecArray | null;
@@ -304,13 +331,13 @@ function classifyBashSegment(segment: string): ConfigMutation | null {
     for (const c of candidates) {
       const inner = /['"]([^'"]*?)['"]/.exec(c);
       for (const candidate of [c, inner?.[1] ?? ""]) {
-        const pattern = matchProtectedPath(candidate);
+        const pattern = matchProtected(candidate, removes);
         if (pattern) return { target: candidate, pattern, via: "bash" };
       }
       // A path embedded in a longer expression, e.g. writeFileSync('.claude/settings.json','{}')
       const embedded = /(?:^|[('"\s=,])([~A-Za-z0-9_./\\:-]*(?:\.claude\/|\.claude-plugin\/|\.mcp\.json|hooks\.json)[A-Za-z0-9_./\\-]*)/i.exec(c);
       if (embedded) {
-        const pattern = matchProtectedPath(embedded[1]!);
+        const pattern = matchProtected(embedded[1]!, removes);
         if (pattern) return { target: embedded[1]!, pattern, via: "bash" };
       }
     }
