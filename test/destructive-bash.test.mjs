@@ -274,6 +274,63 @@ describe("lib/destructive-bash — classifier table", () => {
             assert.equal(verdict.destructive, false, `expected allowed: ${command} (rule ${verdict.rule})`);
         });
     }
+    // A shell started with -c, -Command or /c runs its argument as a command
+    // line. Only `cmd /c` was unwrapped, and only with /c as the first switch, so
+    // the Bash tool reached PowerShell's delete (and any structured rule) unseen.
+    const WRAPPED_CAUGHT = [
+        ['pwsh -c "Remove-Item build -Recurse -Force"', "powershell-remove-item"],
+        ['powershell -NoProfile -Command "Remove-Item build -Recurse -Force"', "powershell-remove-item"],
+        ["powershell -Command Remove-Item build -Recurse -Force", "powershell-remove-item"],
+        [
+            'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Remove-Item build -Recurse -Force"',
+            "powershell-remove-item",
+        ],
+        ['pwsh -NoLogo -c "Get-ChildItem build -Recurse | Remove-Item"', "powershell-remove-item-pipeline"],
+        ['pwsh -Command "& { git clean -fdx }"', "git-clean-force"],
+        ['bash -c "git clean -fdx"', "git-clean-force"],
+        ["bash -lc 'git reset --hard origin/main'", "git-reset-hard"],
+        ["sh -c 'find . -name \"*.orig\" -delete'", "find-delete"],
+        ['zsh -c "git stash drop"', "git-stash-drop"],
+        ['bash -c "cd /tmp && rm -r -f cache"', "rm-recursive-force"],
+        ['sudo bash -c "git clean -fdx"', "git-clean-force"],
+        ['bash -c "pwsh -c \'Remove-Item build -Recurse -Force\'"', "powershell-remove-item"],
+        ["cmd //c rd //s //q build", "cmd-rmdir-tree"],
+        ["cmd /d /c rd /s /q build", "cmd-rmdir-tree"],
+        ['cmd /d /s /c "rd /s /q build"', "cmd-rmdir-tree"],
+        ['powershell -Command "cmd /c rd /s /q build"', "cmd-rmdir-tree"],
+        ["cmd /c del /f /s /q build", "cmd-del-tree"],
+        ["cmd /c del /s /q build\\*", "cmd-del-tree"],
+        ["cmd.exe /c erase /s /q build", "cmd-del-tree"],
+        ['Invoke-Expression "Remove-Item build -Recurse -Force"', "powershell-remove-item"],
+        ["iex 'git clean -fdx'", "git-clean-force"],
+    ];
+    for (const [command, rule] of WRAPPED_CAUGHT) {
+        it(`catches the command a shell wrapper runs: ${command}`, () => {
+            assert.deepEqual(classifyDestructiveBash(command), { destructive: true, rule });
+        });
+    }
+    const WRAPPED_ALLOWED = [
+        'pwsh -c "Get-ChildItem -Recurse src"',
+        'powershell -NoProfile -Command "Get-Date -Format o"',
+        "pwsh -File scripts/clean.ps1 -Recurse",
+        "pwsh -c \"Write-Host 'Format complete'\"",
+        'bash -c "git status"',
+        'bash -lc "npm test"',
+        'sh -c "git clean -n"',
+        // -c after the script name is the script's own argument.
+        "bash scripts/run.sh -c release",
+        "bash -c 'echo \"(git clean -fd would remove the fixtures)\"'",
+        "cmd /c dir /s /b build",
+        "cmd /c del /q scratch.txt",
+        'cmd /c "echo done"',
+        'Invoke-Expression "Get-ChildItem src"',
+    ];
+    for (const command of WRAPPED_ALLOWED) {
+        it(`allows the harmless command a shell wrapper runs: ${command}`, () => {
+            const verdict = classifyDestructiveBash(command);
+            assert.equal(verdict.destructive, false, `expected allowed: ${command} (rule ${verdict.rule})`);
+        });
+    }
     // A string literal is an expression, not a command. The rules stripped a
     // leading quote from the first word, so a PowerShell string that begins with
     // "Format" was read as the volume formatter, and one that begins with "rd"

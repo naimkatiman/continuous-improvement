@@ -287,14 +287,21 @@ function allSimpleCommands(command: string): SimpleCommand[] {
   return segments;
 }
 
-// Split at whitespace outside quotes. A quoted argument stays one token with
-// its quotes on, so a directory with a space in it (`git -C "my repo" …`) is one
+interface Word {
+  text: string;
+  /** Offset just past this word in the segment it was read from. */
+  end: number;
+}
+
+// Split at whitespace outside quotes. A quoted argument stays one word with its
+// quotes on, so a directory with a space in it (`git -C "my repo" …`) is one
 // option value and a flag-looking word inside a string is not a flag.
-function tokenize(segment: string): string[] {
-  const tokens: string[] = [];
+function splitWords(segment: string): Word[] {
+  const words: Word[] = [];
   let current = "";
   let quote: '"' | "'" | null = null;
-  for (const ch of segment) {
+  for (let i = 0; i < segment.length; i++) {
+    const ch = segment[i]!;
     if (quote) {
       current += ch;
       if (ch === quote) quote = null;
@@ -302,14 +309,14 @@ function tokenize(segment: string): string[] {
       quote = ch;
       current += ch;
     } else if (/\s/.test(ch)) {
-      if (current !== "") tokens.push(current);
+      if (current !== "") words.push({ text: current, end: i });
       current = "";
     } else {
       current += ch;
     }
   }
-  if (current !== "") tokens.push(current);
-  return tokens;
+  if (current !== "") words.push({ text: current, end: segment.length });
+  return words;
 }
 
 // The command word as the rules compare it: directory off, `.exe` off, lower
@@ -327,25 +334,16 @@ function commandWord(token: string): string {
     .toLowerCase();
 }
 
-// Drop `sudo`, `env`, leading VAR=value assignments, a PowerShell capture and a
-// `cmd /c` wrapper, then normalise the command word, so the first token is the
-// command the rules look at.
-function commandTokens(segment: string): string[] {
-  const tokens = tokenize(segment);
+// Drop `sudo`, `env`, leading VAR=value assignments and a PowerShell capture,
+// then normalise the command word, so the first word is the command the rules
+// look at.
+function commandWords(segment: string): Word[] {
+  const words = splitWords(segment);
   let i = 0;
-  while (i < tokens.length) {
-    const t = tokens[i]!;
+  while (i < words.length) {
+    const t = words[i]!.text;
     if (t === "sudo" || t === "env" || t === "command" || /^[A-Za-z_][A-Za-z0-9_]*=/.test(t)) {
       i++;
-      continue;
-    }
-    if (commandWord(t) === "cmd" && /^\/[ck]$/i.test(tokens[i + 1] ?? "")) {
-      i += 2;
-      // `cmd /c "rd /s /q build"`: the quoted argument is the command line, so
-      // its first word is a command word. This is the only place a quote is
-      // peeled off: anywhere else a word that starts with a quote is a string.
-      const quoted = /^(["'])(.*)\1$/s.exec(tokens[i] ?? "");
-      if (quoted) tokens.splice(i, 1, ...tokenize(quoted[2]!));
       continue;
     }
     // PowerShell output capture, with or without spaces around the `=`:
@@ -353,21 +351,76 @@ function commandTokens(segment: string): string[] {
     const capture = /^\$[A-Za-z_][\w:]*(\+?=(.*))?$/s.exec(t);
     if (capture && capture[1] !== undefined) {
       if (capture[2] === "") i++;
-      else tokens[i] = capture[2]!;
+      else words[i]!.text = capture[2]!;
       continue;
     }
-    const assigned = capture ? /^\+?=(.*)$/s.exec(tokens[i + 1] ?? "") : null;
+    const assigned = capture ? /^\+?=(.*)$/s.exec(words[i + 1]?.text ?? "") : null;
     if (assigned) {
       i++;
       if (assigned[1] === "") i++;
-      else tokens[i] = assigned[1]!;
+      else words[i]!.text = assigned[1]!;
       continue;
     }
     break;
   }
-  const rest = tokens.slice(i);
-  if (rest.length > 0) rest[0] = commandWord(rest[0]!);
+  const rest = words.slice(i);
+  if (rest.length > 0) rest[0]!.text = commandWord(rest[0]!.text);
   return rest;
+}
+
+// What follows the command flag of a wrapper, with one layer of quotes peeled:
+// `"Remove-Item build -Recurse -Force"` is the command line, not a string.
+function peelQuotes(text: string): string {
+  const trimmed = text.trim();
+  const q = trimmed[0];
+  if (q !== '"' && q !== "'") return trimmed;
+  const close = trimmed.lastIndexOf(q);
+  return close > 0 ? `${trimmed.slice(1, close)} ${trimmed.slice(close + 1)}` : trimmed.slice(1);
+}
+
+const SH_COMMAND_FLAG_RE = /^-[A-Za-z]*c$/;
+// -Command and its prefixes down to -c, and pwsh's -CommandWithArgs / -cwa.
+const PS_COMMAND_FLAG_RE = /^-(?:c(?:o(?:m(?:m(?:a(?:n(?:d)?)?)?)?)?)?|cwa|commandwithargs)$/i;
+// -File runs a script and -EncodedCommand is base64: neither can be read here.
+const PS_OPAQUE_FLAG_RE = /^-(?:f(?:i(?:l(?:e)?)?)?|e|ec|en[a-z]*)$/i;
+
+// A shell started to run one command line: `bash -c "…"`, `pwsh -Command "…"`,
+// `cmd /c …`, with any other switches first, and `Invoke-Expression "…"`.
+// Returns that command line so it can be classified like any other, or null.
+// This is how the Bash tool reaches PowerShell and cmd on Windows.
+function wrappedCommand(segment: string, words: readonly Word[]): string | null {
+  const shell = words[0]?.text;
+  const args = words.slice(1);
+  const after = (word: Word): string => peelQuotes(segment.slice(word.end));
+  if (shell === "bash" || shell === "sh" || shell === "zsh") {
+    for (let k = 0; k < args.length; k++) {
+      const t = args[k]!.text;
+      if (!/^[-+]/.test(t)) return null; // the script name: the rest are its own arguments
+      if (SH_COMMAND_FLAG_RE.test(t)) return after(args[k]!);
+      if (/^[-+][oO]$/.test(t) || t === "--rcfile" || t === "--init-file") k++;
+    }
+    return null;
+  }
+  if (shell === "pwsh" || shell === "powershell") {
+    for (const word of args) {
+      if (PS_COMMAND_FLAG_RE.test(word.text)) return after(word);
+      if (PS_OPAQUE_FLAG_RE.test(word.text)) return null;
+    }
+    return null;
+  }
+  if (shell === "cmd") {
+    for (const word of args) {
+      // `//c` is the Git Bash spelling, which stops MSYS rewriting `/c` as a path.
+      if (/^\/{1,2}[ck]$/i.test(word.text)) return after(word);
+      if (!word.text.startsWith("/")) return null;
+    }
+    return null;
+  }
+  if (shell === "invoke-expression" || shell === "iex") {
+    if (args.length === 0) return null;
+    return after(/^-c/i.test(args[0]!.text) ? args[0]! : words[0]!);
+  }
+  return null;
 }
 
 // The git global options that take their value as the next word.
@@ -413,6 +466,9 @@ const PS_FORCE_RE = /^-fo(?:r(?:c(?:e)?)?)?(?::.*)?$/i;
 // the way POSIX rm cannot be: at least `-re` or `-fo`.
 const PS_RECURSE_LONG_RE = /^-re(?:c(?:u(?:r(?:s(?:e)?)?)?)?)?(?::.*)?$/i;
 
+// cmd.exe's "and every subdirectory" switch.
+const CMD_SUBTREE_RE = /^\/{1,2}s$/i;
+
 interface Rule {
   id: string;
   test: (tokens: string[]) => boolean;
@@ -445,12 +501,16 @@ const STRUCTURED_RULES: readonly Rule[] = [
     },
   },
   {
-    // cmd.exe's tree delete, reached through `cmd /c`: `rd /s` and `rmdir /s`.
+    // cmd.exe's tree delete, reached through `cmd /c`: `rd /s` and `rmdir /s`
+    // (`//s` when Git Bash passes the switch through).
     id: "cmd-rmdir-tree",
-    test: (tokens) => {
-      const cmd = tokens[0]!.toLowerCase();
-      return (cmd === "rd" || cmd === "rmdir") && tokens.slice(1).some((t) => /^\/s$/i.test(t));
-    },
+    test: (tokens) => (tokens[0] === "rd" || tokens[0] === "rmdir") && tokens.slice(1).some((t) => CMD_SUBTREE_RE.test(t)),
+  },
+  {
+    // cmd.exe's `del /s` and `erase /s` delete the matching files in every
+    // subdirectory.
+    id: "cmd-del-tree",
+    test: (tokens) => (tokens[0] === "del" || tokens[0] === "erase") && tokens.slice(1).some((t) => CMD_SUBTREE_RE.test(t)),
   },
   {
     // The DOS/Windows volume formatter, as the command word only. This used to
@@ -549,22 +609,38 @@ function matchStructuredRule(tokens: string[]): string | null {
   return null;
 }
 
+const ALLOWED: DestructiveVerdict = { destructive: false, rule: null };
+
+// A wrapper can wrap a wrapper (`bash -c "pwsh -c '…'"`); past this depth the
+// text is no longer something a person or an agent writes.
+const MAX_WRAPPER_DEPTH = 4;
+
 /** Classify one Bash command string. Pure; never throws on odd input. */
 export function classifyDestructiveBash(command: string): DestructiveVerdict {
-  if (typeof command !== "string" || command.trim() === "") return { destructive: false, rule: null };
+  return classify(command, 0);
+}
+
+function classify(command: string, depth: number): DestructiveVerdict {
+  if (typeof command !== "string" || command.trim() === "") return ALLOWED;
   const { code, bodies } = extractHereBodies(command);
   const stripped = stripMessageArgs(code);
   const scanned = scannableBodies(code, bodies);
 
   for (const segment of allSimpleCommands(stripped)) {
-    const tokens = commandTokens(segment.text);
-    if (tokens.length === 0) continue;
+    const words = commandWords(segment.text);
+    if (words.length === 0) continue;
+    const tokens = words.map((word) => word.text);
     const rule = matchStructuredRule(tokens);
     if (rule !== null) return { destructive: true, rule };
     // `Get-ChildItem build -Recurse | Remove-Item`: the pipeline decides what is
     // deleted, which this classifier cannot see, so a piped delete always gates.
-    if (segment.piped && PS_REMOVE_PIPE_TARGETS.has(tokens[0]!.toLowerCase())) {
+    if (segment.piped && PS_REMOVE_PIPE_TARGETS.has(tokens[0]!)) {
       return { destructive: true, rule: "powershell-remove-item-pipeline" };
+    }
+    const wrapped = depth < MAX_WRAPPER_DEPTH ? wrappedCommand(segment.text, words) : null;
+    if (wrapped !== null) {
+      const inner = classify(wrapped, depth + 1);
+      if (inner.destructive) return inner;
     }
   }
 
@@ -575,7 +651,7 @@ export function classifyDestructiveBash(command: string): DestructiveVerdict {
   for (const body of scanned) {
     if (body.hereString) continue;
     for (const segment of splitSimpleCommands(body.text, false)) {
-      const tokens = commandTokens(segment.text);
+      const tokens = commandWords(segment.text).map((word) => word.text);
       if (tokens.length === 0) continue;
       const rule = matchStructuredRule(tokens);
       if (rule !== null) return { destructive: true, rule };
@@ -589,5 +665,5 @@ export function classifyDestructiveBash(command: string): DestructiveVerdict {
     .replace(/\bgit\.exe(?=\s)/g, "git");
   const hit = DESTRUCTIVE_PATTERNS.find((p) => lower.includes(p.toLowerCase()));
   if (hit !== undefined) return { destructive: true, rule: `substring:${hit}` };
-  return { destructive: false, rule: null };
+  return ALLOWED;
 }

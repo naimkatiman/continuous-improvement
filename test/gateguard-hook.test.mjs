@@ -622,6 +622,10 @@ describe("hooks/gateguard.mjs — the PowerShell tool is gated like Bash", () =>
         // git.exe, and a capture written without spaces.
         ["git.exe clean -fdx", "git-clean-force"],
         ["$out=git clean -fdx", "git-clean-force"],
+        // A shell wrapper: this is how the Bash tool reaches PowerShell on Windows.
+        ['pwsh -c "Remove-Item build -Recurse -Force"', "powershell-remove-item"],
+        ['powershell -NoProfile -Command "Remove-Item build -Recurse -Force"', "powershell-remove-item"],
+        ['bash -c "git clean -fdx"', "git-clean-force"],
         [["rm", "-r", "-f", "dist"].join(" "), "rm-recursive-force"],
         ["Get-ChildItem; git clean -fdx", "git-clean-force"],
     ];
