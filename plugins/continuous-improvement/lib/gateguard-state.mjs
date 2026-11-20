@@ -12,6 +12,10 @@
  * - Honor system: clearance is granted whenever the agent sets
  *   `_gateguard_facts_presented: true` in tool_input or has a prior per-file
  *   marker. The hook cannot verify that real investigation occurred.
+ * - Evidence cache: in the file gate's default mode the hook also records a
+ *   file here once the observation log showed the session looked at it, so the
+ *   file's later edits skip the log scan. Those entries count toward the cap; a
+ *   full cap stops the caching and never denies an evidence allow.
  * - State-file deletion: rm'ing the state file resets every gate in the
  *   session. Defensible because the session is the trust boundary — and with
  *   per-session scoping that boundary is now real, not just asserted.

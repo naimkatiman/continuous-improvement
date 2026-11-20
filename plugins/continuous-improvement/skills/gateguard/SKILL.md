@@ -1,16 +1,16 @@
 ---
 name: gateguard
 tier: "1"
-description: Enforces Law 1 (Research Before Executing) of the 7 Laws of AI Agent Discipline. Fact-forcing gate that blocks Edit/Write/Bash (including MultiEdit) and demands concrete investigation (importers, data schemas, user instruction) before allowing the action. Measurably improves output quality by +2.25 points vs ungated agents.
+description: Enforces Law 1 (Research Before Executing) of the 7 Laws of AI Agent Discipline. Pre-edit gate that denies an Edit/Write/MultiEdit of an existing file the session has not read and gates every destructive shell command. Set CI_GATEGUARD_FILE_GATE=strict for the fact-forcing gate, which demands concrete investigation (importers, data schemas, user instruction) before the first edit of each file and measured +2.25 points vs ungated agents.
 origin: community
 user-invocable: false
 ---
 
 # GateGuard — Fact-Forcing Pre-Action Gate
 
-A runtime PreToolUse hook + skill pair that forces the agent to investigate before editing. Instead of self-evaluation ("are you sure?"), it demands concrete facts. The act of investigation creates awareness that self-evaluation never did.
+A runtime PreToolUse hook + skill pair that stops the agent from editing a file it has not looked at. By default the hook asks the observation log, not the agent: an edit of an existing file is allowed once this session has read it. Under `CI_GATEGUARD_FILE_GATE=strict` it demands concrete facts instead of self-evaluation ("are you sure?"). The act of investigation creates awareness that self-evaluation never did.
 
-> **Implementation status:** GateGuard ships as a **runtime PreToolUse hook** at `hooks/gateguard.mjs`, wired as the first PreToolUse entry in the plugin bundle. The hook physically blocks Edit / Write / MultiEdit and every destructive Bash on stdin/stdout JSON, returning `{decision: "block", reason: "..."}` until the agent presents facts and retries with the per-session clearance signal. This skill file is the human-readable spec the hook implements. Originally tracked in [issue #106](https://github.com/naimkatiman/continuous-improvement/issues/106) (closed; landed as PR #108).
+> **Implementation status:** GateGuard ships as a **runtime PreToolUse hook** at `hooks/gateguard.mjs`, wired as the first PreToolUse entry in the plugin bundle. The hook physically blocks every destructive Bash and, by default, an Edit / Write / MultiEdit of an existing file the session has not read (see [File gate modes](#file-gate-modes-ci_gateguard_file_gate)). Under `CI_GATEGUARD_FILE_GATE=strict` it blocks the first Edit / Write / MultiEdit of every file on stdin/stdout JSON, returning `{decision: "block", reason: "..."}` until the agent presents facts and retries with the per-session clearance signal. This skill file is the human-readable spec the hook implements. Originally tracked in [issue #106](https://github.com/naimkatiman/continuous-improvement/issues/106) (closed; landed as PR #108).
 
 ## When to Activate
 
@@ -25,7 +25,7 @@ LLM self-evaluation doesn't work. Ask "did you violate any policies?" and the an
 
 But asking "list every file that imports this module" forces the LLM to run Grep and Read. The investigation itself creates context that changes the output.
 
-**Three-stage gate:**
+**Three-stage gate (the file gate under `CI_GATEGUARD_FILE_GATE=strict`):**
 
 ```
 1. DENY  — block the first Edit/Write/Bash attempt
@@ -48,6 +48,18 @@ Two independent A/B tests, identical agents, same task:
 Both agents produce code that runs and passes tests. The difference is design depth.
 
 ## Gate Types
+
+### File gate modes (`CI_GATEGUARD_FILE_GATE`)
+
+`hooks/gateguard.mjs` judges an Edit / Write / MultiEdit / NotebookEdit in one of three modes:
+
+- `evidence` (the default, also when the variable is unset or empty). The call is allowed when the target file does not exist yet, when the session state already holds a clearance for it, or when this session's rows in the project's observation log (`~/.claude/instincts/<project-hash>/observations.jsonl`) show the file was looked at: a completed Read, Edit, Write, MultiEdit, NotebookEdit or NotebookRead of the same file, or a completed Bash, PowerShell, Grep or Glob call whose command, pattern or output names the file. Anything else is a blind edit and is denied with a two-line reason: the file has not been read in this session, read it and retry, then the clear command for the case where the log cannot show the read. A project with no observation log is allowed, because the hook has nothing to judge by.
+- `strict`. The fact-forcing gate in the next two sections: the first Edit / Write / MultiEdit of every file is denied with a fact list, whatever the session has read.
+- `off`. The file gate is skipped.
+
+Any other value is treated as `evidence`, and the hook prints one stderr line naming the three accepted values. The destructive Bash gate, `CI_GATEGUARD_EXCLUDE` and `CI_GATEGUARD_TARGET_LOCK` work the same in every mode.
+
+What `evidence` proves is that a row exists, not that the file was understood. For a shell or search row the file's base name is enough, so `cat other/index.ts` also clears `src/index.ts`. Only the live log is read: after the observer rotates it (at 10,000 rows), a file that was read before the rotation and not yet edited needs a fresh read.
 
 ### Edit / MultiEdit Gate (first edit per file)
 
@@ -138,11 +150,13 @@ This gate is what catches the squash-merge / ahead-of-origin trap recorded in th
 
 `hooks/gateguard.mjs` is bundled with this plugin and wired as the first PreToolUse hook in `plugins/continuous-improvement/hooks/hooks.json`. When you install the plugin, the runtime gate is live — no extra config, no opt-in. The hook reads tool input from stdin, classifies it through a data-driven routing table (Read/Grep/Glob → allow, Write/Edit/MultiEdit → mutating-file gate, Bash → destructive-pattern check), and emits `{decision, reason?}` on stdout. Per-session state lives at `~/.claude/instincts/<project-hash>/sessions/<session-id>/gateguard-session.json` — scoped by the stdin `session_id` so the cap never bleeds across concurrent sessions (it falls back to the unscoped `<project-hash>/` dir when no session id is present, and `GATEGUARD_SESSION_DIR` overrides it for tests). The cap is `MAX_CLEARED_FILES`, 1000 distinct files per session by default (set `GATEGUARD_MAX_CLEARED_FILES` to a positive integer to change it), and the state self-heals after `STATE_TTL_MS` so a stale gate never needs a manual `rm`.
 
-Smoke-test the runtime gate after install: ask Claude to write a throwaway file with no research first. The hook should return a `block` decision with a fact-list reason; Claude should pause rather than write.
+Smoke-test the runtime gate after install: ask Claude to run `git rev-parse @{u}` through the shell tool with the ref unquoted. The hook should return a `block` decision whose reason starts `Unquoted git ref @{u}`. That deny is the same in every file gate mode; a throwaway file write is not a probe any more, because `evidence` allows a new file.
 
 ### Clearing the gate (after presenting the facts)
 
-The block reason prints the exact `gateguard-session.json` path and the clearance commands. Clearance matches a file regardless of drive-letter case or path separator (`d:\x` and `D:/x` resolve to the same key), so it no longer matters whether the hook and the helper spelled the project root differently. Any one of these allows the retry:
+In the default `evidence` mode reading the file is the way through, and clearing is the fallback for a file that was read where the observation log cannot show it. Under `strict` clearing is the only way through.
+
+The block reason prints the exact `gateguard-session.json` path and the clearance command (both routes under `strict`, the CLI one under `evidence`). Clearance matches a file regardless of drive-letter case or path separator (`d:\x` and `D:/x` resolve to the same key), so it no longer matters whether the hook and the helper spelled the project root differently. Any one of these allows the retry:
 
 - **MCP tool** (beginner + expert): `ci_gateguard_clear` with `file_paths: ["<path>", …]`.
 - **CLI** (Bash, never gated): `node "${CLAUDE_PLUGIN_ROOT}/bin/gateguard-clear.mjs" "<path>"`; add `--state <gateguard-session.json>` to write the exact file the block reason printed.
@@ -154,7 +168,7 @@ The inline `_gateguard_facts_presented: true` retry still works on harnesses tha
 
 Set the `CI_GATEGUARD_EXCLUDE` environment variable to opt specific low-risk paths out of the gate entirely — an LLM-maintained prose wiki, a generated scratch directory, anything where the fact-forcing pause costs more than it saves. The value is a comma-separated list of path substrings, each matched case-insensitively against the forward-slash-normalized file path, so `/mywiki/` excludes `D:\Vault\MyWiki\notes\x.md`. Unset or empty (the default) changes nothing: every mutating file call is gated exactly as before, and a call that touches a mix of excluded and non-excluded paths still gates the non-excluded ones. Set it per project in `.claude/settings.json` under `env`, or globally in `~/.claude/settings.json`.
 
-An exclusion is never silent. When every target of a call is excluded, `hooks/gateguard.mjs` still allows it but prints one stderr line naming the fragment that matched (`gateguard: skipped by CI_GATEGUARD_EXCLUDE (fragment "docs/wiki" matched docs/wiki/page.md)`). A catch-all fragment that every path contains (`/`, `.`, any single character) is honoured too, but the line says what it really is: the file gate is off for this session. Destructive Bash is never excluded. If `/verify-install` reports the probe write went through, check this variable before concluding the hook is not wired.
+An exclusion is never silent. When every target of a call is excluded, `hooks/gateguard.mjs` still allows it but prints one stderr line naming the fragment that matched (`gateguard: skipped by CI_GATEGUARD_EXCLUDE (fragment "docs/wiki" matched docs/wiki/page.md)`). A catch-all fragment that every path contains (`/`, `.`, any single character) is honoured too, but the line says what it really is: the file gate is off for this session. Destructive Bash is never excluded. If a file edit you expected the gate to stop went through, check this variable and `CI_GATEGUARD_FILE_GATE` before concluding the hook is not wired.
 
 ### Locking edits to the current repo
 
@@ -178,7 +192,7 @@ If you previously opted into `safety-guard` for autonomous or production-adjacen
 - **State-file deletion / self-heal.** `rm`-ing the session state resets every gate. Because state is scoped per session (`sessions/<session-id>/`), the session is a real trust boundary, not one shared across concurrent runs. A stale state file also self-heals once its `created_at` ages past `STATE_TTL_MS`, so a manual `rm` is rarely needed.
 - **Parallel-hook race.** Two simultaneous hook invocations can race the read+write of the state file. Acceptable trade-off vs Windows atomic-rename complexity.
 
-**MultiEdit per-file gating.** The hook clears and checks every `edits[]` path individually, so a mixed-clearance batch blocks until *all* edited files are cleared or facts are presented. The block reason now names the whole batch, not just the first uncleared path.
+**MultiEdit per-file gating.** The hook clears and checks every `edits[]` path individually. Under `strict` a mixed-clearance batch blocks until *all* edited files are cleared or facts are presented, and the block reason names the whole batch, not just the first uncleared path. Under `evidence` the batch blocks until every existing file in it has been read or cleared, and the reason names only the files that were not.
 
 These behaviors are documented in `src/hooks/gateguard.mts` and `src/lib/gateguard-state.mts` headers.
 
@@ -194,7 +208,7 @@ The standalone `gateguard-ai` Python/CLI package referenced in earlier drafts of
 
 ## Best Practices
 
-- Let the gate fire naturally. Don't try to pre-answer the gate questions — the investigation itself is what improves quality.
+- Under `CI_GATEGUARD_FILE_GATE=strict`, let the gate fire naturally. Don't try to pre-answer the gate questions — the investigation itself is what improves quality.
 - Customize gate messages for your domain. If your project has specific conventions, add them to the gate prompts.
 - Use `.gateguard.yml` to ignore paths like `.venv/`, `node_modules/`, `.git/`.
 - For the shipped runtime hook, set `CI_GATEGUARD_EXCLUDE` (comma-separated path substrings) to exclude low-risk paths from the gate — see [Excluding low-risk paths](#excluding-low-risk-paths).

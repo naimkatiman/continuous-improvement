@@ -12,7 +12,9 @@
  *              permissionDecision: "deny", permissionDecisionReason } } shape
  *   exit   : 0 always (decision is in stdout)
  *
- * Three-stage gate (per skills/gateguard.md):
+ * Three-stage gate (per skills/gateguard.md), which the file gate applies under
+ * CI_GATEGUARD_FILE_GATE=strict (every spawn here sets it; the default mode,
+ * evidence, is covered by gateguard-evidence.test.mts):
  *   1. DENY  — first Edit/Write/MultiEdit/destructive-Bash blocked, message
  *              names the facts the agent must present
  *   2. FORCE — agent presents facts (out of band — model-side discipline)
@@ -52,6 +54,13 @@ interface HookRun extends HookDecision {
   stderr: string;
 }
 
+// Every spawn in this file pins CI_GATEGUARD_FILE_GATE to this mode. The file
+// gate cases here are the fact-list gate: deny the first mutating call per
+// file, allow the retry once a clearance is recorded. That is the `strict`
+// mode since the default became `evidence`, which
+// src/test/gateguard-evidence.test.mts covers.
+const FILE_GATE_MODE = "strict";
+
 // Spawn the hook with an explicit env. CI_GATEGUARD_EXCLUDE is pinned to ""
 // unless a test sets it: an operator's shell may export a catch-all exclusion
 // (this host does), and inheriting it silently turns every DENY case here into
@@ -69,6 +78,7 @@ function runHookRaw(
     env: {
       ...process.env,
       CI_GATEGUARD_EXCLUDE: "",
+      CI_GATEGUARD_FILE_GATE: FILE_GATE_MODE,
       GATEGUARD_SESSION_DIR: sessionDir,
       ...extraEnv,
     },
@@ -91,6 +101,7 @@ function runHook(toolName: string, toolInput: Record<string, unknown>, sessionDi
     env: {
       ...process.env,
       CI_GATEGUARD_EXCLUDE: "",
+      CI_GATEGUARD_FILE_GATE: FILE_GATE_MODE,
       GATEGUARD_SESSION_DIR: sessionDir,
     },
   });
@@ -455,6 +466,7 @@ describe("hooks/gateguard.mjs — target lock (RISA 2 / G2)", () => {
       const env: NodeJS.ProcessEnv = {
         ...process.env,
         CI_GATEGUARD_EXCLUDE: "",
+        CI_GATEGUARD_FILE_GATE: FILE_GATE_MODE,
         GATEGUARD_SESSION_DIR: dir,
         CLAUDE_PROJECT_DIR: opts.projectRoot ?? ROOT,
       };
@@ -631,6 +643,7 @@ describe("hooks/gateguard.mjs — per-session isolation (no shared cap)", () => 
     const env: NodeJS.ProcessEnv = {
       ...process.env,
       CI_GATEGUARD_EXCLUDE: "",
+      CI_GATEGUARD_FILE_GATE: FILE_GATE_MODE,
       HOME: tempHome,
       USERPROFILE: tempHome,
       CLAUDE_PROJECT_DIR: "d:/proj/iso",
@@ -687,7 +700,11 @@ describe("hooks/gateguard.mjs — CI_GATEGUARD_EXCLUDE opt-in path exclusion", (
     toolInput: Record<string, unknown>,
     exclude: string | undefined,
   ): HookDecision {
-    const env: NodeJS.ProcessEnv = { ...process.env, GATEGUARD_SESSION_DIR: dir };
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      CI_GATEGUARD_FILE_GATE: FILE_GATE_MODE,
+      GATEGUARD_SESSION_DIR: dir,
+    };
     if (exclude === undefined) delete env.CI_GATEGUARD_EXCLUDE;
     else env.CI_GATEGUARD_EXCLUDE = exclude;
     const payload = JSON.stringify({ tool_name: toolName, tool_input: toolInput });

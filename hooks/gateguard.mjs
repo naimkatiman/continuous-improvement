@@ -12,13 +12,23 @@
  *          "Hook JSON output validation failed" error on every tool call.
  * Exit   : 0 always (decision is in stdout, fail-open on parse error).
  *
- * Three-stage gate per skills/gateguard.md:
- * - DENY  : first mutating tool call per file, with fact-list reason
- * - FORCE : agent presents facts (model-side; out of band)
- * - ALLOW : retry once the per-file marker is recorded in session state
- *           (harness-portable, written out of band via Bash), or
- *           `_gateguard_facts_presented: true` is set where the harness
- *           forwards unknown tool params
+ * The file gate (Edit, Write, MultiEdit, NotebookEdit) has three modes, picked
+ * by CI_GATEGUARD_FILE_GATE:
+ * - evidence (the default): allow a new file, a file with a recorded clearance,
+ *   and a file this session's observation rows show was looked at
+ *   (lib/gateguard-evidence.mjs). A blind edit of an existing file is denied
+ *   with a two-line reason. With no observation log the gate cannot judge and
+ *   allows.
+ * - strict: the three-stage gate per skills/gateguard.md:
+ *   - DENY  : first mutating tool call per file, with fact-list reason
+ *   - FORCE : agent presents facts (model-side; out of band)
+ *   - ALLOW : retry once the per-file marker is recorded in session state
+ *             (harness-portable, written out of band via Bash), or
+ *             `_gateguard_facts_presented: true` is set where the harness
+ *             forwards unknown tool params
+ * - off: the file gate is skipped.
+ * Any other value is read as evidence and reported on stderr. The shell rules,
+ * CI_GATEGUARD_EXCLUDE and CI_GATEGUARD_TARGET_LOCK are the same in every mode.
  *
  * Read-only and exploratory tools (Read, Grep, Glob, routine Bash) bypass
  * unconditionally. Destructive Bash gates EVERY call, not just first. The
@@ -34,11 +44,11 @@
  * Block reasons now name the whole batch instead of just the first uncleared
  * path.
  */
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { classifyDestructiveBash } from "../lib/destructive-bash.mjs";
-import { MAX_CLEARED_FILES, canonicalizeFileKey, canonicalizeProjectRoot, isCapReached, isFileCleared, loadState, markFileCleared, resolveProjectRoot, resolveSessionDir, saveState, } from "../lib/gateguard-state.mjs";
+import { MAX_CLEARED_FILES, canonicalizeFileKey, canonicalizeProjectRoot, hashProjectRoot, isCapReached, isFileCleared, loadState, markFileCleared, resolveInstinctsRoot, resolveProjectRoot, resolveSessionDir, saveState, } from "../lib/gateguard-state.mjs";
 const TOOL_ROUTE = {
     Read: "allow",
     Grep: "allow",
@@ -169,6 +179,47 @@ function buildTargetLockReason(strayPath, projectRoot) {
         "when CI_GATEGUARD_TARGET_LOCK=block.",
     ].join("\n");
 }
+// --- File gate mode --------------------------------------------------------
+// CI_GATEGUARD_FILE_GATE picks how a mutating file call is judged. `evidence`
+// (the default, also for an unset or empty value) asks the observation log
+// whether the session looked at the file. `strict` is the fact-list gate, the
+// only behaviour before the modes existed. `off` skips the file gate. A value
+// that is none of the three is read as `evidence` and reported on stderr, so a
+// typo never picks a mode quietly.
+const FILE_GATE_MODES = ["evidence", "strict", "off"];
+const FILE_GATE_VALUE = String(process.env.CI_GATEGUARD_FILE_GATE ?? "").trim().toLowerCase();
+const FILE_GATE_MODE = FILE_GATE_MODES.find((mode) => mode === FILE_GATE_VALUE) ?? "evidence";
+const FILE_GATE_VALUE_UNKNOWN = FILE_GATE_VALUE !== "" && FILE_GATE_VALUE !== FILE_GATE_MODE;
+function buildUnknownModeNotice() {
+    return (`[continuous-improvement] gateguard: CI_GATEGUARD_FILE_GATE=${JSON.stringify(process.env.CI_GATEGUARD_FILE_GATE)} ` +
+        `is not a mode, using evidence. Accepted values: ${FILE_GATE_MODES.join(", ")}.`);
+}
+// The log bin/observe.mjs appends to for this project: same home, same project
+// root, same hash.
+function observationLogPath() {
+    return join(resolveInstinctsRoot(), hashProjectRoot(resolveProjectRoot()), "observations.jsonl");
+}
+// Record an evidence allow so the file's later edits skip the log scan. The cap
+// bounds attested clearances and never turns evidence into a deny: once it is
+// full the file is not recorded, and its next edit reads the log again. This is
+// a cache, so a failed write changes nothing about the decision.
+function rememberEvidence(sessionDir, state, paths) {
+    let next = state;
+    for (const path of paths) {
+        if (isCapReached(next))
+            break;
+        next = markFileCleared(next, path);
+    }
+    if (next === state)
+        return state;
+    try {
+        saveState(sessionDir, next);
+    }
+    catch {
+        return state;
+    }
+    return next;
+}
 // The call site only reads this inside the block branch, where at least one
 // path is uncleared; an all-cleared batch returns "" and is never consumed.
 function firstUnclearedFilePath(toolInput, state) {
@@ -216,6 +267,18 @@ function buildMutatingFileReason(toolName, filePaths, stateFilePath) {
         "  Both canonicalize paths — drive-letter case and separators don't matter.",
         "  (Harnesses that forward unknown tool params may instead retry the call with",
         "  `_gateguard_facts_presented: true`; Claude Code's strict schema rejects that, so use A or B.)",
+    ].join("\n");
+}
+// The evidence-mode deny. Two lines: what is missing and how to supply it, then
+// the clear command for the case where the file was read and the log cannot
+// show it (the observer is not running, or the row was rotated away).
+function buildUnreadReason(unread, stateFilePath) {
+    const subject = unread.length === 1
+        ? `${unread[0]} has not been read in this session. Read it`
+        : `${unread.length} files have not been read in this session (${unread.join(", ")}). Read them`;
+    return [
+        `${subject}, then retry the same call.`,
+        `If it was read and the observation log does not show it, clear the gate and retry: node ${quotePath(CLEAR_CLI_PATH)} --state ${quotePath(stateFilePath)} ${unread.map((p) => quotePath(p)).join(" ")}`,
     ].join("\n");
 }
 function isGitBraceSelector(value) {
@@ -315,7 +378,7 @@ function emitDeny(reason) {
     })}\n`);
     process.exit(0);
 }
-function main() {
+async function main() {
     let raw = "";
     try {
         raw = readFileSync(0, "utf8");
@@ -362,7 +425,7 @@ function main() {
     const sessionId = typeof payload.session_id === "string" ? payload.session_id : undefined;
     const sessionDir = resolveSessionDir(sessionId);
     const stateFilePath = join(sessionDir, "gateguard-session.json");
-    const state = loadState(sessionDir);
+    let state = loadState(sessionDir);
     const allTargetPaths = extractFilePaths(toolInput);
     const filePaths = allTargetPaths.filter((path) => !isExcludedPath(path));
     if (allTargetPaths.length > 0 && filePaths.length === 0) {
@@ -372,10 +435,10 @@ function main() {
         emitAllow();
         return;
     }
-    // Target lock runs before the fact gate and independent of clearance: a
-    // wrong-repo write is wrong even with perfect facts. Excluded paths were
-    // already filtered out above, so an explicitly-excluded scratch dir outside
-    // the root is never target-locked.
+    // Target lock runs before the file gate, in every mode of it, and independent
+    // of clearance and evidence: a wrong-repo write is wrong even with perfect
+    // facts or a fresh read. Excluded paths were already filtered out above, so
+    // an explicitly-excluded scratch dir outside the root is never target-locked.
     if (TARGET_LOCK_ON) {
         const projectRoot = resolveProjectRoot();
         const stray = filePaths.find((path) => isTargetOutsideRoot(path, projectRoot));
@@ -384,8 +447,47 @@ function main() {
             return;
         }
     }
-    const filePath = firstUnclearedFilePath(toolInput, state);
+    if (FILE_GATE_VALUE_UNKNOWN)
+        process.stderr.write(`${buildUnknownModeNotice()}\n`);
+    if (FILE_GATE_MODE === "off") {
+        emitAllow();
+        return;
+    }
     const factsFlagged = toolInput._gateguard_facts_presented === true;
+    if (FILE_GATE_MODE === "evidence") {
+        const cwd = typeof payload.cwd === "string" && payload.cwd !== "" ? payload.cwd : process.cwd();
+        // A new file has nothing to read, and a recorded clearance is the manual
+        // route. Only an existing file without one needs a row to show for it.
+        const pending = [...new Set(filePaths)].filter((path) => path !== "" && !isFileCleared(state, path) && existsSync(resolve(cwd, path)));
+        if (pending.length === 0) {
+            emitAllow();
+            return;
+        }
+        // Loaded here and not at the top: this hook runs before every tool call,
+        // and the scan with the observer's summariser behind it is only needed for
+        // the first edit of an existing file.
+        const { findEvidence } = await import("../lib/gateguard-evidence.mjs");
+        const seen = findEvidence(observationLogPath(), sessionId ?? "", cwd, pending);
+        if (seen === null) {
+            // No observation log: the observer is not installed or has never run, so
+            // nothing can show a read. The gate cannot judge.
+            emitAllow();
+            return;
+        }
+        state = rememberEvidence(sessionDir, state, pending.filter((path) => seen.has(path)));
+        const unread = pending.filter((path) => !seen.has(path));
+        if (unread.length === 0) {
+            emitAllow();
+            return;
+        }
+        if (!factsFlagged) {
+            emitDeny(buildUnreadReason(unread, stateFilePath));
+            return;
+        }
+        // _gateguard_facts_presented, on a harness that forwards it: the attested
+        // clearance below, cap included.
+    }
+    const filePath = firstUnclearedFilePath(toolInput, state);
     const alreadyCleared = filePaths.length > 0 && filePaths.every((path) => isFileCleared(state, path));
     const newFileCount = countDistinctNewFilePaths(filePaths, state);
     if (!factsFlagged && !alreadyCleared) {
@@ -406,4 +508,4 @@ function main() {
     }
     emitAllow();
 }
-main();
+await main();
