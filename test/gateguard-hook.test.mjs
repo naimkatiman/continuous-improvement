@@ -664,6 +664,27 @@ describe("hooks/gateguard.mjs — the PowerShell tool is gated like Bash", () =>
             assert.match(decision.reason ?? "", /'@\{u\}\.\.\.HEAD'/, "reason prints the quoted replacement");
         });
     }
+    // `rm -r build` is a tree delete under PowerShell (rm is the Remove-Item
+    // alias, -r abbreviates -Recurse) and the unforced POSIX rm under Bash.
+    it("PowerShell blocks rm -r, which Bash allows without -f", () => {
+        const viaPowerShell = runHook("PowerShell", { command: "rm -r build" }, sessionDir);
+        assert.equal(viaPowerShell.decision, "block");
+        assert.ok((viaPowerShell.reason ?? "").includes("Matched rule: powershell-remove-item"), viaPowerShell.reason);
+        assert.equal(runHook("PowerShell", { command: "rm build -r" }, sessionDir).decision, "block");
+        assert.equal(runHook("Bash", { command: "rm -r build" }, sessionDir).decision, "allow");
+    });
+    // -Force alone is the PowerShell spelling of `rm -f file`.
+    for (const tool of shellTools) {
+        it(`${tool} allows a PowerShell delete with -Force alone, a dry run and an Env: path`, () => {
+            for (const command of [
+                "Remove-Item scratch.txt -Force",
+                "Remove-Item build -Recurse -Force -WhatIf",
+                "Remove-Item Env:\\FOO -Force",
+            ]) {
+                assert.equal(runHook(tool, { command }, sessionDir).decision, "allow", command);
+            }
+        });
+    }
     it("a destructive PowerShell command is never excluded, even under a catch-all fragment", () => {
         const run = runHookRaw("PowerShell", { command: "Remove-Item -Recurse -Force build" }, sessionDir, {
             CI_GATEGUARD_EXCLUDE: "/,.",

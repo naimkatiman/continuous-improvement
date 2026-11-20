@@ -61,16 +61,18 @@ const SHELL_TOOLS = new Set(["Bash", "PowerShell"]);
 // `git checkout -- .`, `git restore .`, `find -delete`, `git push +ref`,
 // `git stash drop`) plus the original substring list as the fallback. The
 // message-flag carve-out (`git commit -m "…"`) lives there too. Each rule has
-// a stable id the deny reason prints, so a block is explainable.
-function isDestructiveBash(command) {
-    return classifyDestructiveBash(command).destructive;
+// a stable id the deny reason prints, so a block is explainable. The tool name
+// goes with the command: `rm -r build` is Remove-Item -Recurse under the
+// PowerShell tool and the unforced POSIX rm under Bash.
+function isDestructiveBash(command, toolName) {
+    return classifyDestructiveBash(command, toolName).destructive;
 }
 function classifyTool(toolName, toolInput) {
     const route = TOOL_ROUTE[toolName] ?? "allow";
     if (route !== "allow")
         return route;
     if (SHELL_TOOLS.has(toolName) && typeof toolInput.command === "string") {
-        if (isDestructiveBash(toolInput.command))
+        if (isDestructiveBash(toolInput.command, toolName))
             return "destructive-bash";
     }
     return "allow";
@@ -272,8 +274,8 @@ function buildBraceRefReason(hit) {
         "Single quotes stop the shell from touching the braces; git reads the ref as-is.",
     ].join("\n");
 }
-function buildDestructiveBashReason(command) {
-    const rule = classifyDestructiveBash(command).rule ?? "unknown";
+function buildDestructiveBashReason(command, toolName) {
+    const rule = classifyDestructiveBash(command, toolName).rule ?? "unknown";
     return [
         `Destructive command requested: ${command}`,
         "",
@@ -347,7 +349,7 @@ function main() {
     }
     if (gate === "destructive-bash") {
         const cmd = typeof toolInput.command === "string" ? toolInput.command : "";
-        emitDeny(buildDestructiveBashReason(cmd));
+        emitDeny(buildDestructiveBashReason(cmd, toolName));
         return;
     }
     // mutating-file — scope state to THIS session so the clearance cap never

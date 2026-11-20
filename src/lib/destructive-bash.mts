@@ -382,26 +382,32 @@ const PS_COMMAND_FLAG_RE = /^-(?:c(?:o(?:m(?:m(?:a(?:n(?:d)?)?)?)?)?)?|cwa|comma
 // -File runs a script and -EncodedCommand is base64: neither can be read here.
 const PS_OPAQUE_FLAG_RE = /^-(?:f(?:i(?:l(?:e)?)?)?|e|ec|en[a-z]*)$/i;
 
+interface Wrapped {
+  text: string;
+  /** True when the wrapper is PowerShell, where `rm` is the Remove-Item alias. */
+  powershell: boolean;
+}
+
 // A shell started to run one command line: `bash -c "…"`, `pwsh -Command "…"`,
 // `cmd /c …`, with any other switches first, and `Invoke-Expression "…"`.
 // Returns that command line so it can be classified like any other, or null.
 // This is how the Bash tool reaches PowerShell and cmd on Windows.
-function wrappedCommand(segment: string, words: readonly Word[]): string | null {
+function wrappedCommand(segment: string, words: readonly Word[]): Wrapped | null {
   const shell = words[0]?.text;
   const args = words.slice(1);
-  const after = (word: Word): string => peelQuotes(segment.slice(word.end));
+  const after = (word: Word, powershell: boolean): Wrapped => ({ text: peelQuotes(segment.slice(word.end)), powershell });
   if (shell === "bash" || shell === "sh" || shell === "zsh") {
     for (let k = 0; k < args.length; k++) {
       const t = args[k]!.text;
       if (!/^[-+]/.test(t)) return null; // the script name: the rest are its own arguments
-      if (SH_COMMAND_FLAG_RE.test(t)) return after(args[k]!);
+      if (SH_COMMAND_FLAG_RE.test(t)) return after(args[k]!, false);
       if (/^[-+][oO]$/.test(t) || t === "--rcfile" || t === "--init-file") k++;
     }
     return null;
   }
   if (shell === "pwsh" || shell === "powershell") {
     for (const word of args) {
-      if (PS_COMMAND_FLAG_RE.test(word.text)) return after(word);
+      if (PS_COMMAND_FLAG_RE.test(word.text)) return after(word, true);
       if (PS_OPAQUE_FLAG_RE.test(word.text)) return null;
     }
     return null;
@@ -409,14 +415,14 @@ function wrappedCommand(segment: string, words: readonly Word[]): string | null 
   if (shell === "cmd") {
     for (const word of args) {
       // `//c` is the Git Bash spelling, which stops MSYS rewriting `/c` as a path.
-      if (/^\/{1,2}[ck]$/i.test(word.text)) return after(word);
+      if (/^\/{1,2}[ck]$/i.test(word.text)) return after(word, false);
       if (!word.text.startsWith("/")) return null;
     }
     return null;
   }
   if (shell === "invoke-expression" || shell === "iex") {
     if (args.length === 0) return null;
-    return after(/^-c/i.test(args[0]!.text) ? args[0]! : words[0]!);
+    return after(/^-c/i.test(args[0]!.text) ? args[0]! : words[0]!, true);
   }
   return null;
 }
@@ -502,23 +508,27 @@ function psPathOperands(args: readonly string[]): string[] {
 //     spelling of `rm -f file`, which passes for Bash.
 //   - `-WhatIf` is a dry run and passes, the way `git clean -n` does.
 //   - A provider path that holds no file tree passes.
-// Returns the rule id, or null.
-function powershellDelete(tokens: readonly string[], piped: boolean): string | null {
+// `powershell` says the command runs in PowerShell (the PowerShell tool, or a
+// pwsh wrapper). Returns the rule id, or null.
+function powershellDelete(tokens: readonly string[], piped: boolean, powershell: boolean): string | null {
   const cmd = tokens[0]!;
   const args = tokens.slice(1);
-  if (cmd === "rm") {
+  if (cmd === "rm" && !powershell) {
     // `rm` is also the POSIX command, whose `-r` and `-f` belong to
-    // rm-recursive-force. It is read as Remove-Item only when a switch is
-    // spelled the way POSIX rm cannot be: at least `-re` or `-fo`.
+    // rm-recursive-force. Outside PowerShell it is read as Remove-Item only
+    // when a switch is spelled the way POSIX rm cannot be: at least `-re` or
+    // `-fo`. In PowerShell `rm` is the alias, so `rm -r build` is the tree delete.
     if (!psSwitchOn(args, "recurse", 2) && !psSwitchOn(args, "force", 2)) return null;
-  } else if (!PS_REMOVE_COMMANDS.has(cmd)) {
+  } else if (cmd !== "rm" && !PS_REMOVE_COMMANDS.has(cmd)) {
     return null;
   }
   if (psSwitchOn(args, "whatif", 2) || psSwitchOn(args, "wi", 2)) return null;
   const operands = psPathOperands(args);
   if (operands.length > 0 && operands.every((t) => PS_DATA_PROVIDER_RE.test(t))) return null;
   if (psSwitchOn(args, "recurse", 1)) return "powershell-remove-item";
-  const fed = (piped && PS_REMOVE_PIPE_TARGETS.has(cmd)) || operands.some((t) => PS_PIPELINE_ITEM_RE.test(t));
+  // `rm` and `rmdir` read no pipeline as POSIX commands; in PowerShell they do.
+  const pipeTarget = powershell || PS_REMOVE_PIPE_TARGETS.has(cmd);
+  const fed = (piped && pipeTarget) || operands.some((t) => PS_PIPELINE_ITEM_RE.test(t));
   return fed ? "powershell-remove-item-pipeline" : null;
 }
 
@@ -545,7 +555,7 @@ function switchFirstDelete(text: string): string | null {
     }
     const tokens = splitWords(text.slice(m.index, end)).map((word) => word.text);
     tokens[0] = "remove-item";
-    const rule = powershellDelete(tokens, false);
+    const rule = powershellDelete(tokens, false, true);
     if (rule !== null) return rule;
   }
   return null;
@@ -673,12 +683,12 @@ const STRUCTURED_RULES: readonly Rule[] = [
 ];
 
 // The id of the rule this simple command trips, or null. `piped` says a
-// pipeline feeds the command.
-function matchStructuredRule(tokens: string[], piped: boolean): string | null {
+// pipeline feeds the command, `powershell` that it runs in PowerShell.
+function matchStructuredRule(tokens: string[], piped: boolean, powershell: boolean): string | null {
   for (const rule of STRUCTURED_RULES) {
     if (rule.test(tokens)) return rule.id;
   }
-  return powershellDelete(tokens, piped);
+  return powershellDelete(tokens, piped, powershell);
 }
 
 const ALLOWED: DestructiveVerdict = { destructive: false, rule: null };
@@ -687,12 +697,19 @@ const ALLOWED: DestructiveVerdict = { destructive: false, rule: null };
 // text is no longer something a person or an agent writes.
 const MAX_WRAPPER_DEPTH = 4;
 
-/** Classify one Bash command string. Pure; never throws on odd input. */
-export function classifyDestructiveBash(command: string): DestructiveVerdict {
-  return classify(command, 0);
+/**
+ * Classify one shell command string. Pure; never throws on odd input.
+ *
+ * `tool` is the name of the tool that sent the command. It matters for one
+ * word: under "PowerShell", `rm` is the Remove-Item alias and `-r` abbreviates
+ * `-Recurse`, so `rm -r build` is a tree delete. Under "Bash", or with no tool
+ * named, `rm -r dir` stays the unforced POSIX rm.
+ */
+export function classifyDestructiveBash(command: string, tool?: string): DestructiveVerdict {
+  return classify(command, tool === "PowerShell", 0);
 }
 
-function classify(command: string, depth: number): DestructiveVerdict {
+function classify(command: string, powershell: boolean, depth: number): DestructiveVerdict {
   if (typeof command !== "string" || command.trim() === "") return ALLOWED;
   const { code, bodies } = extractHereBodies(command);
   const stripped = stripMessageArgs(code);
@@ -702,11 +719,11 @@ function classify(command: string, depth: number): DestructiveVerdict {
     const words = commandWords(segment.text);
     if (words.length === 0) continue;
     const tokens = words.map((word) => word.text);
-    const rule = matchStructuredRule(tokens, segment.piped);
+    const rule = matchStructuredRule(tokens, segment.piped, powershell);
     if (rule !== null) return { destructive: true, rule };
     const wrapped = depth < MAX_WRAPPER_DEPTH ? wrappedCommand(segment.text, words) : null;
     if (wrapped !== null) {
-      const inner = classify(wrapped, depth + 1);
+      const inner = classify(wrapped.text, wrapped.powershell, depth + 1);
       if (inner.destructive) return inner;
     }
   }
@@ -720,7 +737,7 @@ function classify(command: string, depth: number): DestructiveVerdict {
     for (const segment of splitSimpleCommands(body.text, false)) {
       const tokens = commandWords(segment.text).map((word) => word.text);
       if (tokens.length === 0) continue;
-      const rule = matchStructuredRule(tokens, false);
+      const rule = matchStructuredRule(tokens, false, false);
       if (rule !== null) return { destructive: true, rule };
     }
   }

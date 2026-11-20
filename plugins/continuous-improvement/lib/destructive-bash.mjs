@@ -368,14 +368,14 @@ const PS_OPAQUE_FLAG_RE = /^-(?:f(?:i(?:l(?:e)?)?)?|e|ec|en[a-z]*)$/i;
 function wrappedCommand(segment, words) {
     const shell = words[0]?.text;
     const args = words.slice(1);
-    const after = (word) => peelQuotes(segment.slice(word.end));
+    const after = (word, powershell) => ({ text: peelQuotes(segment.slice(word.end)), powershell });
     if (shell === "bash" || shell === "sh" || shell === "zsh") {
         for (let k = 0; k < args.length; k++) {
             const t = args[k].text;
             if (!/^[-+]/.test(t))
                 return null; // the script name: the rest are its own arguments
             if (SH_COMMAND_FLAG_RE.test(t))
-                return after(args[k]);
+                return after(args[k], false);
             if (/^[-+][oO]$/.test(t) || t === "--rcfile" || t === "--init-file")
                 k++;
         }
@@ -384,7 +384,7 @@ function wrappedCommand(segment, words) {
     if (shell === "pwsh" || shell === "powershell") {
         for (const word of args) {
             if (PS_COMMAND_FLAG_RE.test(word.text))
-                return after(word);
+                return after(word, true);
             if (PS_OPAQUE_FLAG_RE.test(word.text))
                 return null;
         }
@@ -394,7 +394,7 @@ function wrappedCommand(segment, words) {
         for (const word of args) {
             // `//c` is the Git Bash spelling, which stops MSYS rewriting `/c` as a path.
             if (/^\/{1,2}[ck]$/i.test(word.text))
-                return after(word);
+                return after(word, false);
             if (!word.text.startsWith("/"))
                 return null;
         }
@@ -403,7 +403,7 @@ function wrappedCommand(segment, words) {
     if (shell === "invoke-expression" || shell === "iex") {
         if (args.length === 0)
             return null;
-        return after(/^-c/i.test(args[0].text) ? args[0] : words[0]);
+        return after(/^-c/i.test(args[0].text) ? args[0] : words[0], true);
     }
     return null;
 }
@@ -489,18 +489,20 @@ function psPathOperands(args) {
 //     spelling of `rm -f file`, which passes for Bash.
 //   - `-WhatIf` is a dry run and passes, the way `git clean -n` does.
 //   - A provider path that holds no file tree passes.
-// Returns the rule id, or null.
-function powershellDelete(tokens, piped) {
+// `powershell` says the command runs in PowerShell (the PowerShell tool, or a
+// pwsh wrapper). Returns the rule id, or null.
+function powershellDelete(tokens, piped, powershell) {
     const cmd = tokens[0];
     const args = tokens.slice(1);
-    if (cmd === "rm") {
+    if (cmd === "rm" && !powershell) {
         // `rm` is also the POSIX command, whose `-r` and `-f` belong to
-        // rm-recursive-force. It is read as Remove-Item only when a switch is
-        // spelled the way POSIX rm cannot be: at least `-re` or `-fo`.
+        // rm-recursive-force. Outside PowerShell it is read as Remove-Item only
+        // when a switch is spelled the way POSIX rm cannot be: at least `-re` or
+        // `-fo`. In PowerShell `rm` is the alias, so `rm -r build` is the tree delete.
         if (!psSwitchOn(args, "recurse", 2) && !psSwitchOn(args, "force", 2))
             return null;
     }
-    else if (!PS_REMOVE_COMMANDS.has(cmd)) {
+    else if (cmd !== "rm" && !PS_REMOVE_COMMANDS.has(cmd)) {
         return null;
     }
     if (psSwitchOn(args, "whatif", 2) || psSwitchOn(args, "wi", 2))
@@ -510,7 +512,9 @@ function powershellDelete(tokens, piped) {
         return null;
     if (psSwitchOn(args, "recurse", 1))
         return "powershell-remove-item";
-    const fed = (piped && PS_REMOVE_PIPE_TARGETS.has(cmd)) || operands.some((t) => PS_PIPELINE_ITEM_RE.test(t));
+    // `rm` and `rmdir` read no pipeline as POSIX commands; in PowerShell they do.
+    const pipeTarget = powershell || PS_REMOVE_PIPE_TARGETS.has(cmd);
+    const fed = (piped && pipeTarget) || operands.some((t) => PS_PIPELINE_ITEM_RE.test(t));
     return fed ? "powershell-remove-item-pipeline" : null;
 }
 // The substring list used to carry "Remove-Item -Recurse" and "Remove-Item
@@ -538,7 +542,7 @@ function switchFirstDelete(text) {
         }
         const tokens = splitWords(text.slice(m.index, end)).map((word) => word.text);
         tokens[0] = "remove-item";
-        const rule = powershellDelete(tokens, false);
+        const rule = powershellDelete(tokens, false, true);
         if (rule !== null)
             return rule;
     }
@@ -670,23 +674,30 @@ const STRUCTURED_RULES = [
     },
 ];
 // The id of the rule this simple command trips, or null. `piped` says a
-// pipeline feeds the command.
-function matchStructuredRule(tokens, piped) {
+// pipeline feeds the command, `powershell` that it runs in PowerShell.
+function matchStructuredRule(tokens, piped, powershell) {
     for (const rule of STRUCTURED_RULES) {
         if (rule.test(tokens))
             return rule.id;
     }
-    return powershellDelete(tokens, piped);
+    return powershellDelete(tokens, piped, powershell);
 }
 const ALLOWED = { destructive: false, rule: null };
 // A wrapper can wrap a wrapper (`bash -c "pwsh -c '…'"`); past this depth the
 // text is no longer something a person or an agent writes.
 const MAX_WRAPPER_DEPTH = 4;
-/** Classify one Bash command string. Pure; never throws on odd input. */
-export function classifyDestructiveBash(command) {
-    return classify(command, 0);
+/**
+ * Classify one shell command string. Pure; never throws on odd input.
+ *
+ * `tool` is the name of the tool that sent the command. It matters for one
+ * word: under "PowerShell", `rm` is the Remove-Item alias and `-r` abbreviates
+ * `-Recurse`, so `rm -r build` is a tree delete. Under "Bash", or with no tool
+ * named, `rm -r dir` stays the unforced POSIX rm.
+ */
+export function classifyDestructiveBash(command, tool) {
+    return classify(command, tool === "PowerShell", 0);
 }
-function classify(command, depth) {
+function classify(command, powershell, depth) {
     if (typeof command !== "string" || command.trim() === "")
         return ALLOWED;
     const { code, bodies } = extractHereBodies(command);
@@ -697,12 +708,12 @@ function classify(command, depth) {
         if (words.length === 0)
             continue;
         const tokens = words.map((word) => word.text);
-        const rule = matchStructuredRule(tokens, segment.piped);
+        const rule = matchStructuredRule(tokens, segment.piped, powershell);
         if (rule !== null)
             return { destructive: true, rule };
         const wrapped = depth < MAX_WRAPPER_DEPTH ? wrappedCommand(segment.text, words) : null;
         if (wrapped !== null) {
-            const inner = classify(wrapped, depth + 1);
+            const inner = classify(wrapped.text, wrapped.powershell, depth + 1);
             if (inner.destructive)
                 return inner;
         }
@@ -718,7 +729,7 @@ function classify(command, depth) {
             const tokens = commandWords(segment.text).map((word) => word.text);
             if (tokens.length === 0)
                 continue;
-            const rule = matchStructuredRule(tokens, false);
+            const rule = matchStructuredRule(tokens, false, false);
             if (rule !== null)
                 return { destructive: true, rule };
         }

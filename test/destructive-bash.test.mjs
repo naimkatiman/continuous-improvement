@@ -395,6 +395,36 @@ describe("lib/destructive-bash — classifier table", () => {
             assert.deepEqual(classifyDestructiveBash(command), { destructive: true, rule });
         });
     }
+    // `rm` is two commands. Under the PowerShell tool it is the Remove-Item alias
+    // and -r abbreviates -Recurse, so `rm -r build` deletes a tree. The classifier
+    // was not told which tool sent the command and read every `rm` as POSIX rm.
+    const RM_UNDER_POWERSHELL_CAUGHT = [
+        ["rm -r build", "powershell-remove-item"],
+        ["rm build -r", "powershell-remove-item"],
+        ["rm -Path build -r", "powershell-remove-item"],
+        ["if (Test-Path build) { rm -r build }", "powershell-remove-item"],
+        ["gci *.tmp | rm", "powershell-remove-item-pipeline"],
+        ["gci build | rmdir", "powershell-remove-item-pipeline"],
+    ];
+    for (const [command, rule] of RM_UNDER_POWERSHELL_CAUGHT) {
+        it(`reads rm as Remove-Item under the PowerShell tool: ${command}`, () => {
+            assert.deepEqual(classifyDestructiveBash(command, "PowerShell"), { destructive: true, rule });
+        });
+    }
+    it("keeps the POSIX reading of rm under the Bash tool, and when no tool is named", () => {
+        for (const command of ["rm -r tmp", "rm -R tmp", "rm build -r", "ls | rm", "rm -f scratch.txt"]) {
+            assert.deepEqual(classifyDestructiveBash(command, "Bash"), { destructive: false, rule: null }, command);
+            assert.deepEqual(classifyDestructiveBash(command), { destructive: false, rule: null }, command);
+        }
+        assert.equal(classifyDestructiveBash("rm -f scratch.txt", "PowerShell").destructive, false);
+        assert.equal(classifyDestructiveBash("rm scratch.txt", "PowerShell").destructive, false);
+    });
+    it("a shell wrapper decides which rm its command line means", () => {
+        const denied = { destructive: true, rule: "powershell-remove-item" };
+        assert.deepEqual(classifyDestructiveBash('pwsh -c "rm -r build"', "Bash"), denied);
+        assert.deepEqual(classifyDestructiveBash('powershell -NoProfile -Command "rm -r build"'), denied);
+        assert.equal(classifyDestructiveBash('bash -c "rm -r build"', "PowerShell").destructive, false);
+    });
     // A string literal is an expression, not a command. The rules stripped a
     // leading quote from the first word, so a PowerShell string that begins with
     // "Format" was read as the volume formatter, and one that begins with "rd"

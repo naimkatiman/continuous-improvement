@@ -93,16 +93,18 @@ const SHELL_TOOLS: ReadonlySet<string> = new Set(["Bash", "PowerShell"]);
 // `git checkout -- .`, `git restore .`, `find -delete`, `git push +ref`,
 // `git stash drop`) plus the original substring list as the fallback. The
 // message-flag carve-out (`git commit -m "…"`) lives there too. Each rule has
-// a stable id the deny reason prints, so a block is explainable.
-function isDestructiveBash(command: string): boolean {
-  return classifyDestructiveBash(command).destructive;
+// a stable id the deny reason prints, so a block is explainable. The tool name
+// goes with the command: `rm -r build` is Remove-Item -Recurse under the
+// PowerShell tool and the unforced POSIX rm under Bash.
+function isDestructiveBash(command: string, toolName: string): boolean {
+  return classifyDestructiveBash(command, toolName).destructive;
 }
 
 function classifyTool(toolName: string, toolInput: ToolInput): GateType {
   const route = TOOL_ROUTE[toolName] ?? "allow";
   if (route !== "allow") return route;
   if (SHELL_TOOLS.has(toolName) && typeof toolInput.command === "string") {
-    if (isDestructiveBash(toolInput.command)) return "destructive-bash";
+    if (isDestructiveBash(toolInput.command, toolName)) return "destructive-bash";
   }
   return "allow";
 }
@@ -327,8 +329,8 @@ function buildBraceRefReason(hit: BraceRefHit): string {
   ].join("\n");
 }
 
-function buildDestructiveBashReason(command: string): string {
-  const rule = classifyDestructiveBash(command).rule ?? "unknown";
+function buildDestructiveBashReason(command: string, toolName: string): string {
+  const rule = classifyDestructiveBash(command, toolName).rule ?? "unknown";
   return [
     `Destructive command requested: ${command}`,
     "",
@@ -409,7 +411,7 @@ function main(): void {
 
   if (gate === "destructive-bash") {
     const cmd = typeof toolInput.command === "string" ? toolInput.command : "";
-    emitDeny(buildDestructiveBashReason(cmd));
+    emitDeny(buildDestructiveBashReason(cmd, toolName));
     return;
   }
 
