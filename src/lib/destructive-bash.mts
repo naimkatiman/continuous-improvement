@@ -1,17 +1,25 @@
 /**
- * Destructive-Bash classifier for hooks/gateguard.mjs.
+ * Destructive-command classifier for hooks/gateguard.mjs. It reads the command
+ * of the Bash tool and of the PowerShell tool.
  *
  * Two layers, pure and dependency-free so a table test and a future
  * `gateguard-explain` CLI can drive it without spawning the hook:
  *
  *   1. Structured rules: the command is split at unquoted separators
- *      (`|`, `||`, `&&`, `;`, newline) and each simple command is tokenized,
+ *      (`|`, `||`, `&&`, `;`, newline, and in a second pass the braces and
+ *      parentheses of a block or group) and each simple command is tokenized,
  *      so flag order and spelling stop mattering. `rm -r -f`, `rm -Rf` and
  *      `rm --recursive --force` are the same command; `git clean -fdx` and
- *      `git clean --force -d` are the same command. Each rule has a stable id
- *      the deny reason prints, so a block is explainable.
- *   2. The original substring list, kept verbatim as the fallback so nothing
- *      that was caught before stops being caught.
+ *      `git clean --force -d` are the same command. The command word is
+ *      normalised first (`git.exe`, a path to the program, a `$var=` capture),
+ *      git's global options are skipped to find the subcommand, and the
+ *      command line a shell wrapper runs (`bash -c`, `pwsh -Command`,
+ *      `cmd /c`) is classified like any other. Each rule has a stable id the
+ *      deny reason prints, so a block is explainable.
+ *   2. The substring list, as the fallback for text that no rule reads as a
+ *      command: SQL in a quoted argument, a command handed to `ssh` or
+ *      `xargs`. A pattern leaves the list only when a rule covers its whole
+ *      reach (`format `, the two `Remove-Item` switch-first spellings).
  *
  * What is deliberately NOT here: plain file writes through Bash (`cat > x`,
  * `sed -i`). Gating those would break the operator workflow that uses Bash
@@ -31,7 +39,7 @@
 
 export interface DestructiveVerdict {
   destructive: boolean;
-  /** Stable rule id, e.g. `rm-recursive-force` or `substring:git reset --hard`; null when allowed. */
+  /** Stable rule id, e.g. `rm-recursive-force` or `substring:drop table`; null when allowed. */
   rule: string | null;
 }
 

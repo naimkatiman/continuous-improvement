@@ -22,7 +22,8 @@
  *
  * Read-only and exploratory tools (Read, Grep, Glob, routine Bash) bypass
  * unconditionally. Destructive Bash gates EVERY call, not just first. The
- * PowerShell tool is a shell tool too and is classified exactly like Bash.
+ * PowerShell tool is a shell tool too and goes through the same classifier,
+ * which is told the tool name (`rm -r` is Remove-Item -Recurse there).
  *
  * V1 honest limitations (see src/lib/gateguard-state.mts header):
  *   honor-system flag, state-file deletion, parallel-hook race.
