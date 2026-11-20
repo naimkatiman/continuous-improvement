@@ -213,18 +213,50 @@ function operandValues(rest) {
     }
     return values;
 }
-// The destination of a copy: the value of PowerShell's -Destination when it is
-// named (it can come before the source), otherwise the last operand.
-function copyDestination(rest) {
-    for (let i = 0; i < rest.length; i++) {
-        const named = /^-des[a-z]*(?::(.+))?$/i.exec(rest[i]);
+// A redirect is not an argument of the command: `2>&1`, `>/dev/null`,
+// `2>$null`. A bare operator (`>`, `2>`) takes the next word as its file.
+const REDIRECT_WORD_RE = /^(?:\d+|[*&])?[<>]/;
+const BARE_REDIRECT_RE = /^(?:\d+|[*&])?[<>]+$/;
+function withoutRedirects(words) {
+    const kept = [];
+    for (let i = 0; i < words.length; i++) {
+        if (!REDIRECT_WORD_RE.test(words[i]))
+            kept.push(words[i]);
+        else if (BARE_REDIRECT_RE.test(words[i]))
+            i++;
+    }
+    return kept;
+}
+// Where a copy may write. Named, it is the value of PowerShell's -Destination
+// (which can come before the source) or of cp's -t / --target-directory.
+// Otherwise it is the last positional operand, and "last" needs care, because
+// what follows the destination is not a path: a redirect, a switch, a
+// colon-bound switch value (`-Confirm:$false`), the value of a named parameter
+// (`-ErrorAction Stop`). A word right after a parameter name may be that
+// parameter's value or, after a switch, the next path (`cp new.json -f target`),
+// so the candidates are the last operand that is certainly positional and every
+// operand after it. The first operand of several is a source, never the
+// destination: `cp .claude/settings.json backup/` is a backup.
+function copyDestinations(rest) {
+    const words = withoutRedirects(rest);
+    for (let i = 0; i < words.length; i++) {
+        const named = /^(?:-des[a-z]*|-t|--target-directory)(?:[:=](.+))?$/i.exec(words[i]);
         if (!named)
             continue;
-        const value = named[1] ?? rest[i + 1];
-        return value ? stripQuotes(value) : null;
+        const value = named[1] ?? words[i + 1];
+        return value ? [value] : [];
     }
-    const values = operandValues(rest);
-    return values[values.length - 1] ?? null;
+    const operands = [];
+    for (let i = 0; i < words.length; i++) {
+        if (words[i].startsWith("-"))
+            continue;
+        const before = words[i - 1] ?? "";
+        operands.push({ text: words[i], afterName: before.startsWith("-") && !/[:=]/.test(before) });
+    }
+    let last = operands.length - 1;
+    while (last > 0 && operands[last].afterName)
+        last--;
+    return operands.slice(operands.length > 1 ? Math.max(1, last) : 0).map((operand) => operand.text);
 }
 const CLAUDE_CLI_MUTATIONS = {
     plugin: new Set(["install", "uninstall", "enable", "disable", "update", "marketplace"]),
@@ -246,12 +278,29 @@ function classifyBashSegment(segment) {
         }
         return null;
     }
+    // Redirects: `> path`, `>> path`, `2>path`, `>path`, `&>path`, `*> path`.
+    // They come first: the output of any command, a copy included, can be sent
+    // into a protected file.
+    for (let i = 0; i < tokens.length; i++) {
+        const t = tokens[i];
+        const m = /^((?:\d+|[*&])?>{1,2})(.*)$/.exec(t);
+        if (!m)
+            continue;
+        const target = m[2] !== "" ? m[2] : (tokens[i + 1] ?? "");
+        const pattern = matchProtected(stripQuotes(target), false);
+        if (pattern)
+            return { target: stripQuotes(target), pattern, via: "bash" };
+    }
     // Copy: only the destination can be a protected write; a protected source is
     // a read (a backup).
     if (COPY_COMMANDS.has(cmd)) {
-        const dest = copyDestination(rest);
-        const pattern = dest ? matchProtectedPath(dest) : null;
-        return pattern && dest ? { target: dest, pattern, via: "bash" } : null;
+        for (const candidate of copyDestinations(rest)) {
+            const dest = stripQuotes(candidate);
+            const pattern = matchProtectedPath(dest);
+            if (pattern)
+                return { target: dest, pattern, via: "bash" };
+        }
+        return null;
     }
     // Move / rename: the destination is written and the source stops existing
     // under its name, so a protected path on either side is a mutation.
@@ -262,17 +311,6 @@ function classifyBashSegment(segment) {
                 return { target: value, pattern, via: "bash" };
         }
         return null;
-    }
-    // Redirects: `> path`, `>> path`, `2>path`, `>path`, `&>path`, `*> path`.
-    for (let i = 0; i < tokens.length; i++) {
-        const t = tokens[i];
-        const m = /^((?:\d+|[*&])?>{1,2})(.*)$/.exec(t);
-        if (!m)
-            continue;
-        const target = m[2] !== "" ? m[2] : (tokens[i + 1] ?? "");
-        const pattern = matchProtected(stripQuotes(target), false);
-        if (pattern)
-            return { target: stripQuotes(target), pattern, via: "bash" };
     }
     // Deletes and content writers: any operand that is a protected path. Only a
     // delete takes a directory with it, so only there does the directory named

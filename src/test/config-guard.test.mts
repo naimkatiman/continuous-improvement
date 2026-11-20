@@ -354,6 +354,67 @@ describe("config-guard-gate: a read with an fd redirect is a read", () => {
   }
 });
 
+// The destination of a copy was "the last operand", so whatever followed the
+// destination took its place: a redirect, the value of a named parameter, the
+// value of a colon-bound switch.
+describe("config-guard-gate: a copy onto a protected file, whatever follows the destination", () => {
+  const overwrites: ReadonlyArray<[string, string]> = [
+    ["Bash", "cp new.json .claude/settings.json 2>&1"],
+    ["Bash", "cp new.json .claude/settings.json 2>/dev/null"],
+    ["Bash", "cp -f new.json ~/.claude/settings.json 2>&1 | tail -2"],
+    ["Bash", "cp new.json .claude/settings.json > /dev/null"],
+    ["Bash", "cp new.json .claude/settings.json -v"],
+    ["Bash", "cp new.json .claude/settings.json --preserve mode"],
+    ["Bash", "cp --preserve=mode new.json .claude/settings.json 2>&1"],
+    ["Bash", "cp new.json -f .claude/settings.json"],
+    ["Bash", "cp evil.js .claude/hooks 2>/dev/null"],
+    ["Bash", "cp -t .claude/hooks evil.js"],
+    ["Bash", "cp --target-directory=.claude/hooks evil.js other.js"],
+    ["Bash", "cp a.json b.json > .mcp.json"],
+    ["PowerShell", "Copy-Item new.json .claude\\settings.json -ErrorAction Stop"],
+    ["PowerShell", "Copy-Item new.json .claude\\settings.json 2>&1"],
+    ["PowerShell", "Copy-Item new.json .claude\\settings.json 2>$null"],
+    ["PowerShell", "Copy-Item -Path new.json .claude\\settings.json -Encoding utf8"],
+    ["PowerShell", "Copy-Item new.json .claude\\settings.json -Confirm:$false"],
+    ["PowerShell", "Copy-Item new.json .claude\\settings.json -Force:$true"],
+    ["PowerShell", "Copy-Item -ErrorAction Stop new.json .claude\\settings.json"],
+    ["PowerShell", "Copy-Item new.json .claude\\settings.json -Force -PassThru | Out-Null"],
+    ["PowerShell", "copy new.json .claude\\settings.json -Force 2>&1"],
+    ["PowerShell", "cpi -Force new.json .mcp.json -ErrorAction SilentlyContinue"],
+    ["PowerShell", "Copy-Item new.json -Destination .claude\\settings.json -ErrorAction Stop 2>&1"],
+  ];
+  for (const [tool, command] of overwrites) {
+    it(`${tool}: flags ${command}`, () => {
+      const hit = classifyMutation(tool, { command });
+      assert.notEqual(hit, null);
+      assert.equal(hit?.via, "bash");
+    });
+  }
+
+  // The protected file is the source: a backup is a read, whatever follows.
+  const backups: ReadonlyArray<[string, string]> = [
+    ["Bash", "cp .claude/settings.json backup/ 2>&1"],
+    ["Bash", "cp -p .claude/settings.json backup/ 2>/dev/null"],
+    ["Bash", "cp .claude/settings.json .mcp.json backup/"],
+    ["Bash", "cp -r .claude/hooks backup/hooks 2>/dev/null"],
+    ["Bash", "cp .claude/settings.json /tmp/settings.backup.json -v"],
+    ["Bash", "cp -t backup/ .claude/settings.json .mcp.json"],
+    ["Bash", "cp --target-directory=backup .claude/settings.json"],
+    ["Bash", "cp .claude/settings.json backup/ > /dev/null 2>&1"],
+    ["PowerShell", "Copy-Item .claude\\settings.json backup\\ -ErrorAction Stop"],
+    ["PowerShell", "Copy-Item .claude\\settings.json $env:TEMP\\settings.backup.json -Force"],
+    ["PowerShell", "Copy-Item -ErrorAction Stop .claude\\settings.json backup\\"],
+    ["PowerShell", "Copy-Item -Path .claude\\settings.json -Destination backup\\settings.json -Force 2>&1"],
+    ["PowerShell", "Copy-Item .claude\\settings.json backup\\settings.json -Confirm:$false"],
+    ["PowerShell", "Copy-Item -LiteralPath .claude\\settings.json backup\\ -Force:$true 2>$null"],
+  ];
+  for (const [tool, command] of backups) {
+    it(`${tool}: allows ${command}`, () => {
+      assert.equal(classifyMutation(tool, { command }), null);
+    });
+  }
+});
+
 describe("config-guard-gate: decide", () => {
   it("off allows everything", () => {
     assert.equal(decide("off", true, "r").action, "allow");
@@ -470,6 +531,26 @@ describe("hooks/config-guard.mjs (runtime PreToolUse hook)", () => {
       { command: "Copy-Item -Destination backup/settings.json -Path .claude/settings.json" },
       { CI_CONFIG_GUARD: "block" },
     );
+    assert.equal(r.decision, "allow");
+    assert.equal(r.stderr, "");
+  });
+
+  // A copy onto the settings file with something after the destination.
+  const trailingCopies: ReadonlyArray<[string, string]> = [
+    ["Bash", "cp new.json .claude/settings.json 2>&1"],
+    ["PowerShell", "Copy-Item new.json .claude\\settings.json -ErrorAction Stop"],
+    ["PowerShell", "Copy-Item new.json .claude\\settings.json -Confirm:$false"],
+  ];
+  for (const [tool, command] of trailingCopies) {
+    it(`${tool} in block mode: denies ${command}`, () => {
+      const r = runHook(tool, { command }, { CI_CONFIG_GUARD: "block" });
+      assert.equal(r.decision, "block");
+      assert.match(r.reason ?? "", /config-guard/);
+    });
+  }
+
+  it("allows a backup copy that ends in a redirect in block mode", () => {
+    const r = runHook("Bash", { command: "cp .claude/settings.json backup/ 2>&1" }, { CI_CONFIG_GUARD: "block" });
     assert.equal(r.decision, "allow");
     assert.equal(r.stderr, "");
   });
