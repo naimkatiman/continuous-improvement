@@ -93,3 +93,53 @@ describe("redactSecrets: quoted values", () => {
     assert.equal(redactSecrets(once), once);
   });
 });
+
+// In JSON the name is closed by a quote before the colon, so a rule that wants
+// `:` or `=` directly after the name never fired on a JSON property. JSON is the
+// shape of every MCP tool input and of most API replies.
+describe("redactSecrets: JSON properties", () => {
+  const redacted: ReadonlyArray<[string, string]> = [
+    [
+      `{"host":"db.test","user":"app","password":"${SECRET}"}`,
+      '{"host":"db.test","user":"app","password":"<redacted>"}',
+    ],
+    [`{"API_TOKEN":"${SECRET}"}`, '{"API_TOKEN":"<redacted>"}'],
+    [`{"api_key": "${SECRET}"}`, '{"api_key": "<redacted>"}'],
+    [
+      `curl -s -X POST https://x.test/login -d '{"user":"a","password":"${SECRET}"}'`,
+      `curl -s -X POST https://x.test/login -d '{"user":"a","password":"<redacted>"}'`,
+    ],
+    [
+      '    "SecretAccessKey": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",\n    "Expiration": "2026-01-01"',
+      '    "SecretAccessKey": "<redacted>",\n    "Expiration": "2026-01-01"',
+    ],
+    [
+      `{"access_token":"ya29.${SECRET}","token_type":"Bearer"}`,
+      '{"access_token":"<redacted>","token_type":"Bearer"}',
+    ],
+    [`{'clientSecret': '${SECRET}'}`, "{'clientSecret': '<redacted>'}"],
+    // JSON inside a JSON string: the quotes arrive escaped.
+    [
+      `{"stdout":"{\\"access_token\\":\\"${SECRET}\\",\\"token_type\\":\\"bearer\\"}"}`,
+      '{"stdout":"{\\"access_token\\":\\"<redacted>\\",\\"token_type\\":\\"bearer\\"}"}',
+    ],
+    // A value that is not a string ends at the comma, so the rest of the object survives.
+    ['{"pin_token":123456,"ok":true}', '{"pin_token":<redacted>,"ok":true}'],
+  ];
+  for (const [text, expected] of redacted) {
+    it(`redacts ${JSON.stringify(text)}`, () => {
+      assert.equal(redactSecrets(text), expected);
+    });
+  }
+
+  const untouched: ReadonlyArray<string> = [
+    '{"token_type":"bearer","expires_in":3600}',
+    '{"usage":{"input_tokens":12,"output_tokens":3}}',
+    '{"file_path":"src/lib/keyboard.ts"}',
+  ];
+  for (const text of untouched) {
+    it(`leaves ${JSON.stringify(text)} alone`, () => {
+      assert.equal(redactSecrets(text), text);
+    });
+  }
+});

@@ -26,8 +26,17 @@ const SECRET_NAME =
 // spellings it shows up in: escaped quotes (the assignment sits inside
 // serialised JSON), double quotes and single quotes. An opening quote with no
 // closing one runs to the end of the text. Anything else ends at whitespace.
-const SECRET_VALUE = String.raw`\\"(?:[^"\\]|\\[^"])*(?:\\"|$)|"[^"]*(?:"|$)|'[^']*(?:'|$)|\S+`;
-const SECRET_ASSIGNMENT_RE = new RegExp(String.raw`(${SECRET_NAME})(\s*[:=]\s*)(${SECRET_VALUE})`, "gi");
+const QUOTED_VALUE = String.raw`\\"(?:[^"\\]|\\[^"])*(?:\\"|$)|"[^"]*(?:"|$)|'[^']*(?:'|$)`;
+const SECRET_ASSIGNMENT_RE = new RegExp(String.raw`(${SECRET_NAME})(\s*[:=]\s*)(${QUOTED_VALUE}|\S+)`, "gi");
+// The same assignment as a JSON property, where a quote closes the name before
+// the colon: "password":"v", or \"password\":\"v\" when the JSON sits inside a
+// JSON string. JSON is the shape of every MCP tool input and most API replies.
+// A value that is not a string (a number, true, null) ends at the next comma
+// or bracket, so the rest of the object survives.
+const SECRET_PROPERTY_RE = new RegExp(
+  String.raw`(${SECRET_NAME})(\\?["']\s*[:=]\s*)(${QUOTED_VALUE}|[^\s,}\]]+)`,
+  "gi",
+);
 
 // Replace a matched value, keeping the quotes it was written in.
 function redactedValue(value: string): string {
@@ -45,6 +54,10 @@ export function redactSecrets(text: string): string {
   return text
     .replace(/AKIA[0-9A-Z]{16}/g, "AKIA<redacted>")
     .replace(/Bearer\s+[A-Za-z0-9._~+/-]{20,}=*/gi, "Bearer <redacted>")
+    .replace(
+      SECRET_PROPERTY_RE,
+      (_match, name: string, separator: string, value: string) => `${name}${separator}${redactedValue(value)}`,
+    )
     .replace(
       SECRET_ASSIGNMENT_RE,
       (_match, name: string, separator: string, value: string) => `${name}${separator}${redactedValue(value)}`,

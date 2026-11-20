@@ -382,6 +382,24 @@ describe("observe.mjs keeps secrets out of observations.jsonl", () => {
       { command: `$env:DB_PASSWORD = "two words ${LEAK}"; ./run.ps1`, description: "Run the script" },
       "ok",
     ],
+    [
+      "a password property of an MCP tool input",
+      "mcp__db__connect",
+      { host: "db.test", user: "app", password: LEAK },
+      { ok: true },
+    ],
+    [
+      "a JSON request body and a JSON reply",
+      "Bash",
+      { command: `curl -s -X POST https://x.test/login -d '{"user":"a","password":"${LEAK}"}'` },
+      { stdout: `{"access_token":"ya29.${LEAK}","token_type":"Bearer"}`, stderr: "", interrupted: false },
+    ],
+    [
+      "a clientSecret property in a file the Read tool returned",
+      "Read",
+      { file_path: "config/app.json" },
+      { type: "text", file: { filePath: "config/app.json", content: `{"clientSecret": "${LEAK}"}` } },
+    ],
   ];
   for (const [label, bin] of observers) {
     for (const [what, toolName, toolInput, toolResponse] of leakCases) {
