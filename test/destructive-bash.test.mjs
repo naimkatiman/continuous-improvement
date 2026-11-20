@@ -222,6 +222,58 @@ describe("lib/destructive-bash — classifier table", () => {
         assert.equal(classifyDestructiveBash("cd `git rev-parse --show-toplevel`\ngit status").destructive, false);
         assert.equal(classifyDestructiveBash("v=`git describe --tags`\ngit clean -n").destructive, false);
     });
+    // A heredoc or here-string body is data being written to a file, and a
+    // regex alternation or a `case` pattern is not a pipeline. The block split
+    // and the piped-delete rule read both as commands, so notes and tables that
+    // only mention a command were denied.
+    const PROSE_AND_PATTERNS_ALLOWED = [
+        "cat >> NOTES.md <<'EOF'\nDo not run cleanup here (git clean -fd would remove the fixtures).\nEOF",
+        "cat >> NOTES.md <<'EOF'\nIf the stash is stale (git stash drop discards it) ask first.\nEOF",
+        "cat >> NOTES.md <<EOF\n| alias | cmdlet |\n| del | Remove-Item |\nEOF",
+        "cat >> NOTES.md <<-'EOF'\n\t| del | Remove-Item |\n\tEOF\necho done",
+        "$note = @'\nDon't run cleanup here (git clean -fd would remove the fixtures).\n'@\nSet-Content NOTES.md $note",
+        '$note = @"\n| del | Remove-Item |\n"@\nAdd-Content NOTES.md $note',
+        '[[ "$cmd" =~ ^(rm|del|rd|erase)$ ]] && echo yes',
+        'case "$1" in rm|del|erase) shift ;; esac',
+        "cat <<A <<B\none (git stash drop)\nA\ntwo | del | x\nB",
+        // A heredoc or here-string that is the commit message or the PR body is
+        // prose, whatever quotes it contains and however it reaches the flag.
+        'git commit -m "$(cat <<\'EOF\'\nfix: the "old" helper ran rm -rf on the cache\nEOF\n)"',
+        "git commit -F - <<'EOF'\nfix: stop the helper that ran rm -rf on the cache\nEOF",
+        "gh pr create --title \"notes\" --body-file - <<'EOF'\nRecovery is manual (git stash drop discards the stash).\nEOF",
+        "git commit -m @'\nfix: stop the helper that ran rm -rf on the cache\n'@",
+    ];
+    for (const command of PROSE_AND_PATTERNS_ALLOWED) {
+        it(`allows prose in a heredoc body, and a pattern that is not a pipeline: ${JSON.stringify(command)}`, () => {
+            const verdict = classifyDestructiveBash(command);
+            assert.equal(verdict.destructive, false, `expected allowed (rule ${verdict.rule})`);
+        });
+    }
+    const AROUND_HEREDOC_CAUGHT = [
+        // A command after the heredoc is still a command, in a group or a block too.
+        ["cat > notes.md <<'EOF'\nplain text (see below)\nEOF\n(git clean -fdx)", "git-clean-force"],
+        ["$body = @'\ntext (git stash drop discards it)\n'@\nif ($?) { git stash drop }", "git-stash-drop"],
+        ["cat > list.txt <<EOF\nkeep\nEOF\nGet-ChildItem build -Recurse | Remove-Item", "powershell-remove-item-pipeline"],
+        // An apostrophe in the body used to open a quote that swallowed the rest.
+        ["cat <<'EOF' > notes.md\nDon't touch\nEOF\ngit clean -fdx", "git-clean-force"],
+        ['git commit -m "$(cat <<\'EOF\'\nnotes\nEOF\n)" && git clean -fdx', "git-clean-force"],
+        // Text with no terminator line is not a heredoc body.
+        ["cat <<EOF\n(git clean -fdx)", "git-clean-force"],
+        // A body line that is itself a command keeps the reach it had before the block split.
+        ["cat > cleanup.sh <<'EOF'\ngit clean -fdx\nEOF", "git-clean-force"],
+        ["cat > cleanup.sh <<'EOF'\n#!/bin/sh\ncd /tmp && rm -r -f cache\nEOF", "rm-recursive-force"],
+        ["psql \"$DATABASE_URL\" <<'SQL'\nDROP TABLE users;\nSQL", "substring:drop table"],
+        // A pipeline into the cmdlet, however the pipe is spaced or wrapped.
+        ["Get-ChildItem build -Recurse |Remove-Item", "powershell-remove-item-pipeline"],
+        ["Get-ChildItem build -Recurse |\n  Remove-Item", "powershell-remove-item-pipeline"],
+        ["Get-ChildItem build -Recurse\n  | Remove-Item", "powershell-remove-item-pipeline"],
+        ["gci *.tmp|ri", "powershell-remove-item-pipeline"],
+    ];
+    for (const [command, rule] of AROUND_HEREDOC_CAUGHT) {
+        it(`still catches a command next to a heredoc, and a real piped delete: ${JSON.stringify(command)}`, () => {
+            assert.deepEqual(classifyDestructiveBash(command), { destructive: true, rule });
+        });
+    }
     for (const [command, rule] of POWERSHELL_DELETE_CAUGHT) {
         it(`catches the PowerShell delete: ${JSON.stringify(command)}`, () => {
             const verdict = classifyDestructiveBash(command);

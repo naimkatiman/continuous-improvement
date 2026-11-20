@@ -21,6 +21,12 @@
  * note is prose, never a command. It is blanked before any rule runs, so
  * `git commit -m "rm -rf the old helper"` stays allowed. `-c` is not a message
  * flag: `bash -c "rm -rf /"` carries a real command and still gates.
+ *
+ * Heredoc and here-string bodies are data too. They are lifted out before the
+ * block split and the pipeline rule run, so a note or a table that mentions a
+ * command is not read as one. A body that is a message (`-m "$(cat <<'EOF'`)
+ * is dropped whole; any other body keeps the reach it had before the block
+ * split existed (the plain split for a heredoc, the substring list for both).
  */
 export const DESTRUCTIVE_PATTERNS = [
     "rm -rf",
@@ -50,6 +56,109 @@ const MESSAGE_FLAG_RE = /(^|\s)(-m|--message|-F|--file|--body|--body-file|--titl
 export function stripMessageArgs(command) {
     return command.replace(MESSAGE_FLAG_RE, (_match, lead, flag) => `${lead}${flag} `);
 }
+const HEREDOC_OPENER_RE = /^<<(-?)[ \t]*(?:'([^'\n]+)'|"([^"\n]+)"|\\?([A-Za-z_][\w.-]*))/;
+// Where the body of a heredoc ends: the first line that is exactly the
+// delimiter word (after leading tabs, for `<<-`). Null when no such line exists.
+function findHeredocEnd(command, from, word, tabs) {
+    let pos = from;
+    while (pos <= command.length) {
+        const nl = command.indexOf("\n", pos);
+        const lineEnd = nl === -1 ? command.length : nl;
+        let line = command.slice(pos, lineEnd).replace(/\r$/, "");
+        if (tabs)
+            line = line.replace(/^\t+/, "");
+        if (line === word)
+            return { bodyEnd: pos, next: nl === -1 ? command.length : nl + 1 };
+        if (nl === -1)
+            return null;
+        pos = nl + 1;
+    }
+    return null;
+}
+// Lift heredoc and here-string bodies out of the command. A body is data being
+// written somewhere, not a command line, so the block split and the pipeline
+// rule must not read it: a note that says "(git clean -fd would remove the
+// fixtures)" or a markdown table row `| del | Remove-Item |` is not a command.
+// `code` is the command with every body removed; a here-string leaves an empty
+// quoted string behind so the statement around it still tokenizes.
+function extractHereBodies(command) {
+    let code = "";
+    const bodies = [];
+    const pending = [];
+    let quote = null;
+    let i = 0;
+    while (i < command.length) {
+        const ch = command[i];
+        // A Bash heredoc opener. It counts inside double quotes too, because the
+        // usual commit spelling is `-m "$(cat <<'EOF'`. `<<<` is a here-string of
+        // one word and has no body.
+        if (ch === "<" && quote !== "'" && command[i + 1] === "<" && command[i + 2] !== "<" && command[i - 1] !== "<") {
+            const opener = HEREDOC_OPENER_RE.exec(command.slice(i, i + 256));
+            if (opener) {
+                pending.push({ word: opener[2] ?? opener[3] ?? opener[4], tabs: opener[1] === "-", at: code.length });
+                code += opener[0];
+                i += opener[0].length;
+                continue;
+            }
+        }
+        if (ch === "\n" && pending.length > 0) {
+            code += ch;
+            i++;
+            while (pending.length > 0) {
+                const open = pending.shift();
+                const end = findHeredocEnd(command, i, open.word, open.tabs);
+                if (end === null) {
+                    // No terminator line: not a heredoc after all. The text stays code.
+                    pending.length = 0;
+                    break;
+                }
+                bodies.push({ text: command.slice(i, end.bodyEnd), at: open.at, hereString: false });
+                i = end.next;
+            }
+            continue;
+        }
+        // A PowerShell here-string: `@'` or `@"` ends its line, and `'@` or `"@`
+        // at the start of a later line closes it.
+        if (ch === "@" && quote === null && (command[i + 1] === "'" || command[i + 1] === '"')) {
+            const q = command[i + 1];
+            const lineBreak = /^[ \t]*\r?\n/.exec(command.slice(i + 2, i + 64));
+            if (lineBreak) {
+                const bodyStart = i + 2 + lineBreak[0].length;
+                const close = command.indexOf(`\n${q}@`, bodyStart - 1);
+                if (close !== -1) {
+                    bodies.push({ text: command.slice(bodyStart, Math.max(bodyStart, close)), at: code.length, hereString: true });
+                    code += `${q}${q}`;
+                    i = close + 3;
+                    continue;
+                }
+            }
+        }
+        if (quote) {
+            if (ch === quote)
+                quote = null;
+        }
+        else if (ch === '"' || ch === "'") {
+            quote = ch;
+        }
+        code += ch;
+        i++;
+    }
+    return { code, bodies };
+}
+// `git commit -F - <<'EOF'` and `gh pr create --body-file - <<'EOF'` read the
+// message from stdin, so the heredoc that follows on the same command is the
+// message.
+const STDIN_MESSAGE_RE = /(?:^|\s)(?:-F|--file|--body-file)(?:=|\s+)-\s[^\n;|&]*$/;
+// The bodies that still have to be scanned. A body that is the value of a
+// message or body flag (`git commit -m "$(cat <<'EOF' … EOF)"`) is prose and is
+// dropped whole, exactly like a quoted message.
+function scannableBodies(code, bodies) {
+    const messageSpans = [...code.matchAll(MESSAGE_FLAG_RE)].map((m) => [m.index ?? 0, (m.index ?? 0) + m[0].length]);
+    return bodies
+        .filter((body) => !messageSpans.some(([start, end]) => body.at >= start && body.at < end))
+        .filter((body) => !STDIN_MESSAGE_RE.test(code.slice(0, body.at)))
+        .map((body) => ({ ...body, text: stripMessageArgs(body.text) }));
+}
 // Split at shell separators that sit outside single or double quotes. With
 // `blocks`, an unquoted `{`, `}`, `(` or `)` ends a command too, so the body of
 // a PowerShell script block (`if ($?) { git clean -fdx }`), a try block or a
@@ -57,18 +166,24 @@ export function stripMessageArgs(command) {
 function splitSimpleCommands(command, blocks) {
     const segments = [];
     let current = "";
-    let piped = false;
+    let feed = "none";
     let quote = null;
-    const end = (nextPiped) => {
+    const end = (by, nextFeed) => {
         const text = current.trim();
         current = "";
         if (text === "") {
-            // An empty stretch (a line break after `|`) does not use up the pipe.
-            piped = piped || nextPiped;
+            // An empty stretch (a line break after `|`, or a `|` that starts a line)
+            // does not use up the pipe, but a pipe needs a command on its left.
+            if (feed === "none" && segments.length > 0)
+                feed = nextFeed;
             return;
         }
-        segments.push({ text, piped });
-        piped = nextPiped;
+        // `rm|del|erase)` is a `case` pattern and `^(rm|del|rd)$` is a regex
+        // alternation: a `|` with no space on either side whose right-hand word
+        // runs straight into another `|` or a `)` is not a pipeline.
+        const alternation = feed === "tight" && (by === "|" || by === ")");
+        segments.push({ text, piped: feed !== "none" && !alternation });
+        feed = nextFeed;
     };
     for (let i = 0; i < command.length; i++) {
         const ch = command[i];
@@ -84,20 +199,28 @@ function splitSimpleCommands(command, blocks) {
             continue;
         }
         if (ch === "\n" || ch === ";" || (blocks && (ch === "{" || ch === "}" || ch === "(" || ch === ")"))) {
-            end(false);
+            end(ch, "none");
             continue;
         }
         if (ch === "|" || ch === "&") {
             // `||`, `&&`, `|`, `&` all end the simple command; collapse a doubled char.
             const doubled = command[i + 1] === ch;
-            if (doubled)
+            if (doubled) {
                 i++;
-            end(ch === "|" && !doubled);
+                end(ch + ch, "none");
+            }
+            else if (ch === "&") {
+                end(ch, "none");
+            }
+            else {
+                const tight = i > 0 && /\S/.test(command[i - 1]) && /\S/.test(command[i + 1] ?? " ");
+                end(ch, tight ? "tight" : "spaced");
+            }
             continue;
         }
         current += ch;
     }
-    end(false);
+    end("", "none");
     return segments;
 }
 // PowerShell line continuation: an unquoted backtick at the end of a line joins
@@ -299,26 +422,50 @@ const STRUCTURED_RULES = [
         },
     },
 ];
+function matchStructuredRule(tokens) {
+    for (const rule of STRUCTURED_RULES) {
+        if (rule.test(tokens))
+            return rule.id;
+    }
+    return null;
+}
 /** Classify one Bash command string. Pure; never throws on odd input. */
 export function classifyDestructiveBash(command) {
     if (typeof command !== "string" || command.trim() === "")
         return { destructive: false, rule: null };
-    const stripped = stripMessageArgs(command);
+    const { code, bodies } = extractHereBodies(command);
+    const stripped = stripMessageArgs(code);
+    const scanned = scannableBodies(code, bodies);
     for (const segment of allSimpleCommands(stripped)) {
         const tokens = commandTokens(segment.text);
         if (tokens.length === 0)
             continue;
-        for (const rule of STRUCTURED_RULES) {
-            if (rule.test(tokens))
-                return { destructive: true, rule: rule.id };
-        }
+        const rule = matchStructuredRule(tokens);
+        if (rule !== null)
+            return { destructive: true, rule };
         // `Get-ChildItem build -Recurse | Remove-Item`: the pipeline decides what is
         // deleted, which this classifier cannot see, so a piped delete always gates.
         if (segment.piped && PS_REMOVE_PIPE_TARGETS.has(tokens[0].toLowerCase())) {
             return { destructive: true, rule: "powershell-remove-item-pipeline" };
         }
     }
-    const lower = stripped.toLowerCase();
+    // A heredoc body keeps the reach it always had: a body line that is itself a
+    // command (`cat > cleanup.sh <<'EOF'` + `git clean -fdx`) is still read by
+    // the plain split. A here-string body sits inside quotes and was only ever
+    // reached by the substring list below.
+    for (const body of scanned) {
+        if (body.hereString)
+            continue;
+        for (const segment of splitSimpleCommands(body.text, false)) {
+            const tokens = commandTokens(segment.text);
+            if (tokens.length === 0)
+                continue;
+            const rule = matchStructuredRule(tokens);
+            if (rule !== null)
+                return { destructive: true, rule };
+        }
+    }
+    const lower = [stripped, ...scanned.map((body) => body.text)].join("\n").toLowerCase();
     const hit = DESTRUCTIVE_PATTERNS.find((p) => lower.includes(p.toLowerCase()));
     if (hit !== undefined)
         return { destructive: true, rule: `substring:${hit}` };
