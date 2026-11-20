@@ -14,7 +14,8 @@
  * structurally different (skills/<name>.md vs plugins/.../skills/<name>/SKILL.md)
  * and check-skill-mirror.mjs already enforces that pair. A few plugin-only
  * surfaces are explicitly allowlisted: the .claude-plugin/ manifests, the
- * generated bundle README.md and skills/README.md, and hooks/hooks.json.
+ * generated bundle README.md and skills/README.md, hooks/hooks.json, and the
+ * generated .mcp.json (the plugin's MCP server registration).
  *
  * Usage:
  *   node bin/check-everything-mirror.mjs              # Check the current repo
@@ -38,6 +39,7 @@ const PLUGIN_ROOT_REL = "plugins/continuous-improvement";
 const EXCLUDE_FILES = new Set<string>([
   ".claude-plugin/plugin.json",
   ".claude-plugin/marketplace.json",
+  ".mcp.json",
   "README.md",
   "hooks/hooks.json",
   "skills/README.md",
@@ -164,7 +166,7 @@ function main(): void {
     }
   }
   console.error(
-    "\nFix: every change to a mirrored file under plugins/continuous-improvement/ must be applied to its flat-tree sibling at the same relative path in the same PR. Plugin-only files (.claude-plugin/manifests, hooks/hooks.json, the bundle README.md, skills/README.md) are allowlisted; skills are covered by check-skill-mirror.mjs.",
+    "\nFix: every change to a mirrored file under plugins/continuous-improvement/ must be applied to its flat-tree sibling at the same relative path in the same PR. Plugin-only files (.claude-plugin/manifests, .mcp.json, hooks/hooks.json, the bundle README.md, skills/README.md) are allowlisted; skills are covered by check-skill-mirror.mjs.",
   );
   exit(1);
 }

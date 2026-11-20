@@ -1,9 +1,16 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 export const PACKAGE_NAME = "continuous-improvement";
-const PKG_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "package.json");
-export const VERSION = JSON.parse(readFileSync(PKG_PATH, "utf8")).version;
+// package.json sits beside lib/ in the repository and in the npm package. The
+// plugin bundle ships no package.json, so there the version comes from the
+// generated .claude-plugin/plugin.json, which carries the same value.
+const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const PKG_PATH = join(PACKAGE_ROOT, "package.json");
+const VERSION_SOURCE = existsSync(PKG_PATH)
+    ? PKG_PATH
+    : join(PACKAGE_ROOT, ".claude-plugin", "plugin.json");
+export const VERSION = JSON.parse(readFileSync(VERSION_SOURCE, "utf8")).version;
 export const PLUGIN_MODES = ["beginner", "expert"];
 const REPOSITORY_URL = "https://github.com/naimkatiman/continuous-improvement";
 const HOMEPAGE_URL = `${REPOSITORY_URL}#readme`;
@@ -441,6 +448,20 @@ export function getPluginManifest(mode) {
         hooks: {
             included: [...modeMetadata.hooks],
             description: modeMetadata.hookDescription,
+        },
+    };
+}
+// The MCP server `/plugin install` registers, written to `.mcp.json` at the
+// bundle root. Claude Code substitutes ${CLAUDE_PLUGIN_ROOT} in `args` and
+// starts the server when the plugin is enabled. Expert mode, because /recall,
+// /goal-check and /distill call tools the beginner mode does not serve.
+export function getPluginMcpConfig() {
+    return {
+        mcpServers: {
+            [PACKAGE_NAME]: {
+                command: "node",
+                args: ["${CLAUDE_PLUGIN_ROOT}/bin/mcp-server.mjs", "--mode", "expert"],
+            },
         },
     };
 }

@@ -19,6 +19,7 @@ import {
   getClaudePluginMarketplaceManifest,
   getClaudeRepoMarketplaceManifest,
   getPluginManifest,
+  getPluginMcpConfig,
 } from "../lib/plugin-metadata.mjs";
 import { discoverPmMarketplaceEntries } from "../lib/pm-marketplace.mjs";
 import {
@@ -153,6 +154,7 @@ async function writePluginBundleReadme(): Promise<void> {
     "Included surfaces:",
     "- `.claude-plugin/plugin.json`",
     "- `.claude-plugin/marketplace.json`",
+    "- `.mcp.json`",
     "- `skills/`",
     "- `commands/`",
     "- `agents/` — `code-reviewer`, `security-auditor`, `test-engineer` personas (auto-discovered Claude Code subagents; pattern from addy/agent-skills)",
@@ -316,6 +318,7 @@ async function writePluginBundle(): Promise<void> {
     join(PLUGIN_BUNDLE_DIR, "hooks", "hooks.json"),
     getPluginHooksConfig(),
   );
+  await writeJson(join(PLUGIN_BUNDLE_DIR, ".mcp.json"), getPluginMcpConfig());
   await writeBundledSkills();
   // PM plugins are no longer surfaced in the repo-level marketplace as the project
   // refocuses on the 7 Laws of AI Agent Discipline. Source plugin directories under

@@ -9,7 +9,7 @@ Score this session's recent tool activity against the stated goal and report whe
 
 ## What it does
 
-Reads the `## Goal` section of `task_plan.md` (plus optional `## Goal Keywords` and `## Goal Scope` sections), scores the most recent observations from `~/.claude/instincts/<project-hash>/observations.jsonl`, and reports a drift score with the top off-goal tool calls. Backed by the `ci_goal_check` MCP tool (expert mode) and the `goal-monitor` skill.
+Reads the `## Goal` section of `task_plan.md` (plus optional `## Goal Keywords` and `## Goal Scope` sections), scores the most recent observations from `~/.claude/instincts/<project-hash>/observations.jsonl`, and reports a drift score with the top off-goal tool calls. Backed by the `ci_goal_check` MCP tool (expert mode; the plugin install registers the server in that mode) and the `goal-monitor` skill.
 
 ## How to invoke
 

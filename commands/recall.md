@@ -9,7 +9,7 @@ Search this project's observation history for relevant prior activity and return
 
 ## What it does
 
-Builds an in-memory BM25 index over `~/.claude/instincts/<project-hash>/observations.jsonl` and returns the top matches with redacted snippets, relevance scores, and timestamps. Backed by the `ci_recall` MCP tool (expert mode) and the `recall` skill.
+Builds an in-memory BM25 index over `~/.claude/instincts/<project-hash>/observations.jsonl` and returns the top matches with redacted snippets, relevance scores, and timestamps. Backed by the `ci_recall` MCP tool (expert mode; the plugin install registers the server in that mode) and the `recall` skill.
 
 ## How to invoke
 
