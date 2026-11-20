@@ -23,7 +23,10 @@ interface LintJsonResult {
     writeTools: number;
   };
   violations: Array<{
+    event?: number;
     law: number;
+    message: string;
+    severity: string;
   }>;
 }
 
@@ -387,7 +390,7 @@ describe("lint-transcript.mjs", () => {
     const filePath = join(tempDir, "transcript.jsonl");
     const githubOutput = join(tempDir, "github-output.txt");
     const events: TranscriptEvent[] = [
-      { tool: "Write", event: "tool_start", tool_input: { file_path: "/tmp/a.ts" } },
+      { tool: "Write", event: "tool_start", tool_input: { file_path: "/repo/src/a.ts" } },
     ];
     writeFileSync(filePath, events.map((event) => JSON.stringify(event)).join("\n") + "\n");
 
@@ -397,8 +400,9 @@ describe("lint-transcript.mjs", () => {
         env: { ...process.env, GITHUB_OUTPUT: githubOutput },
       });
       const output = readFileSync(githubOutput, "utf8");
-      assert.match(output, /^violations=3$/m);
-      assert.match(output, /^score=14$/m);
+      // One unresearched, unverified write is one Law 1 and one Law 4 violation.
+      assert.match(output, /^violations=2$/m);
+      assert.match(output, /^score=43$/m);
       const reportMatch = output.match(/^report<<CI_REPORT_EOF\n([\s\S]*?)\nCI_REPORT_EOF$/m);
       assert.ok(reportMatch, "GITHUB_OUTPUT should contain a multiline report output");
       assert.match(reportMatch[1] ?? "", /Agent Discipline Report/);
@@ -448,7 +452,7 @@ describe("lint-transcript.mjs", () => {
       assert.equal(result.stats.writeTools, 3);
       assert.equal(result.stats.researchTools, 0);
       assert.equal(result.stats.verifyTools, 0);
-      assert.deepEqual(lawsOf(result), [1, 1, 1, 1, 4]);
+      assert.deepEqual(lawsOf(result), [1, 4], "one Law 1 violation for the session, not one per write");
     });
 
     it("reads research and the Bash command of a disciplined session, which stays clean under --strict", () => {
@@ -475,7 +479,7 @@ describe("lint-transcript.mjs", () => {
       const result = JSON.parse(lintRows(OBSERVATIONS_WITH_VIOLATIONS, ["--json"]).stdout) as LintJsonResult;
       assert.equal(result.stats.writeTools, 2);
       assert.equal(result.stats.verifyTools, 1, "the Bash command lives in input_summary");
-      assert.deepEqual(lawsOf(result), [1, 1, 1], "Law 1 only: the test run rules out Law 4");
+      assert.deepEqual(lawsOf(result), [1], "Law 1 only, once: the test run rules out Law 4");
 
       const strict = lintRows(OBSERVATIONS_WITH_VIOLATIONS, ["--strict"]);
       assert.match(strict.stdout, /Law 1: Research Before Executing/);
@@ -587,7 +591,7 @@ describe("lint-transcript.mjs", () => {
       ];
       const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
       assert.equal(result.stats.writeTools, 2);
-      assert.deepEqual(lawsOf(result), [1, 1, 1, 4]);
+      assert.deepEqual(lawsOf(result), [1, 4]);
 
       const strict = lintRows(rows, ["--strict"]);
       assert.doesNotMatch(strict.stdout, /No law violations/);
@@ -616,7 +620,7 @@ describe("lint-transcript.mjs", () => {
       ];
       const fromObservations = JSON.parse(lintRows(observations, ["--json"]).stdout) as LintJsonResult;
       assert.equal(fromObservations.stats.writeTools, 2);
-      assert.deepEqual(lawsOf(fromObservations), [1, 1, 1, 4]);
+      assert.deepEqual(lawsOf(fromObservations), [1, 4]);
 
       const flat = [
         { tool: "MultiEdit", tool_input: { file_path: "/repo/src/a.ts" } },
@@ -630,6 +634,209 @@ describe("lint-transcript.mjs", () => {
       const output = execFileSync("node", [LINTER, "--help"], { encoding: "utf8" });
       assert.match(output, /Not counted as a write/);
       assert.match(output, /shell command/);
+    });
+  });
+
+  // Law 1 was written for a flat log and counted only Read, Grep and Glob as
+  // research. In a real session most lookups go through a shell, a web fetch or
+  // a subagent: of 18 real transcripts flagged HIGH, 17 had 3 to 26 such
+  // lookups before the first write. Every write before the first Read was also
+  // its own HIGH, so three of them scored 0.
+  describe("Law 1: research is any read-only lookup, judged once per session", () => {
+    const edit = (id: string, file = "/repo/src/a.ts"): unknown[] =>
+      transcriptToolCall(id, "Edit", { file_path: file, old_string: "a", new_string: "b" });
+    const test = (id: string): unknown[] => transcriptToolCall(id, "Bash", { command: "npm test" });
+
+    it("counts shell reads as research (a real transcript shape: shell reads, then a write)", () => {
+      const rows = [
+        ...transcriptToolCall("toolu_1", "Bash", { command: "git log --oneline -5", description: "Recent commits" }),
+        ...transcriptToolCall("toolu_2", "Bash", { command: "cd /repo && cat src/a.ts | head -40" }),
+        ...transcriptToolCall("toolu_3", "PowerShell", { command: "Get-Content src/a.ts -TotalCount 40" }),
+        ...edit("toolu_4"),
+        ...test("toolu_5"),
+      ];
+      const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
+      assert.equal(result.stats.researchTools, 3);
+      assert.deepEqual(lawsOf(result), []);
+      assert.equal(lintRows(rows, ["--strict"]).status, 0);
+    });
+
+    for (const [tool, input] of [
+      ["WebFetch", { url: "https://example.com/docs", prompt: "how does retry work" }],
+      ["WebSearch", { query: "fetch retry backoff" }],
+      ["Agent", { description: "Explore the fetch helper", prompt: "Find every caller" }],
+      ["Task", { description: "Explore the fetch helper", prompt: "Find every caller" }],
+      ["NotebookRead", { notebook_path: "/repo/analysis.ipynb" }],
+    ] as const) {
+      it(`counts a ${tool} call as research`, () => {
+        const rows = [...transcriptToolCall("toolu_1", tool, input), ...edit("toolu_2"), ...test("toolu_3")];
+        const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
+        assert.equal(result.stats.researchTools, 1);
+        assert.deepEqual(lawsOf(result), []);
+      });
+    }
+
+    it("reads the shell command of an observations.jsonl row and of a flat event", () => {
+      const observations = [
+        observation("Bash", "git status --short"),
+        observation("PowerShell", '{"command":"Get-Content src/a.ts","description":"Read the file"}'),
+        observation("Edit", "/repo/src/a.ts"),
+        observation("Bash", "npm test"),
+      ];
+      const fromObservations = JSON.parse(lintRows(observations, ["--json"]).stdout) as LintJsonResult;
+      assert.equal(fromObservations.stats.researchTools, 2);
+      assert.deepEqual(lawsOf(fromObservations), []);
+
+      const flat = [
+        { tool: "Bash", tool_input: { command: "rg -n retry src" } },
+        { tool: "Edit", tool_input: { file_path: "/repo/src/a.ts" } },
+        { tool: "Bash", tool_input: { command: "npm test" } },
+      ];
+      assert.deepEqual(lawsOf(JSON.parse(lintRows(flat, ["--json"]).stdout) as LintJsonResult), []);
+    });
+
+    it("still reports a write that follows only shell commands that look nothing up", () => {
+      const rows = [
+        ...transcriptToolCall("toolu_1", "Bash", { command: "npm install" }),
+        ...transcriptToolCall("toolu_2", "Bash", { command: "mkdir -p src/new && echo cat > src/new/README" }),
+        ...transcriptToolCall("toolu_3", "Bash", { command: "npm install 2>&1 | tail -5" }),
+        ...edit("toolu_4"),
+        ...test("toolu_5"),
+      ];
+      const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
+      assert.equal(result.stats.researchTools, 0);
+      assert.deepEqual(lawsOf(result), [1]);
+      assert.equal(result.violations[0]?.severity, "high");
+      assert.equal(lintRows(rows, ["--strict"]).status, 1);
+    });
+
+    it("reports at most one Law 1 violation for a session, however many writes came first", () => {
+      const rows = [
+        ...edit("toolu_1"), ...edit("toolu_2"), ...edit("toolu_3"), ...edit("toolu_4"), ...edit("toolu_5"),
+        ...test("toolu_6"),
+      ];
+      const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
+      assert.deepEqual(lawsOf(result), [1]);
+      assert.equal(result.violations[0]?.severity, "high");
+      assert.equal(result.violations[0]?.event, 0);
+      assert.match(result.violations[0]?.message ?? "", /5 writes with 0 research operations/);
+      assert.equal(result.score, 71, "one HIGH, not six");
+    });
+
+    it("names the first write when research came only after it", () => {
+      const rows = [
+        ...edit("toolu_1"), ...edit("toolu_2"),
+        ...transcriptToolCall("toolu_3", "Read", { file_path: "/repo/src/a.ts" }),
+        ...edit("toolu_4"),
+        ...test("toolu_5"),
+      ];
+      const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
+      assert.deepEqual(lawsOf(result), [1]);
+      assert.match(result.violations[0]?.message ?? "", /Write\/Edit at event 0 without any prior research/);
+      assert.match(result.violations[0]?.message ?? "", /2 of 3 writes/);
+    });
+
+    it("keeps the write-to-research ratio as one MEDIUM for a researched session", () => {
+      const rows = [
+        ...transcriptToolCall("toolu_1", "Read", { file_path: "/repo/src/a.ts" }),
+        ...edit("toolu_2"), ...edit("toolu_3"), ...edit("toolu_4"), ...edit("toolu_5"),
+        ...test("toolu_6"),
+      ];
+      const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
+      assert.deepEqual(lawsOf(result), [1]);
+      assert.equal(result.violations[0]?.severity, "medium");
+      assert.match(result.violations[0]?.message ?? "", /ratio is 4:1/);
+    });
+
+    describe("research is tracked per session id", () => {
+      const inSession = (session: string, tool: string, summary: string): unknown =>
+        ({ ...(observation(tool, summary, "ok") as Record<string, unknown>), session });
+
+      it("does not let one session's lookup cover another session's write", () => {
+        const rows = [
+          inSession("sess-aaaaaaaa", "Read", "/repo/src/a.ts"),
+          inSession("sess-bbbbbbbb", "Edit", "/repo/src/b.ts"),
+          inSession("sess-aaaaaaaa", "Edit", "/repo/src/a.ts"),
+          inSession("sess-aaaaaaaa", "Bash", "npm test"),
+        ];
+        const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
+        assert.deepEqual(lawsOf(result), [1]);
+        assert.equal(result.violations[0]?.event, 1);
+        assert.match(result.violations[0]?.message ?? "", /sess-bbb/);
+      });
+
+      it("does not blame a researched session for a write another session made first", () => {
+        const rows = [
+          inSession("sess-bbbbbbbb", "Read", "/repo/src/b.ts"),
+          inSession("sess-aaaaaaaa", "Read", "/repo/src/a.ts"),
+          inSession("sess-bbbbbbbb", "Edit", "/repo/src/b.ts"),
+          inSession("sess-aaaaaaaa", "Edit", "/repo/src/a.ts"),
+          inSession("sess-aaaaaaaa", "Bash", "npm test"),
+        ];
+        assert.deepEqual(lawsOf(JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult), []);
+      });
+
+      it("reports one violation for each session that wrote without research", () => {
+        const rows = [
+          inSession("sess-aaaaaaaa", "Edit", "/repo/src/a.ts"),
+          inSession("sess-aaaaaaaa", "Edit", "/repo/src/a.ts"),
+          inSession("sess-bbbbbbbb", "Write", "/repo/src/b.ts"),
+          inSession("sess-bbbbbbbb", "Bash", "npm test"),
+        ];
+        const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
+        assert.deepEqual(lawsOf(result), [1, 1]);
+        assert.match(result.violations[0]?.message ?? "", /sess-aaa/);
+        assert.match(result.violations[1]?.message ?? "", /sess-bbb/);
+      });
+    });
+
+    // A transcript that picks up a session which began before the file did: the
+    // research, if any, is in rows the file does not hold.
+    describe("a write at the head of a transcript whose session started earlier", () => {
+      const COMPACTED_HEAD: unknown[] = [
+        { type: "system", subtype: "compact_boundary", sessionId: "sess-transcript", content: "Conversation compacted", compactMetadata: { trigger: "auto" } },
+        { type: "user", sessionId: "sess-transcript", isCompactSummary: true, message: { role: "user", content: "This session is being continued from a previous conversation." } },
+      ];
+
+      it("is not flagged after a compaction summary", () => {
+        const rows = [...COMPACTED_HEAD, ...edit("toolu_1"), ...edit("toolu_2"), ...edit("toolu_3"), ...edit("toolu_4"), ...test("toolu_5")];
+        const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
+        assert.equal(result.stats.writeTools, 4);
+        assert.deepEqual(lawsOf(result), [], "neither the HIGH nor a 4:0 ratio");
+      });
+
+      it("is not flagged when the file opens with the result of a call it does not hold", () => {
+        const rows = [
+          { type: "user", sessionId: "sess-transcript", message: { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_before_the_file", content: "ok" }] } },
+          ...edit("toolu_1"),
+          ...test("toolu_2"),
+        ];
+        assert.deepEqual(lawsOf(JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult), []);
+      });
+
+      it("is flagged when nothing says the session started earlier", () => {
+        const rows = [
+          { type: "user", sessionId: "sess-transcript", message: { role: "user", content: "add a retry" } },
+          ...edit("toolu_1"),
+          ...test("toolu_2"),
+        ];
+        assert.deepEqual(lawsOf(JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult), [1]);
+      });
+
+      it("is flagged when the compaction came after the write", () => {
+        const rows = [...edit("toolu_1"), ...COMPACTED_HEAD, ...edit("toolu_2"), ...test("toolu_3")];
+        const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
+        assert.deepEqual(lawsOf(result), [1]);
+        assert.equal(result.violations[0]?.severity, "high");
+      });
+    });
+
+    it("--help lists what counts as research", () => {
+      const output = execFileSync("node", [LINTER, "--help"], { encoding: "utf8" });
+      assert.match(output, /Law 1/);
+      assert.match(output, /WebFetch/);
+      assert.match(output, /read-only shell command/);
+      assert.match(output, /once per session/);
     });
   });
 

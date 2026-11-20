@@ -36,6 +36,19 @@
  * written through a shell command (a redirect, Set-Content, sed -i) is a Bash
  * or PowerShell call and is not counted as a write.
  *
+ * Law 1, research before executing. Research is a read-only lookup, whatever
+ * tool carried it: Read, Grep, Glob, NotebookRead, WebFetch, WebSearch, an
+ * Agent or Task call, and a Bash or PowerShell call that runs a reader at a
+ * command position of its command line (cat, rg, git log, gh pr view,
+ * Get-Content and the rest of the list in lib/shell-intent.mjs). Research is
+ * tracked per session id. A session whose first write comes before its first
+ * lookup is one HIGH violation, however many writes came first; a researched
+ * session with more than three writes per lookup is one MEDIUM. A transcript
+ * that picks up a session which began before the file did (it opens with a
+ * compaction summary, or with the result of a call the file does not hold) is
+ * not flagged for the writes at its head: the research, if any, is in rows the
+ * file does not have.
+ *
  * Usage:
  *   node bin/lint-transcript.mjs <file.jsonl>         # Lint a transcript file
  *   cat observations.jsonl | node bin/lint-transcript.mjs --stdin  # Pipe input
@@ -48,6 +61,8 @@
 
 import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
+
+import { isReadOnlyLookup } from "../lib/shell-intent.mjs";
 
 type LawNumber = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 type Severity = "high" | "medium";
@@ -200,16 +215,44 @@ function isThinObservationRow(row: Record<string, unknown>): boolean {
 
 /** What normaliseRow carries from one row of a file to the next. */
 interface NormaliseState {
+  /** Sessions a transcript picks up after they began, see startsBeforeFile. */
+  continuedSessions: Set<string>;
   /** Open tool_start rows of an observation log, see isCompletionOfCountedStart. */
   pendingStarts: Map<string, number>;
   /** Thin observation rows set aside so far, see isThinObservationRow. */
   rowsWithoutInput: number;
   /** The tool_use ids of a transcript that are already counted. */
   seenToolUseIds: Set<string>;
+  /** Transcript sessions that have made a tool call in the rows read so far. */
+  sessionsWithCalls: Set<string>;
 }
 
 function newNormaliseState(): NormaliseState {
-  return { pendingStarts: new Map<string, number>(), rowsWithoutInput: 0, seenToolUseIds: new Set<string>() };
+  return {
+    continuedSessions: new Set<string>(),
+    pendingStarts: new Map<string, number>(),
+    rowsWithoutInput: 0,
+    seenToolUseIds: new Set<string>(),
+    sessionsWithCalls: new Set<string>(),
+  };
+}
+
+/**
+ * True for a transcript row which shows that its session began before the
+ * file did: a compaction boundary or the summary that follows it, or the
+ * result of a tool call the file has not shown. Read before the session's
+ * first tool call, such a row means the lookups that led to the next write
+ * may sit in rows the file does not hold.
+ */
+function startsBeforeFile(row: Record<string, unknown>, content: unknown, seenToolUseIds: ReadonlySet<string>): boolean {
+  if (row.isCompactSummary === true || (row.type === "system" && row.subtype === "compact_boundary")) {
+    return true;
+  }
+  return row.type === "user" && Array.isArray(content) && content.some((block) =>
+    isObject(block)
+    && block.type === "tool_result"
+    && typeof block.tool_use_id === "string"
+    && !seenToolUseIds.has(block.tool_use_id));
 }
 
 /**
@@ -228,8 +271,13 @@ function normaliseRow(row: unknown, state: NormaliseState): TranscriptEvent[] {
   // Claude Code transcript: every row is an envelope with a `type`, and only
   // the tool_use blocks of an assistant message are tool calls.
   if (!hasToolName && typeof row.type === "string") {
-    const content = row.type === "assistant" && isObject(row.message) ? row.message.content : undefined;
-    if (!Array.isArray(content)) {
+    const sessionId = typeof row.sessionId === "string" ? row.sessionId : undefined;
+    const sessionKey = sessionId ?? "";
+    const content = isObject(row.message) ? row.message.content : undefined;
+    if (!state.sessionsWithCalls.has(sessionKey) && startsBeforeFile(row, content, state.seenToolUseIds)) {
+      state.continuedSessions.add(sessionKey);
+    }
+    if (row.type !== "assistant" || !Array.isArray(content)) {
       return [];
     }
     const events: TranscriptEvent[] = [];
@@ -245,9 +293,12 @@ function normaliseRow(row: unknown, state: NormaliseState): TranscriptEvent[] {
         events.push({
           tool: canonicalTool(block.name),
           tool_input: isObject(block.input) ? withFilePath(block.input as ToolPayload) : {},
-          session_id: typeof row.sessionId === "string" ? row.sessionId : undefined,
+          session_id: sessionId,
         });
       }
+    }
+    if (events.length > 0) {
+      state.sessionsWithCalls.add(sessionKey);
     }
     return events;
   }
@@ -291,7 +342,40 @@ function normaliseRow(row: unknown, state: NormaliseState): TranscriptEvent[] {
   return [row as TranscriptEvent];
 }
 
-function analyzeTranscript(events: TranscriptEvent[], parseFailures: number, rowsWithoutInput: number): AnalysisResult {
+/** What the rows of a file said beyond their tool calls. */
+interface FileContext {
+  /** Sessions a transcript picks up after they began, see startsBeforeFile. */
+  continuedSessions: ReadonlySet<string>;
+  parseFailures: number;
+  rowsWithoutInput: number;
+}
+
+/** A lookup that changes nothing is research, whatever tool carried it. */
+const RESEARCH_TOOLS: ReadonlySet<string> = new Set([
+  "Read", "Grep", "Glob", "NotebookRead", "WebFetch", "WebSearch", "Agent", "Task",
+]);
+const WRITE_TOOLS: ReadonlySet<string> = new Set(["Write", "Edit"]);
+
+/** `command` is the command line of a Bash call (PowerShell is read as Bash). */
+function isResearchCall(tool: string, command: string): boolean {
+  return RESEARCH_TOOLS.has(tool) || (tool === "Bash" && isReadOnlyLookup(command));
+}
+
+/** What one session did, as far as Law 1 asks. */
+interface SessionResearch {
+  research: number;
+  writes: number;
+  /** Writes made before the session's first lookup, and the event index of the first of them. */
+  writesBeforeResearch: number;
+  firstWriteBeforeResearch: number;
+}
+
+function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
+function analyzeTranscript(events: TranscriptEvent[], context: FileContext): AnalysisResult {
+  const { parseFailures, rowsWithoutInput } = context;
   const violations: Violation[] = [];
   const stats: TranscriptStats = {
     totalEvents: events.length,
@@ -303,8 +387,10 @@ function analyzeTranscript(events: TranscriptEvent[], parseFailures: number, row
     sessions: new Set<string>(),
     parseFailures,
   };
+  const researchBySession = new Map<string, SessionResearch>();
 
-  for (const event of events) {
+  for (let index = 0; index < events.length; index++) {
+    const event = events[index] as TranscriptEvent;
     stats.toolCalls++;
     if (event.session_id) {
       stats.sessions.add(event.session_id);
@@ -314,46 +400,54 @@ function analyzeTranscript(events: TranscriptEvent[], parseFailures: number, row
     const input = event.tool_input || event.input || {};
     const command = typeof input.command === "string" ? input.command : "";
 
-    if (["Grep", "Glob", "Read"].includes(tool)) {
-      stats.researchTools++;
+    const sessionKey = event.session_id ?? "";
+    let session = researchBySession.get(sessionKey);
+    if (!session) {
+      session = { research: 0, writes: 0, writesBeforeResearch: 0, firstWriteBeforeResearch: -1 };
+      researchBySession.set(sessionKey, session);
     }
-    if (["Write", "Edit"].includes(tool)) {
+
+    if (isResearchCall(tool, command)) {
+      stats.researchTools++;
+      session.research++;
+    }
+    if (WRITE_TOOLS.has(tool)) {
       stats.writeTools++;
+      session.writes++;
+      if (session.research === 0) {
+        session.writesBeforeResearch++;
+        if (session.firstWriteBeforeResearch === -1) {
+          session.firstWriteBeforeResearch = index;
+        }
+      }
     }
     if (tool === "Bash" && /\b(test|build|npm run|jest|vitest|bun test|deno test|ava|tap|mocha|pytest|go test|cargo test|gradle test|mvn test)\b/.test(command)) {
       stats.verifyTools++;
     }
   }
 
-  let lastResearchIdx = -1;
-  for (let index = 0; index < events.length; index++) {
-    const tool = events[index]?.tool || events[index]?.tool_name || "";
-    if (["Grep", "Glob", "Read"].includes(tool)) {
-      lastResearchIdx = index;
-    }
-    if (["Write", "Edit"].includes(tool) && lastResearchIdx === -1) {
+  // Law 1: at most one violation per session.
+  for (const [sessionKey, session] of researchBySession) {
+    const label = researchBySession.size > 1 ? `Session ${sessionKey.slice(0, 8) || "(none)"}: ` : "";
+    // The lookups of a session the file picks up part-way may be in rows it does not hold.
+    const continued = context.continuedSessions.has(sessionKey);
+    if (session.writesBeforeResearch > 0 && !continued) {
+      const at = session.firstWriteBeforeResearch;
       violations.push({
         law: 1,
         severity: "high",
-        message: `Write/Edit at event ${index} without any prior research (Grep/Glob/Read)`,
-        event: index,
+        message: label + (session.research === 0
+          ? `${plural(session.writes, "write")} with 0 research operations (first at event ${at}). Agent likely skipped research.`
+          : `Write/Edit at event ${at} without any prior research (${session.writesBeforeResearch} of ${plural(session.writes, "write")} came before the first lookup).`),
+        event: at,
       });
-      // Continue checking for more violations
+    } else if (session.writes > session.research * 3 && !(continued && session.research === 0)) {
+      violations.push({
+        law: 1,
+        severity: "medium",
+        message: `${label}Write-to-research ratio is ${session.writes}:${session.research}. Consider more research.`,
+      });
     }
-  }
-
-  if (stats.writeTools > 0 && stats.researchTools === 0) {
-    violations.push({
-      law: 1,
-      severity: "high",
-      message: `${stats.writeTools} writes with 0 research operations. Agent likely skipped research.`,
-    });
-  } else if (stats.writeTools > stats.researchTools * 3) {
-    violations.push({
-      law: 1,
-      severity: "medium",
-      message: `Write-to-research ratio is ${stats.writeTools}:${stats.researchTools}. Consider more research.`,
-    });
   }
 
   let consecutiveEdits = 0;
@@ -362,7 +456,7 @@ function analyzeTranscript(events: TranscriptEvent[], parseFailures: number, row
     const tool = event.tool || event.tool_name || "";
     const input = event.tool_input || event.input || {};
 
-    if (["Write", "Edit"].includes(tool)) {
+    if (WRITE_TOOLS.has(tool)) {
       consecutiveEdits++;
       if (typeof input.file_path === "string") {
         editedFiles.add(input.file_path);
@@ -481,6 +575,19 @@ A write is a Write, Edit, MultiEdit or NotebookEdit call.
 Not counted as a write: a file written through a shell command
 (a redirect, Set-Content, sed -i).
 
+Law 1, research before executing:
+  Research is a read-only lookup, whatever tool carried it: Read, Grep, Glob,
+  NotebookRead, WebFetch, WebSearch, an Agent or Task call, or a
+  read-only shell command through Bash or PowerShell, at a command position
+  of the line: cat, head, tail, less, sed -n, rg, grep, ls, find without
+  -delete, git grep/show/log/diff/status/blame, gh view/list and a gh api
+  call that sends nothing, curl without an upload, Get-Content,
+  Select-String, Get-ChildItem, Test-Path.
+  Judged once per session id: a session whose first write comes before its
+  first lookup is one HIGH violation, however many writes came first.
+  Not flagged: the writes at the head of a transcript whose session began
+  before the file did (it opens with a compaction summary).
+
 Options:
   --stdin     Read from stdin
   --strict    Exit 1 if violations found
@@ -538,7 +645,11 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const result = analyzeTranscript(events, parseFailures, state.rowsWithoutInput);
+  const result = analyzeTranscript(events, {
+    continuedSessions: state.continuedSessions,
+    parseFailures,
+    rowsWithoutInput: state.rowsWithoutInput,
+  });
   const report = formatReport(result);
 
   if (isJson) {
