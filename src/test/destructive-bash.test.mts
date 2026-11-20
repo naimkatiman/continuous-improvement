@@ -711,6 +711,9 @@ describe("lib/destructive-bash — classifier table", () => {
     ['git commit -am "chore: drop table of contents from the README"', "Bash"],
     ['git commit -sm "fix(ci): stop calling git reset --hard in the release script"', "Bash"],
     ['git tag -am "release: the drop table migration is 0043" v1.2.0', "Bash"],
+    // Any short cluster of a git command that ends in m: -u and -S are flags too.
+    ['git stash push -um "wip: before rm -rf of the old build dir"', "Bash"],
+    ['git commit -Sm "docs: drop table of contents from the README"', "Bash"],
     ["git commit -am \"$(cat <<'EOF'\nfix: the helper ran rm -rf on the cache\nEOF\n)\"", "Bash"],
     ['gh pr comment 271 -b "the gate now covers rm -rf behind pwsh -c"', "Bash"],
     ['gh pr create -t "fix(hooks): gate git reset --hard behind -C" -b "see the plan doc"', "Bash"],
@@ -764,6 +767,8 @@ describe("lib/destructive-bash — classifier table", () => {
     ['gh pr comment 1 -b "x"; git push --force origin main', "git-push-force", "Bash"],
     // Outside git and gh these letters are other flags, and their next word is not a message.
     ["xargs -t rm -rf < list.txt", "substring:rm -rf", "Bash"],
+    ['deploy-tool -am "rm -rf /srv/app/build"', "substring:rm -rf", "Bash"],
+    ['runner -b "git reset --hard origin/main" -t nightly', "substring:git reset --hard", "Bash"],
     ["docker exec -t app rm -rf /data", "substring:rm -rf", "Bash"],
     ["Remove-Item build -Confirm -Recurse", "powershell-remove-item", "PowerShell"],
     // An unclosed quote hides nothing.

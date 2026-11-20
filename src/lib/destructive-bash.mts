@@ -787,10 +787,10 @@ function matchStructuredRule(tokens: string[], piped: boolean, powershell: boole
 const SEARCH_COMMANDS: ReadonlySet<string> = new Set(["grep", "egrep", "fgrep", "rg", "findstr", "select-string", "sls"]);
 // Commands that only print their arguments.
 const PRINT_COMMANDS: ReadonlySet<string> = new Set(["echo", "printf", "write-host", "write-output"]);
-// git's short flags that take no value, clustered in front of `m`: `-am`, `-sm`.
-// The letters are spelled out so that no PowerShell parameter (`-Confirm`,
-// `-From`) and no other program's flag is read as a message flag.
-const GIT_MESSAGE_CLUSTER_RE = /^-[aenpqsv]{1,4}m$/;
+// A cluster of git's short flags that ends in `m`: `-am`, `-sm`, `-um`, `-Sm`.
+// It is read on a git command only, so no PowerShell parameter (`-Confirm`,
+// `-From`) and no other program's flag is taken for a message flag.
+const GIT_MESSAGE_CLUSTER_RE = /^-[A-Za-z]{1,4}m$/;
 // gh's short spellings of --body, --title and --notes.
 const GH_MESSAGE_FLAG_RE = /^-[btn]$/;
 
