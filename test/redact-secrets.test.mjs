@@ -61,3 +61,28 @@ describe("redactSecrets: assignment names", () => {
         });
     }
 });
+// The value used to end at the first whitespace, so a quoted passphrase lost
+// only its first word and the rest was written at rest.
+describe("redactSecrets: quoted values", () => {
+    const redacted = [
+        ['DB_PASSWORD="correct horse battery staple" ./run.sh', 'DB_PASSWORD="<redacted>" ./run.sh'],
+        ["API_TOKEN='part one part two' ./run.sh", "API_TOKEN='<redacted>' ./run.sh"],
+        ['$env:DB_PASSWORD = "two words"; ./run.ps1', '$env:DB_PASSWORD = "<redacted>"; ./run.ps1'],
+        ['$Password = "hunter2 SECRET value"', '$Password = "<redacted>"'],
+        // The same assignment inside serialised JSON, where the quotes are escaped.
+        ['{"command":"$env:DB_PASSWORD = \\"two words\\"; ./run.ps1"}', '{"command":"$env:DB_PASSWORD = \\"<redacted>\\"; ./run.ps1"}'],
+        // An opening quote with no closing one still hides everything after it.
+        ['DB_PASSWORD="correct horse battery', 'DB_PASSWORD="<redacted>"'],
+        // An unquoted value is unchanged: it ends at the first whitespace.
+        [`API_TOKEN=${SECRET} ./deploy.sh`, "API_TOKEN=<redacted> ./deploy.sh"],
+    ];
+    for (const [text, expected] of redacted) {
+        it(`redacts ${JSON.stringify(text)}`, () => {
+            assert.equal(redactSecrets(text), expected);
+        });
+    }
+    it("is stable when run again over its own output", () => {
+        const once = redactSecrets('DB_PASSWORD="correct horse battery staple" TOKEN=abc ./run.sh');
+        assert.equal(redactSecrets(once), once);
+    });
+});

@@ -370,6 +370,18 @@ describe("observe.mjs keeps secrets out of observations.jsonl", () => {
       { command: `mysql -uroot --password=${LEAK} app` },
       { stdout: `SECRET=${LEAK}\nPASSWORD=${LEAK}\n`, stderr: "", interrupted: false },
     ],
+    [
+      "the words after the first of a quoted passphrase",
+      "Bash",
+      { command: `DB_PASSWORD="correct horse ${LEAK} staple" ./run.sh` },
+      { stdout: `API_TOKEN='part one ${LEAK}'\n`, stderr: "", interrupted: false },
+    ],
+    [
+      "a quoted passphrase in a PowerShell command",
+      "PowerShell",
+      { command: `$env:DB_PASSWORD = "two words ${LEAK}"; ./run.ps1`, description: "Run the script" },
+      "ok",
+    ],
   ];
   for (const [label, bin] of observers) {
     for (const [what, toolName, toolInput, toolResponse] of leakCases) {

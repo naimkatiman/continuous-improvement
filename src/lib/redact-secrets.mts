@@ -22,7 +22,19 @@
 const SECRET_NAME =
   String.raw`(?<![A-Za-z0-9_.-])(?!(?:OLD)?PWD\s*[:=]\s*(?:[/~.]|[A-Za-z]:[\\/]))` +
   String.raw`[A-Za-z0-9_.-]*(?:(?:KEY|SECRET|PASSWORD)S?|TOKEN|PASSWD|PWD)(?:_?[0-9]{1,3})?`;
-const SECRET_ASSIGNMENT_RE = new RegExp(String.raw`(${SECRET_NAME})(\s*[:=]\s*)(\S+)`, "gi");
+// The value side. A quoted value is taken whole, spaces included, in the three
+// spellings it shows up in: escaped quotes (the assignment sits inside
+// serialised JSON), double quotes and single quotes. An opening quote with no
+// closing one runs to the end of the text. Anything else ends at whitespace.
+const SECRET_VALUE = String.raw`\\"(?:[^"\\]|\\[^"])*(?:\\"|$)|"[^"]*(?:"|$)|'[^']*(?:'|$)|\S+`;
+const SECRET_ASSIGNMENT_RE = new RegExp(String.raw`(${SECRET_NAME})(\s*[:=]\s*)(${SECRET_VALUE})`, "gi");
+
+// Replace a matched value, keeping the quotes it was written in.
+function redactedValue(value: string): string {
+  if (value.startsWith('\\"')) return '\\"<redacted>\\"';
+  const quote = value[0];
+  return quote === '"' || quote === "'" ? `${quote}<redacted>${quote}` : "<redacted>";
+}
 
 /**
  * Redact common secret shapes from text. Conservative by design: matches AWS
@@ -33,7 +45,10 @@ export function redactSecrets(text: string): string {
   return text
     .replace(/AKIA[0-9A-Z]{16}/g, "AKIA<redacted>")
     .replace(/Bearer\s+[A-Za-z0-9._~+/-]{20,}=*/gi, "Bearer <redacted>")
-    .replace(SECRET_ASSIGNMENT_RE, "$1$2<redacted>")
+    .replace(
+      SECRET_ASSIGNMENT_RE,
+      (_match, name: string, separator: string, value: string) => `${name}${separator}${redactedValue(value)}`,
+    )
     .replace(/\b[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, "<jwt-redacted>")
     .replace(/\b[a-f0-9]{32,}\b/gi, "<hex-redacted>");
 }
