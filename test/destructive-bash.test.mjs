@@ -42,7 +42,53 @@ const CAUGHT = [
     ["git push --force origin main", "substring:git push --force"],
     ["git branch -D feat/old", "substring:git branch -D"],
     ["psql -c 'DROP TABLE users'", "substring:drop table"],
-    ["Remove-Item -Recurse -Force .\\dist", "substring:Remove-Item -Recurse"],
+    ["Remove-Item -Recurse -Force .\\dist", "powershell-remove-item"],
+];
+// PowerShell's delete was only recognised as the contiguous, switch-first
+// substrings "Remove-Item -Recurse" and "Remove-Item -Force". The spelling
+// PowerShell users actually write puts the path first or names it with -Path,
+// uses an alias, or abbreviates the switch, and every one of those was allowed.
+const POWERSHELL_DELETE_CAUGHT = [
+    ["Remove-Item build -Recurse -Force", "powershell-remove-item"],
+    ["Remove-Item -Path build -Recurse -Force", "powershell-remove-item"],
+    ["Remove-Item -LiteralPath C:\\work\\repo -Recurse -Force", "powershell-remove-item"],
+    ["Remove-Item .\\build\\* -Recurse -Force", "powershell-remove-item"],
+    ["Remove-Item $env:USERPROFILE\\.claude\\plugins -Recurse -Force", "powershell-remove-item"],
+    ["Remove-Item -Rec -Fo x", "powershell-remove-item"],
+    ["Remove-Item x -Recurse", "powershell-remove-item"],
+    ["Remove-Item x -Force", "powershell-remove-item"],
+    ["Remove-Item x -Force:$true", "powershell-remove-item"],
+    ["remove-item x -recurse -force", "powershell-remove-item"],
+    ["ri -r -fo build", "powershell-remove-item"],
+    ["rd -Recurse -Force build", "powershell-remove-item"],
+    ["del -Recurse -Force build", "powershell-remove-item"],
+    ["erase -Recurse -Force build", "powershell-remove-item"],
+    ["rmdir build -Recurse -Force", "powershell-remove-item"],
+    ["rm -Recurse -Force x", "powershell-remove-item"],
+    ["Remove-Item `\n  -Recurse -Force build", "powershell-remove-item"],
+    ["Remove-Item `\r\n  -Recurse -Force build", "powershell-remove-item"],
+    ["Get-ChildItem x | ri -r -fo", "powershell-remove-item"],
+    ["Get-ChildItem build -Recurse | Remove-Item", "powershell-remove-item-pipeline"],
+    ["gci *.log | del", "powershell-remove-item-pipeline"],
+    ["[System.IO.Directory]::Delete('build', $true)", "substring:io.directory]::delete("],
+    ["cmd /c rd /s /q build", "cmd-rmdir-tree"],
+    ["cmd.exe /C rmdir build /S /Q", "cmd-rmdir-tree"],
+];
+const POWERSHELL_DELETE_ALLOWED = [
+    "Remove-Item scratch.txt",
+    "Remove-Item -Path scratch.txt -Confirm:$false",
+    "ri scratch.txt",
+    "del scratch.txt",
+    "rd emptydir",
+    "Get-ChildItem -Recurse src",
+    "Get-ChildItem -Force",
+    "Copy-Item a b -Recurse -Force",
+    "Get-ChildItem x | Select-Object Name",
+    "Write-Output Remove-Item | Out-Null",
+    // The POSIX spelling of rm stays with rm-recursive-force, which needs both flags.
+    "rm -r tmp",
+    "rm -R tmp",
+    "rmdir -p a/b",
 ];
 const ALLOWED = [
     "rm -f scratch.txt",
@@ -83,6 +129,19 @@ describe("lib/destructive-bash — classifier table", () => {
             const verdict = classifyDestructiveBash(command);
             assert.equal(verdict.destructive, false, `expected allowed: ${command} (rule ${verdict.rule})`);
             assert.equal(verdict.rule, null);
+        });
+    }
+    for (const [command, rule] of POWERSHELL_DELETE_CAUGHT) {
+        it(`catches the PowerShell delete: ${JSON.stringify(command)}`, () => {
+            const verdict = classifyDestructiveBash(command);
+            assert.equal(verdict.destructive, true, `expected destructive: ${command}`);
+            assert.equal(verdict.rule, rule);
+        });
+    }
+    for (const command of POWERSHELL_DELETE_ALLOWED) {
+        it(`allows the PowerShell command: ${command}`, () => {
+            const verdict = classifyDestructiveBash(command);
+            assert.equal(verdict.destructive, false, `expected allowed: ${command} (rule ${verdict.rule})`);
         });
     }
     it("stripMessageArgs blanks message and body values but keeps the flag", () => {

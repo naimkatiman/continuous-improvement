@@ -590,7 +590,18 @@ describe("hooks/gateguard.mjs — the PowerShell tool is gated like Bash", () =>
     const shellTools = ["Bash", "PowerShell"];
     const blocked = [
         // [command, rule id the deny must name]
-        ["Remove-Item -Recurse -Force x", "substring:Remove-Item -Recurse"],
+        ["Remove-Item -Recurse -Force x", "powershell-remove-item"],
+        // The spellings PowerShell users actually write: the path first, a named
+        // path, an alias, an abbreviated switch, a pipeline into the cmdlet.
+        ["Remove-Item build -Recurse -Force", "powershell-remove-item"],
+        ["Remove-Item -Path build -Recurse -Force", "powershell-remove-item"],
+        ["Remove-Item -LiteralPath build -Recurse -Force", "powershell-remove-item"],
+        ["Remove-Item .\\build\\* -Recurse -Force", "powershell-remove-item"],
+        ["ri -r -fo build", "powershell-remove-item"],
+        ["rd -Recurse -Force build", "powershell-remove-item"],
+        ["del -Recurse -Force build", "powershell-remove-item"],
+        ["rmdir build -Recurse -Force", "powershell-remove-item"],
+        ["Get-ChildItem build -Recurse | Remove-Item", "powershell-remove-item-pipeline"],
         ["git push --force origin main", "substring:git push --force"],
         ["git reset --hard origin/main", "substring:git reset --hard"],
         [["rm", "-r", "-f", "dist"].join(" "), "rm-recursive-force"],
@@ -608,6 +619,7 @@ describe("hooks/gateguard.mjs — the PowerShell tool is gated like Bash", () =>
     }
     const allowed = [
         "Get-ChildItem -Recurse src",
+        "Remove-Item scratch.txt",
         "git status",
         "git push origin feat/x",
         '$headers = @{ Accept = "application/json" }',
