@@ -259,6 +259,115 @@ describe("hook-pack-gate: evaluatePush", () => {
   });
 });
 
+// The destination used to be the second bare word after `push`, verbatim: HEAD
+// was a branch called HEAD, a redirect was a refspec, and a quoted or fully
+// qualified name was not the protected name.
+describe("hook-pack-gate: the branch a push goes to", () => {
+  const gatedOn = (command: string, current: string | null): boolean => evaluatePush(command, current).gated;
+
+  const toCurrentBranch: ReadonlyArray<string> = [
+    "git push origin HEAD",
+    "git push -u origin HEAD",
+    "git push origin @",
+    "git push origin +HEAD",
+    "git push origin HEAD 2>&1 | tail -3",
+    "git push origin 2>&1",
+    "git push origin 2>/dev/null",
+    "git push origin 2>$null",
+    "git push > push.log 2>&1",
+    "git push origin # the upstream of this branch",
+    'git push origin "$(git branch --show-current)"',
+    "git push origin $(git branch --show-current)",
+    "git push -u origin $(git rev-parse --abbrev-ref HEAD) 2>&1 | tail -3",
+    "git push origin (git branch --show-current)",
+    "$r = git push origin HEAD 2>&1",
+    "if ($?) { git push origin HEAD }",
+    "if ($?) { git push origin $(git branch --show-current) }",
+  ];
+  for (const command of toCurrentBranch) {
+    it(`goes to the current branch: ${command}`, () => {
+      assert.equal(gatedOn(command, "main"), true, "on main");
+      assert.equal(gatedOn(command, "release/2.0"), true, "on release/2.0");
+      assert.equal(gatedOn(command, "feature/x"), false, "on feature/x");
+      assert.equal(gatedOn(command, null), false, "branch unknown");
+    });
+  }
+
+  const toMain: ReadonlyArray<string> = [
+    'git push origin "main"',
+    "git push origin 'main'",
+    "git push origin refs/heads/main",
+    "git push origin HEAD:refs/heads/main",
+    "git push origin main:refs/heads/main",
+    'git push origin "HEAD:main"',
+    "git push origin +main",
+    "git push origin main >/dev/null 2>&1",
+    "git push origin main > push.log",
+    "git push -o ci.skip origin main",
+    "git push --push-option merge_request.create origin main",
+    "git push origin main # ship it",
+  ];
+  for (const command of toMain) {
+    it(`goes to main: ${command}`, () => {
+      assert.deepEqual(evaluatePush(command, "feature/x"), { gated: true, branch: "main" });
+    });
+  }
+
+  const elsewhere: ReadonlyArray<string> = [
+    'git push origin "feature/x"',
+    "git push origin refs/heads/feature/x",
+    "git push origin HEAD:refs/for/main",
+    "git push origin refs/tags/main",
+    "git push origin feature/x 2> main",
+    "git push origin feature/x > main.log",
+    "git push origin feature/x # then open a PR against main",
+    "git push -o ci.skip origin feature/x",
+    "git push origin $branch",
+    'git push origin "$(git describe --tags)"',
+    // A push inside a group or block keeps its whole argument list: it is not
+    // cut at the `{` or `(` of an expansion, which left a bare `git push`.
+    "git push ${REMOTE} feature/x",
+    "(git push ${REMOTE} feature/x)",
+    "{ git push ${REMOTE} feature/x; }",
+    "if ($?) { git push $(Get-Remote) feature/x }",
+    "x=$(git push ${REMOTE:-origin} feature/x 2>&1)",
+    "if ($ok) { git push origin feature/x } else { Write-Host main }",
+    "try { git push origin main --dry-run } catch { git checkout main }",
+  ];
+  for (const command of elsewhere) {
+    it(`does not go to a protected branch: ${command}`, () => {
+      assert.equal(gatedOn(command, "main"), false);
+    });
+  }
+
+  // `git -C <dir> push` pushes the branch checked out in <dir>, and
+  // `git -C <dir> commit` commits what is staged there. The hook passes a
+  // lookup instead of a value so the right directory is asked.
+  it("asks for the branch of the directory the push runs in, and only when it is needed", () => {
+    const asked: string[][] = [];
+    const lookup = (dirs: readonly string[]): string | null => {
+      asked.push([...dirs]);
+      return dirs.join("|") === "../wt" || dirs.join("|") === "my repo" ? "main" : "feature/x";
+    };
+    assert.equal(evaluatePush("git -C ../wt push", lookup).gated, true);
+    assert.equal(evaluatePush('git -C "my repo" push origin HEAD', lookup).gated, true);
+    assert.equal(evaluatePush("git push", lookup).gated, false);
+    assert.equal(evaluatePush("git -C ../other push origin HEAD", lookup).gated, false);
+    assert.deepEqual(asked, [["../wt"], ["my repo"], [], ["../other"]]);
+    assert.equal(evaluatePush("git -C ../wt push origin feature/y", lookup).gated, false);
+    assert.equal(evaluatePush("git -C ../other push origin main", lookup).gated, true);
+    assert.equal(asked.length, 4, "an explicit branch needs no lookup");
+  });
+
+  it("counts the files staged in the directory the commit runs in", () => {
+    const staged = (dirs: readonly string[]): number => (dirs[0] === "../big" ? COMMIT_FILE_LIMIT + 1 : 1);
+    assert.equal(evaluateCommitSize("git -C ../big commit -m x", staged).gated, true);
+    assert.equal(evaluateCommitSize("git commit -m x", staged).gated, false);
+    assert.equal(evaluateCommitSize("git -C ../small commit -m x", staged).gated, false);
+    assert.equal(evaluateCommitSize("git -C ../big commit --amend --no-edit", staged).gated, false);
+  });
+});
+
 describe("hook-pack-gate: evaluateCommitSize", () => {
   it("gates a commit staging more than the limit", () => {
     assert.equal(evaluateCommitSize("git commit -m x", COMMIT_FILE_LIMIT + 1).gated, true);
@@ -487,6 +596,96 @@ describe("hooks/hook-pack.mjs commit-size gate (temp repo)", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+// The hook resolves "the current branch" itself, so these run it inside real
+// repositories: one checked out on main, one on a feature branch.
+describe("hooks/hook-pack.mjs — the branch a push goes to (temp repos)", () => {
+  const repos: string[] = [];
+  let onMain = "";
+  let onFeature = "";
+  let manyStaged = "";
+
+  function makeRepoOnBranch(branch: string, stagedFiles: number): string {
+    const dir = mkdtempSync(join(tmpdir(), "hookpack-branch-"));
+    const run = (args: string[]) => execFileSync("git", args, { cwd: dir, stdio: ["ignore", "ignore", "ignore"] });
+    run(["init", "-q"]);
+    run(["symbolic-ref", "HEAD", `refs/heads/${branch}`]);
+    run(["config", "user.email", "test@example.com"]);
+    run(["config", "user.name", "Test"]);
+    run(["config", "commit.gpgsign", "false"]);
+    run(["commit", "-q", "--allow-empty", "-m", "init"]);
+    for (let i = 0; i < stagedFiles; i += 1) writeFileSync(join(dir, `f${i}.txt`), `${i}\n`);
+    if (stagedFiles > 0) run(["add", "-A"]);
+    repos.push(dir);
+    // Forward slashes: the path goes into a command line for either shell.
+    return dir.replace(/\\/g, "/");
+  }
+
+  before(() => {
+    onMain = makeRepoOnBranch("main", 0);
+    onFeature = makeRepoOnBranch("feature/x", 0);
+    manyStaged = makeRepoOnBranch("feature/y", 16);
+  });
+  after(() => {
+    for (const dir of repos) rmSync(dir, { recursive: true, force: true });
+  });
+
+  const toCurrentBranch: ReadonlyArray<string> = [
+    "git push",
+    "git push 2>&1 | tail -3",
+    "git push origin HEAD",
+    "git push -u origin HEAD",
+    "git push origin HEAD 2>&1 | tail -3",
+    "git push origin 2>&1",
+    'git push origin "$(git branch --show-current)"',
+  ];
+  for (const tool of ["Bash", "PowerShell"]) {
+    for (const command of toCurrentBranch) {
+      it(`${tool} on main: block for ${command}`, () => {
+        const r = runHook(tool, { command }, "block", onMain);
+        assert.equal(r.decision, "block");
+        assert.match(r.reason ?? "", /protected branch "main"/);
+      });
+      it(`${tool} on a feature branch: allow for ${command}`, () => {
+        assert.equal(runHook(tool, { command }, "block", onFeature).decision, "allow");
+      });
+    }
+  }
+
+  for (const command of ['git push origin "main"', "git push origin 'main'", "git push origin refs/heads/main"]) {
+    it(`on a feature branch: block for ${command}`, () => {
+      const r = runHook("Bash", { command }, "block", onFeature);
+      assert.equal(r.decision, "block");
+      assert.match(r.reason ?? "", /protected branch "main"/);
+    });
+  }
+
+  it("git -C <dir> push is judged by the branch checked out in <dir>", () => {
+    for (const tool of ["Bash", "PowerShell"]) {
+      const intoMain = runHook(tool, { command: `git -C "${onMain}" push` }, "block", onFeature);
+      assert.equal(intoMain.decision, "block", `${tool}: a push from the main checkout`);
+      assert.match(intoMain.reason ?? "", /protected branch "main"/);
+      assert.equal(runHook(tool, { command: `git -C ${onMain} push origin HEAD` }, "block", onFeature).decision, "block");
+      assert.equal(
+        runHook(tool, { command: `git -C "${onFeature}" push` }, "block", onMain).decision,
+        "allow",
+        `${tool}: a push from the feature checkout, run while standing in the main one`,
+      );
+    }
+  });
+
+  it("git -C <dir> push with a directory that cannot be read is allowed", () => {
+    const r = runHook("Bash", { command: 'git -C "$WORKTREE" push' }, "block", onMain);
+    assert.equal(r.decision, "allow");
+  });
+
+  it("git -C <dir> commit is judged by what is staged in <dir>", () => {
+    const big = runHook("Bash", { command: `git -C "${manyStaged}" commit -m x` }, "block", onFeature);
+    assert.equal(big.decision, "block");
+    assert.match(big.reason ?? "", /more than 15 files/);
+    assert.equal(runHook("Bash", { command: `git -C "${onFeature}" commit -m x` }, "block", manyStaged).decision, "allow");
   });
 });
 
