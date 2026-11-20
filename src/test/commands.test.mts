@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { type SpawnSyncReturns, spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { before, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -263,5 +265,64 @@ describe("commands/verify-install.md", () => {
   it("requires a single pass/fail summary line", () => {
     assert.match(content, /✓ wired/);
     assert.match(content, /✗ /);
+  });
+
+  // The default file gate allows a new file, so a Write probe passes on a
+  // correct install and leaves the probe file behind. Check 2 must name a
+  // shell command the hook denies on a default install, and that deny must
+  // be the one the hook really emits.
+  it("probes the gateguard with a command a default install denies, and writes no file", () => {
+    const check2 = content.split("## Check 2")[1]?.split("## Check 3")[0] ?? "";
+    assert.ok(check2, "Check 2 section should exist");
+    assert.doesNotMatch(check2, /\.ci-verify-install-probe\.txt/);
+    assert.doesNotMatch(check2, /attempt to `Write`/);
+
+    const command = check2.match(/run `([^`]+)` through/)?.[1];
+    const reasonPrefix = check2.match(/the reason starts `([^`]+)`/)?.[1];
+    assert.ok(command, "Check 2 should name the probe command");
+    assert.ok(reasonPrefix, "Check 2 should name the deny reason it counts as the pass");
+
+    const tempHome = mkdtempSync(join(tmpdir(), "ci-verify-install-"));
+    try {
+      const env: NodeJS.ProcessEnv = { ...process.env, HOME: tempHome, USERPROFILE: tempHome };
+      delete env.CI_GATEGUARD_EXCLUDE;
+      delete env.CI_GATEGUARD_FILE_GATE;
+      for (const tool of ["Bash", "PowerShell"]) {
+        const payload: string = JSON.stringify({
+          session_id: "verify-install-probe",
+          hook_event_name: "PreToolUse",
+          tool_name: tool,
+          tool_input: { command },
+        });
+        const result: SpawnSyncReturns<string> = spawnSync(process.execPath, [join(__dirname, "..", "hooks", "gateguard.mjs")], {
+          input: payload,
+          encoding: "utf8",
+          env,
+        });
+        assert.equal(result.status, 0, result.stderr);
+        const output = JSON.parse(result.stdout) as {
+          hookSpecificOutput: { permissionDecision: string; permissionDecisionReason: string };
+        };
+        assert.equal(output.hookSpecificOutput.permissionDecision, "deny", `${tool} probe should be denied`);
+        assert.ok(
+          output.hookSpecificOutput.permissionDecisionReason.startsWith(reasonPrefix),
+          `${tool} deny reason should start with ${reasonPrefix}`,
+        );
+      }
+    } finally {
+      rmSync(tempHome, { recursive: true, force: true });
+    }
+  });
+
+  it("tells an unwired install what to check and points at a README heading that exists", () => {
+    const check2 = content.split("## Check 2")[1]?.split("## Check 3")[0] ?? "";
+    assert.match(check2, /node.*PATH/);
+    assert.match(check2, /restart Claude Code/i);
+
+    const heading = check2.match(/see README → ([^)`;]+)/)?.[1]?.trim();
+    assert.ok(heading, "Check 2 should point the reader at a README heading");
+    const readme = readFileSync(join(__dirname, "..", "README.md"), "utf8");
+    const headings = readme.split(/\r?\n/).filter((line) => /^#{2,6} /.test(line)).map((line) => line.replace(/^#+ /, "").trim());
+    assert.ok(headings.includes(heading), `README.md should have a heading "${heading}"`);
   });
 });
