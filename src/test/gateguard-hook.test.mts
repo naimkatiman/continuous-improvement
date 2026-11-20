@@ -958,6 +958,21 @@ describe("hooks/gateguard.mjs — the Monitor tool is gated like Bash", () => {
         assert.equal(run(tool, monitorInput(command)).decision, "allow");
       });
     }
+  }
+
+  // `git branch -d` is the safe delete (git refuses it for an unmerged branch).
+  // It was denied as `git branch -D`, with no way to clear the deny.
+  for (const tool of ["Bash", "PowerShell", "Monitor"]) {
+    it(`${tool} allows the safe branch delete and still blocks the forced one`, () => {
+      assert.equal(run(tool, monitorInput("git branch -d fix/merged-branch")).decision, "allow");
+      assert.equal(run(tool, monitorInput("git fetch --prune && git branch -d fix/merged-branch")).decision, "allow");
+      const forced = run(tool, monitorInput("git branch -D fix/merged-branch"));
+      assert.equal(forced.decision, "block");
+      assert.ok((forced.reason ?? "").includes("Matched rule: git-branch-force-delete"), forced.reason);
+    });
+  }
+
+  for (const tool of ["Bash", "Monitor"]) {
 
     it(`${tool} blocks an unquoted @{u} ref and prints the quoted fix`, () => {
       const decision = run(tool, monitorInput("git rev-list --left-right --count @{u}...HEAD"));

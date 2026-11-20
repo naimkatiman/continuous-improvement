@@ -593,6 +593,41 @@ describe("lib/destructive-bash — classifier table", () => {
             assert.equal(verdict.destructive, false, `expected allowed: ${command} (rule ${verdict.rule})`);
         });
     }
+    // `git branch -d` is the safe delete: git refuses it for an unmerged branch.
+    // The substring `git branch -D` was compared in lower case, so every `-d`
+    // that no global option separated from `branch` was denied as a force delete.
+    const SAFE_BRANCH_DELETE_ALLOWED = [
+        "git branch -d fix/merged-branch",
+        "git.exe branch -d fix/merged-branch",
+        "git fetch --prune && git branch -d fix/guard-regression",
+        "git branch -d fix/guard-regression; git fetch --prune",
+        "git branch --merged main | grep -v main | xargs -r git branch -d",
+        "git branch --merged | Where-Object { $_ -notmatch 'main' } | ForEach-Object { git branch -d $_.Trim() }",
+        'ssh build-host "cd repo && git branch -d fix/merged-branch"',
+    ];
+    for (const tool of [undefined, "Bash", "PowerShell", "Monitor"]) {
+        for (const command of SAFE_BRANCH_DELETE_ALLOWED) {
+            it(`allows the safe branch delete (${tool ?? "no tool named"}): ${command}`, () => {
+                assert.deepEqual(classifyDestructiveBash(command, tool), { destructive: false, rule: null });
+            });
+        }
+    }
+    const FORCE_BRANCH_DELETE_CAUGHT = [
+        ["git branch -D feat/old", "git-branch-force-delete"],
+        ["GIT.EXE branch -D feat/old", "git-branch-force-delete"],
+        ["git branch -d --force feat/old", "git-branch-force-delete"],
+        // Text no rule reads as a command keeps the substring, with its capital D.
+        ["git branch --merged | xargs git branch -D", "substring:git branch -D"],
+        ["git branch --merged | xargs -n1 git.exe branch -D", "substring:git branch -D"],
+        ['ssh build-host "cd repo && git branch -D feat/old"', "substring:git branch -D"],
+    ];
+    for (const tool of [undefined, "Bash", "PowerShell", "Monitor"]) {
+        for (const [command, rule] of FORCE_BRANCH_DELETE_CAUGHT) {
+            it(`still catches the force delete (${tool ?? "no tool named"}): ${command}`, () => {
+                assert.deepEqual(classifyDestructiveBash(command, tool), { destructive: true, rule });
+            });
+        }
+    }
     // A one-word message written without quotes ends at the separator that
     // follows it. The value pattern took every non-blank character, so the `;`
     // or `&&` went with the message and the next command was glued to the commit.

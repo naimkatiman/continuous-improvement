@@ -36,6 +36,7 @@
  * is dropped whole; any other body keeps the reach it had before the block
  * split existed (the plain split for a heredoc, the substring list for both).
  */
+const FORCE_BRANCH_DELETE = "git branch -D";
 export const DESTRUCTIVE_PATTERNS = [
     "rm -rf",
     "rm -fr",
@@ -43,7 +44,7 @@ export const DESTRUCTIVE_PATTERNS = [
     "git push --force",
     "git push -f",
     "--force-with-lease",
-    "git branch -D",
+    FORCE_BRANCH_DELETE,
     "drop table",
     "drop database",
     "drop schema",
@@ -752,9 +753,14 @@ function classify(command, powershell, depth) {
     const switchFirst = switchFirstDelete(text);
     if (switchFirst !== null)
         return { destructive: true, rule: switchFirst };
-    // The substring list reads `git.exe` as `git`, like the rules above.
-    const lower = text.toLowerCase().replace(/\bgit\.exe(?=\s)/g, "git");
-    const hit = DESTRUCTIVE_PATTERNS.find((p) => lower.includes(p.toLowerCase()));
+    // The substring list reads `git.exe` as `git`, like the rules above. It is
+    // compared in lower case except where the case is the meaning: `git branch
+    // -d` is the safe delete and only the capital `-D` forces.
+    const cased = text.replace(/\bgit\.exe(?=\s)/gi, "git");
+    const lower = cased.toLowerCase();
+    const hit = DESTRUCTIVE_PATTERNS.find((p) => p === FORCE_BRANCH_DELETE
+        ? [...cased.matchAll(/git branch -d/gi)].some((m) => m[0].endsWith("D"))
+        : lower.includes(p.toLowerCase()));
     if (hit !== undefined)
         return { destructive: true, rule: `substring:${hit}` };
     return ALLOWED;
