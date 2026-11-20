@@ -131,7 +131,7 @@ If you're skipping a step, that's the step you need most.
 
 ### Execution Mode: On-Demand (Default)
 
-The instinct system does **NOT** run automatically at session start. This saves tokens.
+Analysis does **NOT** run automatically at session start. This saves tokens. Loading is separate: instincts already recorded are loaded at session start (see below).
 
 | Mode | When it runs | Token cost |
 |------|-------------|------------|
@@ -139,7 +139,9 @@ The instinct system does **NOT** run automatically at session start. This saves 
 | **Weekly** | User schedules via `/loop 7d /continuous-improvement analyze` or cron | One analysis per week |
 | **Always-on** (opt-in) | Set `always_on: true` in project instinct config | Runs at every session start |
 
-**To enable always-on:** Create `~/.claude/instincts/<hash>/config.yaml` with `always_on: true`. Otherwise, instincts are only loaded when explicitly requested.
+**To enable always-on:** Create `~/.claude/instincts/<hash>/config.yaml` with `always_on: true`. Otherwise, analysis only runs when explicitly requested.
+
+**Recorded instincts load at session start.** On SessionStart, `hooks/session.mjs` (wired by the plugin install and by `--mode expert`) prints this project's instincts and the `global/` ones that are at 0.5 or above, and Claude Code adds that output to the model's context. The block is one line per instinct (trigger, start of the body, confidence), highest confidence first, capped at 10 instincts and about 1,500 characters. With no instinct at 0.5 or above it prints nothing, so a project with no lessons costs zero tokens. Set `CI_INSTINCT_LOAD=off` to disable it.
 
 **Hooks still capture silently** — observations accumulate in `observations.jsonl` with near-zero cost. The expensive part (reading, analyzing, creating instincts) only happens when you ask for it.
 

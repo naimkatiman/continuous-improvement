@@ -18,6 +18,7 @@ import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { PACKAGE_NAME, VERSION, getToolDefinitions, isPluginMode, } from "../lib/plugin-metadata.mjs";
 import { formatDriftReport, parseGoalFromPlan, scoreObservations, } from "../lib/goal-state.mjs";
+import { parseYamlInstinct } from "../lib/instinct-yaml.mjs";
 import { buildIndex, formatRecallHits, parseSince, query as queryRecall, } from "../lib/recall-index.mjs";
 import { draftFromCandidate, draftFromWorkflowRun, extractTrajectories, findCandidates, formatCandidates, serializeDraft, workflowRunFromObservations, } from "../lib/skill-distill.mjs";
 import { MAX_CLEARED_FILES, canonicalizeFileKey, clearFiles, hashProjectRoot, resolveInstinctsRoot, resolveProjectRoot, resolveSessionDir, } from "../lib/gateguard-state.mjs";
@@ -146,47 +147,6 @@ function readInstincts(projectHash) {
         }
     }
     return instincts;
-}
-function parseYamlInstinct(content) {
-    const lines = content.split("\n");
-    const meta = {};
-    let body = "";
-    let inBody = false;
-    for (const line of lines) {
-        if (line.trim() === "---" && Object.keys(meta).length > 0) {
-            inBody = true;
-            continue;
-        }
-        if (inBody) {
-            body += `${line}\n`;
-            continue;
-        }
-        const match = line.match(/^(\w[\w_-]*):\s*(.+)/);
-        if (!match) {
-            continue;
-        }
-        const rawValue = match[2].trim().replace(/^["']|["']$/g, "");
-        const value = rawValue !== "" && !Number.isNaN(Number(rawValue))
-            ? Number(rawValue)
-            : rawValue;
-        meta[match[1]] = value;
-    }
-    if (typeof meta.id !== "string" || typeof meta.trigger !== "string") {
-        return null;
-    }
-    return {
-        id: meta.id,
-        trigger: meta.trigger,
-        body: body.trim(),
-        confidence: typeof meta.confidence === "number" ? meta.confidence : 0.6,
-        domain: typeof meta.domain === "string" ? meta.domain : undefined,
-        source: typeof meta.source === "string" ? meta.source : undefined,
-        scope: meta.scope === "global" || meta.scope === "project" ? meta.scope : undefined,
-        project_id: typeof meta.project_id === "string" ? meta.project_id : undefined,
-        created: typeof meta.created === "string" ? meta.created : undefined,
-        last_seen: typeof meta.last_seen === "string" ? meta.last_seen : undefined,
-        observation_count: typeof meta.observation_count === "number" ? meta.observation_count : undefined,
-    };
 }
 function countObservations(projectHash) {
     const observationsFile = join(INSTINCTS_DIR, projectHash, "observations.jsonl");
