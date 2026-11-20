@@ -19,6 +19,10 @@
  *   3. Flat tool events
  *        {"tool":"Edit","tool_input":{"file_path":"..."}}   (tool_name / input also read)
  *
+ * A write is a Write, Edit, MultiEdit or NotebookEdit call. Known gap: a file
+ * written through a shell command (a redirect, Set-Content, sed -i) is a Bash
+ * or PowerShell call and is not counted as a write.
+ *
  * Usage:
  *   node bin/lint-transcript.mjs <file.jsonl>         # Lint a transcript file
  *   cat observations.jsonl | node bin/lint-transcript.mjs --stdin  # Pipe input
@@ -45,30 +49,43 @@ function isObject(value) {
 /**
  * The tool name the rules know for `tool`. Claude Code on Windows has a
  * first-class PowerShell tool with the same { command } input as Bash, so a
- * test run through it is the same verification.
+ * test run through it is the same verification. MultiEdit and NotebookEdit
+ * change a file exactly as Edit does.
  */
+const TOOL_ALIASES = new Map([
+    ["PowerShell", "Bash"],
+    ["MultiEdit", "Edit"],
+    ["NotebookEdit", "Edit"],
+]);
 function canonicalTool(tool) {
-    return tool === "PowerShell" ? "Bash" : tool;
+    return TOOL_ALIASES.get(tool) ?? tool;
+}
+/** NotebookEdit names its file `notebook_path`; the rules read `file_path`. */
+function withFilePath(input) {
+    if (typeof input.file_path !== "string" && typeof input.notebook_path === "string") {
+        return { ...input, file_path: input.notebook_path };
+    }
+    return input;
 }
 /**
  * Rebuild the tool input the rules read from an observation row. The observer
  * (summariseInput in src/lib/observe-event.mts) keeps one field per tool: the
- * command for Bash, the file path for Edit/Write. For every other tool it
- * keeps the head of the JSON-serialised input, which for PowerShell holds the
- * command; when the 500-character cut left that JSON unterminated the raw
- * head still contains the command text.
+ * command for Bash, the file path for Edit/Write/NotebookEdit. For every other
+ * tool it keeps the head of the JSON-serialised input, which holds the command
+ * for PowerShell and the file path for MultiEdit; when the 500-character cut
+ * left that JSON unterminated the raw head still contains the command text.
  */
 function observationInput(tool, inputSummary) {
     if (tool === "Bash") {
         return { command: inputSummary };
     }
-    if (tool === "Write" || tool === "Edit") {
+    if (tool === "Write" || tool === "Edit" || tool === "NotebookEdit") {
         return { file_path: inputSummary };
     }
     try {
         const parsed = JSON.parse(inputSummary);
         if (isObject(parsed)) {
-            return parsed;
+            return withFilePath(parsed);
         }
     }
     catch {
@@ -120,7 +137,7 @@ function normaliseRow(row, pendingStarts) {
                 if (isObject(block) && block.type === "tool_use" && typeof block.name === "string") {
                     events.push({
                         tool: canonicalTool(block.name),
-                        tool_input: isObject(block.input) ? block.input : {},
+                        tool_input: isObject(block.input) ? withFilePath(block.input) : {},
                         session_id: typeof row.sessionId === "string" ? row.sessionId : undefined,
                     });
                 }
@@ -141,10 +158,15 @@ function normaliseRow(row, pendingStarts) {
                     session_id: typeof row.session === "string" ? row.session : undefined,
                 }];
         }
-        // Flat tool events keep their fields; only the tool name is canonicalised.
+        // Flat tool events keep their fields; only an aliased tool is rewritten.
         const flatTool = typeof row.tool === "string" ? row.tool : row.tool_name;
         if (typeof flatTool === "string" && canonicalTool(flatTool) !== flatTool) {
-            return [{ ...row, tool: canonicalTool(flatTool) }];
+            const flatInput = isObject(row.tool_input) ? row.tool_input : isObject(row.input) ? row.input : {};
+            return [{
+                    ...row,
+                    tool: canonicalTool(flatTool),
+                    tool_input: withFilePath(flatInput),
+                }];
         }
     }
     // Every other flat tool event, and anything unrecognised, passes through untouched.
@@ -306,6 +328,10 @@ Accepted input (JSONL, one JSON object per line, shapes may be mixed):
   observations.jsonl       rows written by this plugin's observer
                            {"tool":"Bash","input_summary":"npm test",...}
   Flat tool events         {"tool":"Edit","tool_input":{"file_path":"..."}}
+
+A write is a Write, Edit, MultiEdit or NotebookEdit call.
+Not counted as a write: a file written through a shell command
+(a redirect, Set-Content, sed -i).
 
 Options:
   --stdin     Read from stdin

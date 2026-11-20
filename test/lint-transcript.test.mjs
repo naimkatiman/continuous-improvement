@@ -503,6 +503,60 @@ describe("lint-transcript.mjs", () => {
             assert.deepEqual(lawsOf(result), [4]);
         });
     });
+    // MultiEdit and NotebookEdit change files exactly as Edit does. Counting only
+    // `Write` and `Edit` gave a session that used them the false clean result the
+    // transcript reader was added to remove.
+    describe("MultiEdit and NotebookEdit calls count as writes", () => {
+        it("reports unresearched, unverified MultiEdit and NotebookEdit calls in a transcript", () => {
+            const rows = [
+                ...transcriptToolCall("toolu_41", "MultiEdit", {
+                    file_path: "/repo/src/a.ts",
+                    edits: [{ old_string: "a", new_string: "b" }],
+                }),
+                ...transcriptToolCall("toolu_42", "NotebookEdit", { notebook_path: "/repo/analysis.ipynb", new_source: "x = 1" }),
+            ];
+            const result = JSON.parse(lintRows(rows, ["--json"]).stdout);
+            assert.equal(result.stats.writeTools, 2);
+            assert.deepEqual(lawsOf(result), [1, 1, 1, 4]);
+            const strict = lintRows(rows, ["--strict"]);
+            assert.doesNotMatch(strict.stdout, /No law violations/);
+            assert.equal(strict.status, 1);
+        });
+        it("counts the notebook path as an edited file (Law 6 counts distinct files)", () => {
+            const rows = [
+                ...transcriptToolCall("toolu_50", "Read", { file_path: "/repo/README.md" }),
+                ...transcriptToolCall("toolu_51", "Grep", { pattern: "cell" }),
+                ...transcriptToolCall("toolu_52", "Glob", { pattern: "**/*.ipynb" }),
+                ...Array.from({ length: 9 }, (_, index) => [
+                    ...transcriptToolCall(`toolu_6${index}`, "NotebookEdit", { notebook_path: `/repo/nb${index}.ipynb`, new_source: "x" }),
+                    ...(index % 3 === 2 ? transcriptToolCall(`toolu_7${index}`, "Bash", { command: "npm test" }) : []),
+                ]).flat(),
+            ];
+            const result = JSON.parse(lintRows(rows, ["--json"]).stdout);
+            assert.deepEqual(lawsOf(result), [6]);
+        });
+        it("reports them in observations.jsonl and in flat tool events", () => {
+            const observations = [
+                // What the observer stores: the JSON head for MultiEdit, a path (or nothing) for NotebookEdit.
+                observation("MultiEdit", '{"file_path":"/repo/src/a.ts","edits":[{"old_string":"a","new_string":"b"}]}'),
+                observation("NotebookEdit", ""),
+            ];
+            const fromObservations = JSON.parse(lintRows(observations, ["--json"]).stdout);
+            assert.equal(fromObservations.stats.writeTools, 2);
+            assert.deepEqual(lawsOf(fromObservations), [1, 1, 1, 4]);
+            const flat = [
+                { tool: "MultiEdit", tool_input: { file_path: "/repo/src/a.ts" } },
+                { tool_name: "NotebookEdit", tool_input: { notebook_path: "/repo/analysis.ipynb" } },
+            ];
+            const fromFlat = JSON.parse(lintRows(flat, ["--json"]).stdout);
+            assert.equal(fromFlat.stats.writeTools, 2);
+        });
+        it("--help says that a file written through a shell command is not counted", () => {
+            const output = execFileSync("node", [LINTER, "--help"], { encoding: "utf8" });
+            assert.match(output, /Not counted as a write/);
+            assert.match(output, /shell command/);
+        });
+    });
     // The npm installer wires the observer on PreToolUse and PostToolUse, so its
     // log holds two rows per tool call: tool_start, then tool_complete. The
     // plugin wires PostToolUse only. A row is a hook event, not a tool call, and
