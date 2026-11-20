@@ -337,6 +337,101 @@ describe("secret redaction at write time", () => {
   });
 });
 
+// An object summary (every unknown tool's input, and the Bash tool_response)
+// used to be redacted after JSON.stringify. In that text a newline is the two
+// characters backslash + n: the n glues a secret on the next line to a word
+// character, and an unquoted value never meets the whitespace that ends it.
+describe("secret redaction of object summaries happens before they are serialised", () => {
+  const HEX = "9f8e7d6c5b4a39281706f5e4d3c2b1a09f8e7d6c5b4a3928";
+  const SECRET = "hunter2SECRETvalue";
+
+  it("redacts a hex key on the second line of Bash stdout", () => {
+    const summary = summariseOutput({ stdout: `Generated:\n${HEX}\ndone\n`, stderr: "", interrupted: false });
+    assert.equal(summary, '{"stdout":"Generated:\\n<hex-redacted>\\ndone\\n","stderr":"","interrupted":false}');
+
+    const labelled = summariseOutput({ stdout: `Your API key:\n${HEX}\n`, stderr: "", interrupted: false });
+    assert.ok(!labelled.includes(HEX), labelled);
+    assert.match(labelled, /"stderr":"","interrupted":false\}$/, "the rest of the row survives");
+  });
+
+  it("redacts a hex key after a tab and after a CRLF line break", () => {
+    const tabbed = summariseOutput({ stdout: `key\t${HEX}`, stderr: "", interrupted: false });
+    const crlf = summariseOutput({ stdout: `Your API key:\r\n${HEX}\r\n`, stderr: "", interrupted: false });
+    assert.ok(!tabbed.includes(HEX), tabbed);
+    assert.ok(!crlf.includes(HEX), crlf);
+  });
+
+  it("redacts a hex key inside a PowerShell here-string command", () => {
+    const summary = summariseInput("PowerShell", { command: `$k = @'\n${HEX}\n'@` });
+    assert.equal(summary, `{"command":"$k = @'\\n<hex-redacted>\\n'@"}`);
+  });
+
+  it("keeps the lines after a redacted assignment in Bash stdout", () => {
+    const summary = summariseOutput({
+      stdout: "DB_PASSWORD=x\nDB_HOST=localhost\nError: connection refused",
+      stderr: "",
+      interrupted: false,
+    });
+    assert.equal(
+      summary,
+      '{"stdout":"DB_PASSWORD=<redacted>\\nDB_HOST=localhost\\nError: connection refused","stderr":"","interrupted":false}',
+    );
+  });
+
+  it("keeps the words a friction classifier reads after a redacted token line", () => {
+    const summary = summariseOutput({
+      stdout: "",
+      stderr: "GITHUB_TOKEN=x\nPermission denied (publickey)",
+      interrupted: false,
+    });
+    assert.match(summary, /Permission denied \(publickey\)/);
+  });
+
+  it("keeps the fields after a redacted assignment in an unknown tool's input", () => {
+    const summary = summariseInput("mcp__x__y", { a: "API_TOKEN=abc", b: "important", c: "more-important" });
+    assert.equal(summary, '{"a":"API_TOKEN=<redacted>","b":"important","c":"more-important"}');
+  });
+
+  it("redacts the value of a secret-named property whatever its type", () => {
+    const summary = summariseInput("mcp__x__y", {
+      API_TOKEN: SECRET,
+      pin_token: 123456,
+      nested: { password: { hint: SECRET } },
+      list: [{ "x-api-key": SECRET }, "plain"],
+      keep: "v",
+    });
+    assert.equal(
+      summary,
+      '{"API_TOKEN":"<redacted>","pin_token":"<redacted>","nested":{"password":"<redacted>"},"list":[{"x-api-key":"<redacted>"},"plain"],"keep":"v"}',
+    );
+  });
+
+  it("serialises what JSON.stringify would for a payload with nothing to redact", () => {
+    const input = { url: "https://example.test/a?b=1", depth: 2, flags: [true, null, "x"], nested: { n: 1.5 } };
+    assert.equal(summariseInput("WebFetch", input), JSON.stringify(input));
+    assert.equal(summariseOutput(input), JSON.stringify(input));
+  });
+
+  it("never writes a leaf it did not redact, however many leaves there are", () => {
+    // Each leaf shrinks to a short placeholder, so a budget counted on the
+    // input would run out while later leaves still land inside the cut.
+    const many = Array.from({ length: 400 }, () => HEX.repeat(20));
+    const input = summariseInput("mcp__x__y", { values: many });
+    const output = summariseOutput({ values: many });
+    assert.ok(input.length <= 500, `input budget exceeded: ${input.length}`);
+    assert.ok(output.length <= 200, `output budget exceeded: ${output.length}`);
+    assert.ok(!input.includes(HEX.slice(0, 16)), input.slice(0, 120));
+    assert.ok(!output.includes(HEX.slice(0, 16)), output.slice(0, 120));
+  });
+
+  it("returns an empty summary for a value JSON cannot serialise", () => {
+    const cyclic: Record<string, unknown> = { name: "loop" };
+    cyclic.self = cyclic;
+    assert.equal(summariseOutput(cyclic), "");
+    assert.equal(summariseInput("mcp__x__y", cyclic), "");
+  });
+});
+
 describe("HookPayload type contract", () => {
   it("exposes the documented fields", () => {
     // Type-only assertion: if the import compiles and the fields below

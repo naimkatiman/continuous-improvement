@@ -11,7 +11,7 @@
 // summary is passed through redactSecrets before the cut, so the secret shapes
 // it knows are not written to observations.jsonl.
 
-import { redactSecrets } from "./redact-secrets.mjs";
+import { isSecretName, redactSecrets } from "./redact-secrets.mjs";
 
 const INPUT_TRUNCATE = 500;
 const OUTPUT_TRUNCATE = 200;
@@ -110,17 +110,10 @@ export function summariseInput(toolName: string, input: unknown): string {
       const pattern = readStringField(input, "pattern");
       return pattern === null ? "" : redactedHead(pattern, INPUT_TRUNCATE);
     }
-    default: {
+    default:
       // Unknown tool: stringify input so we record *something* useful for
       // future analysis. Truncate to keep observations.jsonl row size bounded.
-      let serialised: string;
-      try {
-        serialised = JSON.stringify(input);
-      } catch {
-        serialised = "";
-      }
-      return redactedHead(serialised ?? "", INPUT_TRUNCATE);
-    }
+      return redactedJsonHead(input, INPUT_TRUNCATE);
   }
 }
 
@@ -136,18 +129,54 @@ export function summariseOutput(output: unknown): string {
   if (typeof output === "number" || typeof output === "boolean") {
     return String(output);
   }
-  let serialised: string;
-  try {
-    serialised = JSON.stringify(output);
-  } catch {
-    serialised = "";
-  }
-  return redactedHead(serialised ?? "", OUTPUT_TRUNCATE);
+  return redactedJsonHead(output, OUTPUT_TRUNCATE);
 }
 
 /** Redact secret shapes in the head of `value`, then cut it to the `max` budget. */
 function redactedHead(value: string, max: number): string {
   return truncate(redactSecrets(truncate(value, max + REDACT_LOOKAHEAD)), max);
+}
+
+/**
+ * Serialise `value` with its strings already redacted, then cut to `max`.
+ *
+ * Redacting the serialised text instead does not work: JSON.stringify turns a
+ * newline into backslash + n, which glues a secret on the next line to a word
+ * character (the hex rule's boundary fails) and removes the whitespace that
+ * ends an unquoted value (the rest of the row is swallowed). Returns "" for a
+ * value JSON cannot serialise, as before.
+ */
+function redactedJsonHead(value: unknown, max: number): string {
+  let serialised: string | undefined;
+  try {
+    serialised = JSON.stringify(redactLeaves(value, max, { left: max + REDACT_LOOKAHEAD }));
+  } catch {
+    serialised = "";
+  }
+  return truncate(serialised ?? "", max);
+}
+
+/**
+ * Copy `value` with every string redacted and the value of every secret-named
+ * property replaced. `budget.left` counts redacted output, not input: a leaf
+ * that shrinks to a placeholder must not use up the budget while later leaves
+ * still land inside the cut. Once it is spent a string becomes "", so no leaf
+ * is ever written without having been redacted.
+ */
+function redactLeaves(value: unknown, max: number, budget: { left: number }): unknown {
+  if (typeof value === "string") {
+    if (budget.left <= 0) return "";
+    const redacted = redactedHead(value, max);
+    budget.left -= redacted.length + 1;
+    return redacted;
+  }
+  if (value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map((item) => redactLeaves(item, max, budget));
+  const copy: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    copy[key] = isSecretName(key) ? "<redacted>" : redactLeaves(child, max, budget);
+  }
+  return copy;
 }
 
 function readStringField(input: unknown, field: string): string | null {

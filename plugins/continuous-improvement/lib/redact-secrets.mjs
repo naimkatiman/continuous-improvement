@@ -32,6 +32,15 @@ const SECRET_ASSIGNMENT_RE = new RegExp(String.raw `(${SECRET_NAME})(\s*[:=]\s*)
 // A value that is not a string (a number, true, null) ends at the next comma
 // or bracket, so the rest of the object survives.
 const SECRET_PROPERTY_RE = new RegExp(String.raw `(${SECRET_NAME})(\\?["']\s*[:=]\s*)(${QUOTED_VALUE}|[^\s,}\]]+)`, "gi");
+const SECRET_NAME_ONLY_RE = new RegExp(`^(?:${SECRET_NAME})$`, "i");
+/**
+ * True when `name` alone names a secret (`password`, `API_TOKEN`, `x-api-key`).
+ * For a caller that holds structured data and can drop the value of such a
+ * property outright instead of pattern-matching serialised text.
+ */
+export function isSecretName(name) {
+    return SECRET_NAME_ONLY_RE.test(name);
+}
 // Replace a matched value, keeping the quotes it was written in.
 function redactedValue(value) {
     if (value.startsWith('\\"'))

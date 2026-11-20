@@ -38,6 +38,17 @@ const SECRET_PROPERTY_RE = new RegExp(
   "gi",
 );
 
+const SECRET_NAME_ONLY_RE = new RegExp(`^(?:${SECRET_NAME})$`, "i");
+
+/**
+ * True when `name` alone names a secret (`password`, `API_TOKEN`, `x-api-key`).
+ * For a caller that holds structured data and can drop the value of such a
+ * property outright instead of pattern-matching serialised text.
+ */
+export function isSecretName(name: string): boolean {
+  return SECRET_NAME_ONLY_RE.test(name);
+}
+
 // Replace a matched value, keeping the quotes it was written in.
 function redactedValue(value: string): string {
   if (value.startsWith('\\"')) return '\\"<redacted>\\"';
