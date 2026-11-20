@@ -13,12 +13,12 @@ Snapshots the full git state in one pass, detects a concurrent writer, classifie
 
 ## Establish ground truth
 
-One command, cross-platform, no shell required:
+One command, cross-platform, no shell required. Claude Code replaces `${CLAUDE_PLUGIN_ROOT}` with the plugin's install path when it loads this file. On an npm install, where nothing replaces it, run `npx -p continuous-improvement ci-reconcile` with the same flags.
 
 ```
-npx ci-reconcile              # resolved-state block; exit 0 clear / 1 blocked / 2 not a repo
-npx ci-reconcile --json       # machine-readable
-npx ci-reconcile --explain    # the probe set and why each probe runs
+node "${CLAUDE_PLUGIN_ROOT}/bin/reconcile.mjs"              # resolved-state block; exit 0 clear / 1 blocked / 2 not a repo
+node "${CLAUDE_PLUGIN_ROOT}/bin/reconcile.mjs" --json       # machine-readable
+node "${CLAUDE_PLUGIN_ROOT}/bin/reconcile.mjs" --explain    # the probe set and why each probe runs
 ```
 
 The same pass by hand. `src/lib/git-state.mts` is the source of truth for this list, and `npm run verify:reconcile-parity` fails if this file drifts from it:
@@ -75,7 +75,7 @@ gh pr create --fill --base main                      # open one PR, then STOP â€
 ## Verify the push landed
 
 ```
-npx ci-reconcile --verify-push <branch>    # exit 0 only when the remote tip equals local HEAD
+node "${CLAUDE_PLUGIN_ROOT}/bin/reconcile.mjs" --verify-push <branch>    # exit 0 only when the remote tip equals local HEAD
 git ls-remote origin refs/heads/<branch>   # by hand: remote tip must equal local HEAD
 ```
 

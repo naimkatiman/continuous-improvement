@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { type SpawnSyncReturns, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { before, describe, it } from "node:test";
@@ -324,5 +324,38 @@ describe("commands/verify-install.md", () => {
     const readme = readFileSync(join(__dirname, "..", "README.md"), "utf8");
     const headings = readme.split(/\r?\n/).filter((line) => /^#{2,6} /.test(line)).map((line) => line.replace(/^#+ /, "").trim());
     assert.ok(headings.includes(heading), `README.md should have a heading "${heading}"`);
+  });
+});
+
+// No npm package is named ci-reconcile: it is a bin of the package
+// continuous-improvement, so `npx ci-reconcile` 404s on a plugin-only install.
+// Claude Code substitutes ${CLAUDE_PLUGIN_ROOT} in command and skill bodies,
+// and the plugin bundle carries bin/reconcile.mjs.
+describe("reconcile runner invocation", () => {
+  const docs = [
+    ["commands/reconcile.md", join(COMMANDS_DIR, "reconcile.md")],
+    ["skills/reconcile.md", join(SKILLS_DIR, "reconcile.md")],
+  ] as const;
+
+  for (const [label, path] of docs) {
+    it(`${label} runs the bundled script and names the npm fallback`, () => {
+      const body = readFileSync(path, "utf8");
+      assert.doesNotMatch(body, /npx ci-reconcile/);
+      assert.match(body, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/reconcile\.mjs"/);
+      assert.match(body, /npx -p continuous-improvement ci-reconcile/);
+    });
+  }
+
+  it("no command or skill tells the reader to run npx ci-reconcile", () => {
+    for (const dir of [COMMANDS_DIR, SKILLS_DIR]) {
+      for (const file of readdirSync(dir).filter((name) => name.endsWith(".md"))) {
+        const body = readFileSync(join(dir, file), "utf8");
+        assert.doesNotMatch(body, /npx ci-reconcile/, `${file} still says npx ci-reconcile`);
+      }
+    }
+  });
+
+  it("the plugin bundle carries the script the docs name", () => {
+    assert.ok(existsSync(join(__dirname, "..", "plugins", "continuous-improvement", "bin", "reconcile.mjs")));
   });
 });
