@@ -540,9 +540,10 @@ export function getPluginHooksConfig() {
             // and never blocks under companions-first. The observer only runs on
             // PostToolUse: gateguard-blocked calls are intentionally not observed so
             // PreToolUse stays at two subprocesses on the hot path. route-prompt
-            // fires on UserPromptSubmit and emits a system-reminder when a prompt
-            // pattern in hooks/route-table.json matches; non-matching prompts pass
-            // through with no output.
+            // fires on UserPromptSubmit and, only when CI_ROUTE_PROMPT is on (default
+            // off), emits a system-reminder when a prompt pattern in
+            // hooks/route-table.json matches; otherwise prompts pass through with
+            // no output.
             PreToolUse: [
                 { hooks: [gateguardCommand, companionPreferenceCommand] },
                 // hook-pack gates a shell `git push` to protected branches and oversized
