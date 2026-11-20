@@ -100,6 +100,14 @@ const COMMAND_FILES = [
   "verify-install.md",
   "workspace-surface-audit.md",
 ] as const;
+// The lib modules each installed hook imports as ../lib/<file>. A hook resolves
+// ../lib from where it is installed, not from the package, so every file here
+// is copied next to its importer: observe.mjs lands in instincts/bin (../lib is
+// instincts/lib) and session.mjs lands in instincts/ (../lib is ~/.claude/lib).
+// Keep both lists in step with the imports of src/bin/observe.mts and
+// src/hooks/session.mts; a hook with a missing import dies at module load.
+const OBSERVER_LIB_FILES = ["observe-event.mjs", "gateguard-state.mjs"] as const;
+const SESSION_LIB_FILES = ["gateguard-state.mjs", "resolve-home-dir.mjs"] as const;
 const HOOK_TYPES: readonly HookType[] = ["PreToolUse", "PostToolUse"];
 const SESSION_HOOK_TYPES: readonly HookType[] = ["SessionStart", "SessionEnd"];
 // Iterated by install cleanup and uninstall cleanup. Deduped via Set so an
@@ -376,26 +384,38 @@ function setupMulahazah(): void {
   mkdirSync(globalDir, { recursive: true });
   console.log(`  ✓ Instincts dir → ${instinctsDir}/`);
 
-  // Layout mirrors bin/ + lib/ so observe.mjs's relative import resolves.
+  // Layout mirrors bin/ + lib/ so observe.mjs's relative imports resolve.
+  const libSrcDir = join(REPO_ROOT, "lib");
   const observerJsSrc = join(REPO_ROOT, "bin", "observe.mjs");
-  const observeEventSrc = join(REPO_ROOT, "lib", "observe-event.mjs");
   const observerJsDest = join(instinctsDir, "bin", "observe.mjs");
-  if (existsSync(observerJsSrc) && existsSync(observeEventSrc)) {
+  if (
+    existsSync(observerJsSrc) &&
+    OBSERVER_LIB_FILES.every((libFile) => existsSync(join(libSrcDir, libFile)))
+  ) {
     const binDir = join(instinctsDir, "bin");
     const libDir = join(instinctsDir, "lib");
     mkdirSync(binDir, { recursive: true });
     mkdirSync(libDir, { recursive: true });
-    const observeEventDest = join(libDir, "observe-event.mjs");
     copyFileSync(observerJsSrc, observerJsDest);
-    copyFileSync(observeEventSrc, observeEventDest);
+    for (const libFile of OBSERVER_LIB_FILES) {
+      copyFileSync(join(libSrcDir, libFile), join(libDir, libFile));
+    }
     console.log(`  ✓ Node observer → ${observerJsDest}`);
   }
 
   const sessionSrc = join(REPO_ROOT, "hooks", "session.mjs");
   const sessionDest = join(instinctsDir, "session.mjs");
-  if (existsSync(sessionSrc)) {
+  if (
+    existsSync(sessionSrc) &&
+    SESSION_LIB_FILES.every((libFile) => existsSync(join(libSrcDir, libFile)))
+  ) {
+    const sessionLibDir = join(home, ".claude", "lib");
+    mkdirSync(sessionLibDir, { recursive: true });
     copyFileSync(sessionSrc, sessionDest);
     chmodSync(sessionDest, 0o755);
+    for (const libFile of SESSION_LIB_FILES) {
+      copyFileSync(join(libSrcDir, libFile), join(sessionLibDir, libFile));
+    }
     console.log(`  ✓ Node session hook → ${sessionDest}`);
   }
 
@@ -660,7 +680,7 @@ function uninstallAll(): boolean {
   // Remove the Node observer artifacts deployed alongside observe.sh.
   for (const observerFile of [
     join("bin", "observe.mjs"),
-    join("lib", "observe-event.mjs"),
+    ...OBSERVER_LIB_FILES.map((libFile) => join("lib", libFile)),
   ]) {
     const filePath = join(home, ".claude", "instincts", observerFile);
     if (!existsSync(filePath)) continue;
@@ -669,6 +689,19 @@ function uninstallAll(): boolean {
       console.log(`  ✓ Removed ${observerFile}`);
     } catch (error) {
       console.error(`  ✗ ${observerFile}: ${getErrorMessage(error)}`);
+      failed = true;
+    }
+  }
+
+  // Remove the lib modules deployed for session.mjs (its ../lib is ~/.claude/lib).
+  for (const libFile of SESSION_LIB_FILES) {
+    const filePath = join(home, ".claude", "lib", libFile);
+    if (!existsSync(filePath)) continue;
+    try {
+      rmSync(filePath);
+      console.log(`  ✓ Removed ~/.claude/lib/${libFile}`);
+    } catch (error) {
+      console.error(`  ✗ ~/.claude/lib/${libFile}: ${getErrorMessage(error)}`);
       failed = true;
     }
   }

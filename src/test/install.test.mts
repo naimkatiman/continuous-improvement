@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { after, before, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -484,6 +484,171 @@ describe("installer - expert mode", () => {
     );
     assert.ok(startHasSession, "SessionStart should have session.mjs hook");
     assert.ok(endHasSession, "SessionEnd should have session.mjs hook");
+  });
+});
+
+// Regression: the installer copied bin/observe.mjs and hooks/session.mjs into
+// ~/.claude without the ../lib modules they import. Both died at module load
+// with ERR_MODULE_NOT_FOUND on every invocation, so an npm install recorded
+// zero observations while the installer reported "Full plugin active". These
+// tests run the real installer and then start what it installed, from where it
+// installed it.
+describe("installer - installed entrypoints start from the installed tree", () => {
+  const RELATIVE_IMPORT_RE = /(?:\bfrom\s*|\bimport\s*\(?\s*)["'](\.{1,2}\/[^"']+)["']/g;
+  let root = "";
+  let home = "";
+  let projectRoot = "";
+  let env: NodeJS.ProcessEnv = {};
+
+  function findFiles(dir: string, suffix: string): string[] {
+    if (!existsSync(dir)) return [];
+    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) return findFiles(full, suffix);
+      return entry.name.endsWith(suffix) ? [full] : [];
+    });
+  }
+
+  function readSettings(): TestSettings {
+    return JSON.parse(
+      readFileSync(join(home, ".claude", "settings.json"), "utf8"),
+    ) as TestSettings;
+  }
+
+  // The script behind each `node "<path>"` hook command the installer wired.
+  function hookScripts(entries: HookEntry[] | undefined): string[] {
+    return (entries ?? [])
+      .flatMap((entry) => entry?.hooks ?? [])
+      .map((hook) => /^node "(.+)"$/.exec(hook.command ?? "")?.[1])
+      .filter((script): script is string => Boolean(script))
+      .map((script) => resolve(script));
+  }
+
+  function wiredScripts(): string[] {
+    const settings = readSettings();
+    const fromHooks = Object.values(settings.hooks ?? {}).flatMap((entries) => hookScripts(entries));
+    const fromMcp = Object.values(settings.mcpServers ?? {})
+      .filter((server) => server.command === "node")
+      .map((server) => resolve(server.args[0]));
+    return [...fromHooks, ...fromMcp];
+  }
+
+  function runHook(script: string, payload: Record<string, unknown>) {
+    const result = spawnSync(process.execPath, [script], {
+      input: JSON.stringify(payload),
+      cwd: projectRoot,
+      env,
+      encoding: "utf8",
+      timeout: 30_000,
+    });
+    if (result.error) throw result.error;
+    return result;
+  }
+
+  before(() => {
+    root = join(tmpdir(), `ci-test-entrypoints-${process.pid}-${Date.now()}`);
+    home = join(root, "home");
+    projectRoot = join(root, "project");
+    mkdirSync(join(home, ".claude"), { recursive: true });
+    mkdirSync(projectRoot, { recursive: true });
+    env = {
+      ...process.env,
+      HOME: home,
+      USERPROFILE: home,
+      CLAUDE_PROJECT_DIR: projectRoot,
+      CLAUDE_CI_UPDATE_CHECK: "off",
+    };
+    const result = spawnSync(process.execPath, [INSTALL_SCRIPT, "install", "--mode", "expert"], {
+      cwd: root,
+      env,
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, `${result.stdout ?? ""}${result.stderr ?? ""}`);
+  });
+
+  after(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it("resolves every relative import of every script the installer wired or copied", () => {
+    const wired = wiredScripts();
+    const copied = findFiles(join(home, ".claude"), ".mjs");
+    assert.ok(wired.length > 0, "expert install should wire at least one script");
+    assert.ok(copied.length > 0, "expert install should copy at least one script");
+
+    const missing: string[] = [];
+    const seen = new Set<string>();
+    const queue = [...wired, ...copied];
+    while (queue.length > 0) {
+      const file = queue.pop() as string;
+      if (seen.has(file)) continue;
+      seen.add(file);
+      assert.ok(existsSync(file), `installer wired or copied a script that is not on disk: ${file}`);
+      for (const match of readFileSync(file, "utf8").matchAll(RELATIVE_IMPORT_RE)) {
+        const target = resolve(dirname(file), match[1]);
+        if (!existsSync(target)) {
+          missing.push(`${file} imports ${match[1]}`);
+        } else if (target.endsWith(".mjs")) {
+          queue.push(target);
+        }
+      }
+    }
+
+    assert.deepEqual(missing.sort(), [], "every relative import must exist in the installed layout");
+  });
+
+  it("the wired observer exits 0 and records one observation row", () => {
+    const [observer] = hookScripts(readSettings().hooks?.PostToolUse);
+    assert.ok(observer, "PostToolUse should be wired to a node script");
+
+    const result = runHook(observer, {
+      session_id: "installed-entrypoint",
+      hook_event_name: "PostToolUse",
+      tool_name: "Bash",
+      tool_input: { command: "echo hi" },
+      tool_response: { stdout: "hi" },
+    });
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+
+    const observationFiles = findFiles(join(home, ".claude", "instincts"), "observations.jsonl");
+    assert.equal(observationFiles.length, 1, "one observations.jsonl should exist under the temp HOME");
+    const rows = readFileSync(observationFiles[0], "utf8")
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    assert.equal(rows.length, 1, "exactly one observation row should have landed");
+    assert.equal(rows[0].tool, "Bash");
+    assert.equal(rows[0].event, "tool_complete");
+    assert.equal(rows[0].session, "installed-entrypoint");
+  });
+
+  it("the wired session hook exits 0 and reports the level", () => {
+    const [session] = hookScripts(readSettings().hooks?.SessionStart);
+    assert.ok(session, "SessionStart should be wired to a node script");
+
+    const result = runHook(session, {
+      session_id: "installed-entrypoint",
+      hook_event_name: "SessionStart",
+    });
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(
+      result.stderr,
+      /\[continuous-improvement\] Level: \S+ \| Observations: \d+ \| Instincts: \d+/,
+    );
+  });
+
+  it("uninstall removes every script the installer copied", () => {
+    const result = spawnSync(process.execPath, [INSTALL_SCRIPT, "--uninstall"], {
+      cwd: root,
+      env,
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, `${result.stdout ?? ""}${result.stderr ?? ""}`);
+    assert.deepEqual(
+      findFiles(join(home, ".claude"), ".mjs"),
+      [],
+      "no installer-copied script should survive --uninstall",
+    );
   });
 });
 
