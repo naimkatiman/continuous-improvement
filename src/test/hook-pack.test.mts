@@ -91,6 +91,30 @@ describe("hook-pack-gate: classifyCommand", () => {
     assert.equal(classifyCommand("echo git push"), "other");
     assert.equal(classifyCommand(""), "other");
   });
+  // Windows PowerShell 5.1 has no && operator: the chain is written
+  // `A; if ($?) { B }`, which puts B after `{`. An assignment, a try block, a
+  // parenthesis and the call operator hide the command word the same way.
+  it("classifies git push / commit inside a PowerShell block, assignment or call", () => {
+    assert.equal(classifyCommand("npm test; if ($?) { git push origin main }"), "push");
+    assert.equal(classifyCommand("if ($LASTEXITCODE -eq 0) { git push origin main }"), "push");
+    assert.equal(classifyCommand("git add README.md; git commit -m x; if ($?) { git push origin main }"), "push");
+    assert.equal(classifyCommand("$out = git push origin main"), "push");
+    assert.equal(classifyCommand("try { git push origin main } catch { }"), "push");
+    assert.equal(classifyCommand("(git push origin main)"), "push");
+    assert.equal(classifyCommand("if ($?) { git commit -m x }"), "commit");
+    assert.equal(classifyCommand("$r = git commit -m x"), "commit");
+  });
+  it("classifies git spelled git.exe or by path, with the call operator", () => {
+    assert.equal(classifyCommand("git.exe push origin main"), "push");
+    assert.equal(classifyCommand("& 'C:\\Program Files\\Git\\cmd\\git.exe' push origin main"), "push");
+    assert.equal(classifyCommand('& "C:\\Program Files\\Git\\cmd\\git.exe" commit -m x'), "commit");
+    assert.equal(classifyCommand("/usr/bin/git push origin main"), "push");
+  });
+  it("still returns other when git is an argument or part of another word", () => {
+    assert.equal(classifyCommand("Write-Output git push"), "other");
+    assert.equal(classifyCommand("legit push origin main"), "other");
+    assert.equal(classifyCommand("if ($?) { git status }"), "other");
+  });
 });
 
 describe("hook-pack-gate: isProtectedBranch", () => {
@@ -121,6 +145,17 @@ describe("hook-pack-gate: evaluatePush", () => {
   });
   it("never gates a dry-run push", () => {
     assert.equal(evaluatePush("git push --dry-run origin main", "main").gated, false);
+  });
+  it("reads the push target inside a PowerShell block and after git.exe", () => {
+    assert.equal(evaluatePush("npm test; if ($?) { git push origin main }", "feature/x").gated, true);
+    assert.equal(evaluatePush("if ($?) { git push origin main}", "feature/x").gated, true);
+    assert.equal(evaluatePush("git.exe push origin main", "feature/x").gated, true);
+    assert.equal(
+      evaluatePush("& 'C:\\Program Files\\Git\\cmd\\git.exe' push origin main", "feature/x").gated,
+      true,
+    );
+    assert.equal(evaluatePush("if ($?) { git push origin feature/x }", "main").gated, false);
+    assert.equal(evaluatePush("if ($?) { git push }", "main").gated, true);
   });
 });
 
@@ -203,6 +238,16 @@ describe("hooks/hook-pack.mjs — the PowerShell tool is gated like Bash", () =>
     ["git push --force origin main", "block"],
     ["git push -u origin HEAD:main", "block"],
     ["git add README.md; git push origin release/1.0", "block"],
+    // The Windows PowerShell 5.1 spelling of `A && git push`, and the other
+    // forms that put the push after something other than a separator.
+    ["npm test; if ($?) { git push origin main }", "block"],
+    ["git add README.md; git commit -m x; if ($?) { git push origin main }", "block"],
+    ["if ($LASTEXITCODE -eq 0) { git push origin main }", "block"],
+    ["$out = git push origin main", "block"],
+    ["try { git push origin main } catch { }", "block"],
+    ["git.exe push origin main", "block"],
+    ["& 'C:\\Program Files\\Git\\cmd\\git.exe' push origin main", "block"],
+    ["if ($?) { git push origin feature/x }", "allow"],
     ["git push origin feature/x", "allow"],
     ["git push --dry-run origin main", "allow"],
     ["Get-ChildItem", "allow"],
@@ -264,6 +309,17 @@ describe("hooks/hook-pack.mjs commit-size gate (temp repo)", () => {
     const dir = makeRepoWithStaged(16);
     try {
       const r = runHook("PowerShell", { command: "git commit -m x" }, "block", dir);
+      assert.equal(r.decision, "block");
+      assert.match(r.reason ?? "", /15|one[- ]concern|split/i);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("blocks an oversized commit written as a PowerShell 5.1 conditional chain", () => {
+    const dir = makeRepoWithStaged(16);
+    try {
+      const r = runHook("PowerShell", { command: "git add .; if ($?) { git commit -m x }" }, "block", dir);
       assert.equal(r.decision, "block");
       assert.match(r.reason ?? "", /15|one[- ]concern|split/i);
     } finally {

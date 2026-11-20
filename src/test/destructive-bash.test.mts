@@ -174,6 +174,46 @@ describe("lib/destructive-bash — classifier table", () => {
     });
   }
 
+  // Windows PowerShell 5.1 has no && operator: the chain is written
+  // `A; if ($?) { B }`, which puts B inside a script block. The structured
+  // rules read the first word of each segment, so B has to start a segment of
+  // its own. An assignment, a try block and a parenthesis hid B the same way.
+  const SCRIPT_BLOCK_CAUGHT: ReadonlyArray<[string, string]> = [
+    ["git status; if ($?) { git clean -fdx }", "git-clean-force"],
+    ["git fetch; if ($?) { git checkout -- . }", "git-checkout-discard"],
+    ["if ($?) { git stash drop }", "git-stash-drop"],
+    ["if ($?) { git restore . }", "git-restore-discard"],
+    ["if ($LASTEXITCODE -eq 0) { git clean -fdx }", "git-clean-force"],
+    ["if ($?) {git clean -fdx}", "git-clean-force"],
+    ["$out = git clean -fdx", "git-clean-force"],
+    ["try { git clean -fdx } catch {}", "git-clean-force"],
+    ["(git clean -fdx)", "git-clean-force"],
+    ["if ($?) { Remove-Item build -Recurse -Force }", "powershell-remove-item"],
+    // A brace expansion between the command word and its flag must not hide the flag.
+    ["find {src,test} -name '*.tmp' -delete", "find-delete"],
+    ["git clean {a,b} -fd", "git-clean-force"],
+  ];
+  for (const [command, rule] of SCRIPT_BLOCK_CAUGHT) {
+    it(`catches a command inside a block, assignment or group: ${command}`, () => {
+      assert.deepEqual(classifyDestructiveBash(command), { destructive: true, rule });
+    });
+  }
+
+  const SCRIPT_BLOCK_ALLOWED: ReadonlyArray<string> = [
+    "git fetch; if ($?) { git status }",
+    "$files = Get-ChildItem -Recurse src",
+    "try { git stash list } catch {}",
+    "find {src,test} -name '*.tmp'",
+    "(git clean -n)",
+    "foreach ($f in $files) { git restore --staged $f }",
+  ];
+  for (const command of SCRIPT_BLOCK_ALLOWED) {
+    it(`allows a harmless command inside a block: ${command}`, () => {
+      const verdict = classifyDestructiveBash(command);
+      assert.equal(verdict.destructive, false, `expected allowed: ${command} (rule ${verdict.rule})`);
+    });
+  }
+
   for (const [command, rule] of POWERSHELL_DELETE_CAUGHT) {
     it(`catches the PowerShell delete: ${JSON.stringify(command)}`, () => {
       const verdict = classifyDestructiveBash(command);

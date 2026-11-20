@@ -50,8 +50,11 @@ const MESSAGE_FLAG_RE = /(^|\s)(-m|--message|-F|--file|--body|--body-file|--titl
 export function stripMessageArgs(command) {
     return command.replace(MESSAGE_FLAG_RE, (_match, lead, flag) => `${lead}${flag} `);
 }
-// Split at shell separators that sit outside single or double quotes.
-function splitSimpleCommands(command) {
+// Split at shell separators that sit outside single or double quotes. With
+// `blocks`, an unquoted `{`, `}`, `(` or `)` ends a command too, so the body of
+// a PowerShell script block (`if ($?) { git clean -fdx }`), a try block or a
+// parenthesised group starts a segment of its own.
+function splitSimpleCommands(command, blocks) {
     const segments = [];
     let current = "";
     let piped = false;
@@ -87,7 +90,7 @@ function splitSimpleCommands(command) {
             current += " ";
             continue;
         }
-        if (ch === "\n" || ch === ";") {
+        if (ch === "\n" || ch === ";" || (blocks && (ch === "{" || ch === "}" || ch === "(" || ch === ")"))) {
             end(false);
             continue;
         }
@@ -104,6 +107,13 @@ function splitSimpleCommands(command) {
     end(false);
     return segments;
 }
+// Every simple command the rules should look at. The plain split comes first
+// and stays authoritative for what it already caught: a brace expansion between
+// a command word and its flag (`find {src,test} -delete`) must not hide the
+// flag. The block split adds the commands that only start after `{` or `(`.
+function allSimpleCommands(command) {
+    return [...splitSimpleCommands(command, false), ...splitSimpleCommands(command, true)];
+}
 function tokenize(segment) {
     return segment.split(/\s+/).filter((t) => t !== "");
 }
@@ -119,6 +129,11 @@ function commandTokens(segment) {
             continue;
         }
         if (/^cmd(?:\.exe)?$/i.test(t) && /^\/[ck]$/i.test(tokens[i + 1] ?? "")) {
+            i += 2;
+            continue;
+        }
+        // PowerShell output capture: `$out = git clean -fdx`.
+        if (/^\$[A-Za-z_][\w:]*$/.test(t) && /^\+?=$/.test(tokens[i + 1] ?? "")) {
             i += 2;
             continue;
         }
@@ -265,7 +280,7 @@ export function classifyDestructiveBash(command) {
     if (typeof command !== "string" || command.trim() === "")
         return { destructive: false, rule: null };
     const stripped = stripMessageArgs(command);
-    for (const segment of splitSimpleCommands(stripped)) {
+    for (const segment of allSimpleCommands(stripped)) {
         const tokens = commandTokens(segment.text);
         if (tokens.length === 0)
             continue;

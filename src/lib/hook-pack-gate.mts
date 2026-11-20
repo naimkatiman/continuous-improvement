@@ -27,12 +27,22 @@ export function parseMode(raw: string | undefined): HookPackMode {
   return v === "block" || v === "off" ? v : "warn";
 }
 
-// Match `git push` / `git commit` at the start of the command or immediately
-// after a shell separator (newline, ;, |, &). This deliberately does NOT match
-// a mention like `echo git push`, where git is an argument, not the command.
+// Match `git push` / `git commit` at the start of the command, immediately
+// after a shell separator (newline, ;, |, &), or after an opening `{` or `(`.
+// Windows PowerShell 5.1 has no `&&`, so a chain is written `A; if ($?) { B }`,
+// which puts B inside a script block; `try { B }` and `(B)` do the same. An
+// output capture (`$r = git push ...`) and the call operator (`& git ...`) may
+// sit in front of the command word, and git may be spelled git.exe or by path,
+// quoted when the path has a space. This deliberately does NOT match a mention
+// like `echo git push`, where git is an argument, not the command.
+const COMMAND_START = String.raw`(?:^|[\n;|&{(])\s*(?:\$[A-Za-z_][\w:]*\s*\+?=\s*)?(?:&\s*)?`;
+const GIT_WORD = String.raw`(?:"[^"\n]*[\\/]git(?:\.exe)?"|'[^'\n]*[\\/]git(?:\.exe)?'|(?:[^\s'"]*[\\/])?git(?:\.exe)?)`;
+const GIT_PUSH_RE = new RegExp(`${COMMAND_START}${GIT_WORD}\\s+push\\b`);
+const GIT_COMMIT_RE = new RegExp(`${COMMAND_START}${GIT_WORD}\\s+commit\\b`);
+
 export function classifyCommand(command: string): "push" | "commit" | "other" {
-  if (/(?:^|[\n;|&])\s*git\s+push\b/.test(command)) return "push";
-  if (/(?:^|[\n;|&])\s*git\s+commit\b/.test(command)) return "commit";
+  if (GIT_PUSH_RE.test(command)) return "push";
+  if (GIT_COMMIT_RE.test(command)) return "commit";
   return "other";
 }
 
@@ -45,10 +55,12 @@ export function isProtectedBranch(branch: string): boolean {
 // `git push <remote> <branch>`, `git push -u <remote> <branch>`, and refspecs
 // like `HEAD:main` (destination after the colon).
 function parsePushTarget(command: string): string | null {
-  const tokens = command.split(/\s+/).filter(Boolean);
-  const pushIdx = tokens.findIndex((t, i) => t === "push" && tokens[i - 1] === "git");
-  if (pushIdx === -1) return null;
-  const operands = tokens.slice(pushIdx + 1).filter((t) => !t.startsWith("-"));
+  // The arguments of the push classifyCommand found, up to the end of that
+  // command: a following `}`, `)` or separator is not part of the refspec.
+  const push = GIT_PUSH_RE.exec(command);
+  if (!push) return null;
+  const args = command.slice(push.index + push[0].length).split(/[\n;|&{}()]/)[0]!;
+  const operands = args.split(/\s+/).filter((t) => t !== "" && !t.startsWith("-"));
   // operands[0] is the remote; operands[1] is the refspec. Fewer than two means
   // no explicit branch (e.g. `git push` or `git push origin`).
   if (operands.length < 2) return null;

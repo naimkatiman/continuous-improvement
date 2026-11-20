@@ -808,6 +808,15 @@ describe("hooks/gateguard.mjs — the PowerShell tool is gated like Bash", () =>
     ["rmdir build -Recurse -Force", "powershell-remove-item"],
     ["Get-ChildItem build -Recurse | Remove-Item", "powershell-remove-item-pipeline"],
     [["format", "d:", "/q"].join(" "), "format-volume"],
+    // Windows PowerShell 5.1 has no && operator, so `A && B` is written
+    // `A; if ($?) { B }`. B is as destructive inside the script block.
+    ["git status; if ($?) { git clean -fdx }", "git-clean-force"],
+    ["git fetch; if ($?) { git checkout -- . }", "git-checkout-discard"],
+    ["if ($?) { git stash drop }", "git-stash-drop"],
+    ["if ($?) { git restore . }", "git-restore-discard"],
+    ["if ($LASTEXITCODE -eq 0) { git clean -fdx }", "git-clean-force"],
+    ["$out = git clean -fdx", "git-clean-force"],
+    ["try { git clean -fdx } catch {}", "git-clean-force"],
     ["git push --force origin main", "substring:git push --force"],
     ["git reset --hard origin/main", "substring:git reset --hard"],
     [["rm", "-r", "-f", "dist"].join(" "), "rm-recursive-force"],

@@ -67,8 +67,11 @@ interface SimpleCommand {
   piped: boolean;
 }
 
-// Split at shell separators that sit outside single or double quotes.
-function splitSimpleCommands(command: string): SimpleCommand[] {
+// Split at shell separators that sit outside single or double quotes. With
+// `blocks`, an unquoted `{`, `}`, `(` or `)` ends a command too, so the body of
+// a PowerShell script block (`if ($?) { git clean -fdx }`), a try block or a
+// parenthesised group starts a segment of its own.
+function splitSimpleCommands(command: string, blocks: boolean): SimpleCommand[] {
   const segments: SimpleCommand[] = [];
   let current = "";
   let piped = false;
@@ -103,7 +106,7 @@ function splitSimpleCommands(command: string): SimpleCommand[] {
       current += " ";
       continue;
     }
-    if (ch === "\n" || ch === ";") {
+    if (ch === "\n" || ch === ";" || (blocks && (ch === "{" || ch === "}" || ch === "(" || ch === ")"))) {
       end(false);
       continue;
     }
@@ -118,6 +121,14 @@ function splitSimpleCommands(command: string): SimpleCommand[] {
   }
   end(false);
   return segments;
+}
+
+// Every simple command the rules should look at. The plain split comes first
+// and stays authoritative for what it already caught: a brace expansion between
+// a command word and its flag (`find {src,test} -delete`) must not hide the
+// flag. The block split adds the commands that only start after `{` or `(`.
+function allSimpleCommands(command: string): SimpleCommand[] {
+  return [...splitSimpleCommands(command, false), ...splitSimpleCommands(command, true)];
 }
 
 function tokenize(segment: string): string[] {
@@ -136,6 +147,11 @@ function commandTokens(segment: string): string[] {
       continue;
     }
     if (/^cmd(?:\.exe)?$/i.test(t) && /^\/[ck]$/i.test(tokens[i + 1] ?? "")) {
+      i += 2;
+      continue;
+    }
+    // PowerShell output capture: `$out = git clean -fdx`.
+    if (/^\$[A-Za-z_][\w:]*$/.test(t) && /^\+?=$/.test(tokens[i + 1] ?? "")) {
       i += 2;
       continue;
     }
@@ -281,7 +297,7 @@ export function classifyDestructiveBash(command: string): DestructiveVerdict {
   if (typeof command !== "string" || command.trim() === "") return { destructive: false, rule: null };
   const stripped = stripMessageArgs(command);
 
-  for (const segment of splitSimpleCommands(stripped)) {
+  for (const segment of allSimpleCommands(stripped)) {
     const tokens = commandTokens(segment.text);
     if (tokens.length === 0) continue;
     for (const rule of STRUCTURED_RULES) {
