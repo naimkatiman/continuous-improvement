@@ -496,11 +496,13 @@ function classifyBashSegment(segment) {
         const pattern = split === null ? null : matchProtected(split, false);
         return pattern && split ? { target: split, pattern, via: "bash" } : null;
     }
-    // Downloads: the file named by the output option.
+    // Downloads: the file named by the output option. Anything else about the
+    // command is left to the generic scan below, as before.
     if (DOWNLOAD_COMMANDS.has(cmd)) {
         const target = downloadTarget(args());
         const hit = target === null ? null : protectedIn(target, false);
-        return hit ? { ...hit, via: "bash" } : null;
+        if (hit)
+            return { ...hit, via: "bash" };
     }
     // Generic scan: a protected path quoted inside a scripting one-liner, next
     // to a write indicator. Reads (`cat`, `grep`) carry no indicator and pass,

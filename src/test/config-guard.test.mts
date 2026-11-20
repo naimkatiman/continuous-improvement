@@ -498,6 +498,10 @@ describe("config-guard-gate: a target named by New-Item -Path/-Name or by a down
     ["Bash", "curl -sSL https://example.com/s.json --output ~/.claude/settings.json"],
     ["Bash", "wget -O .mcp.json https://example.com/mcp.json"],
     ["Bash", "wget -q --output-document=.claude/settings.json https://example.com/s.json"],
+    // no output option: the redirect into a quoted path is still found by the
+    // generic scan, as it is for any other command
+    ["Bash", 'curl -s https://example.com/s.json > "my dir/.claude/settings.json"'],
+    ["PowerShell", "(Invoke-WebRequest $u).Content | Set-Content .mcp.json"],
   ];
   for (const [tool, command] of writes) {
     it(`${tool}: flags ${command}`, () => {
