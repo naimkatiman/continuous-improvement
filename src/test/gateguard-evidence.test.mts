@@ -181,8 +181,13 @@ function assertUnreadDeny(run: GateRun, file: string): void {
   const lines = run.reason.split("\n");
   assert.ok(lines.length <= 2, `the reason must be two lines at most, got ${lines.length}:\n${run.reason}`);
   assert.ok(lines[0]!.includes(file), `the first line names the file, got: ${lines[0]}`);
-  assert.match(lines[0]!, /has not been read in this session/);
+  // A file the user attached with @, or the IDE attached, is in context with no
+  // row in the log, so the reason states what the log shows, not that the file
+  // was never read, and names that case beside the clear command.
+  assert.doesNotMatch(run.reason, /has not been read/);
+  assert.match(lines[0]!, /observation log shows no read of/);
   assert.match(lines[0]!, /Read it, then retry/);
+  assert.match(lines[1] ?? "", /attached with @ or by the IDE/);
   assert.match(lines[1] ?? "", /gateguard-clear\.mjs/, "the second line is the clear command");
   assert.match(lines[1] ?? "", /--state /);
   assert.doesNotMatch(run.reason, /present these facts/);
@@ -418,8 +423,10 @@ describe("hooks/gateguard.mjs file gate, evidence mode (the default)", () => {
     assert.equal(run.decision, "block");
     const lines = run.reason.split("\n");
     assert.equal(lines.length, 2, run.reason);
-    assert.match(lines[0]!, /2 files have not been read in this session/);
+    assert.doesNotMatch(run.reason, /have not been read/);
+    assert.match(lines[0]!, /observation log shows no read of 2 files/);
     assert.match(lines[0]!, /Read them, then retry/);
+    assert.match(lines[1]!, /attached with @ or by the IDE/);
     for (const file of [first, second]) {
       assert.ok(lines[0]!.includes(file), `the first line names ${file}`);
       assert.ok(lines[1]!.includes(JSON.stringify(forwardSlashes(file))), `the clear command names ${file}`);

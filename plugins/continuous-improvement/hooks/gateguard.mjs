@@ -273,12 +273,15 @@ function buildMutatingFileReason(toolName, filePaths, stateFilePath) {
 // the clear command for the case where the file was read and the log cannot
 // show it (the observer is not running, or the row was rotated away).
 function buildUnreadReason(unread, stateFilePath) {
+    // The log only holds tool calls. A file the user attached with @, or the IDE
+    // attached, is in context with no row, so say what the log shows, not that
+    // the file was never read.
     const subject = unread.length === 1
-        ? `${unread[0]} has not been read in this session. Read it`
-        : `${unread.length} files have not been read in this session (${unread.join(", ")}). Read them`;
+        ? `This session's observation log shows no read of ${unread[0]}. Read it`
+        : `This session's observation log shows no read of ${unread.length} files (${unread.join(", ")}). Read them`;
     return [
         `${subject}, then retry the same call.`,
-        `If it was read and the observation log does not show it, clear the gate and retry: node ${quotePath(CLEAR_CLI_PATH)} --state ${quotePath(stateFilePath)} ${unread.map((p) => quotePath(p)).join(" ")}`,
+        `If it is already in context (a file attached with @ or by the IDE leaves no row in the log), clear the gate and retry: node ${quotePath(CLEAR_CLI_PATH)} --state ${quotePath(stateFilePath)} ${unread.map((p) => quotePath(p)).join(" ")}`,
     ].join("\n");
 }
 function isGitBraceSelector(value) {
