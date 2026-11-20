@@ -137,7 +137,7 @@ These are the routing rows where the override changes the resolved target. Rows 
 
 The override does not disable:
 
-- `gateguard` PreToolUse fact-list enforcement (Law 1, runtime layer in `hooks/gateguard.mjs`)
+- `gateguard` PreToolUse gate on a blind edit of an existing file and on destructive shell commands, with the fact list only under `CI_GATEGUARD_FILE_GATE=strict` (Law 1, runtime layer in `hooks/gateguard.mjs`)
 - Stop-hook three-section-close discipline when enabled with `CLAUDE_THREE_SECTION_CLOSE=on` (Law 4 + Law 7, runtime layer in `hooks/three-section-close.mjs`, off by default)
 - Dispatcher commitments 1–6 above (subagent-driven-development default, parallel fan-out routing, TDD RED-GREEN-REFACTOR, worktree isolation, finishing-a-development-branch before push, distinct Obra/CI variants)
 - Phase 0 P-MAG in `proceed-with-the-recommendation` (Law 5 + Law 7)

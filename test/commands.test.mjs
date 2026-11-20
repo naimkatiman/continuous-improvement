@@ -305,3 +305,38 @@ describe("reconcile runner invocation", () => {
         assert.ok(existsSync(join(__dirname, "..", "plugins", "continuous-improvement", "bin", "reconcile.mjs")));
     });
 });
+// gateguard's file gate defaults to CI_GATEGUARD_FILE_GATE=evidence: a new file
+// and a file the session has read are allowed, and only a blind edit of an
+// existing file is denied. The fact list on the first edit of every file is
+// the strict mode. A line outside the gateguard skill that describes the fact
+// list must say it belongs to strict.
+describe("docs describe the gateguard file gate default", () => {
+    const ROOT = join(__dirname, "..");
+    const OLD_GATE = /fact[- ]list|fact-forcing|first (edit|mutation) (per|of each|of every) file|first (edit|mutation) until|until (the agent provides|you present|grounding is presented|fact-list investigation|concrete investigation|the investigation is presented)|without facts|before grounding/i;
+    function scanned() {
+        const files = [];
+        for (const dir of ["commands", "skills"]) {
+            for (const name of readdirSync(join(ROOT, dir))) {
+                if (name.endsWith(".md") && name !== "gateguard.md")
+                    files.push(join(dir, name));
+            }
+        }
+        files.push("llms.txt", "templates/insights-claude-md.md");
+        for (const name of ["philosophy.md", "skill-use-cases.md", "skills.md", "using-this-plugin.md"]) {
+            files.push(join("docs", name));
+        }
+        return files;
+    }
+    it("names CI_GATEGUARD_FILE_GATE=strict wherever it describes the fact-list gate", () => {
+        const stale = [];
+        for (const rel of scanned()) {
+            const lines = readFileSync(join(ROOT, rel), "utf8").split(/\r?\n/);
+            lines.forEach((line, index) => {
+                if (/gateguard/.test(line) && OLD_GATE.test(line) && !line.includes("CI_GATEGUARD_FILE_GATE=strict")) {
+                    stale.push(`${rel}:${index + 1}`);
+                }
+            });
+        }
+        assert.deepEqual(stale, []);
+    });
+});
