@@ -911,6 +911,52 @@ describe("lint-transcript.mjs", () => {
       });
     }
 
+    // The runner list knew the JavaScript, Python, Go, Rust, .NET and JVM
+    // tools. A Django, Laravel, Rails, Flutter, Swift or Elixir project that
+    // ran its framework's own test command got a HIGH and a red CI under
+    // --strict, where the bare-word match before it had passed every one.
+    for (const [file, command] of [
+      ["app/models.py", "python manage.py test"],
+      ["app/models.py", "./manage.py test polls"],
+      ["app/Http/Controllers/UserController.php", "php artisan test"],
+      ["app/Http/Controllers/UserController.php", "vendor/bin/phpunit"],
+      ["app/Http/Controllers/UserController.php", "phpunit --filter UserTest"],
+      ["app/models/user.rb", "bin/rails test"],
+      ["app/models/user.rb", "bundle exec rspec"],
+      ["app/models/user.rb", "bundle exec rake test"],
+      ["app/models/user.rb", "rake spec"],
+      ["lib/main.dart", "flutter test"],
+      ["lib/main.dart", "dart test"],
+      ["Sources/App/main.swift", "swift test"],
+      ["lib/app.ex", "mix test"],
+      ["src/main/scala/App.scala", "sbt test"],
+      ["src/Lib.hs", "stack test"],
+      ["src/Lib.hs", "cabal test"],
+      ["packages/web/src/a.ts", "yarn workspace web test"],
+      ["apps/web/src/a.ts", "npx nx test web"],
+      ["apps/web/src/a.ts", "npx nx run-many -t test"],
+      ["apps/web/src/a.ts", "turbo run test"],
+      ["apps/web/src/a.ts", "npx turbo build"],
+      ["src/a.ts", "bash scripts/test.sh"],
+      ["src/a.ts", "./scripts/test.sh"],
+      ["src/app.py", "ruff check ."],
+      ["src/app.py", "mypy src"],
+      ["src/App.vue", "npx vue-tsc --noEmit"],
+    ] as const) {
+      it(`a flat log that ends in \`${command}\` is clean under --strict`, () => {
+        const rows = [
+          { tool: "Read", tool_input: { file_path: `/repo/${file}` }, session_id: "s1" },
+          { tool: "Edit", tool_input: { file_path: `/repo/${file}` }, session_id: "s1" },
+          { tool: "Bash", tool_input: { command }, session_id: "s1" },
+        ];
+        const { status, stdout } = lintRows(rows, ["--strict", "--json"]);
+        const result = JSON.parse(stdout) as LintJsonResult;
+        assert.equal(result.stats.verifyTools, 1);
+        assert.deepEqual(lawsOf(result), []);
+        assert.equal(status, 0);
+      });
+    }
+
     for (const file of [
       "C:\\Users\\dev\\.claude\\projects\\d--repo\\memory\\MEMORY.md",
       "/home/dev/.claude/projects/-repo/memory/feedback_tests.md",

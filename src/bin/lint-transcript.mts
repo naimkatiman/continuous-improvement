@@ -59,10 +59,11 @@
  * not recorded counts as a code change. Verification is a test, build or
  * check runner at a command position of a Bash or PowerShell command line
  * (npm test, npx tsc, node --test, python -m pytest, cargo clippy,
- * Invoke-Pester and the rest of the list in lib/shell-intent.mjs). The word
- * test or build in a path, a search pattern or a quoted string does not
- * count. A file with at least one code change and no verification run is one
- * HIGH violation.
+ * Invoke-Pester, a framework's own test command such as python manage.py
+ * test, php artisan test or bundle exec rspec, and the rest of the list in
+ * lib/shell-intent.mjs). The word test or build in a path, a search pattern
+ * or a quoted string does not count. A file with at least one code change and
+ * no verification run is one HIGH violation.
  *
  * Usage:
  *   node bin/lint-transcript.mjs <file.jsonl>         # Lint a transcript file
@@ -672,12 +673,17 @@ Law 4, verify before reporting:
   A path inside a git worktree under .claude/worktrees/<name>/ is judged by
   the rest of the path. A write with no recorded path is a code change.
   Verification is a runner at a command position of a Bash or PowerShell
-  command line: npm/pnpm/yarn/bun test or run <script>; vitest, jest, mocha,
-  tsc, eslint, playwright test, craco or react-scripts test/build, vite
-  build or next build/lint, direct or through npx; node --test; pytest,
-  python -m pytest or unittest; go test/vet/build; cargo
-  test/build/check/clippy; dotnet test/build; mvn test or verify; gradle or
-  make test/check/build; deno test; Invoke-Pester.
+  command line: npm/pnpm/yarn/bun test or run <script>, yarn workspace
+  <name> <script>; vitest, jest, mocha, tsc, vue-tsc, eslint, playwright
+  test, craco or react-scripts test/build, vite build or next build/lint,
+  direct or through npx; turbo or nx with a test, build, lint or check
+  task; node --test; pytest, mypy, ruff check, python -m pytest or
+  unittest; go test/vet/build; cargo test/build/check/clippy; dotnet
+  test/build; mvn test or verify; gradle or make test/check/build; deno
+  test; Invoke-Pester; a framework's own test command: python manage.py
+  test, php artisan test, phpunit, rails test, rake test or spec, rspec,
+  and flutter, dart, swift, mix, sbt, stack or cabal test; a shell script
+  whose name starts with test (bash scripts/test.sh).
   The word test or build in a path, a search pattern or a quoted string does
   not count. Code changes with no verification run are one HIGH violation.
 
