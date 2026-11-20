@@ -129,10 +129,12 @@ function observation(tool: string, inputSummary: string, outputSummary = ""): un
 }
 
 // The plugin's own observation log for a session that writes two files with no
-// research before them, then runs the tests.
+// research before them, then runs the tests. The new file comes first: an Edit
+// with no lookup before it would mark a log that begins part-way through its
+// session, which is not flagged.
 const OBSERVATIONS_WITH_VIOLATIONS: unknown[] = [
-  observation("Edit", "/repo/src/fetch.ts", '{"filePath":"/repo/src/fetch.ts"}'),
   observation("Write", "/repo/src/retry.ts", '{"type":"create","filePath":"/repo/src/retry.ts"}'),
+  observation("Edit", "/repo/src/fetch.ts", '{"filePath":"/repo/src/fetch.ts"}'),
   observation("Bash", "npm test", '{"stdout":"tests 12\\npass 12\\nfail 0"}'),
 ];
 
@@ -616,9 +618,11 @@ describe("lint-transcript.mjs", () => {
 
     it("reports them in observations.jsonl and in flat tool events", () => {
       const observations = [
-        // What the observer stores: the JSON head for MultiEdit, a path (or nothing) for NotebookEdit.
-        observation("MultiEdit", '{"file_path":"/repo/src/a.ts","edits":[{"old_string":"a","new_string":"b"}]}'),
+        // What the observer stores: a path (or nothing) for NotebookEdit, the JSON head for MultiEdit.
+        // The NotebookEdit comes first: a MultiEdit with no lookup before it marks a log that
+        // begins part-way through its session, and Law 1 does not flag that.
         observation("NotebookEdit", ""),
+        observation("MultiEdit", '{"file_path":"/repo/src/a.ts","edits":[{"old_string":"a","new_string":"b"}]}'),
       ];
       const fromObservations = JSON.parse(lintRows(observations, ["--json"]).stdout) as LintJsonResult;
       assert.equal(fromObservations.stats.writeTools, 2);
@@ -765,10 +769,12 @@ describe("lint-transcript.mjs", () => {
       const inSession = (session: string, tool: string, summary: string): unknown =>
         ({ ...(observation(tool, summary, "ok") as Record<string, unknown>), session });
 
+      // The unresearched write in these logs is a Write of a new file: an Edit with
+      // no lookup before it marks a session the log picks up part-way (see below).
       it("does not let one session's lookup cover another session's write", () => {
         const rows = [
           inSession("sess-aaaaaaaa", "Read", "/repo/src/a.ts"),
-          inSession("sess-bbbbbbbb", "Edit", "/repo/src/b.ts"),
+          inSession("sess-bbbbbbbb", "Write", "/repo/src/b.ts"),
           inSession("sess-aaaaaaaa", "Edit", "/repo/src/a.ts"),
           inSession("sess-aaaaaaaa", "Bash", "npm test"),
         ];
@@ -805,7 +811,7 @@ describe("lint-transcript.mjs", () => {
 
       it("reports one violation for each session that wrote without research", () => {
         const rows = [
-          inSession("sess-aaaaaaaa", "Edit", "/repo/src/a.ts"),
+          inSession("sess-aaaaaaaa", "Write", "/repo/src/a.ts"),
           inSession("sess-aaaaaaaa", "Edit", "/repo/src/a.ts"),
           inSession("sess-bbbbbbbb", "Write", "/repo/src/b.ts"),
           inSession("sess-bbbbbbbb", "Bash", "npm test"),
@@ -858,12 +864,105 @@ describe("lint-transcript.mjs", () => {
       });
     });
 
+    // An observation log begins wherever the observer began: at a rotation cut
+    // (the log is renamed every 10,000 rows), or part-way through a session the
+    // observer joined late or whose earlier calls ran in another project. Claude
+    // Code refuses an Edit of a file the session has not read, so an Edit with no
+    // lookup recorded before it is proof that the lookup is in rows this file
+    // does not hold. Of 13 HIGHs on 171 real logs, 6 were such a session.
+    describe("a write at the head of an observation-log session that started earlier", () => {
+      const inSession = (session: string, tool: string, summary: string, event = "tool_complete"): unknown =>
+        ({ ...(observation(tool, summary, "ok") as Record<string, unknown>), session, event });
+
+      it("is not flagged when the first recorded call is an Edit (a log cut mid-session)", () => {
+        const rows = [
+          observation("Edit", "/repo/src/App.tsx"),
+          observation("Edit", "/repo/src/App.tsx"),
+          observation("Edit", "/repo/src/App.tsx"),
+          observation("Edit", "/repo/src/App.tsx"),
+          observation("Bash", "npm test"),
+        ];
+        const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
+        assert.equal(result.stats.writeTools, 4);
+        assert.deepEqual(lawsOf(result), [], "neither the HIGH nor a 4:0 ratio");
+        assert.equal(lintRows(rows, ["--strict"]).status, 0);
+      });
+
+      it("is not flagged when the first write is a MultiEdit", () => {
+        const rows = [
+          observation("MultiEdit", '{"file_path":"/repo/src/a.ts","edits":[{"old_string":"a","new_string":"b"}]}'),
+          observation("Bash", "npm test"),
+        ];
+        assert.deepEqual(lawsOf(JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult), []);
+      });
+
+      it("is not flagged when calls that look nothing up come before the Edit", () => {
+        const rows = [
+          observation("Bash", "npm install"),
+          observation("Edit", "/repo/src/a.ts"),
+          observation("Bash", "npm test"),
+          observation("Read", "/repo/src/b.ts"),
+          observation("Edit", "/repo/src/b.ts"),
+        ];
+        assert.deepEqual(lawsOf(JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult), []);
+      });
+
+      it("is not flagged in a log written on PreToolUse and PostToolUse", () => {
+        const rows = [
+          inSession("sess-aaaaaaaa", "Edit", "/repo/src/a.ts", "tool_start"),
+          inSession("sess-aaaaaaaa", "Edit", "/repo/src/a.ts"),
+          inSession("sess-aaaaaaaa", "Edit", "/repo/src/a.ts", "tool_start"),
+          inSession("sess-aaaaaaaa", "Edit", "/repo/src/a.ts"),
+          inSession("sess-aaaaaaaa", "Bash", "npm test", "tool_start"),
+          inSession("sess-aaaaaaaa", "Bash", "npm test"),
+        ];
+        const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
+        assert.equal(result.stats.writeTools, 2);
+        assert.deepEqual(lawsOf(result), []);
+      });
+
+      it("is not flagged for a session that joins the log part-way, and the other sessions keep their own verdict", () => {
+        const rows = [
+          inSession("sess-aaaaaaaa", "Write", "/repo/src/new.ts"),
+          inSession("sess-bbbbbbbb", "Edit", "/repo/src/b.ts"),
+          inSession("sess-cccccccc", "Read", "/repo/src/c.ts"),
+          inSession("sess-cccccccc", "Edit", "/repo/src/c.ts"),
+          inSession("sess-cccccccc", "Bash", "npm test"),
+        ];
+        const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
+        assert.deepEqual(lawsOf(result), [1]);
+        assert.match(result.violations[0]?.message ?? "", /sess-aaa/);
+      });
+
+      it("is still flagged when the first write is a Write: a new file needs no earlier Read", () => {
+        // The log of one CI session, which is what the Action's observations-path input names.
+        const rows = [
+          observation("Write", "/repo/src/retry.ts"),
+          observation("Edit", "/repo/src/retry.ts"),
+          observation("Bash", "npm test"),
+        ];
+        const result = JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult;
+        assert.deepEqual(lawsOf(result), [1]);
+        assert.equal(result.violations[0]?.severity, "high");
+        assert.equal(lintRows(rows, ["--strict"]).status, 1);
+      });
+
+      it("leaves a flat event log as it was: an Edit with no lookup before it is flagged", () => {
+        const rows = [
+          { tool: "Edit", tool_input: { file_path: "/repo/src/a.ts" } },
+          { tool: "Bash", tool_input: { command: "npm test" } },
+        ];
+        assert.deepEqual(lawsOf(JSON.parse(lintRows(rows, ["--json"]).stdout) as LintJsonResult), [1]);
+      });
+    });
+
     it("--help lists what counts as research", () => {
       const output = execFileSync("node", [LINTER, "--help"], { encoding: "utf8" });
       assert.match(output, /Law 1/);
       assert.match(output, /WebFetch/);
       assert.match(output, /read-only shell command/);
       assert.match(output, /once per session/);
+      assert.match(output, /observation log/);
     });
   });
 

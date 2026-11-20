@@ -46,7 +46,11 @@
  * that picks up a session which began before the file did (it opens with a
  * compaction summary, or with the result of a call the file does not hold) is
  * not flagged for the writes at its head: the research, if any, is in rows the
- * file does not have.
+ * file does not have. The same holds for a session of an observation log whose
+ * first write is an Edit or MultiEdit with no lookup recorded before it. Claude
+ * Code refuses to edit a file the session has not read, so the log begins
+ * part-way through that session (a rotation cut, an observer that joined
+ * late). A session whose first write is a Write is judged as recorded.
  *
  * Law 4, verify before reporting. A code change is a write to a source or
  * config file. A write that is only a note or a doc needs no test run:
@@ -207,6 +211,7 @@ function isThinObservationRow(row) {
 function newNormaliseState() {
     return {
         continuedSessions: new Set(),
+        openedSessions: new Set(),
         pendingStarts: new Map(),
         rowsWithoutInput: 0,
         seenToolUseIds: new Set(),
@@ -228,6 +233,28 @@ function startsBeforeFile(row, content, seenToolUseIds) {
         && block.type === "tool_result"
         && typeof block.tool_use_id === "string"
         && !seenToolUseIds.has(block.tool_use_id));
+}
+/**
+ * True for the call of an observation log which shows that its session began
+ * before the log did: an Edit or MultiEdit with no lookup recorded before it.
+ * Claude Code refuses to edit a file the session has not read, so the Read is
+ * in rows this log does not hold: the log was cut there (it is renamed every
+ * 10,000 rows), the observer joined the session late, or the earlier calls ran
+ * in another project. A Write proves nothing, a new file needs no Read.
+ * `openedSessions` carries the sessions already judged from row to row.
+ */
+function startsBeforeLog(rawTool, event, sessionKey, openedSessions) {
+    if (openedSessions.has(sessionKey)) {
+        return false;
+    }
+    const tool = event.tool ?? "";
+    const command = typeof event.tool_input?.command === "string" ? event.tool_input.command : "";
+    if (!WRITE_TOOLS.has(tool) && !isResearchCall(tool, command)) {
+        return false;
+    }
+    // The session's first lookup or first write: whichever it is settles the question.
+    openedSessions.add(sessionKey);
+    return rawTool === "Edit" || rawTool === "MultiEdit";
 }
 /**
  * Turn one parsed JSONL row into the tool events the rules consume. See the
@@ -282,11 +309,16 @@ function normaliseRow(row, state) {
         if (isCompletionOfCountedStart(row, state.pendingStarts)) {
             return [];
         }
-        return [{
-                tool: canonicalTool(row.tool),
-                tool_input: observationInput(row.tool, row.input_summary),
-                session_id: typeof row.session === "string" ? row.session : undefined,
-            }];
+        const event = {
+            tool: canonicalTool(row.tool),
+            tool_input: observationInput(row.tool, row.input_summary),
+            session_id: typeof row.session === "string" ? row.session : undefined,
+        };
+        const sessionKey = event.session_id ?? "";
+        if (startsBeforeLog(row.tool, event, sessionKey, state.openedSessions)) {
+            state.continuedSessions.add(sessionKey);
+        }
+        return [event];
     }
     // A thin observation row is not a call the rules can read: beside rich rows
     // it repeats one of theirs, and alone it names a tool and nothing else.
@@ -538,7 +570,10 @@ Law 1, research before executing:
   Judged once per session id: a session whose first write comes before its
   first lookup is one HIGH violation, however many writes came first.
   Not flagged: the writes at the head of a transcript whose session began
-  before the file did (it opens with a compaction summary).
+  before the file did (it opens with a compaction summary), and of an
+  observation log session whose first write is an Edit or MultiEdit with no
+  lookup before it (an edit needs an earlier Read, so the log begins
+  part-way through that session).
 
 Law 4, verify before reporting:
   A code change is a write to a source or config file. A note or a doc needs
