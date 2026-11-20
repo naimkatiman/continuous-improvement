@@ -183,12 +183,30 @@ describe("plugin bundle MCP registration", () => {
 });
 describe("plugin bundle MCP server, started the way the registration starts it", () => {
     let client;
+    let tempHome = "";
     let tempRoot = "";
     let toolNames = [];
+    // Every instinct file the server has written under the temp HOME.
+    const instinctFiles = () => {
+        const found = [];
+        const walk = (dir) => {
+            if (!existsSync(dir))
+                return;
+            for (const entry of readdirSync(dir, { withFileTypes: true })) {
+                if (entry.isDirectory())
+                    walk(join(dir, entry.name));
+                else if (entry.name.endsWith(".yaml"))
+                    found.push(entry.name);
+            }
+        };
+        walk(join(tempHome, ".claude", "instincts"));
+        return found.sort();
+    };
+    const loadPack = async (pack) => (await client.request("tools/call", { name: "ci_load_pack", arguments: { pack } }));
     before(async () => {
         const { server } = readRegistration();
         tempRoot = mkdtempSync(join(tmpdir(), "ci-plugin-mcp-"));
-        const tempHome = join(tempRoot, "home");
+        tempHome = join(tempRoot, "home");
         const tempWorkspace = join(tempRoot, "workspace");
         mkdirSync(tempHome, { recursive: true });
         mkdirSync(tempWorkspace, { recursive: true });
@@ -244,5 +262,43 @@ describe("plugin bundle MCP server, started the way the registration starts it",
         assert.match(result.content[0].text, /## continuous-improvement Status/);
         assert.match(result.content[0].text, /\*\*Observations:\*\* 0/);
         assert.match(result.content[0].text, /\*\*Mode:\*\* expert/);
+    });
+    // ci_load_pack turns the pack name into a path. The name comes from the model,
+    // so anything but the name of a pack the bundle ships has to be refused before
+    // a file is read: with `../` in it the name reached any .json file on the
+    // drive, and that file's entries were written into the instinct store at the
+    // confidence the file claimed.
+    it("ci_load_pack refuses a pack name that leaves the bundle's packs and writes nothing", async () => {
+        // A real instinct array outside the bundle: the repository's own react pack.
+        assert.ok(existsSync(join(REPO_ROOT, "instinct-packs", "react.json")));
+        const names = [
+            "../../../instinct-packs/react",
+            "..\\..\\..\\instinct-packs\\react",
+            "../instinct-packs/react",
+            "./react",
+            "",
+        ];
+        for (const pack of names) {
+            const result = await loadPack(pack);
+            assert.ok(result.isError, `pack ${JSON.stringify(pack)} was loaded: ${result.content[0].text}`);
+            assert.match(result.content[0].text, /Unknown pack/);
+            assert.match(result.content[0].text, /Available: .*\breact\b/);
+            assert.deepEqual(instinctFiles(), [], `pack ${JSON.stringify(pack)} wrote instinct files`);
+        }
+    });
+    // The bundle's plugin.json holds a JSON object. Iterating it threw inside the
+    // handler, and a tool that throws sends no response at all.
+    it("ci_load_pack answers with a tool error when the name points at a .json file that is no pack", async () => {
+        assert.ok(existsSync(join(BUNDLE_DIR, ".claude-plugin", "plugin.json")));
+        const result = await loadPack("../.claude-plugin/plugin");
+        assert.ok(result.isError, result.content[0].text);
+        assert.match(result.content[0].text, /Unknown pack/);
+        assert.deepEqual(instinctFiles(), []);
+    });
+    it("ci_load_pack loads a shipped pack by its plain name", async () => {
+        const shipped = JSON.parse(readFileSync(join(BUNDLE_DIR, "instinct-packs", "react.json"), "utf8"));
+        const result = await loadPack("react");
+        assert.ok(!result.isError, result.content[0].text);
+        assert.deepEqual(instinctFiles(), shipped.map((entry) => `${entry.id}.yaml`).sort());
     });
 });

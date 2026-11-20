@@ -1253,17 +1253,20 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
         return error("ci_load_pack requires expert mode");
       }
 
+      // The pack name is a model-controlled argument that becomes a path, so it
+      // has to be the name of a file in the packs directory. Joining it unchecked
+      // let `../` reach any .json file on the drive.
       const packName = getString(params.pack);
-      const packPath = join(PACKS_DIR, `${packName}.json`);
-      if (!existsSync(packPath)) {
-        const available = existsSync(PACKS_DIR)
-          ? readdirSync(PACKS_DIR)
-              .filter((file) => file.endsWith(".json"))
-              .map((file) => file.replace(".json", ""))
-          : [];
+      const available = existsSync(PACKS_DIR)
+        ? readdirSync(PACKS_DIR)
+            .filter((file) => file.endsWith(".json"))
+            .map((file) => file.replace(".json", ""))
+        : [];
+      if (!available.includes(packName)) {
         return error(`Unknown pack: ${packName}. Available: ${available.join(", ")}`);
       }
 
+      const packPath = join(PACKS_DIR, `${packName}.json`);
       const packInstincts = JSON.parse(readFileSync(packPath, "utf8")) as unknown[];
       const existing = readInstincts(project.hash);
       const existingIds = new Set(existing.map((instinct) => instinct.id));
