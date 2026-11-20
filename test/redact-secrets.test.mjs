@@ -155,6 +155,20 @@ describe("redactSecrets: credential shapes without a secret name", () => {
             `DATABASE_URL=postgres://app:${SECRET}@db.test:5432/app npm run migrate`,
             "DATABASE_URL=postgres://app:<redacted>@db.test:5432/app npm run migrate",
         ],
+        // :password@ with no user in front of it, the standard Redis URL form
+        [
+            `REDIS_URL=redis://:${SECRET}@10.0.0.5:6379/0 node app.js`,
+            "REDIS_URL=redis://:<redacted>@10.0.0.5:6379/0 node app.js",
+        ],
+        [
+            `Connecting to rediss://:${SECRET}@cache.internal:6380 ...`,
+            "Connecting to rediss://:<redacted>@cache.internal:6380 ...",
+        ],
+        [
+            `celery -A proj worker -b redis://:${SECRET}@cache.internal:6379/0`,
+            "celery -A proj worker -b redis://:<redacted>@cache.internal:6379/0",
+        ],
+        [`node -e "new Redis('redis://:${SECRET}@10.0.0.5:6379')"`, `node -e "new Redis('redis://:<redacted>@10.0.0.5:6379')"`],
         // an Authorization header with any scheme, or none
         [
             'curl -H "Authorization: Basic dXNlcjpodW50ZXIyU0VDUkVU" https://x.test',
@@ -205,6 +219,9 @@ describe("redactSecrets: credential shapes without a secret name", () => {
         "git clone git@github.com:o/r.git",
         "git clone ssh://git@host.test:22/o/r.git",
         "curl https://user@host.test/x",
+        "open file:///C:/Users/x/a@b.txt",
+        "curl http://localhost:3000/users/@me",
+        "psql postgres://localhost:5432/app",
         "git push -u origin feat/x",
         "sort -u names.txt",
         'psql --no-password -c "select 1"',

@@ -47,8 +47,9 @@ const PRIVATE_KEY_RE = /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A
 // `"Authorization":"token x"`. A known scheme word is kept.
 const AUTHORIZATION_RE =
   /\b(Authorization\\?["']?\s*[:=]\s*\\?["']?)((?:Basic|Bearer|Token|Negotiate|NTLM|ApiKey)\s+)?([^\s"'\\]+)/gi;
-// user:password@ in a URL. The scheme, user and host are kept.
-const URL_USERINFO_RE = /(:\/\/[^\s/:@"']+:)[^\s/?#"']+(?=@)/g;
+// user:password@ in a URL, or :password@ with no user (the Redis URL form).
+// The scheme, user and host are kept.
+const URL_USERINFO_RE = /(:\/\/[^\s/:@"']*:)[^\s/?#"']+(?=@)/g;
 // curl -u user:password / --user user:password. The user is kept.
 const USER_FLAG_RE = /((?:^|\s)(?:-u|--user)(?:\s+|=)["']?[^\s:"']+:)[^\s"']+/g;
 // A secret flag whose value is the next argument: `--password v`, `--api-key v`,
