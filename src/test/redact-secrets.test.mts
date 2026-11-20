@@ -92,6 +92,36 @@ describe("redactSecrets: quoted values", () => {
     const once = redactSecrets('DB_PASSWORD="correct horse battery staple" TOKEN=abc ./run.sh');
     assert.equal(redactSecrets(once), once);
   });
+
+  // When the name is the last thing inside a quoted string (a grep pattern, a
+  // log label, a -S argument) the quote after it closes that string. Reading it
+  // as the opening quote of a value deleted everything up to the next quote, or
+  // to the end of the row.
+  const closingQuote: ReadonlyArray<string> = [
+    'grep -n "apiKey:" src/config.ts | head -5 && npm test',
+    "grep -rn 'password=' config/ ; npm run build",
+    `git log -S 'API_KEY = "' --oneline -5 -- src/config.ts`,
+    `grep -n '"apiKey":' src/config.json | head -5 && npm test`,
+    'grep -c "use --token " docs/cli.md && npm run build',
+    'echo "DB_PASSWORD=" && cat .env.example',
+    'grep -n "apiKey:"',
+    // The same command inside serialised JSON, where the quotes are escaped.
+    '{"command":"grep -n \\"apiKey:\\" src/config.ts && npm test"}',
+    // An empty quoted value has nothing in it to redact.
+    'DB_PASSWORD="" ./run.sh',
+  ];
+  for (const text of closingQuote) {
+    it(`keeps the text after a closing quote in ${JSON.stringify(text)}`, () => {
+      assert.equal(redactSecrets(text), text);
+    });
+  }
+
+  it("still redacts a quoted value later in the same command", () => {
+    assert.equal(
+      redactSecrets('grep -n "apiKey:" src/config.ts && API_KEY="two words" npm test'),
+      'grep -n "apiKey:" src/config.ts && API_KEY="<redacted>" npm test',
+    );
+  });
 });
 
 // In JSON the name is closed by a quote before the colon, so a rule that wants

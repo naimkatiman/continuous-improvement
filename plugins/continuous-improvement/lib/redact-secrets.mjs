@@ -25,13 +25,19 @@ const SECRET_NAME = String.raw `(?<![A-Za-z0-9_.-])(?!(?:OLD)?PWD\s*[:=]\s*(?:[/
 // serialised JSON), double quotes and single quotes. An opening quote with no
 // closing one runs to the end of the text. Anything else ends at whitespace.
 const QUOTED_VALUE = String.raw `\\"(?:[^"\\]|\\[^"])*(?:\\"|$)|"[^"]*(?:"|$)|'[^']*(?:'|$)`;
-const SECRET_ASSIGNMENT_RE = new RegExp(String.raw `(${SECRET_NAME})(\s*[:=]\s*)(${QUOTED_VALUE}|\S+)`, "gi");
+// A quote followed by whitespace or the end of the text closes a string, it
+// does not open a value: in `grep -n "apiKey:" src/config.ts` the name is the
+// last thing inside the pattern and nothing after it is a secret. Reading that
+// quote as an opening one also pairs every later quote wrongly, which leaves a
+// real quoted value further on unredacted. The same holds for `PASSWORD=""`.
+const NOT_A_CLOSING_QUOTE = String.raw `(?!(?:\\?["'])+(?:\s|$))`;
+const SECRET_ASSIGNMENT_RE = new RegExp(String.raw `(${SECRET_NAME})(\s*[:=]\s*)${NOT_A_CLOSING_QUOTE}(${QUOTED_VALUE}|\S+)`, "gi");
 // The same assignment as a JSON property, where a quote closes the name before
 // the colon: "password":"v", or \"password\":\"v\" when the JSON sits inside a
 // JSON string. JSON is the shape of every MCP tool input and most API replies.
 // A value that is not a string (a number, true, null) ends at the next comma
 // or bracket, so the rest of the object survives.
-const SECRET_PROPERTY_RE = new RegExp(String.raw `(${SECRET_NAME})(\\?["']\s*[:=]\s*)(${QUOTED_VALUE}|[^\s,}\]]+)`, "gi");
+const SECRET_PROPERTY_RE = new RegExp(String.raw `(${SECRET_NAME})(\\?["']\s*[:=]\s*)${NOT_A_CLOSING_QUOTE}(${QUOTED_VALUE}|[^\s,}\]]+)`, "gi");
 // Credentials that carry no KEY/TOKEN/PASSWORD name. Each rule is anchored on
 // fixed punctuation, so it is linear on the bounded text callers pass.
 //
@@ -47,7 +53,7 @@ const URL_USERINFO_RE = /(:\/\/[^\s/:@"']*:)[^\s/?#"']+(?=@)/g;
 const USER_FLAG_RE = /((?:^|\s)(?:-u|--user)(?:\s+|=)["']?[^\s:"']+:)[^\s"']+/g;
 // A secret flag whose value is the next argument: `--password v`, `--api-key v`,
 // `--token v`, PowerShell's `-Password v`. A following flag is not a value.
-const SECRET_FLAG_RE = new RegExp(String.raw `((?:^|\s)--?[A-Za-z0-9-]*(?:password|passwd|secret|token|api-?key)\s+)(?!-)(${QUOTED_VALUE}|\S+)`, "gi");
+const SECRET_FLAG_RE = new RegExp(String.raw `((?:^|\s)--?[A-Za-z0-9-]*(?:password|passwd|secret|token|api-?key)\s+)(?!-)${NOT_A_CLOSING_QUOTE}(${QUOTED_VALUE}|\S+)`, "gi");
 // Tokens with a provider prefix are secret wherever they appear: GitHub
 // (ghp_, gho_, ghu_, ghs_, ghr_, github_pat_), sk- API keys, Slack, npm, GitLab.
 const PROVIDER_TOKEN_RE = /\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,}|xox[abprs]-[A-Za-z0-9-]{10,}|npm_[A-Za-z0-9]{36}|glpat-[A-Za-z0-9_-]{20,})/g;

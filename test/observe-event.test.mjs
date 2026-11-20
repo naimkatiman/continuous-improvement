@@ -271,6 +271,17 @@ describe("secret redaction at write time", () => {
         assert.equal(summariseInput("Bash", { command }), command);
         assert.equal(summariseOutput(command), command);
     });
+    // The transcript linter reads the verification command out of this row, so a
+    // redaction that runs on to the end of the command costs the session Law 4.
+    it("keeps the command that follows a quoted string ending in a secret name", () => {
+        for (const command of [
+            'grep -n "apiKey:" src/config.ts | head -5 && npm test',
+            "grep -rn 'password=' config/ ; npm run build",
+        ]) {
+            assert.equal(summariseInput("Bash", { command }), command);
+            assert.equal(summariseInput("PowerShell", { command }), JSON.stringify({ command }));
+        }
+    });
     it("stays cheap on a payload far larger than the budget", () => {
         // Dash-separated text is the slow case for the JWT pattern: redacting these
         // 30 KB whole takes seconds across the three calls, the bounded head takes
