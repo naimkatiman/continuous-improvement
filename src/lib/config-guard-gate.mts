@@ -388,6 +388,44 @@ function copyDestinations(rest: string[]): string[] {
   return operands.slice(operands.length > 1 ? Math.max(1, last) : 0).map((operand) => operand.text);
 }
 
+// New-Item can name its target in two parts: `-Path .claude -Name settings.json`.
+// Returns the joined path, or null when either part is missing.
+function newItemTarget(args: string[]): string | null {
+  const words = withoutRedirects(args);
+  let path: string | null = null;
+  let name: string | null = null;
+  for (let i = 0; i < words.length; i++) {
+    const parameter = /^-([A-Za-z]+)(?::(.+))?$/s.exec(words[i]!);
+    if (!parameter) {
+      path ??= words[i]!;
+      continue;
+    }
+    const given = parameter[1]!.toLowerCase();
+    if (parameter[2] === undefined && names(SWITCH_PARAMETERS, given)) continue;
+    const value = parameter[2] ?? words[++i];
+    if (value === undefined) break;
+    if ("name".startsWith(given)) name = value;
+    else if (names(PATH_PARAMETERS, given)) path = value;
+  }
+  if (path === null || name === null) return null;
+  const directory = stripQuotes(path);
+  const head = isExpression(path) ? directory.split(/[\s()'",;]+/).filter((part) => part !== "").join("/") : directory;
+  return `${head}/${stripQuotes(name)}`;
+}
+
+// A download writes the file its output option names: `curl -o`, `wget -O`,
+// PowerShell's `-OutFile`.
+const DOWNLOAD_COMMANDS = new Set(["curl", "curl.exe", "wget", "wget.exe", "invoke-webrequest", "iwr", "invoke-restmethod", "irm"]);
+const OUTPUT_OPTION_RE = /^(?:-[oO]|--output|--output-document|-[oO][uU][tT][fF][a-zA-Z]*)(?:[:=](.+))?$/s;
+
+function downloadTarget(args: string[]): string | null {
+  for (let i = 0; i < args.length; i++) {
+    const option = OUTPUT_OPTION_RE.exec(args[i]!);
+    if (option) return option[1] ?? args[i + 1] ?? null;
+  }
+  return null;
+}
+
 const CLAUDE_CLI_MUTATIONS: Record<string, ReadonlySet<string>> = {
   plugin: new Set(["install", "uninstall", "enable", "disable", "update", "marketplace"]),
   mcp: new Set(["add", "remove", "add-json", "add-from-claude-desktop", "reset-project-choices"]),
@@ -465,7 +503,16 @@ function classifyBashSegment(segment: string): ConfigMutation | null {
       const hit = protectedIn(arg, deletes);
       if (hit) return { ...hit, via: "bash" };
     }
-    return null;
+    const split = cmd === "new-item" || cmd === "ni" ? newItemTarget(args()) : null;
+    const pattern = split === null ? null : matchProtected(split, false);
+    return pattern && split ? { target: split, pattern, via: "bash" } : null;
+  }
+
+  // Downloads: the file named by the output option.
+  if (DOWNLOAD_COMMANDS.has(cmd)) {
+    const target = downloadTarget(args());
+    const hit = target === null ? null : protectedIn(target, false);
+    return hit ? { ...hit, via: "bash" } : null;
   }
 
   // Generic scan: a protected path quoted inside a scripting one-liner, next

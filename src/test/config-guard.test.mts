@@ -479,6 +479,50 @@ describe("config-guard-gate: a write whose path is an expression", () => {
   }
 });
 
+// Two more ways a command names the file it writes without that file being a
+// plain operand: New-Item splits it over -Path and -Name, and a download names
+// it with its output option.
+describe("config-guard-gate: a target named by New-Item -Path/-Name or by a download's output option", () => {
+  const writes: ReadonlyArray<[string, string]> = [
+    ["PowerShell", "New-Item -Path .claude -Name settings.json -ItemType File -Force"],
+    ["PowerShell", "New-Item -ItemType File -Path $HOME\\.claude -Name settings.local.json"],
+    ["PowerShell", "ni .claude -Name settings.json -Force"],
+    ["PowerShell", "New-Item -Path . -Name .mcp.json -ItemType File"],
+    ["PowerShell", "New-Item -Name hooks.json -Path plugins\\ci\\hooks -Force"],
+    ["PowerShell", "New-Item -Path (Join-Path $HOME '.claude') -Name settings.json -ItemType File"],
+    ["PowerShell", "Invoke-WebRequest $u -OutFile .mcp.json"],
+    ["PowerShell", "iwr https://example.com/s.json -OutFile $HOME\\.claude\\settings.json"],
+    ["PowerShell", "Invoke-RestMethod $u -OutFile:.mcp.json"],
+    ["PowerShell", "Invoke-WebRequest -Uri $u -OutFile (Join-Path $HOME '.claude\\settings.json')"],
+    ["Bash", "curl -o .mcp.json https://example.com/mcp.json"],
+    ["Bash", "curl -sSL https://example.com/s.json --output ~/.claude/settings.json"],
+    ["Bash", "wget -O .mcp.json https://example.com/mcp.json"],
+    ["Bash", "wget -q --output-document=.claude/settings.json https://example.com/s.json"],
+  ];
+  for (const [tool, command] of writes) {
+    it(`${tool}: flags ${command}`, () => {
+      const hit = classifyMutation(tool, { command });
+      assert.notEqual(hit, null);
+      assert.equal(hit?.via, "bash");
+    });
+  }
+
+  const elsewhere: ReadonlyArray<[string, string]> = [
+    ["PowerShell", "New-Item -Path out -Name settings.json -ItemType File"],
+    ["PowerShell", "New-Item -ItemType Directory -Path .claude -Name notes"],
+    ["PowerShell", "New-Item -ItemType Directory -Path .claude -Name hooks"],
+    ["PowerShell", "Invoke-WebRequest https://example.com/.mcp.json -OutFile downloaded.json"],
+    ["PowerShell", "(Invoke-WebRequest https://example.com/hooks.json).Content | ConvertFrom-Json"],
+    ["Bash", "curl -s https://raw.githubusercontent.com/o/r/main/.mcp.json -o /tmp/mcp.json"],
+    ["Bash", "curl -s https://example.com/hooks.json | head"],
+  ];
+  for (const [tool, command] of elsewhere) {
+    it(`${tool}: allows ${command}`, () => {
+      assert.equal(classifyMutation(tool, { command }), null);
+    });
+  }
+});
+
 describe("config-guard-gate: decide", () => {
   it("off allows everything", () => {
     assert.equal(decide("off", true, "r").action, "allow");
