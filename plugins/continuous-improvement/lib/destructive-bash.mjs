@@ -277,6 +277,11 @@ function commandTokens(segment) {
         }
         if (/^cmd(?:\.exe)?$/i.test(t) && /^\/[ck]$/i.test(tokens[i + 1] ?? "")) {
             i += 2;
+            // `cmd /c "rd /s /q build"`: the quoted argument is the command line, so
+            // its first word is a command word. This is the only place a quote is
+            // peeled off: anywhere else a word that starts with a quote is a string.
+            if (i < tokens.length)
+                tokens[i] = tokens[i].replace(/^["']/, "");
             continue;
         }
         // PowerShell output capture: `$out = git clean -fdx`.
@@ -350,16 +355,17 @@ const STRUCTURED_RULES = [
         // cmd.exe's tree delete, reached through `cmd /c`: `rd /s` and `rmdir /s`.
         id: "cmd-rmdir-tree",
         test: (tokens) => {
-            const cmd = tokens[0].replace(/^["']/, "").toLowerCase();
+            const cmd = tokens[0].toLowerCase();
             return (cmd === "rd" || cmd === "rmdir") && tokens.slice(1).some((t) => /^\/s$/i.test(t));
         },
     },
     {
         // The DOS/Windows volume formatter, as the command word only. This used to
         // be the substring "format ", which also matched every `-Format`,
-        // `-UFormat` and `--output-format` parameter.
+        // `-UFormat` and `--output-format` parameter. A word that starts with a
+        // quote is a string literal (`"Format complete" | Out-File log.txt`).
         id: "format-volume",
-        test: (tokens) => tokens.length > 1 && /^format(?:\.com|\.exe)?$/i.test(tokens[0].replace(/^["']/, "")),
+        test: (tokens) => tokens.length > 1 && /^format(?:\.com|\.exe)?$/i.test(tokens[0]),
     },
     {
         id: "git-clean-force",

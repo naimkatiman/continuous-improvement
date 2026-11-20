@@ -161,6 +161,36 @@ describe("lib/destructive-bash — classifier table", () => {
     });
   }
 
+  // A string literal is an expression, not a command. The rules stripped a
+  // leading quote from the first word, so a PowerShell string that begins with
+  // "Format" was read as the volume formatter, and one that begins with "rd"
+  // as cmd's tree delete.
+  const STRING_LITERAL_ALLOWED: ReadonlyArray<string> = [
+    '$msg = "Format complete"; Write-Host $msg',
+    '$title = "Format check failed"',
+    '"Format complete" | Out-File build.log',
+    'Write-Host ("format {0} as json" -f $name)',
+    "Write-Output ('Format done at {0}' -f (Get-Date))",
+    'if ($ok) { "Format passed" } else { "Format failed" }',
+    '$results | ForEach-Object { "format $_" }',
+    "'format string here'.Length",
+    "$title = 'Format Report'; Write-Host $title",
+    "Write-Host 'x'; \"format json output\" | Set-Content x.txt",
+    '"rd /s removes a whole tree" | Out-File notes.txt',
+    "$hint = 'rd /S is the cmd spelling'",
+  ];
+  for (const command of STRING_LITERAL_ALLOWED) {
+    it(`allows a string literal that begins with a command name: ${command}`, () => {
+      const verdict = classifyDestructiveBash(command);
+      assert.equal(verdict.destructive, false, `expected allowed: ${command} (rule ${verdict.rule})`);
+    });
+  }
+
+  it("still reads the quoted argument of cmd /c as a command", () => {
+    assert.deepEqual(classifyDestructiveBash('cmd /c "format d: /q"'), { destructive: true, rule: "format-volume" });
+    assert.deepEqual(classifyDestructiveBash('cmd /c "rd /s /q build"'), { destructive: true, rule: "cmd-rmdir-tree" });
+  });
+
   const FORMAT_VOLUME_CAUGHT: ReadonlyArray<string> = [
     "format d: /q",
     "FORMAT D: /FS:NTFS",
