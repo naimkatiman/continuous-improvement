@@ -43,6 +43,12 @@
     - the 620px media query near the end of this sheet
   The checks are src/bin/check-landing-version.mts, check-test-count.mts and check-skill-count.mts.
   Use the version number nowhere else on the page: a release replaces every copy of it.
+
+  Before a deploy: this page describes the defaults that the feat/frontier-defaults branch brings.
+  Three of them are in no build yet: the file gate that denies only a blind edit (and its switch,
+  CI_GATEGUARD_FILE_GATE), the prompt router and the three-heading reply check as opt-in, and the
+  process counts in section 4, which need matchers on the first two PreToolUse registrations.
+  Re-run the captures against the merged hooks first, and correct every line that differs.
 */
 
 /* ---------- fonts: self-hosted subsets, see fonts/README.md ---------- */
@@ -161,8 +167,10 @@ h1.display .belt { display: block; }
 .no-js .copy { display: none; }
 .cmds, .tape { background: var(--paper-2); border-left: 2px solid var(--ink); padding: 12px 15px; color: var(--ink-soft); }
 .cmds { color: var(--ink); font-size: .8125rem; font-weight: 500; line-height: 1.7; }
-.cmds span { display: block; padding-left: 1.3em; text-indent: -1.3em; }
+.cmds > span { display: block; padding-left: 1.3em; text-indent: -1.3em; }
 .after { font-size: .92rem; line-height: 1.45; color: var(--ink-soft); margin-top: 10px; }
+/* The header's GitHub link is hidden at 980px and below; this one takes its place there. */
+.after .src { display: none; }
 
 /* The five answers a visitor wants: what is on, what it costs, how to turn it off. */
 .answers { margin-top: clamp(16px, 1.9vw, 22px); max-width: 38rem; }
@@ -190,6 +198,8 @@ h1.display .belt { display: block; }
 .tape b { color: var(--signal-deep); font-weight: 600; }
 .tape i { font-style: normal; color: var(--ink); text-decoration: underline dotted; text-underline-offset: .25em; }
 .tape .p { color: var(--muted); }
+/* One row of a captured three-column report. A wrapped row hangs under its last column. */
+.tape .ln { display: block; padding-left: 27ch; text-indent: -27ch; }
 figcaption, .note { font-size: .94rem; line-height: 1.45; color: var(--ink-soft); margin-top: 12px; max-width: 44em; }
 
 /* ---------- sections: heading in the margin column, content beside it ---------- */
@@ -253,11 +263,9 @@ details[open] > summary { margin-bottom: 14px; }
 summary:hover { color: var(--signal-deep); }
 .raw { margin-bottom: 18px; }
 /* Blocks marked data-fold start closed on a narrow screen (the script at the end of the page).
-   On a wide screen they are always open, so the summary reads as a plain label there. */
+   Every summary that shows is a working toggle at every width. An exhibit's body has no toggle
+   on a wide screen: it is always open there. */
 @media (min-width: 761px) {
-  details[data-fold] > summary { cursor: default; }
-  details[data-fold] > summary:hover { color: var(--ink); }
-  details[data-fold] > summary::before { content: none; }
   .ex-body > summary { display: none; }
 }
 
@@ -302,12 +310,13 @@ summary:hover { color: var(--signal-deep); }
 .limits li { counter-increment: lim; break-inside: avoid; position: relative; padding: 9px 0 10px 2.4rem; border-top: 1px solid var(--line); font-size: .96rem; line-height: 1.44; color: var(--ink-soft); }
 .limits li::before { content: counter(lim, decimal-leading-zero); position: absolute; left: 0; top: .8rem; font: 500 .75rem var(--mono); color: var(--muted); }
 .limits b { color: var(--ink); font-weight: 600; }
+.limits code.blk { display: block; margin: 2px 0; }
 .skipit { margin-top: clamp(28px, 3.4vw, 44px); }
 .skipit h3 { margin-bottom: 12px; }
 .skipit ul { columns: 2; column-gap: var(--gap); }
 .skipit li { break-inside: avoid; position: relative; padding: 9px 0 9px 1.7rem; border-top: 1px solid var(--line); font-size: .98rem; line-height: 1.44; color: var(--ink-soft); }
 .skipit li::before { content: "\00D7"; position: absolute; left: 0; top: .5rem; font: 500 1rem var(--mono); color: var(--ink); }
-.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(22px, 2.6vw, 38px); align-items: start; }
+.three { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(22px, 2.6vw, 38px); align-items: start; }
 .steps { counter-reset: st; }
 .steps li { counter-increment: st; position: relative; padding: 9px 0 10px 2rem; border-top: 1px solid var(--line); font-size: .96rem; line-height: 1.44; color: var(--ink-soft); }
 .steps li::before { content: counter(st); position: absolute; left: 0; top: .6rem; font: 600 .875rem var(--mono); color: var(--ink); }
@@ -316,19 +325,23 @@ summary:hover { color: var(--signal-deep); }
 .cmdlist dt { font: 500 .75rem/1.5 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .cmdlist dd { font-size: .95rem; line-height: 1.44; color: var(--ink-soft); margin-top: 2px; }
 .cmdlist dd > code:first-child { display: block; color: var(--ink); font-size: .78rem; line-height: 1.6; margin-bottom: 3px; }
-.three summary { border: 0; padding: 0; }
-.three details[open] > summary { margin-bottom: 12px; }
-.three details:not([open]) > summary { padding-bottom: 10px; border-bottom: 1px solid var(--line); }
-.three summary h3 { margin: 0; font-family: var(--display); letter-spacing: -.016em; text-transform: none; color: var(--ink); }
+.three summary { border-top-color: var(--line); border-bottom: 0; padding: 9px 0 10px; }
+.three details[open] > summary { margin-bottom: 0; }
+.three details:not([open]) > summary { border-bottom: 1px solid var(--line); }
+/* The third block runs under the first two, its two entries side by side. */
+.three .paths { grid-column: 1 / -1; }
+.paths .cmdlist { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: clamp(22px, 2.6vw, 38px); }
+.paths .cmdlist > div { border-bottom: 1px solid var(--line); }
 
 /* ---------- 8: why, colophon, footer ---------- */
 .why-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: var(--gap); align-items: start; }
-.why .anchor { font-size: clamp(2.2rem, 1.3rem + 3.4vw, 4.1rem); font-weight: 400; line-height: 1; letter-spacing: -.028em; text-wrap: balance; margin-bottom: 20px; color: var(--ink); max-width: none; }
+.why .anchor { font-size: clamp(1.6rem, 1.25rem + 1.3vw, 2.3rem); font-weight: 400; line-height: 1.08; letter-spacing: -.028em; text-wrap: balance; margin-bottom: 20px; color: var(--ink); max-width: none; }
 .why p { color: var(--ink-soft); max-width: 36em; margin-bottom: 12px; font-size: 1.04rem; }
 .why blockquote { border-left: 2px solid var(--ink); padding-left: 18px; margin: 16px 0; }
 .why blockquote p { font-size: 1.18rem; line-height: 1.38; color: var(--ink); margin-bottom: 8px; }
 .why cite { display: block; font: 400 .75rem/1.65 var(--mono); font-style: normal; color: var(--muted); max-width: 46em; }
-.why figure img { border: 1px solid var(--line-strong); }
+/* The frame is on a wrapper, so the dark scheme's filter on the image does not invert it. */
+.why .plate { border: 1px solid var(--line-strong); }
 .why figcaption { font: 400 .75rem/1.6 var(--mono); color: var(--muted); margin-top: 8px; }
 .why .links { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-top: 18px; font: 500 .8125rem var(--mono); color: var(--ink); max-width: none; }
 .colophon { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-top: 1px solid var(--line-strong); border-bottom: 1px solid var(--line); }
@@ -374,6 +387,7 @@ footer { border-top: 1px solid var(--line-strong); padding: 24px 0 32px; }
   .inst tbody tr:last-child { border-bottom: 1px solid var(--line); }
   .inst tbody tr > * { border: 0; padding: 0; }
   .inst tbody tr:last-child > * { border-bottom: 0; }
+  .fold > .inst tbody tr:first-child { border-top: 0; padding-top: 0; }
   .inst tbody th { grid-column: 1 / -1; margin-bottom: 5px; }
   .inst tbody th code { display: inline; margin-left: .7em; padding-left: 0; }
   .inst td:nth-child(2) { grid-column: 1 / -1; font-size: .98rem; margin-bottom: 9px; }
@@ -385,17 +399,19 @@ footer { border-top: 1px solid var(--line-strong); padding: 24px 0 32px; }
   .facts > div { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr); column-gap: 20px; }
   .facts dd { margin-top: 0; }
   .also { grid-template-columns: minmax(0, 1fr); }
-  .three { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 }
 
 /* ---------- 980px and below: one column ---------- */
 @media (max-width: 980px) {
   .nav .wide { display: none; }
-  .hero-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "pitch" "exa" "install" "answers"; grid-template-rows: none; }
+  .after .src { display: inline; }
+  .hero-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "pitch" "install" "answers" "exa"; grid-template-rows: none; }
   .split, .two, .why-grid, .record { grid-template-columns: minmax(0, 1fr); }
   .exa { border-left: 0; padding-left: 0; border-top: 1px solid var(--line-strong); padding-top: 18px; margin-top: 22px; }
+  .answers dl > div:last-child { border-bottom: 0; }
   .side { margin-bottom: 20px; }
   .head { margin-bottom: 8px; }
+  .head + .group { margin-top: 24px; }
   .ex { grid-template-columns: minmax(0, 1fr); }
   .ex-id, .ex h3, .ex .sub { grid-column: 1; grid-row: auto; }
   .ex-id { align-items: center; margin-bottom: 12px; }
@@ -416,13 +432,15 @@ footer { border-top: 1px solid var(--line-strong); padding: 24px 0 32px; }
   .native td + td, .files td { margin-top: 10px; }
   .files td + td { margin-top: 6px; }
   .native td[data-l]::before, .files td[data-l]::before { content: attr(data-l); display: block; font: 500 .75rem/1.6 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .native tbody tr:last-child > *, .files tbody tr:last-child > * { border-bottom: 0; }
+  .fold > .files tbody tr:first-child { border-top: 0; padding-top: 0; }
   .limits, .skipit ul { columns: 1; }
 }
 
 /* ---------- 620px and below: phones ---------- */
 @media (max-width: 620px) {
   body { font-size: 1.03rem; }
-  .kicker { letter-spacing: .05em; }
+  .kicker { letter-spacing: .05em; text-wrap: balance; }
   h1.display .belt { white-space: normal }
   .bar { height: 50px; gap: 12px; }
   .nav { gap: 15px; }
@@ -432,6 +450,9 @@ footer { border-top: 1px solid var(--line-strong); padding: 24px 0 32px; }
   .facts > div { display: block; padding: 8px 0 9px; }
   .facts dt, .facts dd { display: inline; }
   .facts dt { margin-right: .6em; }
+  .rulings li { display: block; }
+  .rulings .rv, .rulings .why { display: block; text-align: left; }
+  .tape .ln { padding-left: 4ch; text-indent: -4ch; }
   .inst tr { grid-template-columns: minmax(0, 1fr); }
   .inst td[data-l]::before, .files td[data-l]::before { display: inline; margin-right: .7em; }
   .inst .st { display: inline; margin-right: 1em; }
@@ -439,11 +460,19 @@ footer { border-top: 1px solid var(--line-strong); padding: 24px 0 32px; }
   .inst td:nth-child(2) { margin-bottom: 0; }
   .inst tbody th { display: flex; flex-wrap: wrap; align-items: baseline; }
   .inst tbody th code { margin-left: auto; }
-  .three { grid-template-columns: minmax(0, 1fr); }
+  .inst tbody th .m.off { align-self: center; }
+  .three, .paths .cmdlist { grid-template-columns: minmax(0, 1fr); }
+  .paths .cmdlist > div:not(:last-child) { border-bottom: 0; }
+  .foot-doc { text-wrap: balance; }
   .colophon { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .colophon li { border-top: 1px solid var(--line); }
   .colophon li:nth-child(-n+2) { border-top: 0; }
   .colophon li:last-child { grid-column: 1 / -1; }
+}
+
+/* ---------- 400px and below: the install commands shrink one step so each stays on two lines ---------- */
+@media (max-width: 400px) {
+  .cmds { font-size: .75rem; }
 }
 
 /* ---------- print: light ink on white whatever the screen scheme, nothing pinned, nothing folded ---------- */
@@ -480,14 +509,34 @@ footer { border-top: 1px solid var(--line-strong); padding: 24px 0 32px; }
 </header>
 
 <main id="main" tabindex="-1">
-  <!-- Hero. Source order is pitch, capture, install, answers: that is the order on a phone.
-       On a wide screen the capture sits in the right column beside the other three. -->
+  <!-- Hero. Source order is pitch, install, answers, capture: that is the order on a phone, so the
+       two commands are on its first screen. On a wide screen the capture sits in the right column
+       beside the other three. -->
   <section class="hero" id="top" aria-labelledby="h-top">
     <div class="wrap hero-grid">
       <div class="pitch">
         <span class="kicker">CASE FILE <b>/</b> CLAUDE CODE PLUGIN <b>/</b> REV 3.26.0</span>
         <h1 class="display" id="h-top">Guard hooks and a local <span class="nb">tool-call log</span> <span class="belt">for Claude Code.</span></h1>
         <p class="lead">Claude Code ships hooks and permission rules, and no rule content for them. This plugin is that content, tested. One hook denies known destructive shell commands on every call, in every permission mode. Tool calls go to a local, redacted log you can search. Stricter checks (no push to <code>main</code>, no turn end on a failing typecheck) wait for a switch.</p>
+      </div>
+      <div class="install">
+        <div class="install-head">
+          <span class="tag">Install, inside Claude Code</span>
+          <button class="copy" type="button" data-target="cmds" data-copy="/plugin marketplace add naimkatiman/continuous-improvement&#10;/plugin install continuous-improvement@continuous-improvement">Copy</button>
+        </div>
+        <pre class="cmds" id="cmds"><span>/plugin marketplace add naimkatiman/<wbr><span class="nb">continuous-improvement</span></span><span>/plugin install <span class="nb">continuous-improvement</span>@<wbr><span class="nb">continuous-improvement</span></span></pre>
+        <p class="after">Then restart Claude Code once. The hooks need Node 18 or newer on your PATH. <a class="nb src" href="https://github.com/naimkatiman/continuous-improvement">Source on GitHub</a></p>
+      </div>
+      <div class="answers">
+        <h2 class="vh">After install: what is on, what it costs, how to turn it off</h2>
+        <dl>
+        <div><dt><i class="m deny"></i>Denies</dt><dd>destructive shell commands, blind edits of existing files</dd></div>
+        <div><dt><i class="m on"></i>On, never denies</dt><dd>the local log, recorded lessons at session start</dd></div>
+        <div><dt><i class="m"></i>Warn only</dt><dd>pushes to <code>main</code>, config edits, goal drift: the model never sees these</dd></div>
+        <div><dt><i class="m off"></i>Off</dt><dd>seven more checks, the typecheck at turn end among them</dd></div>
+        <div class="sum"><dt>Costs</dt><dd>1 Node process per read, 3 per edit, 4 per shell call. No model call, no network call. <a href="#cost">Itemised in §&nbsp;4</a></dd></div>
+        <div><dt>Turn off</dt><dd><code>claude plugin disable <span class="nb">continuous-improvement</span>@<wbr><span class="nb">continuous-improvement</span></code> keeps it installed. <a href="#off">More in §&nbsp;7</a></dd></div>
+        </dl>
       </div>
       <figure class="exa" aria-labelledby="exa-cap">
         <div class="exa-head">
@@ -510,25 +559,6 @@ footer { border-top: 1px solid var(--line-strong); padding: 24px 0 32px; }
 Destructive Bash gates EVERY call — clearance is not cached.</pre>
         <figcaption id="exa-cap">Captured output, not a mock-up: the hook file this plugin installs, fed one Bash tool call on stdin. In a session the denied command does not run, and the model has no way to clear the deny. If you mean the command, you run it yourself.</figcaption>
       </figure>
-      <div class="install">
-        <div class="install-head">
-          <span class="tag">Try it: inside Claude Code, two commands</span>
-          <button class="copy" type="button" data-target="cmds" data-copy="/plugin marketplace add naimkatiman/continuous-improvement&#10;/plugin install continuous-improvement@continuous-improvement">Copy</button>
-        </div>
-        <pre class="cmds" id="cmds"><span>/plugin marketplace add naimkatiman/<wbr>continuous-improvement</span><span>/plugin install continuous-improvement@<wbr>continuous-improvement</span></pre>
-        <p class="after">Then restart Claude Code once. The hooks need Node 18 or newer on your PATH.</p>
-      </div>
-      <div class="answers">
-        <h2 class="vh">After install: what is on, what it costs, how to turn it off</h2>
-        <dl>
-        <div><dt><i class="m deny"></i>Denies</dt><dd>destructive shell commands, blind edits of existing files</dd></div>
-        <div><dt><i class="m on"></i>On, never denies</dt><dd>the local log, recorded lessons at session start</dd></div>
-        <div><dt><i class="m"></i>Warn only</dt><dd>push gate, config guard, goal drift: the model never sees these</dd></div>
-        <div><dt><i class="m off"></i>Off</dt><dd>seven more checks, the typecheck at turn end among them</dd></div>
-        <div class="sum"><dt>Costs</dt><dd>1 Node process per read, 3 per edit, 4 per shell call. No model call, no network call. <a href="#cost">Itemised in §&nbsp;4</a></dd></div>
-        <div><dt>Turn off</dt><dd><code>claude plugin disable continuous-improvement@<wbr>continuous-improvement</code> keeps it installed. <a href="#off">Uninstall and single switches in §&nbsp;7</a></dd></div>
-        </dl>
-      </div>
     </div>
   </section>
 
@@ -545,7 +575,7 @@ Destructive Bash gates EVERY call — clearance is not cached.</pre>
         <tbody role="rowgroup">
           <tr role="row">
             <th role="rowheader" scope="row">Auto mode classifier</th>
-            <td role="cell" data-l="Claude Code, by itself">Blocks force pushes, <code>git reset --hard</code>, <code>git checkout -- .</code>, <code>git restore .</code>, <code>git clean -fd</code>, <code>git stash drop</code>, deploys and migrations by default. It allows “pushing to any branch of the repository you're working in, including the default branch”. <span class="docs">Docs: <a href="https://code.claude.com/docs/en/permission-modes">permission modes</a></span></td>
+            <td role="cell" data-l="Claude Code, by itself">Blocks force pushes, <code class="nb">git reset --hard</code>, <code class="nb">git checkout -- .</code>, <code class="nb">git restore .</code>, <code class="nb">git clean -fd</code>, <code class="nb">git stash drop</code>, deploys and migrations by default. It allows “pushing to any branch of the repository you're working in, including the default branch”. <span class="docs">Docs: <a href="https://code.claude.com/docs/en/permission-modes">permission modes</a></span></td>
             <td role="cell" data-l="This plugin adds">A hook deny for the same class of commands that holds in every mode, bypass included (Exhibit A). An opt-in refusal of pushes to <code>main</code>, <code>master</code> and <code>release/*</code> (Exhibit B).</td>
           </tr>
           <tr role="row">
@@ -576,7 +606,7 @@ Destructive Bash gates EVERY call — clearance is not cached.</pre>
           <tr role="row">
             <th role="rowheader" scope="row">Subagents, worktrees, <code>/code-review</code></th>
             <td role="cell" data-l="Claude Code, by itself">Per-agent tool and permission scoping, isolated worktrees with cleanup, a local bug-focused review and a multi-agent cloud review. <span class="docs">Docs: <a href="https://code.claude.com/docs/en/sub-agents">subagents</a>, <a href="https://code.claude.com/docs/en/worktrees">worktrees</a>, <a href="https://code.claude.com/docs/en/ultrareview">review</a></span></td>
-            <td role="cell" data-l="This plugin adds"><b>Nothing that enforces.</b> One command, <code>ci-reconcile</code>, reports git state with an exit code, for sessions that share a checkout (Exhibit G).</td>
+            <td role="cell" data-l="This plugin adds"><b>Nothing that enforces.</b> One command, <code class="nb">ci-reconcile</code>, reports git state with an exit code, for sessions that share a checkout (Exhibit G).</td>
           </tr>
           <tr role="row">
             <th role="rowheader" scope="row">Read before edit, writes outside the project</th>
@@ -634,8 +664,8 @@ $ HOME=home USERPROFILE=home CLAUDE_PROJECT_DIR=acme-api node hooks/gateguard.mj
           </ul>
         </div>
         <dl class="facts">
-          <div><dt>Claude Code</dt><dd>In auto mode the classifier blocks force pushes, <code>git reset --hard</code> and <code>git clean -fd</code>. Deny rules and hook denies hold in every mode, <code>bypassPermissions</code> included, but Claude Code ships no rule content for either.</dd></div>
-          <div><dt>This adds</dt><dd>The rule content, as a hook deny: recursive deletes, discarding git commands, forced pushes, <code>find -delete</code>, SQL drops, PowerShell and cmd deletes, read through <code>bash -c</code>, <code>pwsh -c</code> and <code>git -C</code>. The reason names the rule.</dd></div>
+          <div><dt>Claude Code</dt><dd>In auto mode the classifier blocks force pushes, <code class="nb">git reset --hard</code> and <code class="nb">git clean -fd</code>. Deny rules and hook denies hold in every mode, <code>bypassPermissions</code> included, but Claude Code ships no rule content for either.</dd></div>
+          <div><dt>This adds</dt><dd>The rule content, as a hook deny: recursive deletes, discarding git commands, forced pushes, <code class="nb">find -delete</code>, SQL drops, PowerShell and cmd deletes, read through <code class="nb">bash -c</code>, <code class="nb">pwsh -c</code> and <code class="nb">git -C</code>. The reason names the rule.</dd></div>
           <div><dt>Default</dt><dd>On, every call. Nothing is cached and the model cannot clear it.</dd></div>
           <div><dt>Switch</dt><dd>None. To stop it, <a href="#off">disable the plugin</a>.</dd></div>
           <div><dt>Cost</dt><dd>One Node process per shell or edit call. About 300 characters to the model on a deny.</dd></div>
@@ -649,7 +679,7 @@ $ HOME=home USERPROFILE=home CLAUDE_PROJECT_DIR=acme-api node hooks/gateguard.mj
         <h3 id="h-exb">A push to main, refused.</h3>
         <p class="sub">Off until you set one variable. By default the same call only writes a stderr line, which the model never sees.</p>
         <details class="ex-body" data-fold open>
-          <summary>Captured output, default, switch and cost</summary>
+          <summary><span class="vh">Exhibit B: </span>Captured output, default, switch and cost</summary>
           <div class="ex-cols">
         <div class="ex-caps">
           <p class="cap">Tool call: Bash, <code>git push origin main</code>. Switch set</p>
@@ -679,7 +709,7 @@ stderr: [hook-pack] Direct push to protected branch "main" — open a feature br
         <h3 id="h-exc">A turn that could not end.</h3>
         <p class="sub">A scratch repository with one changed file that assigns a string to a number. The hook ran the project's typecheck and handed the compiler's line back to the model.</p>
         <details class="ex-body" data-fold open>
-          <summary>Captured output, default, switch and cost</summary>
+          <summary><span class="vh">Exhibit C: </span>Captured output, default, switch and cost</summary>
           <div class="ex-cols">
         <div class="ex-caps">
           <p class="cap">Hook event: Stop. Switch set</p>
@@ -692,7 +722,7 @@ stderr: (node:54464) [DEP0190] DeprecationWarning: Passing args to a child proce
         </div>
         <dl class="facts">
           <div><dt>Claude Code</dt><dd><code>/goal</code> judges the transcript with a fresh model after each turn. It runs no commands.</dd></div>
-          <div><dt>This adds</dt><dd>At turn end, if a TypeScript file changed, it runs your <code>typecheck</code> script (or <code>tsc --noEmit</code>) and returns the last 15 lines of output as the reason the turn cannot end.</dd></div>
+          <div><dt>This adds</dt><dd>At turn end, if a TypeScript file changed, it runs your <code>typecheck</code> script (or <code class="nb">tsc --noEmit</code>) and returns the last 15 lines of output as the reason the turn cannot end.</dd></div>
           <div><dt>Default</dt><dd>Off.</dd></div>
           <div><dt>Switch</dt><dd><code>CLAUDE_TYPECHECK_GATE=block</code></dd></div>
           <div><dt>Cost</dt><dd>Off: one Node process per turn end that exits at once. On: your typecheck's run time, capped at 25 seconds.</dd></div>
@@ -706,7 +736,7 @@ stderr: (node:54464) [DEP0190] DeprecationWarning: Passing args to a child proce
         <h3 id="h-exd">A token that never reached the log.</h3>
         <p class="sub">And, in the same run, a password that did. Every credential here is fake.</p>
         <details class="ex-body" data-fold open>
-          <summary>Captured output, default, switch and cost</summary>
+          <summary><span class="vh">Exhibit D: </span>Captured output, default, switch and cost</summary>
           <div class="ex-cols">
         <div class="ex-caps">
           <p class="cap">The command in the tool call, from the payload</p>
@@ -735,7 +765,7 @@ $ tail -1 home/.claude/instincts/67c11d834ccf/observations.jsonl</span>
         <h3 id="h-exe">A search over the log.</h3>
         <p class="sub">The <code>ci_recall</code> tool, called over stdio as Claude Code calls it. The history was seeded for the capture: five tool-call payloads piped into the logger under another session id. The scores depend on that seeded log.</p>
         <details class="ex-body" data-fold open>
-          <summary>Captured output, default, switch and cost</summary>
+          <summary><span class="vh">Exhibit E: </span>Captured output, default, switch and cost</summary>
           <div class="ex-cols">
         <div class="ex-caps">
           <p class="cap">Request and answer: three words the log holds</p>
@@ -770,7 +800,7 @@ No past observations matched "kubernetes ingress". Try broader or different term
         <h3 id="h-exf">Two lessons, printed at session start.</h3>
         <p class="sub">A lesson is a small file, written when you run <code>/seven-laws</code> or when one of the plugin's tools creates it. Three were created with those tools for the capture. The one at confidence 0.4 is under the 0.5 floor and is not printed.</p>
         <details class="ex-body" data-fold open>
-          <summary>Captured output, default, switch and cost</summary>
+          <summary><span class="vh">Exhibit F: </span>Captured output, default, switch and cost</summary>
           <div class="ex-cols">
         <div class="ex-caps">
           <p class="cap">stdout of the hook, 686 characters. stderr carried one status line, exit 0</p>
@@ -782,7 +812,7 @@ Lessons from continuous-improvement instinct files: this repository's, and those
         </div>
         <dl class="facts">
           <div><dt>Claude Code</dt><dd>Auto memory is on by default in local sessions and loads the first 200 lines or 25KB of <code>MEMORY.md</code> into every conversation.</dd></div>
-          <div><dt>This adds</dt><dd>A second, smaller note channel: this repository's recorded lessons at confidence 0.5 or higher, highest first, at most 10 lessons and 1,500 characters.</dd></div>
+          <div><dt>This adds</dt><dd>A second, smaller note channel: this repository's recorded lessons, plus global ones that load in every repository, at confidence 0.5 or higher. Highest first, with entries from a starter pack last. At most 10 lessons and 1,500 characters.</dd></div>
           <div><dt>Default</dt><dd>On. It prints nothing when no lesson reaches 0.5.</dd></div>
           <div><dt>Switch</dt><dd><code>CI_INSTINCT_LOAD=off</code></dd></div>
           <div><dt>Cost</dt><dd>One Node process per session start, resume, <code>/clear</code> and compaction. At most about 375 tokens of context.</dd></div>
@@ -796,20 +826,14 @@ Lessons from continuous-improvement instinct files: this repository's, and those
         <h3 id="h-exg">Git state, as an exit code.</h3>
         <p class="sub">A scratch repository with one commit, one modified file, one untracked file and no remote. The first run reports the state. The second asks whether a push landed, and cannot prove it.</p>
         <details class="ex-body" data-fold open>
-          <summary>Captured output, default, switch and cost</summary>
+          <summary><span class="vh">Exhibit G: </span>Captured output, default, switch and cost</summary>
           <div class="ex-cols">
         <div class="ex-caps">
           <p class="cap"><code>ci-reconcile</code>, then <code>--verify-push</code></p>
+<!-- Each report row is one block span, with no line break between the spans: a row that wraps hangs under the message column. -->
 <pre class="tape"><span class="p">$ node bin/reconcile.mjs</span>
 reconcile (resolved):
-  HEAD commit     ok       04494de2e965
-  HEAD            ok       on feature/price-fix
-  upstream        WARN     no configured upstream — compare against origin/&lt;default&gt; explicitly before classifying
-  in-progress op  ok       none
-  working tree    ok       2 reported by status but only 1 with content drift — stage by explicit filename, never git add -A
-  stashes         ok       none
-  worktrees       ok       1 (this one)
-<span class="p">(exit 0)
+<span class="ln">  HEAD commit     ok       04494de2e965</span><span class="ln">  HEAD            ok       on feature/price-fix</span><span class="ln">  upstream        WARN     no configured upstream — compare against origin/&lt;default&gt; explicitly before classifying</span><span class="ln">  in-progress op  ok       none</span><span class="ln">  working tree    ok       2 reported by status but only 1 with content drift — stage by explicit filename, never git add -A</span><span class="ln">  stashes         ok       none</span><span class="ln">  worktrees       ok       1 (this one)</span><span class="p">(exit 0)
 $ node bin/reconcile.mjs --verify-push feature/price-fix</span>
 push feature/price-fix: unverified — git ls-remote exited 128; absence of the ref is unproven
 <span class="p">(exit 1)</span></pre>
@@ -818,7 +842,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
           <div><dt>Claude Code</dt><dd>Isolates work in worktrees and cleans them up. Ownership between sessions started separately in one checkout is not covered.</dd></div>
           <div><dt>This adds</dt><dd><code>ci-reconcile</code>: branch, upstream, in-progress operation, working tree, stashes and worktrees in one report. Exit 0 clear, 1 blocker, 2 not a repository.</dd></div>
           <div><dt>Default</dt><dd>On demand. It is a command, not a hook.</dd></div>
-          <div><dt>Switch</dt><dd>None. Run <code>npx ci-reconcile</code> or <code>/reconcile</code>.</dd></div>
+          <div><dt>Switch</dt><dd>None. Run <code><span class="nb">npx -p</span> <span class="nb">continuous-improvement</span> <span class="nb">ci-reconcile</span></code>. The <code>/reconcile</code> command tells the model to run <code class="nb">npx ci-reconcile</code>, which returns a 404 unless the npm package is installed.</dd></div>
           <div><dt>Cost</dt><dd>One process when you run it. Every probe is a <code>git</code> call with no shell.</dd></div>
         </dl>
           </div>
@@ -835,7 +859,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
           <h2 id="h-installs">Everything it installs, and each default.</h2>
         </div>
         <div>
-          <p class="lede">14 hook registrations, 13 scripts. On by default: the destructive-command deny, the blind-edit check, the local log, and the lesson load, which is silent when there are no lessons. Three rules only warn, and a warning is a stderr line with exit 0, which the model never sees. Seven checks wait for a switch. A shell call means the Bash, PowerShell or Monitor tool. Row numbers follow the order in <code>hooks.json</code>.</p>
+          <p class="lede">14 hook registrations, 13 scripts. On by default: the destructive-command deny, the blind-edit check, the local log, and the lesson load, which is silent when there are no lessons. Three rules only warn, and a warning is a stderr line with exit 0, which the model never sees. Seven checks wait for a switch: six registrations and the wrong-repository lock in row 01. A shell call means the Bash, PowerShell or Monitor tool. Row numbers follow the order in <code>hooks.json</code>.</p>
           <p class="legend"><span><i class="m deny"></i>denies by default</span> <span><i class="m on"></i>on, never denies</span> <span><i class="m"></i>warn or stderr only: reaches nobody</span> <span><i class="m off"></i>off until switched</span></p>
         </div>
       </div>
@@ -868,7 +892,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
           </tr>
           <tr role="row">
             <th role="rowheader" scope="row"><i class="m on" aria-hidden="true"></i><span class="no">08</span> <span class="ev">SessionStart</span> <code>hooks/<wbr>session.mjs</code></th>
-            <td role="cell" data-l="What it does">Prints this repository's recorded lessons at confidence 0.5 or higher into context (Exhibit F), and a status line to stderr.</td>
+            <td role="cell" data-l="What it does">Prints this repository's and the global recorded lessons at confidence 0.5 or higher into context (Exhibit F), and a status line to stderr.</td>
             <td role="cell" data-l="Default"><span class="st">on, silent with no lessons</span></td>
             <td role="cell" data-l="Switch"><code>CI_INSTINCT_LOAD=off</code>.</td>
             <td role="cell" data-l="Cost">1 process per session start, resume, <code>/clear</code> and compaction. At most 10 lessons and 1,500 characters.</td>
@@ -1004,7 +1028,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
           <p class="note">One start per matching registration. A call denied before it runs starts one fewer, because there is nothing to log. The Skill and Monitor rows are derived from the hook matchers, not observed. No millisecond figure is given: the cost is your machine's Node startup time, and the hooks add little on top.</p>
         </div>
         <div>
-          <h3>Text added to the model's context by default.</h3>
+          <h3>Context added by default.</h3>
           <ul class="plain">
             <li><b>Session start:</b> nothing when the repository has no lesson at 0.5 or above. Otherwise a header and up to 10 lines, 1,500 characters at most, about 375 tokens (Exhibit F).</li>
             <li><b>Skill and command listing:</b> 41 names with descriptions, about 2,350 to 2,930 tokens before Claude Code applies its listing budget, which caps all installed skills together at 1% of the context window. The real per-turn cost was not measured.</li>
@@ -1024,7 +1048,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
       <div class="side stick">
         <span class="tag"><b>§&nbsp;5</b> · Data</span>
         <h2 id="h-local">What leaves your machine: nothing.</h2>
-        <p class="lede">The hooks, the logger and the MCP server contain no network code. What they write stays in two directories under your home folder: <code>~/.claude/instincts/</code> and <code>~/.claude/hook-telemetry/</code>.</p>
+        <p class="lede">The hooks, the logger and the MCP server contain no network code. What they write stays on your machine: under <code>~/.claude/instincts/</code> and <code>~/.claude/hook-telemetry/</code>, plus three planning files in your project root when you ask for them.</p>
       </div>
       <div>
         <details class="fold" data-fold open style="margin-top:0">
@@ -1060,18 +1084,18 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
       <div>
         <ol class="limits">
           <li><b>Shell redirection is not gated.</b> <code>echo "…" &gt; src/price.ts</code> through the Bash tool passes every rule here, the wrong-repository lock included.</li>
-          <li><b>It refuses some harmless commands.</b> <code>git branch -d</code>, the safe delete, is denied because the fallback list ignores case. The deny names the rule, so you can see why.</li>
+          <li><b>It refuses some harmless commands.</b> <code class="nb">git branch -d</code>, the safe delete, is denied because the fallback list ignores case. The deny names the rule, so you can see why.</li>
           <li><b>Refused, not cleared.</b> A destructive command has no clearance route. If you mean it, you run it.</li>
           <li><b>Redaction is by pattern.</b> A secret in a shape the patterns do not know is written to the log as typed. Rows written by earlier versions are not rewritten.</li>
           <li><b>A warning reaches nobody.</b> The push gate, the config guard and goal drift default to <code>warn</code>: a stderr line with exit 0, which Claude never sees.</li>
           <li><b>A hook that is off still starts.</b> The prompt and turn-end registrations are unconditional. Each one reads its switch and exits.</li>
           <li><b>The log has gaps.</b> Only calls that reach PostToolUse are logged, so failed and denied calls are missing. Search is lexical and skips rotated archives.</li>
-          <li><b>The commit-size gate counts staged files only.</b> <code>git commit -am</code> with 16 modified files and none staged passed in block mode. The same 16 files staged were refused.</li>
-          <li><b>The config guard is a command scanner.</b> <code>python -c "open('.claude/settings.json','w').write('{}')"</code> passed in block mode.</li>
+          <li><b>The commit-size gate counts staged files only.</b> <code class="nb">git commit -am</code> with 16 modified files and none staged passed in block mode. The same 16 files staged were refused.</li>
+          <li><b>The config guard is a command scanner.</b> <code class="blk">python -c "open('.claude/settings.json','w').write('{}')"</code> passed in block mode.</li>
           <li><b>The typecheck gate is TypeScript only.</b> It needs <code>tsconfig.json</code> at the project root and allows the turn after 25 seconds.</li>
           <li><b>Lessons are notes.</b> Confidence is a number on a file. <code>ci_reinforce</code> raises it by 0.15 or lowers it by 0.1, up to 0.9. No code applies a lesson.</li>
           <li><b>The skills are prose.</b> The project's own <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/docs/audits/2026-11-20-frontier-model-audit.md">audit</a> marked 10 of the 28 skills for retirement, 4 to merge and 14 to slim.</li>
-          <li><b>Two commands need a clone of the repository.</b> <code>/harvest</code> and <code>/companion-preference</code> call scripts that neither install path ships.</li>
+          <li><b>Two commands need a clone of the repository.</b> <code>/harvest</code> and <code>/companion-preference</code> run <code class="nb">node bin/…</code> from the repository root, which neither install sets up.</li>
           <li><b>No Node, no hooks.</b> Every registration calls <code>node</code>. Without it on your PATH the registrations fail and no rule runs.</li>
           <li><b>Not tested on macOS.</b> CI runs Linux. The captures on this page ran on Windows 11.</li>
           <li><b>No outcome claim.</b> No dated eval compares sessions with and without the plugin, so this page does not say it improves results.</li>
@@ -1102,7 +1126,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
           <h3>Five minutes.</h3>
           <ol class="steps">
             <li>Run the two commands inside Claude Code, then restart it once so the commands load.</li>
-            <li>Ask Claude to run <code class="nb">rm -rf ./no-such-dir</code>. The call is denied before it runs, and the reason names the rule, <code>rm-recursive-force</code>. The directory does not exist, so a broken install deletes nothing.</li>
+            <li>Ask Claude to run <code class="nb">rm -rf ./no-such-dir</code>. The call is denied before it runs, and the reason names the rule, <code class="nb">rm-recursive-force</code>. The directory does not exist, so a broken install deletes nothing.</li>
             <li>Work for a few minutes, then run <code>/recall</code> with a word from a command the session ran.</li>
             <li>In a TypeScript repository, start Claude Code with <code>CLAUDE_TYPECHECK_GATE=block</code> in its environment. A turn that leaves a type error in a changed file is sent back.</li>
           </ol>
@@ -1112,19 +1136,22 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
           <h3>Turn off and update.</h3>
           <dl class="cmdlist">
             <div><dt>One rule</dt><dd>Its switch in <a href="#installs">§&nbsp;3</a>.</dd></div>
-            <div><dt>Everything, kept installed</dt><dd><code>claude plugin disable continuous-improvement@<wbr>continuous-improvement</code></dd></div>
-            <div><dt>Remove</dt><dd><code>/plugin uninstall continuous-improvement@<wbr>continuous-improvement</code> Then delete <code>~/.claude/instincts/</code> and <code>~/.claude/hook-telemetry/</code> yourself.</dd></div>
-            <div><dt>Update</dt><dd><code>claude plugin marketplace update continuous-improvement</code> Then <code>claude plugin update continuous-improvement@<wbr>continuous-improvement</code>. The new version loads in your next session.</dd></div>
+            <div><dt>Everything, kept installed</dt><dd><code>claude plugin disable <span class="nb">continuous-improvement</span>@<wbr><span class="nb">continuous-improvement</span></code></dd></div>
+            <div><dt>Remove</dt><dd><code>/plugin uninstall <span class="nb">continuous-improvement</span>@<wbr><span class="nb">continuous-improvement</span></code> Then delete <code>~/.claude/instincts/</code> and <code class="nb">~/.claude/hook-telemetry/</code> yourself.</dd></div>
+            <div><dt>Update</dt><dd><code>claude plugin marketplace update <span class="nb">continuous-improvement</span></code> Then <code>claude plugin update <span class="nb">continuous-improvement</span>@<wbr><span class="nb">continuous-improvement</span></code>. The new version loads in your next session.</dd></div>
           </dl>
           <p class="note">These commands are from the <a href="https://code.claude.com/docs/en/plugins/cli-reference">plugin CLI reference</a>. They were not run against a live install here.</p>
         </div>
-        <details data-fold open>
-          <summary><h3>Other install paths.</h3></summary>
+        <div class="paths">
+          <h3>Other install paths.</h3>
+          <details data-fold open>
+          <summary>npm and other agents</summary>
           <dl class="cmdlist">
-            <div><dt>npm</dt><dd><code>npx continuous-improvement install</code> Installs the logger, 2 skills and 14 commands into <code>~/.claude</code>. With <code>--mode expert</code> it also registers the session hook and writes an MCP server entry into <code>~/.claude/settings.json</code>. Whether current Claude Code loads a server from that file was not verified. It installs none of the guard hooks, so <code>/verify-install</code> reports the missing guard on this path. Do not run both paths against the same <code>~/.claude</code>.</dd></div>
-            <div><dt>Other agents</dt><dd><code>npx continuous-improvement install --target gemini,codex</code> Writes a rules file for Gemini, Codex, Cursor, Windsurf, Zed, Aider or Copilot. A rules file only: no hooks, no MCP server, no lessons.</dd></div>
+            <div><dt>npm</dt><dd><code>npx <span class="nb">continuous-improvement</span> install</code> Installs the logger, 2 skills and 14 commands into <code>~/.claude</code>. With <code class="nb">--mode expert</code> it also registers the session hook and writes an MCP server entry into <code>~/.claude/settings.json</code>. Whether current Claude Code loads a server from that file was not verified. It installs none of the guard hooks, so <code>/verify-install</code> reports the missing guard on this path. Do not run both paths against the same <code>~/.claude</code>.</dd></div>
+            <div><dt>Other agents</dt><dd><code>npx <span class="nb">continuous-improvement</span> install <span class="nb">--target</span> gemini,codex</code> Writes a rules file for Gemini, Codex, Cursor, Windsurf, Zed, Aider or Copilot. A rules file only: no hooks, no MCP server, no lessons.</dd></div>
           </dl>
-        </details>
+          </details>
+        </div>
       </div>
     </div>
   </section>
@@ -1137,17 +1164,17 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
       </div>
       <div class="why-grid">
         <div>
-          <p class="anchor">Did I check, or did I hope?</p>
-          <p>The plugin is built around that one question, asked before a session says done. The idea is older than software.</p>
+          <p class="anchor">One question before a session says done: was it checked, or hoped.</p>
+          <p>The plugin is built around that question. The idea is older than software.</p>
           <blockquote>
-            <p>The wise one takes account of himself and works for what comes after. The weak one follows his own impulse and merely wishes.</p>
+            <p>The wise one is the one who takes account of himself and works for what comes after death. The weak one is the one who follows his own desires and then merely wishes upon Allah.</p>
             <cite>Jami` at-Tirmidhi 2459, narrated by Shaddad ibn Aws. Tirmidhi graded it hasan; later scholars disputed the chain. Full sourcing in <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/docs/philosophy.md">docs/philosophy.md</a>.</cite>
           </blockquote>
           <p>As models improve, planning etiquette and reminders to verify merge into the model. A refusal that holds in every permission mode, a check that runs before the turn ends and a record of what was run do not. The skills are disposable. The hooks and the log are the product.</p>
           <p class="links"><a href="https://github.com/naimkatiman/continuous-improvement">Source on GitHub</a> <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/CHANGELOG.md">Changelog</a> <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/docs/philosophy.md">docs/philosophy.md</a> <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/QUICKSTART.md">Quickstart</a></p>
         </div>
         <figure>
-          <img src="ledger.jpg" width="1400" height="781" decoding="async" alt="An open paper ledger with ruled columns. One group of tally marks is orange among black ones." loading="lazy">
+          <div class="plate"><img src="ledger.jpg" width="1400" height="781" decoding="async" alt="An open paper ledger with ruled columns. One group of tally marks is orange among black ones." loading="lazy"></div>
           <figcaption>A ledger settles by outcome, not by intention.</figcaption>
         </figure>
       </div>
@@ -1179,7 +1206,7 @@ ci         Node 18, 20, 22 on Linux</pre>
 
 <footer>
   <div class="wrap foot">
-    <span class="foot-doc">DOC. CI-7L &middot; REV 3.26.0 &middot; MIT LICENSE</span>
+    <span class="foot-doc">CONTINUOUS-IMPROVEMENT &middot; REV 3.26.0 &middot; MIT LICENSE</span>
     <div class="foot-links">
       <a href="https://github.com/naimkatiman/continuous-improvement">GitHub</a>
       <a href="https://www.npmjs.com/package/continuous-improvement">npm</a>
@@ -1232,18 +1259,13 @@ ci         Node 18, 20, 22 on Linux</pre>
 
   // Long reference blocks are open in the markup, so they read with scripting off.
   // On a narrow screen they start closed, each behind a summary that says what it holds.
+  // A summary stays a working toggle at every width.
   var narrow = window.matchMedia("(max-width: 760px)");
   var folds = d.querySelectorAll("details[data-fold]");
   var setFolds = function () {
-    folds.forEach(function (x) {
-      x.open = !narrow.matches;
-      x.querySelector("summary").tabIndex = narrow.matches ? 0 : -1;
-    });
+    folds.forEach(function (x) { x.open = !narrow.matches; });
   };
   setFolds();
-  folds.forEach(function (x) {
-    x.querySelector("summary").addEventListener("click", function (e) { if (!narrow.matches) e.preventDefault(); });
-  });
   if (narrow.addEventListener) narrow.addEventListener("change", setFolds);
 
   // A link that points into a closed block opens it.
