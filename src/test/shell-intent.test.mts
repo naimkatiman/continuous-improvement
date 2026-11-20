@@ -1,0 +1,338 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+
+import { isReadOnlyLookup, isVerificationRun } from "../lib/shell-intent.mjs";
+
+// The transcript linter asks of every Bash or PowerShell call whether it looked
+// something up without changing anything. The answer comes from the command
+// word of each simple command on the line, never from a word that merely
+// appears somewhere in it.
+describe("isReadOnlyLookup", () => {
+  const LOOKUPS: readonly string[] = [
+    "cat src/a.ts",
+    "head -50 README.md",
+    "tail -n 20 build.log",
+    "less notes.txt",
+    "sed -n '1,40p' src/a.ts",
+    "rg -n retry src",
+    'grep -rn "retry" src/',
+    "ls",
+    "ls -la src",
+    'find . -name "*.ts" -not -path "./node_modules/*"',
+    'find src -name "*.ts" -exec grep -l retry {} +',
+    "git log --oneline -5",
+    "git -C ../other show HEAD:src/a.ts",
+    "git --no-pager diff --stat",
+    "git status --short",
+    "git blame -L 1,10 src/a.ts",
+    "git grep -n retry",
+    "gh pr view 12 --json title",
+    "gh issue list --state open",
+    "gh repo view owner/repo",
+    "gh api repos/owner/repo/readme",
+    "gh api -X GET search/code -f q=retry",
+    "curl -s https://example.com/api",
+    "curl -fsSL https://example.com/x.json",
+    "Get-Content src/a.ts -TotalCount 40",
+    "Select-String -Path src/*.ts -Pattern retry",
+    "Get-ChildItem -Recurse src",
+    "Test-Path out.txt",
+    "gc package.json",
+    // a PowerShell Get cmdlet retrieves and changes nothing
+    "Get-ScheduledTask | Where-Object { $_.State -ne 'Disabled' }",
+    "Get-Process node",
+    "Get-Item C:\\repo\\package.json",
+    "Get-ItemProperty HKCU:\\Software\\Example",
+    "Get-Command npm",
+  ];
+
+  for (const command of LOOKUPS) {
+    it(`a lookup: ${command}`, () => {
+      assert.equal(isReadOnlyLookup(command), true);
+    });
+  }
+
+  const LOOKUPS_INSIDE_A_LONGER_LINE: readonly string[] = [
+    "cd /repo && git log --oneline -3",
+    "cat package.json | head -20",
+    "git log | head -5",
+    "FOO=1 git status",
+    "(cd sub && ls)",
+    'echo "---"; cat a.txt',
+    "npm install\ngit status",
+    "mkdir -p out; ls out",
+    'echo "$(date)" && rg -n retry src 2>/dev/null',
+    "if [ -f a.txt ]; then cat a.txt; fi",
+    'for f in src/*.ts; do grep -l retry "$f"; done',
+    "sudo cat /etc/hosts",
+    "timeout 30 git log -3",
+    'bash -lc "git status"',
+    'pwsh -NoProfile -Command "Get-Content a.txt"',
+    "cmd /c type a.txt",
+    "/usr/bin/git log -3",
+    '& "C:\\Program Files\\Git\\bin\\git.exe" log -3',
+    "$log = git log --oneline -5",
+    "Get-ChildItem src | Select-String retry",
+    "git log `\n  --oneline -5",
+    "git log \\\n  --oneline -5",
+    // `<<` inside a quoted argument is not a here-document
+    'echo "a << b" && cat a.txt',
+    // the line after a here-document is a command again
+    "cat > notes.txt <<'EOF'\nhello\nEOF\ngit status",
+  ];
+
+  for (const command of LOOKUPS_INSIDE_A_LONGER_LINE) {
+    it(`a lookup at a command position: ${JSON.stringify(command)}`, () => {
+      assert.equal(isReadOnlyLookup(command), true);
+    });
+  }
+
+  const NOT_LOOKUPS: readonly string[] = [
+    "",
+    "   ",
+    "npm install",
+    "npm test",
+    "mkdir -p src/new",
+    'git commit -m "read the docs"',
+    "git push origin feature",
+    "git checkout -b feature",
+    "git add src/a.ts",
+    "echo cat > notes.txt",
+    'echo "grep this"',
+    // a word that only appears in the line
+    "node scripts/cat.js",
+    "npx grep-cli",
+    "./ls-remote.sh",
+    // cat that writes a file from a here-document reads nothing
+    "cat > notes.txt <<'EOF'\nhello\nEOF",
+    "cat <<'EOF' > a.txt\ngit log\nEOF",
+    // the body of a here-document is text, not commands
+    "node - <<'EOF'\ncat src/a.ts\nEOF",
+    "python - <<PY\nls\nPY",
+    'git commit -m "$(cat <<\'EOF\'\nfix: it\'s done\n\ngit log shows "the fix"\nEOF\n)"',
+    "@'\ngit log\n'@ | Set-Content notes.txt",
+    // sed that edits in place, or prints a rewritten file
+    "sed -i 's/a/b/' src/a.ts",
+    "sed -i -n 's/a/b/p' src/a.ts",
+    'find . -name "*.tmp" -delete',
+    'find . -name "*.orig" -exec mv {} /backup \\;',
+    "gh pr create --title x --body y",
+    "gh pr merge 5 --squash",
+    "gh api -X POST repos/owner/repo/issues -f title=x",
+    "gh api repos/owner/repo/issues -f title=x",
+    "gh api --method DELETE repos/owner/repo/git/refs/heads/x",
+    'curl -X POST https://example.com -d \'{"a":1}\'',
+    "curl -sS --data-binary @payload.json https://example.com",
+    "curl -T file.bin https://example.com/upload",
+    "curl -F file=@a.png https://example.com",
+    // a filter on another command's output looks nothing up
+    "npm install 2>&1 | tail -5",
+    "npm run build | grep error",
+    "docker compose up -d | head",
+    "# cat src/a.ts",
+    "echo done # ls",
+    'Set-Content a.txt "x"',
+    "New-Item -ItemType Directory out",
+    // the PowerShell spellings of date, pwd and a random number look nothing up
+    "Get-Date -Format o",
+    "Get-Location",
+    "Get-Random -Maximum 10",
+    "npm install | Get-Member",
+    "node -e \"require('child_process').execSync('git log')\"",
+    "git stash",
+  ];
+
+  for (const command of NOT_LOOKUPS) {
+    it(`not a lookup: ${JSON.stringify(command)}`, () => {
+      assert.equal(isReadOnlyLookup(command), false);
+    });
+  }
+});
+
+// Law 4 asks whether a session ran a test, a build or a check. The words
+// `test` and `build` turn up in paths, search patterns and script text, so the
+// answer comes from a runner invoked at a command position.
+describe("isVerificationRun", () => {
+  const RUNS: readonly string[] = [
+    "npm test",
+    "npm t",
+    "npm run build",
+    "npm run typecheck",
+    "npm run verify:all",
+    "npm --prefix web run build",
+    "npm.cmd run build",
+    "pnpm test",
+    "pnpm run lint",
+    "pnpm --filter @app/web test",
+    "pnpm vitest run",
+    "pnpm build",
+    "yarn test",
+    "yarn run build",
+    "yarn lint",
+    "yarn tsc --noEmit",
+    "bun test",
+    "bun run build",
+    "npx tsc --noEmit",
+    "npx --no-install vitest run src/a.test.ts",
+    "npx jest --runInBand",
+    "npx playwright test",
+    "npx eslint src",
+    "npx mocha",
+    "npx craco test --watchAll=false",
+    "node node_modules/@craco/craco/dist/bin/craco.js test --watchAll=false",
+    "npx react-scripts build",
+    "npx vite build --outDir dist",
+    "node ./node_modules/vite/bin/vite.js build",
+    "npx next build",
+    "pnpm exec tsc -p tsconfig.json",
+    "bunx vitest",
+    "tsc --noEmit",
+    "tsc -p tsconfig.json",
+    "vitest run",
+    "jest",
+    "eslint .",
+    "playwright test",
+    "./node_modules/.bin/vitest run",
+    ".\\node_modules\\.bin\\tsc.cmd --noEmit",
+    "node node_modules/vitest/vitest.mjs run",
+    "node node_modules/typescript/bin/tsc --noEmit",
+    "node --test",
+    "node --test test/a.test.mjs",
+    "node --import tsx --test test/a.test.ts",
+    "node --test-reporter spec --test test/",
+    "pytest -q",
+    "python -m pytest tests/",
+    "python3 -m unittest discover -s tests",
+    ".venv/Scripts/python -m unittest discover -s tests",
+    "py -3 -m pytest",
+    "uv run pytest -q",
+    "poetry run pytest",
+    "go test ./...",
+    "go vet ./...",
+    "go build ./cmd/app",
+    "cargo test",
+    "cargo +nightly clippy",
+    "cargo build --release",
+    "cargo check",
+    "dotnet test",
+    "dotnet build -c Release",
+    "mvn -q test",
+    "mvn clean verify",
+    "./mvnw test",
+    "gradle test",
+    "./gradlew clean build",
+    ".\\gradlew.bat test",
+    "make test",
+    "make check",
+    "make -j4 build",
+    "deno test",
+    "Invoke-Pester",
+    "Invoke-Pester -Path tests",
+  ];
+
+  for (const command of RUNS) {
+    it(`a run: ${command}`, () => {
+      assert.equal(isVerificationRun(command), true);
+    });
+  }
+
+  const RUNS_INSIDE_A_LONGER_LINE: readonly string[] = [
+    "cd /repo && npm test",
+    "npm install && npm run build",
+    "npm test 2>&1 | tail -20",
+    "CI=1 npm test",
+    "NODE_ENV=test npx vitest run",
+    "(cd web && npm run build)",
+    "npm run build; echo done",
+    "if npm test; then echo ok; fi",
+    "npm test || true",
+    "git status\nnpm test",
+    "time npm test",
+    "timeout 600 npm test",
+    'bash -lc "npm test"',
+    "bash -c 'cd web && npx tsc --noEmit'",
+    'pwsh -NoProfile -Command "npm run build"',
+    'powershell -Command "Invoke-Pester"',
+    'cmd /c "npm run build"',
+    "& npm test",
+    "$out = npm test 2>&1",
+    "Set-Location web; npm run build",
+    "if ($LASTEXITCODE -eq 0) { npm run build }",
+    'Invoke-Expression "npm test"',
+    "result=$(npm test 2>&1)",
+    "cross-env CI=1 vitest run",
+    "dotenv -e .env.test -- jest",
+  ];
+
+  for (const command of RUNS_INSIDE_A_LONGER_LINE) {
+    it(`a run at a command position: ${JSON.stringify(command)}`, () => {
+      assert.equal(isVerificationRun(command), true);
+    });
+  }
+
+  const NOT_RUNS: readonly string[] = [
+    "",
+    // the bare word in a path, a pattern or an argument
+    "ls test/",
+    "ls build",
+    "cat test/a.test.ts",
+    "Get-ChildItem test",
+    "Test-Path out.txt",
+    "cd hub-owned-intel-build-20261016",
+    "mkdir -p build/out",
+    "grep -i test README.md",
+    'grep -rn "npm test" .',
+    'rg "npm run build" docs',
+    "git checkout -b test",
+    "git log --grep build",
+    "git add test/a.test.ts",
+    "cp build/a.js dist/",
+    "sed -n '/test -z/p' scripts/run.sh",
+    // script text
+    'node -e "console.log(/re/.test(process.argv[1]))"',
+    'node -e "require(\'child_process\').execSync(\'npm test\')"',
+    "python -c \"print('pytest')\"",
+    'echo "npm test"',
+    'echo "run npm test next" > notes.txt',
+    "cat > run.sh <<'EOF'\nnpm test\nEOF",
+    'git commit -m "$(cat <<\'EOF\'\nfix: retry\n\nnpm test passes\nEOF\n)"',
+    'git commit -m "build: bump"',
+    "# npm test",
+    // a package manager doing something else
+    "npm install",
+    "npm ci",
+    "npm run",
+    "npm view vitest version",
+    "npm ls jest",
+    "pnpm add -D vitest",
+    "yarn add jest",
+    "bun install",
+    "npx prettier --write src",
+    "npx playwright install",
+    "npx vite preview --port 4173",
+    "npx vite",
+    "npx next dev",
+    "npx craco start",
+    // a tool that is not a runner
+    "node scripts/test-data.js",
+    "node build.js",
+    "node server.js --test",
+    "python manage.py runserver",
+    "python -m http.server",
+    "go run ./cmd/app",
+    "go mod tidy",
+    "cargo add serde",
+    "cargo run",
+    "dotnet run",
+    "make install",
+    "make clean",
+    "gradle wrapper",
+    "mvn dependency:tree",
+  ];
+
+  for (const command of NOT_RUNS) {
+    it(`not a run: ${JSON.stringify(command)}`, () => {
+      assert.equal(isVerificationRun(command), false);
+    });
+  }
+});

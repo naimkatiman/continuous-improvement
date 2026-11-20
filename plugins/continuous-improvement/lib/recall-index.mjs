@@ -10,7 +10,7 @@
 // the index is rebuilt per query from the row list. At current observation
 // volumes (well under 100k rows) the rebuild is sub-50ms; a node:sqlite FTS5
 // migration is a follow-up if volumes grow.
-import { redactSecrets } from "./redact-secrets.mjs";
+import { HEX_KEPT_PREFIX, redactSecrets } from "./redact-secrets.mjs";
 const STOPWORDS = new Set([
     "the", "and", "for", "with", "that", "this", "from", "into", "your", "are",
     "was", "were", "but", "not", "all", "any", "can", "its", "out", "has", "had",
@@ -20,6 +20,10 @@ const BM25_K1 = 1.5;
 const BM25_B = 0.75;
 const DEFAULT_K = 5;
 const SNIPPET_RADIUS = 60;
+// The observer writes a run of 32 or more hex characters (a commit id, a
+// checksum) as <hex-redacted:XXXXXXXX>, keeping its first characters. A query
+// for the whole value also searches for that prefix, so it reaches the row.
+const LONG_HEX_TERM_RE = /^[a-f0-9]{32,}$/;
 /** Lowercase, split on any non-letter / non-number / non-mark (Unicode-aware), drop stopwords and tokens shorter than TOKEN_MIN_LENGTH. */
 export function tokenize(text) {
     const out = [];
@@ -120,7 +124,9 @@ function makeSnippet(text, queryTerms) {
  * older than an ISO timestamp or relative window. Snippets are redacted.
  */
 export function query(index, queryString, opts = {}) {
-    const queryTerms = [...new Set(tokenize(queryString))];
+    const queryTerms = [
+        ...new Set(tokenize(queryString).flatMap((term) => LONG_HEX_TERM_RE.test(term) ? [term, term.slice(0, HEX_KEPT_PREFIX)] : [term])),
+    ];
     if (queryTerms.length === 0)
         return [];
     const k = opts.k && opts.k > 0 ? opts.k : DEFAULT_K;

@@ -50,16 +50,20 @@ class McpTestClient {
         }
     }
     send(message) {
+        return this.sendRaw(`${JSON.stringify(message)}\n`, String(message.method || message.id));
+    }
+    // Writes `raw` to stdin as is, for messages that are not one JSON line.
+    sendRaw(raw, label) {
         return new Promise((resolve, reject) => {
             const timer = setTimeout(() => {
                 const index = this.resolvers.findIndex((resolver) => resolver.timer === timer);
                 if (index !== -1) {
                     this.resolvers.splice(index, 1);
                 }
-                reject(new Error(`Timeout waiting for response to ${String(message.method || message.id)}`));
+                reject(new Error(`Timeout waiting for response to ${label}`));
             }, 8000);
             this.resolvers.push({ resolve, reject, timer });
-            this.proc.stdin.write(`${JSON.stringify(message)}\n`);
+            this.proc.stdin.write(raw);
             this.drain();
         });
     }
@@ -704,6 +708,176 @@ describe("MCP server — an instinct id cannot leave the instincts dir (expert)"
         assert.deepEqual(created, []);
         assert.ok(response.result.isError);
         assert.match(response.result.content[0].text, /rename the file to <new id>\.yaml/);
+    });
+    // A file name has a 255-byte limit on NTFS, ext4 and APFS, so an id of 251+
+    // characters made writeFileSync throw ENAMETOOLONG inside the tool handler and
+    // the tool call got no response at all. The cap is 160 characters: the longest
+    // id the plugin itself writes is draft-workflow-<120-char slug> (135), and 160
+    // keeps <home>/.claude/instincts/<hash>/drafts/<id>.yaml under the 260-character
+    // Windows path limit for an ordinary user profile.
+    const TOO_LONG_ID = "a".repeat(300);
+    it("ci_create_instinct rejects a 300-character id, names the limit and writes nothing", async () => {
+        const { created, response } = await createdBy(() => call("ci_create_instinct", { id: TOO_LONG_ID, trigger: "when naming", body: "keep it short" }));
+        assert.deepEqual(created, [], "an over-long id must not create a file");
+        assert.ok(response.result.isError, "an over-long id must return a tool error");
+        assert.match(response.result.content[0].text, /Invalid instinct id/);
+        assert.match(response.result.content[0].text, /at most 160 characters/);
+    });
+    it("ci_create_instinct accepts an id of exactly 160 characters", async () => {
+        const id = `b${"c".repeat(159)}`;
+        const { created, response } = await createdBy(() => call("ci_create_instinct", { id, trigger: "when naming", body: "the limit itself is allowed" }));
+        assert.ok(!response.result.isError, response.result.content[0].text);
+        assert.deepEqual(created, [`${projectRel}/${id}.yaml`]);
+    });
+    it("ci_import imports the valid entries around a 300-character id and reports the rejected one", async () => {
+        const payload = JSON.stringify([
+            { id: "long-import-before", trigger: "when importing", body: "first" },
+            { id: TOO_LONG_ID, trigger: "when importing", body: "too long" },
+            { id: "long-import-after", trigger: "when importing", body: "last" },
+        ]);
+        const { created, response } = await createdBy(() => call("ci_import", { instincts_json: payload }));
+        assert.deepEqual(created, [`${projectRel}/long-import-after.yaml`, `${projectRel}/long-import-before.yaml`]);
+        const text = response.result.content[0].text;
+        assert.ok(response.result.isError, "a rejected entry must flag the result as an error");
+        assert.match(text, /Imported 2 instincts \(0 skipped as duplicates\)/);
+        assert.match(text, /Rejected 1/);
+        assert.ok(text.includes(TOO_LONG_ID), "the rejected entry must be named in the report");
+        assert.match(text, /at most 160 characters/);
+    });
+    it("ci_reinforce refuses an on-disk instinct whose id line is 300 characters", async () => {
+        mkdirSync(projectDir, { recursive: true });
+        writeFileSync(join(projectDir, "planted-long.yaml"), [`id: ${TOO_LONG_ID}`, 'trigger: "when naming"', "confidence: 0.5", "scope: project", "---", "too long", ""].join("\n"));
+        const { created, response } = await createdBy(() => call("ci_reinforce", { instinct_id: TOO_LONG_ID, accepted: true }));
+        assert.deepEqual(created, []);
+        assert.ok(response.result.isError, "the refused update must return a tool error");
+        assert.match(response.result.content[0].text, /at most 160 characters/);
+    });
+    it("ci_distill_promote refuses a draft whose id line is 300 characters and keeps the draft", async () => {
+        const draftsDir = join(projectDir, "drafts");
+        mkdirSync(draftsDir, { recursive: true });
+        const draftPath = join(draftsDir, "draft-long-id-line.yaml");
+        writeFileSync(draftPath, [`id: ${TOO_LONG_ID}`, 'trigger: "when naming"', "confidence: 0.3", "---", "too long", ""].join("\n"));
+        const { created, response } = await createdBy(() => call("ci_distill_promote", { id: "draft-long-id-line" }));
+        assert.deepEqual(created, []);
+        assert.ok(response.result.isError, "the refused promotion must return a tool error");
+        assert.match(response.result.content[0].text, /at most 160 characters/);
+        assert.ok(existsSync(draftPath), "a refused promotion must not consume the draft");
+    });
+    for (const tool of ["ci_distill_propose", "ci_distill_promote"]) {
+        it(`${tool} rejects a 300-character draft id and names the limit`, async () => {
+            const { created, response } = await createdBy(() => call(tool, { id: `draft-${TOO_LONG_ID}` }));
+            assert.deepEqual(created, []);
+            assert.ok(response.result.isError, "an over-long draft id must return a tool error");
+            assert.match(response.result.content[0].text, /Invalid draft id/);
+            assert.match(response.result.content[0].text, /at most 160 characters/);
+        });
+    }
+});
+// A handler that threw used to be caught by the line reader's "incomplete JSON"
+// catch, so the request got no response at all and the client waited until its
+// own timeout. A directory where the server expects to write a file makes the
+// write throw without needing an over-long id.
+describe("MCP server — a failing request is answered, not dropped (expert)", () => {
+    let client;
+    let tempHome = "";
+    let tempWorkspace = "";
+    let projectDir = "";
+    let nextId = 400;
+    const call = (name, args, id = nextId++) => client.send({ jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: args } });
+    before(async () => {
+        tempHome = mkdtempSync(join(tmpdir(), "ci-mcp-throw-"));
+        mkdirSync(join(tempHome, ".claude", "instincts", "global"), { recursive: true });
+        tempWorkspace = join(tempHome, "workspace");
+        mkdirSync(tempWorkspace, { recursive: true });
+        projectDir = join(tempHome, ".claude", "instincts", hashProjectRoot(tempWorkspace));
+        const env = { ...process.env, HOME: tempHome, USERPROFILE: tempHome, CLAUDE_PROJECT_DIR: tempWorkspace };
+        delete env.CI_GATEGUARD_EXCLUDE;
+        const proc = spawn("node", [MCP_SERVER, "--mode", "expert"], {
+            env,
+            cwd: tempWorkspace,
+            stdio: ["pipe", "pipe", "pipe"],
+        });
+        client = new McpTestClient(proc);
+        await new Promise((resolve) => setTimeout(resolve, 200));
+    });
+    after(async () => {
+        client.destroy();
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        try {
+            rmSync(tempHome, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+        }
+        catch {
+            // Windows can briefly keep stdio handles open after the child exits.
+        }
+    });
+    it("a tool handler that throws gets a JSON-RPC error with the request id, and the server keeps serving", async () => {
+        // ci_plan_init with force overwrites task_plan.md; a directory in its place
+        // makes writeFileSync throw inside the handler.
+        mkdirSync(join(tempWorkspace, "task_plan.md"), { recursive: true });
+        const response = await call("ci_plan_init", { goal: "Answer every request", force: true }, "throwing-call");
+        assert.equal(response.id, "throwing-call", "the error must carry the id of the request that failed");
+        assert.equal(response.result, undefined);
+        assert.equal(response.error?.code, -32603);
+        assert.match(response.error?.message ?? "", /ci_plan_init failed/);
+        const next = await call("ci_status", {});
+        assert.ok(!next.error, "the next request must still be answered");
+        assert.match(next.result.content[0].text, /continuous-improvement Status/);
+    });
+    it("a line that is not valid JSON on its own is still buffered until the message is complete", async () => {
+        const response = await client.sendRaw('{"jsonrpc": "2.0", "id": "split-line",\n"method": "tools/list", "params": {}}\n', "a message split across two lines");
+        assert.equal(response.id, "split-line");
+        assert.ok(Array.isArray(response.result.tools));
+    });
+    it("ci_create_instinct returns a tool error when the instinct file cannot be written", async () => {
+        mkdirSync(join(projectDir, "taken-by-a-directory.yaml"), { recursive: true });
+        const response = await call("ci_create_instinct", { id: "taken-by-a-directory", trigger: "when writing", body: "blocked" });
+        assert.ok(response.result?.isError, "a failed write must return a tool error");
+        assert.match(response.result.content[0].text, /Could not write instinct "taken-by-a-directory"/);
+    });
+    it("ci_import keeps going past an entry whose file cannot be written and reports it", async () => {
+        mkdirSync(join(projectDir, "import-blocked.yaml"), { recursive: true });
+        const payload = JSON.stringify([
+            { id: "import-unblocked-one", trigger: "when importing", body: "first" },
+            { id: "import-blocked", trigger: "when importing", body: "blocked" },
+            { id: "import-unblocked-two", trigger: "when importing", body: "last" },
+        ]);
+        const response = await call("ci_import", { instincts_json: payload });
+        assert.ok(response.result?.isError, "a failed entry must flag the result as an error");
+        const text = response.result.content[0].text;
+        assert.match(text, /Imported 2 instincts \(0 skipped as duplicates\)/);
+        assert.match(text, /Could not write instinct "import-blocked"/);
+        assert.ok(existsSync(join(projectDir, "import-unblocked-one.yaml")));
+        assert.ok(existsSync(join(projectDir, "import-unblocked-two.yaml")));
+    });
+    // Windows and default macOS volumes resolve <id>.yaml case-insensitively, so
+    // an id that differs only in case overwrote the existing instinct's file.
+    it("ci_import skips an id that differs from an existing one only in case", async () => {
+        const created = await call("ci_create_instinct", { id: "prefer-grep-case", trigger: "original trigger", body: "original body", confidence: 0.8 });
+        assert.ok(!created.result.isError, created.result.content[0].text);
+        const payload = JSON.stringify([{ id: "Prefer-Grep-Case", trigger: "other", body: "other body", confidence: 0.1 }]);
+        const response = await call("ci_import", { instincts_json: payload });
+        assert.ok(!response.result.isError, response.result.content[0].text);
+        assert.match(response.result.content[0].text, /Imported 0 instincts \(1 skipped as duplicates\)/);
+        const files = listFilesUnder(projectDir).filter((file) => file.toLowerCase() === "prefer-grep-case.yaml");
+        assert.deepEqual(files, ["prefer-grep-case.yaml"]);
+        const content = readFileSync(join(projectDir, "prefer-grep-case.yaml"), "utf8");
+        assert.match(content, /^id: prefer-grep-case$/m);
+        assert.match(content, /original trigger/);
+    });
+    it("ci_load_pack skips a pack id that differs from an existing instinct only in case", async () => {
+        const created = await call("ci_create_instinct", {
+            id: "Parallelize-Independent-Tool-Calls",
+            trigger: "my own trigger",
+            body: "my own body",
+        });
+        assert.ok(!created.result.isError, created.result.content[0].text);
+        const response = await call("ci_load_pack", { pack: "meta" });
+        assert.ok(!response.result.isError, response.result.content[0].text);
+        const files = listFilesUnder(projectDir).filter((file) => file.toLowerCase() === "parallelize-independent-tool-calls.yaml");
+        assert.equal(files.length, 1);
+        const content = readFileSync(join(projectDir, files[0]), "utf8");
+        assert.match(content, /^id: Parallelize-Independent-Tool-Calls$/m);
+        assert.match(content, /my own trigger/);
     });
 });
 describe("Plugin configs", () => {
