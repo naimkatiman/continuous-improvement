@@ -67,6 +67,45 @@ describe("redactSecrets: assignment names", () => {
   }
 });
 
+// The separator used to let any whitespace, a line break included, sit between
+// the name and the value. `NAME= command` is the shell idiom for running one
+// command with the variable blanked, and a name at the end of a line has no
+// value on it: the next word, or the next line, was redacted in its place.
+describe("redactSecrets: an empty assignment has no value", () => {
+  const untouched: ReadonlyArray<string> = [
+    "OPENAI_API_KEY= pytest -q",
+    "OPENROUTER_API_KEY= npx vitest run",
+    "OPENAI_API_KEY=\nANTHROPIC_API_KEY=\n",
+    "OPENAI_API_KEY=\r\nANTHROPIC_API_KEY=\r\n",
+    "export API_KEY=\n# set the key above, then run: npm test",
+    "Enter password:\nConnection established",
+    '"password":\n  secretKeyRef: db',
+    "API_KEY=",
+    "password: ",
+  ];
+  for (const text of untouched) {
+    it(`leaves ${JSON.stringify(text)} alone`, () => {
+      assert.equal(redactSecrets(text), text);
+    });
+  }
+
+  // A value on the same line is still one: directly after the `=`, after a
+  // colon, after an `=` that has a blank in front of it, or in quotes.
+  const redacted: ReadonlyArray<[string, string]> = [
+    [`API_KEY=${SECRET} pytest -q`, "API_KEY=<redacted> pytest -q"],
+    [`password:${SECRET}`, "password:<redacted>"],
+    [`password = ${SECRET}`, "password = <redacted>"],
+    [`API_KEY\t= ${SECRET}`, "API_KEY\t= <redacted>"],
+    ['API_KEY= "quoted value" pytest -q', 'API_KEY= "<redacted>" pytest -q'],
+    [`OPENAI_API_KEY=\nANTHROPIC_API_KEY=${SECRET}\n`, "OPENAI_API_KEY=\nANTHROPIC_API_KEY=<redacted>\n"],
+  ];
+  for (const [text, expected] of redacted) {
+    it(`redacts ${JSON.stringify(text)}`, () => {
+      assert.equal(redactSecrets(text), expected);
+    });
+  }
+});
+
 // The value used to end at the first whitespace, so a quoted passphrase lost
 // only its first word and the rest was written at rest.
 describe("redactSecrets: quoted values", () => {

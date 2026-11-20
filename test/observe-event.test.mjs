@@ -282,6 +282,11 @@ describe("secret redaction at write time", () => {
             assert.equal(summariseInput("PowerShell", { command }), JSON.stringify({ command }));
         }
     });
+    it("keeps the command that follows an empty assignment, and the next line of a blank .env entry", () => {
+        const command = "OPENAI_API_KEY= pytest -q";
+        assert.equal(summariseInput("Bash", { command }), command);
+        assert.equal(summariseOutput({ stdout: "OPENAI_API_KEY=\nANTHROPIC_API_KEY=\n", stderr: "", interrupted: false }), '{"stdout":"OPENAI_API_KEY=\\nANTHROPIC_API_KEY=\\n","stderr":"","interrupted":false}');
+    });
     it("stays cheap on a payload far larger than the budget", () => {
         // Dash-separated text is the slow case for the JWT pattern: redacting these
         // 30 KB whole takes seconds across the three calls, the bounded head takes

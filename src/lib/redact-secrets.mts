@@ -33,17 +33,25 @@ const QUOTED_VALUE = String.raw`\\"(?:[^"\\]|\\[^"])*(?:\\"|$)|"[^"]*(?:"|$)|'[^
 // quote as an opening one also pairs every later quote wrongly, which leaves a
 // real quoted value further on unredacted. The same holds for `PASSWORD=""`.
 const NOT_A_CLOSING_QUOTE = String.raw`(?!(?:\\?["'])+(?:\s|$))`;
+// What sits between the name and its value. The value is on the same line, and
+// it follows a colon, an `=` it touches (`API_KEY=x`), an `=` with a blank in
+// front of it (`$x = v`, `password = v`) or an `=` and then a quote. `NAME=`
+// followed by a blank is an empty assignment (`OPENAI_API_KEY= pytest -q` runs
+// pytest with the variable blanked), and so is a name at the end of a line:
+// the next word, or the next line, is not the value.
+const ASSIGNMENT_SEPARATOR = String.raw`[ \t]*:[ \t]*|[ \t]+=[ \t]*|=(?=\S)|=[ \t]+(?=\\?["'])`;
 const SECRET_ASSIGNMENT_RE = new RegExp(
-  String.raw`(${SECRET_NAME})(\s*[:=]\s*)${NOT_A_CLOSING_QUOTE}(${QUOTED_VALUE}|\S+)`,
+  String.raw`(${SECRET_NAME})(${ASSIGNMENT_SEPARATOR})${NOT_A_CLOSING_QUOTE}(${QUOTED_VALUE}|\S+)`,
   "gi",
 );
 // The same assignment as a JSON property, where a quote closes the name before
 // the colon: "password":"v", or \"password\":\"v\" when the JSON sits inside a
 // JSON string. JSON is the shape of every MCP tool input and most API replies.
 // A value that is not a string (a number, true, null) ends at the next comma
-// or bracket, so the rest of the object survives.
+// or bracket, so the rest of the object survives. The value is on the same
+// line as the name here too.
 const SECRET_PROPERTY_RE = new RegExp(
-  String.raw`(${SECRET_NAME})(\\?["']\s*[:=]\s*)${NOT_A_CLOSING_QUOTE}(${QUOTED_VALUE}|[^\s,}\]]+)`,
+  String.raw`(${SECRET_NAME})(\\?["'][ \t]*[:=][ \t]*)${NOT_A_CLOSING_QUOTE}(${QUOTED_VALUE}|[^\s,}\]]+)`,
   "gi",
 );
 
