@@ -38,12 +38,14 @@ export const DOCS_ASSERTIONS = [
     { file: "README.md", pattern: /planning-with-files/i, source: "community.test.mts:88" },
     { file: "README.md", pattern: /task_plan\.md/, source: "community.test.mts:89" },
     { file: "README.md", pattern: /ci_plan_init/, source: "community.test.mts:90" },
-    // README.md install hero — locked 2026-05-05 to prevent silent rewording of
-    // the install decision rule. The whole install section was restructured to
-    // lead with this one line because the previous "pick one path" framing left
-    // first-time installers comparison-shopping. Drop or rewrite this and
-    // beginner-vs-expert ambiguity returns immediately.
-    { file: "README.md", pattern: "If you don't know which to pick, use Beginner.", source: "docs-substrings-manifest:readme-install-decision-rule" },
+    // README.md install decision rule — locked 2026-05-05 to prevent silent
+    // rewording. The install section leads with this one line because the
+    // previous "pick one path" framing left first-time installers
+    // comparison-shopping. Reworded 2026-11-21 from "use Beginner." to "use the
+    // plugin.": the README now names the two paths "plugin" and "npm", and
+    // "beginner" is also the npm installer's default mode, which installs no
+    // guards, so the old wording pointed a reader at the wrong install.
+    { file: "README.md", pattern: "If you don't know which to pick, use the plugin.", source: "docs-substrings-manifest:readme-install-decision-rule" },
     // CONTRIBUTING.md (src/test/community.test.mts)
     { file: "CONTRIBUTING.md", pattern: /Contributing/, source: "community.test.mts:16" },
     { file: "CONTRIBUTING.md", pattern: /npm test/, source: "community.test.mts:17" },
