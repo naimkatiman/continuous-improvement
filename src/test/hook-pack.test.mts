@@ -117,6 +117,106 @@ describe("hook-pack-gate: classifyCommand", () => {
   });
 });
 
+// f18b752 let `(` and `{` start a command, but the command was still found by a
+// regex over the raw text. A push that is only mentioned (in a commit message,
+// a PR body, a quoted string, a heredoc note) was read as a push, and the
+// commit that carried the message lost its commit-size check.
+describe("hook-pack-gate: text that is data is not a push", () => {
+  const prose: ReadonlyArray<[string, "commit" | "other"]> = [
+    ['git commit -m "docs: note (git push origin main is blocked by hook-pack)"', "commit"],
+    ["git commit -m 'docs: (git push origin main) is blocked'", "commit"],
+    ['git commit -m "feat(hook-pack): gate {git push} inside script blocks"', "commit"],
+    ['git commit -m "ci: run tests before (git push) in the release script"', "commit"],
+    ['git commit -am "wip (git push origin main) later"', "commit"],
+    ['git commit -m "x" -m "(git push origin main) is blocked"', "commit"],
+    ['git commit -m "$(cat <<\'EOF\'\nfix: x\n\nDo not run (git push origin main) by hand.\nEOF\n)"', "commit"],
+    ["git commit -F - <<'EOF'\nfix: x\n\ngit push origin main is no longer part of the release script.\nEOF", "commit"],
+    ['gh pr create --title "x" --body "after merge (git push origin main is never needed)"', "other"],
+    ['git stash push -m "wip (git push later)"', "other"],
+    ['echo "(git push origin main)"', "other"],
+    ['echo "{git push origin main}"', "other"],
+    ['echo "done; git push origin main is next"', "other"],
+    ['echo "{\\"note\\": \\"(git push origin main)\\"}"', "other"],
+    ['Write-Host "Next: (git push origin main)"', "other"],
+    ["cat > NOTES.md <<'EOF'\n- (git push origin main) is blocked by hook-pack\nEOF", "other"],
+    ["$body = @'\nline one\ndrop the table of contents (git push origin main later)\n'@\nSet-Content notes.md $body", "other"],
+  ];
+  for (const [command, expected] of prose) {
+    it(`reads as ${expected}: ${JSON.stringify(command)}`, () => {
+      assert.equal(classifyCommand(command), expected);
+    });
+  }
+
+  // Under the PowerShell tool the escape character is the backtick, and a
+  // backslash before a quote is the end of a Windows path.
+  it("reads a PowerShell string with backtick-escaped quotes as prose", () => {
+    assert.equal(classifyCommand('Write-Host "say `"(git push origin main)`" later"', "PowerShell"), "other");
+    assert.equal(classifyCommand('Set-Location "C:\\repo\\"; git push origin main', "PowerShell"), "push");
+  });
+
+  const real: ReadonlyArray<string> = [
+    'git commit -m "x" && (git push origin main)',
+    'git commit -m "docs: (git push) note"; if ($?) { git push origin main }',
+    'echo "pushing"; git push origin main',
+    "(git push origin main)",
+    "{ git push origin main; }",
+    "(cd repo && git push origin main)",
+    // git read the way the destructive gate reads it: a global option, and the
+    // command line of a shell wrapper.
+    "git -C ../wt push origin main",
+    "git --no-pager push origin main",
+    "git -c http.sslVerify=true push origin main",
+    'git -C "my repo" push origin main',
+    'bash -c "git push origin main"',
+    'powershell -Command "git push origin main"',
+    "cmd /c git push origin main",
+    // a heredoc body that is itself a script keeps the reach it had
+    "bash <<'EOF'\ngit push origin main\nEOF",
+  ];
+  for (const command of real) {
+    it(`still gates the real push in: ${JSON.stringify(command)}`, () => {
+      assert.equal(classifyCommand(command), "push");
+      assert.equal(evaluatePush(command, "feature/x").gated, true);
+    });
+  }
+
+  it("reads --dry-run and --amend from the command they belong to", () => {
+    assert.equal(evaluatePush("npm publish --dry-run; git push origin main", "feature/x").gated, true);
+    assert.equal(evaluatePush("git push --dry-run origin main && git push origin main", "feature/x").gated, true);
+    assert.equal(evaluatePush("git push --dry-run origin main", "main").gated, false);
+    assert.equal(
+      evaluateCommitSize('git commit -m "docs: say why --amend is not used"', COMMIT_FILE_LIMIT + 1).gated,
+      true,
+    );
+    assert.equal(evaluateCommitSize('git commit --amend -m "x"', COMMIT_FILE_LIMIT + 1).gated, false);
+  });
+});
+
+// The regex this replaced rescanned the rest of a whitespace-free run from
+// every `(`, `{`, `;`, `|` and `&`, so 200 KB of minified CSS took seconds and
+// 200 KB of `(a` ran past the 30 s hook timeout. Classification is one pass.
+describe("hook-pack-gate: classification time on a long run without spaces", () => {
+  const css = ".mx-auto{margin-left:auto;margin-right:auto}.block{display:block}.p-4{padding:1rem}";
+  const minified = css.repeat(Math.ceil(200_000 / css.length));
+  const inputs: ReadonlyArray<[string, string]> = [
+    ["parentheses as one token", "(a".repeat(100_000)],
+    ["separators as one token", "a;b|c&".repeat(34_000)],
+    ["minified CSS as one token", minified],
+    ["a path as one token", "/usr/local/".repeat(18_000)],
+    ["minified CSS in a heredoc", `cat > docs/app.min.css <<'EOF'\n${minified}\nEOF`],
+  ];
+  for (const [name, command] of inputs) {
+    it(`reads 200 KB of ${name} in under a second`, () => {
+      const started = performance.now();
+      classifyCommand(command);
+      evaluatePush(command, "main");
+      evaluateCommitSize(command, 0);
+      const elapsed = performance.now() - started;
+      assert.ok(elapsed < 1000, `took ${elapsed.toFixed(0)} ms for ${command.length} chars`);
+    });
+  }
+});
+
 describe("hook-pack-gate: isProtectedBranch", () => {
   it("treats main/master/release-* as protected", () => {
     assert.equal(isProtectedBranch("main"), true);
@@ -262,6 +362,36 @@ describe("hooks/hook-pack.mjs — the PowerShell tool is gated like Bash", () =>
     }
   }
 
+  // Text that mentions a push, and a push hidden behind a global option or a
+  // shell wrapper, through the spawned hook.
+  const mentions: ReadonlyArray<string> = [
+    'gh pr create --title "x" --body "after merge (git push origin main is never needed)"',
+    'echo "(git push origin main)"',
+    'Write-Host "Next: (git push origin main)"',
+    "cat > NOTES.md <<'EOF'\n- (git push origin main) is blocked by hook-pack\nEOF",
+  ];
+  const hidden: ReadonlyArray<string> = [
+    "git -C ../wt push origin main",
+    'bash -c "git push origin main"',
+    'powershell -NoProfile -Command "git push origin main"',
+  ];
+  for (const tool of shellTools) {
+    for (const command of mentions) {
+      it(`${tool} in block mode: allow, with no notice, for ${JSON.stringify(command)}`, () => {
+        const r = runHook(tool, { command }, "block");
+        assert.equal(r.decision, "allow", r.reason ?? "");
+        assert.equal(runHook(tool, { command }, "warn").stderr, "");
+      });
+    }
+    for (const command of hidden) {
+      it(`${tool} in block mode: block for ${command}`, () => {
+        const r = runHook(tool, { command }, "block");
+        assert.equal(r.decision, "block");
+        assert.match(r.reason ?? "", /protected branch "main"/);
+      });
+    }
+  }
+
   for (const tool of shellTools) {
     it(`${tool} in warn mode: a push to main is allowed with a stderr notice`, () => {
       const r = runHook(tool, { command: "git push origin main" }, "warn");
@@ -316,6 +446,38 @@ describe("hooks/hook-pack.mjs commit-size gate (temp repo)", () => {
     }
   });
 
+  // A commit whose message mentions a push is a commit: the push gate stays out
+  // of it and the commit-size gate still runs.
+  const pushInMessage = 'git commit -m "docs: note (git push origin main is blocked by hook-pack)"';
+
+  it("allows a small commit whose message mentions a push to main", () => {
+    const dir = makeRepoWithStaged(1);
+    try {
+      for (const tool of ["Bash", "PowerShell"]) {
+        const r = runHook(tool, { command: pushInMessage }, "block", dir);
+        assert.equal(r.decision, "allow", `${tool}: ${r.reason ?? ""}`);
+        assert.equal(r.stderr, "");
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("applies the commit-size gate to an oversized commit whose message mentions a push", () => {
+    const dir = makeRepoWithStaged(16);
+    try {
+      const r = runHook("Bash", { command: pushInMessage }, "block", dir);
+      assert.equal(r.decision, "block");
+      assert.match(r.reason ?? "", /more than 15 files/);
+      const warned = runHook("Bash", { command: pushInMessage }, "warn", dir);
+      assert.equal(warned.decision, "allow");
+      assert.match(warned.stderr, /more than 15 files/);
+      assert.doesNotMatch(warned.stderr, /protected branch/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("blocks an oversized commit written as a PowerShell 5.1 conditional chain", () => {
     const dir = makeRepoWithStaged(16);
     try {
@@ -354,5 +516,19 @@ describe("hook-pack registration", () => {
       "hook-pack-gate.mjs",
     );
     assert.ok(existsSync(bundledLib), `expected ${bundledLib} to be bundled`);
+  });
+
+  it("the bundled hook loads every lib module it imports and gates a push to main", () => {
+    // lib/hook-pack-gate.mjs imports lib/destructive-bash.mjs for the shared
+    // command reader. A lib missing from the bundle makes the hook die at
+    // module load, which the harness reads as allow.
+    const bundledHook = join(REPO_ROOT, "plugins", "continuous-improvement", "hooks", "hook-pack.mjs");
+    const result = spawnSync(process.execPath, [bundledHook], {
+      input: JSON.stringify({ tool_name: "Bash", tool_input: { command: "git push origin main" } }),
+      encoding: "utf8",
+      env: { ...process.env, CLAUDE_CI_HOOKPACK_GATE: "block" },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /"permissionDecision":"deny"/);
   });
 });

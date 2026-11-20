@@ -754,3 +754,143 @@ function classify(command, powershell, depth) {
         return { destructive: true, rule: `substring:${hit}` };
     return ALLOWED;
 }
+// An escaped quote is a character of the string it sits in, not the end of it:
+// `"{\"note\": \"(git push)\"}"` is one Bash string. The escape character is
+// the backslash in Bash and the backtick in PowerShell, where a backslash
+// before a quote is the end of a Windows path (`"C:\repo\"`). The pair is
+// swapped for two private-use characters of the same length, so every
+// quote-tracking pass after it stays in step and every offset stays valid.
+const ESCAPE_MASK = "\uE000";
+const MASKED_DOUBLE = "\uE001";
+const MASKED_SINGLE = "\uE002";
+function maskEscapedQuotes(text, powershell) {
+    const escape = powershell ? "`" : "\\";
+    if (!text.includes(escape))
+        return text;
+    let masked = "";
+    let quote = null;
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        // Nothing is escaped inside single quotes. Elsewhere the escape character
+        // takes the next character with it, so `\\"` is a backslash and a real quote.
+        if (ch === escape && quote !== "'" && i + 1 < text.length) {
+            const next = text[i + 1];
+            if (next === '"')
+                masked += ESCAPE_MASK + MASKED_DOUBLE;
+            else if (next === "'" && quote === null)
+                masked += ESCAPE_MASK + MASKED_SINGLE;
+            else
+                masked += ch + next;
+            i++;
+            continue;
+        }
+        if (quote) {
+            if (ch === quote)
+                quote = null;
+        }
+        else if (ch === '"' || ch === "'") {
+            quote = ch;
+        }
+        masked += ch;
+    }
+    return masked;
+}
+// The command line a wrapper hands to another shell has lost one layer of
+// escaping: `bash -c "git commit -m \"x\""` runs `git commit -m "x"`.
+function unmaskQuotes(text) {
+    return text.split(ESCAPE_MASK + MASKED_DOUBLE).join('"').split(ESCAPE_MASK + MASKED_SINGLE).join("'");
+}
+// A command written inside a group ends at the closer of that group: the plain
+// split of `(cd repo && git push origin main)` leaves `git push origin main)`.
+// A closer that matches an opener of the command itself (`${REMOTE}`,
+// `$(git branch --show-current)`) is part of one of its words.
+function cutAtUnmatchedCloser(segment) {
+    let depth = 0;
+    let quote = null;
+    for (let i = 0; i < segment.length; i++) {
+        const ch = segment[i];
+        if (quote) {
+            if (ch === quote)
+                quote = null;
+        }
+        else if (ch === '"' || ch === "'") {
+            quote = ch;
+        }
+        else if (ch === "(" || ch === "{") {
+            depth++;
+        }
+        else if (ch === ")" || ch === "}") {
+            if (depth === 0)
+                return segment.slice(0, i);
+            depth--;
+        }
+    }
+    return segment;
+}
+/**
+ * Every git command a command line runs, found the way `classify` finds a
+ * command: heredoc and here-string bodies lifted out, message values blanked,
+ * the plain and the block split, the command word normalised, git's global
+ * options skipped and the command line of a shell wrapper read in turn. A git
+ * command that is only mentioned (in a commit message, a PR body, a quoted
+ * string, a here-string) is not returned. A heredoc body keeps the plain split,
+ * so a body line that is itself a command still counts (`bash <<'EOF'`).
+ *
+ * lib/hook-pack-gate.mjs finds `git push` and `git commit` through this, so the
+ * push gate and this classifier cannot disagree on what a git command is. Each
+ * command comes back with its whole argument list: where `classify` is content
+ * with any reading that trips a rule, a caller here reads the arguments, so a
+ * command is not also returned cut short at its first `(` or `{`.
+ *
+ * `tool` is the name of the tool that sent the command; it picks the escape
+ * character (the backtick under "PowerShell", the backslash otherwise).
+ */
+export function gitInvocations(command, tool) {
+    const found = [];
+    if (typeof command === "string")
+        collectGit(command, tool === "PowerShell", 0, found);
+    return found;
+}
+function collectGit(command, powershell, depth, found) {
+    if (command.trim() === "")
+        return;
+    const lifted = extractHereBodies(command);
+    const code = maskEscapedQuotes(lifted.code, powershell);
+    const stripped = stripMessageArgs(code);
+    const joined = joinLineContinuations(stripped);
+    // One simple command that is not git itself: a shell wrapper is read in turn.
+    const read = (text) => {
+        const words = commandWords(text);
+        if (words.length === 0)
+            return;
+        const git = gitSubcommand(words.map((word) => word.text));
+        if (git !== null) {
+            found.push(git);
+            return;
+        }
+        const wrapped = depth < MAX_WRAPPER_DEPTH ? wrappedCommand(text, words) : null;
+        if (wrapped !== null)
+            collectGit(unmaskQuotes(wrapped.text), wrapped.powershell, depth + 1, found);
+    };
+    for (const view of joined === stripped ? [stripped] : [stripped, joined]) {
+        for (const outer of splitSimpleCommands(view, false)) {
+            const git = gitSubcommand(commandWords(cutAtUnmatchedCloser(outer.text)).map((word) => word.text));
+            if (git !== null)
+                found.push(git);
+            // The commands that start inside a block or a group of this one. When
+            // this one is git, the first piece is the same command cut short.
+            const inner = splitSimpleCommands(outer.text, true);
+            for (const segment of git !== null ? inner.slice(1) : inner)
+                read(segment.text);
+        }
+    }
+    for (const body of scannableBodies(code, lifted.bodies)) {
+        if (body.hereString)
+            continue;
+        for (const segment of splitSimpleCommands(maskEscapedQuotes(body.text, false), false)) {
+            const git = gitSubcommand(commandWords(segment.text).map((word) => word.text));
+            if (git !== null)
+                found.push(git);
+        }
+    }
+}

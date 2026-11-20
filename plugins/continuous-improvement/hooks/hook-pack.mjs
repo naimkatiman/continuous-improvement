@@ -85,13 +85,14 @@ function compute() {
         ? obj.tool_input
         : {});
     const command = typeof input.command === "string" ? input.command : "";
-    const kind = classifyCommand(command);
+    const tool = obj.tool_name;
+    const kind = classifyCommand(command, tool);
     if (kind === "push") {
-        const res = evaluatePush(command, gitCurrentBranch());
+        const res = evaluatePush(command, gitCurrentBranch(), tool);
         return decide(mode, res.gated, `Direct push to protected branch "${res.branch}" — open a feature branch + PR instead.`);
     }
     if (kind === "commit") {
-        const res = evaluateCommitSize(command, gitStagedCount());
+        const res = evaluateCommitSize(command, gitStagedCount(), tool);
         return decide(mode, res.gated, `This commit stages more than ${COMMIT_FILE_LIMIT} files — exceeds the one-concern limit. Split by layer, or set CLAUDE_CI_HOOKPACK_GATE=off for genuinely generated bulk.`);
     }
     return ALLOW;

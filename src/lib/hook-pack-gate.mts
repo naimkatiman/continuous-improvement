@@ -1,7 +1,8 @@
 // hook-pack-gate.mts — Pure decision core for the enforcing-hook pack (v1).
 //
-// No I/O. Given a raw Bash command string, the resolved current branch, the
-// staged-file count, and the operator's mode, decide allow / warn / block.
+// No I/O. Given the command string of the Bash or PowerShell tool, the resolved
+// current branch, the staged-file count, and the operator's mode, decide
+// allow / warn / block.
 // The hook (src/hooks/hook-pack.mts) wires stdin + git subprocess calls around
 // these functions; keeping them pure lets the unit tests cover every branch
 // without spawning anything. Lives in lib/ so tests can import it (the
@@ -9,6 +10,8 @@
 //
 // Fail-open by construction: callers pass safe defaults (null branch, 0 staged)
 // on any failure, and an unrecognized mode resolves to warn.
+
+import { gitInvocations, type GitInvocation } from "./destructive-bash.mjs";
 
 export type HookPackMode = "off" | "warn" | "block";
 export type HookPackAction = "allow" | "warn" | "block";
@@ -27,22 +30,36 @@ export function parseMode(raw: string | undefined): HookPackMode {
   return v === "block" || v === "off" ? v : "warn";
 }
 
-// Match `git push` / `git commit` at the start of the command, immediately
-// after a shell separator (newline, ;, |, &), or after an opening `{` or `(`.
-// Windows PowerShell 5.1 has no `&&`, so a chain is written `A; if ($?) { B }`,
-// which puts B inside a script block; `try { B }` and `(B)` do the same. An
-// output capture (`$r = git push ...`) and the call operator (`& git ...`) may
-// sit in front of the command word, and git may be spelled git.exe or by path,
-// quoted when the path has a space. This deliberately does NOT match a mention
-// like `echo git push`, where git is an argument, not the command.
-const COMMAND_START = String.raw`(?:^|[\n;|&{(])\s*(?:\$[A-Za-z_][\w:]*\s*\+?=\s*)?(?:&\s*)?`;
-const GIT_WORD = String.raw`(?:"[^"\n]*[\\/]git(?:\.exe)?"|'[^'\n]*[\\/]git(?:\.exe)?'|(?:[^\s'"]*[\\/])?git(?:\.exe)?)`;
-const GIT_PUSH_RE = new RegExp(`${COMMAND_START}${GIT_WORD}\\s+push\\b`);
-const GIT_COMMIT_RE = new RegExp(`${COMMAND_START}${GIT_WORD}\\s+commit\\b`);
+// `git push` and `git commit` are found by the command reader the destructive
+// gate uses (gitInvocations in lib/destructive-bash.mjs), not by a pattern over
+// the raw text. That one reader gives both gates the same answers:
+//   - a command starts the line, follows a separator (newline, ;, |, &) or
+//     opens a block or group. Windows PowerShell 5.1 has no `&&`, so a chain is
+//     written `A; if ($?) { B }`; `try { B }` and `(B)` hide B the same way;
+//   - an output capture (`$r = git push ...`), the call operator, `git.exe`, a
+//     path to git, a global option (`git -C ../wt push`) and a shell wrapper
+//     (`bash -c "git push"`, `powershell -Command "git push"`) do not hide it;
+//   - text that is data is not a command: a commit message, a PR body, a
+//     quoted string and a heredoc note that mention `(git push origin main)`
+//     are prose, and `echo git push` names git as an argument.
+// `tool` is the name of the tool that sent the command ("Bash", "PowerShell");
+// it picks the escape character for quotes inside a string.
+//
+// The hook classifies a command and then evaluates it, so the last reading is
+// kept: one pass over the command per hook call, however long the command is.
+let lastReading: { command: string; tool: string | undefined; found: GitInvocation[] } | null = null;
 
-export function classifyCommand(command: string): "push" | "commit" | "other" {
-  if (GIT_PUSH_RE.test(command)) return "push";
-  if (GIT_COMMIT_RE.test(command)) return "commit";
+function gitCommands(command: string, tool: string | undefined): GitInvocation[] {
+  if (lastReading === null || lastReading.command !== command || lastReading.tool !== tool) {
+    lastReading = { command, tool, found: gitInvocations(command, tool) };
+  }
+  return lastReading.found;
+}
+
+export function classifyCommand(command: string, tool?: string): "push" | "commit" | "other" {
+  const found = gitCommands(command, tool);
+  if (found.some((git) => git.sub === "push")) return "push";
+  if (found.some((git) => git.sub === "commit")) return "commit";
   return "other";
 }
 
@@ -50,17 +67,12 @@ export function isProtectedBranch(branch: string): boolean {
   return branch === "main" || branch === "master" || /^release\//.test(branch);
 }
 
-// Extract the explicit destination branch of a `git push`, or null when none is
-// given (the caller should then fall back to the current branch). Handles
+// The explicit destination branch of one `git push`, or null when none is given
+// (the caller then falls back to the current branch). Handles
 // `git push <remote> <branch>`, `git push -u <remote> <branch>`, and refspecs
 // like `HEAD:main` (destination after the colon).
-function parsePushTarget(command: string): string | null {
-  // The arguments of the push classifyCommand found, up to the end of that
-  // command: a following `}`, `)` or separator is not part of the refspec.
-  const push = GIT_PUSH_RE.exec(command);
-  if (!push) return null;
-  const args = command.slice(push.index + push[0].length).split(/[\n;|&{}()]/)[0]!;
-  const operands = args.split(/\s+/).filter((t) => t !== "" && !t.startsWith("-"));
+function pushTarget(push: GitInvocation): string | null {
+  const operands = push.args.filter((t) => !t.startsWith("-"));
   // operands[0] is the remote; operands[1] is the refspec. Fewer than two means
   // no explicit branch (e.g. `git push` or `git push origin`).
   if (operands.length < 2) return null;
@@ -68,21 +80,34 @@ function parsePushTarget(command: string): string | null {
   return refspec.includes(":") ? (refspec.split(":").pop() ?? null) : refspec;
 }
 
+// Gated when any push in the command goes to a protected branch. `--dry-run`
+// exempts the push it is written on, not the whole command line.
 export function evaluatePush(
   command: string,
   currentBranch: string | null,
+  tool?: string,
 ): { gated: boolean; branch: string | null } {
-  if (/(?:^|\s)--dry-run\b/.test(command)) return { gated: false, branch: null };
-  const branch = parsePushTarget(command) ?? currentBranch;
-  if (!branch) return { gated: false, branch: null };
-  return { gated: isProtectedBranch(branch), branch };
+  let seen: string | null = null;
+  for (const git of gitCommands(command, tool)) {
+    if (git.sub !== "push" || git.args.includes("--dry-run")) continue;
+    const branch = pushTarget(git) ?? currentBranch;
+    if (!branch) continue;
+    if (isProtectedBranch(branch)) return { gated: true, branch };
+    seen ??= branch;
+  }
+  return { gated: false, branch: seen };
 }
 
+// `--amend` adds no files, so a command with an amending commit is exempt. The
+// flag is read from a commit's own arguments: a message that mentions `--amend`
+// does not switch the gate off.
 export function evaluateCommitSize(
   command: string,
   stagedCount: number,
+  tool?: string,
 ): { gated: boolean } {
-  if (/(?:^|\s)--amend\b/.test(command)) return { gated: false };
+  const amends = gitCommands(command, tool).some((git) => git.sub === "commit" && git.args.includes("--amend"));
+  if (amends) return { gated: false };
   return { gated: stagedCount > COMMIT_FILE_LIMIT };
 }
 

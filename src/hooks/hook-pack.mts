@@ -98,9 +98,10 @@ function compute(): HookPackDecision {
     : {});
   const command = typeof input.command === "string" ? input.command : "";
 
-  const kind = classifyCommand(command);
+  const tool = obj.tool_name;
+  const kind = classifyCommand(command, tool);
   if (kind === "push") {
-    const res = evaluatePush(command, gitCurrentBranch());
+    const res = evaluatePush(command, gitCurrentBranch(), tool);
     return decide(
       mode,
       res.gated,
@@ -108,7 +109,7 @@ function compute(): HookPackDecision {
     );
   }
   if (kind === "commit") {
-    const res = evaluateCommitSize(command, gitStagedCount());
+    const res = evaluateCommitSize(command, gitStagedCount(), tool);
     return decide(
       mode,
       res.gated,
