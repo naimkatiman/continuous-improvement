@@ -602,6 +602,7 @@ describe("hooks/gateguard.mjs — the PowerShell tool is gated like Bash", () =>
         ["del -Recurse -Force build", "powershell-remove-item"],
         ["rmdir build -Recurse -Force", "powershell-remove-item"],
         ["Get-ChildItem build -Recurse | Remove-Item", "powershell-remove-item-pipeline"],
+        [["format", "d:", "/q"].join(" "), "format-volume"],
         ["git push --force origin main", "substring:git push --force"],
         ["git reset --hard origin/main", "substring:git reset --hard"],
         [["rm", "-r", "-f", "dist"].join(" "), "rm-recursive-force"],
@@ -620,6 +621,10 @@ describe("hooks/gateguard.mjs — the PowerShell tool is gated like Bash", () =>
     const allowed = [
         "Get-ChildItem -Recurse src",
         "Remove-Item scratch.txt",
+        // A -Format parameter is not the volume formatter.
+        'Get-Date -Format "yyyy-MM-dd"',
+        "Get-Date -UFormat %s",
+        "claude -p hi --output-format json",
         "git status",
         "git push origin feat/x",
         '$headers = @{ Accept = "application/json" }',

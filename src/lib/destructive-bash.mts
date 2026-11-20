@@ -43,7 +43,6 @@ export const DESTRUCTIVE_PATTERNS: readonly string[] = [
   "truncate ",
   "mkfs",
   "dd if=",
-  "format ",
   "rmdir /s",
   "del /f /q",
   "del /q /f",
@@ -214,6 +213,13 @@ const STRUCTURED_RULES: readonly Rule[] = [
       const cmd = tokens[0]!.replace(/^["']/, "").toLowerCase();
       return (cmd === "rd" || cmd === "rmdir") && tokens.slice(1).some((t) => /^\/s$/i.test(t));
     },
+  },
+  {
+    // The DOS/Windows volume formatter, as the command word only. This used to
+    // be the substring "format ", which also matched every `-Format`,
+    // `-UFormat` and `--output-format` parameter.
+    id: "format-volume",
+    test: (tokens) => tokens.length > 1 && /^format(?:\.com|\.exe)?$/i.test(tokens[0]!.replace(/^["']/, "")),
   },
   {
     id: "git-clean-force",

@@ -140,6 +140,40 @@ describe("lib/destructive-bash — classifier table", () => {
     });
   }
 
+  // The volume formatter was matched as the substring "format ", which also
+  // matches PowerShell's -Format and -UFormat parameters and every
+  // --output-format flag. The destructive gate has no clearance path, so each
+  // of these was denied on every retry.
+  const FORMAT_PARAMETER_ALLOWED: ReadonlyArray<string> = [
+    'Get-Date -Format "yyyy-MM-dd"',
+    "$stamp = Get-Date -Format o",
+    "Get-Date -UFormat %s",
+    'New-Item -ItemType Directory -Force "out_$(Get-Date -Format yyyyMMdd)"',
+    "$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'; Copy-Item app.log \"app-$stamp.log\"",
+    "claude -p hi --output-format json",
+    "git log --format %H -1",
+    "date +%F | xargs printf 'format %s\\n'",
+  ];
+  for (const command of FORMAT_PARAMETER_ALLOWED) {
+    it(`allows a format parameter: ${command}`, () => {
+      const verdict = classifyDestructiveBash(command);
+      assert.equal(verdict.destructive, false, `expected allowed: ${command} (rule ${verdict.rule})`);
+    });
+  }
+
+  const FORMAT_VOLUME_CAUGHT: ReadonlyArray<string> = [
+    "format d: /q",
+    "FORMAT D: /FS:NTFS",
+    "format.com d:",
+    "cmd /c format d: /q",
+    "echo y | format d:",
+  ];
+  for (const command of FORMAT_VOLUME_CAUGHT) {
+    it(`still catches the volume formatter: ${command}`, () => {
+      assert.deepEqual(classifyDestructiveBash(command), { destructive: true, rule: "format-volume" });
+    });
+  }
+
   for (const [command, rule] of POWERSHELL_DELETE_CAUGHT) {
     it(`catches the PowerShell delete: ${JSON.stringify(command)}`, () => {
       const verdict = classifyDestructiveBash(command);
