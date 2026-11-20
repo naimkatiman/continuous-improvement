@@ -141,6 +141,39 @@ describe("config-guard-gate: classifyMutation", () => {
             assert.equal(classifyMutation("Bash", { command }), null, `expected allow for: ${command}`);
         }
     });
+    // Claude Code on Windows exposes a first-class PowerShell tool whose input
+    // is the same { command } shape as Bash, so the same command must classify
+    // the same under either tool name.
+    it("flags a PowerShell-tool mutation exactly like the Bash-tool form", () => {
+        const hits = [
+            ["Set-Content -Path .claude/settings.json -Value '{}'", "bash"],
+            ["Set-Content -Path C:\\Users\\me\\.claude\\settings.json -Value '{}'", "bash"],
+            ["'{}' | Out-File .claude/settings.local.json", "bash"],
+            ["Add-Content .mcp.json 'x'", "bash"],
+            ["Remove-Item .mcp.json", "bash"],
+            ["Copy-Item fresh.json plugins/ci/hooks/hooks.json", "bash"],
+            ["echo '{}' > ~/.claude/settings.json", "bash"],
+            ["claude plugin uninstall continuous-improvement", "claude-cli"],
+        ];
+        for (const [command, via] of hits) {
+            const viaBash = classifyMutation("Bash", { command });
+            assert.equal(viaBash?.via, via, `control (Bash) should hit for: ${command}`);
+            assert.deepEqual(classifyMutation("PowerShell", { command }), viaBash, `PowerShell should hit for: ${command}`);
+        }
+    });
+    it("allows a PowerShell-tool command that only reads a protected path, or writes elsewhere", () => {
+        const allowed = [
+            "Get-Content .claude/settings.json",
+            "Get-ChildItem .claude/hooks/",
+            "Copy-Item .claude/settings.json backup/settings.json",
+            "Set-Content -Path notes/settings.md -Value x",
+            "git status",
+            "",
+        ];
+        for (const command of allowed) {
+            assert.equal(classifyMutation("PowerShell", { command }), null, `expected allow for: ${command}`);
+        }
+    });
 });
 describe("config-guard-gate: decide", () => {
     it("off allows everything", () => {
@@ -186,6 +219,32 @@ describe("hooks/config-guard.mjs (runtime PreToolUse hook)", () => {
     });
     it("allows a Bash read of a protected file in block mode", () => {
         const r = runHook("Bash", { command: "cat .claude/settings.json" }, { CI_CONFIG_GUARD: "block" });
+        assert.equal(r.decision, "allow");
+        assert.equal(r.stderr, "");
+    });
+    // The same shell edit through either shell tool: the Bash rows are the
+    // control, the PowerShell rows are the defect (they were allowed).
+    const shellEdits = [
+        "Set-Content -Path .claude/settings.json -Value '{}'",
+        "printf '{}' > .mcp.json",
+        "claude mcp remove context7",
+    ];
+    for (const tool of ["Bash", "PowerShell"]) {
+        for (const command of shellEdits) {
+            it(`${tool} in block mode: denies ${command}`, () => {
+                const r = runHook(tool, { command }, { CI_CONFIG_GUARD: "block" });
+                assert.equal(r.decision, "block");
+                assert.match(r.reason ?? "", /config-guard/);
+            });
+        }
+        it(`${tool} in warn mode: a shell edit of .claude/settings.json is allowed with a stderr notice`, () => {
+            const r = runHook(tool, { command: shellEdits[0] }, {});
+            assert.equal(r.decision, "allow");
+            assert.ok(r.stderr.includes(`config-guard: ${tool} would modify .claude/settings.json`), `expected a warning naming ${tool}, got: ${r.stderr}`);
+        });
+    }
+    it("allows a PowerShell read of a protected file in block mode", () => {
+        const r = runHook("PowerShell", { command: "Get-Content .claude/settings.json" }, { CI_CONFIG_GUARD: "block" });
         assert.equal(r.decision, "allow");
         assert.equal(r.stderr, "");
     });

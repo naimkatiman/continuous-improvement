@@ -777,6 +777,74 @@ describe("hooks/gateguard.mjs — destructive forms the substring list missed", 
   }
 });
 
+// Claude Code on Windows exposes a first-class PowerShell tool whose input is
+// the same { command } shape as Bash. A destructive command is as destructive
+// through either tool, so every shell rule has to reach both tool names. Each
+// row runs under both: the Bash rows are the control, the PowerShell rows are
+// the defect (they were allowed).
+describe("hooks/gateguard.mjs — the PowerShell tool is gated like Bash", () => {
+  let sessionDir = "";
+  before(() => {
+    sessionDir = mkdtempSync(join(tmpdir(), "gateguard-pwsh-"));
+  });
+  after(() => {
+    if (sessionDir) rmSync(sessionDir, { recursive: true, force: true });
+  });
+
+  const shellTools: ReadonlyArray<string> = ["Bash", "PowerShell"];
+
+  const blocked: ReadonlyArray<[string, string]> = [
+    // [command, rule id the deny must name]
+    ["Remove-Item -Recurse -Force x", "substring:Remove-Item -Recurse"],
+    ["git push --force origin main", "substring:git push --force"],
+    ["git reset --hard origin/main", "substring:git reset --hard"],
+    [["rm", "-r", "-f", "dist"].join(" "), "rm-recursive-force"],
+    ["Get-ChildItem; git clean -fdx", "git-clean-force"],
+  ];
+  for (const tool of shellTools) {
+    for (const [command, rule] of blocked) {
+      it(`${tool} blocks: ${command}`, () => {
+        const decision = runHook(tool, { command }, sessionDir);
+        assert.equal(decision.decision, "block", `${tool} must not let a destructive command through`);
+        assert.match(decision.reason ?? "", /Destructive command requested/);
+        assert.ok(
+          (decision.reason ?? "").includes(`Matched rule: ${rule}`),
+          `expected the deny to name ${rule}, got: ${decision.reason}`,
+        );
+      });
+    }
+  }
+
+  const allowed: ReadonlyArray<string> = [
+    "Get-ChildItem -Recurse src",
+    "git status",
+    "git push origin feat/x",
+    '$headers = @{ Accept = "application/json" }',
+  ];
+  for (const tool of shellTools) {
+    for (const command of allowed) {
+      it(`${tool} allows: ${command}`, () => {
+        assert.equal(runHook(tool, { command }, sessionDir).decision, "allow");
+      });
+    }
+  }
+
+  for (const tool of shellTools) {
+    it(`${tool} blocks an unquoted @{u} ref and prints the quoted fix`, () => {
+      const decision = runHook(tool, { command: "git rev-list --left-right --count @{u}...HEAD" }, sessionDir);
+      assert.equal(decision.decision, "block");
+      assert.match(decision.reason ?? "", /'@\{u\}\.\.\.HEAD'/, "reason prints the quoted replacement");
+    });
+  }
+
+  it("a destructive PowerShell command is never excluded, even under a catch-all fragment", () => {
+    const run = runHookRaw("PowerShell", { command: "Remove-Item -Recurse -Force build" }, sessionDir, {
+      CI_GATEGUARD_EXCLUDE: "/,.",
+    });
+    assert.equal(run.decision, "block");
+  });
+});
+
 describe("hooks/gateguard.mjs — CI_GATEGUARD_EXCLUDE is observable", () => {
   let sessionDir = "";
   before(() => {

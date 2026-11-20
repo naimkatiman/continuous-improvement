@@ -89,6 +89,12 @@ function fileToolPaths(toolInput: Record<string, unknown>): string[] {
 
 const FILE_MUTATING_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
 
+// The tools whose input is a shell command. Claude Code on Windows exposes a
+// first-class PowerShell tool with the same { command } input as Bash; a write
+// to a protected file is the same write through either, so both run the shell
+// classifier below (and both report `via: "bash"`).
+const SHELL_TOOLS: ReadonlySet<string> = new Set(["Bash", "PowerShell"]);
+
 // --- Bash --------------------------------------------------------------------
 
 // Split at shell separators that sit outside single or double quotes.
@@ -249,7 +255,7 @@ export function classifyMutation(toolName: string, toolInput: Record<string, unk
     }
     return null;
   }
-  if (toolName === "Bash" && typeof toolInput.command === "string" && toolInput.command.trim() !== "") {
+  if (SHELL_TOOLS.has(toolName) && typeof toolInput.command === "string" && toolInput.command.trim() !== "") {
     for (const segment of splitSimpleCommands(toolInput.command)) {
       const hit = classifyBashSegment(segment);
       if (hit) return hit;

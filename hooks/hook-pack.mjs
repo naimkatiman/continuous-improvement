@@ -10,7 +10,8 @@
  *          A bare { decision: "allow" } is not schema-valid for PreToolUse.
  * Exit   : 0 always (decision is in stdout; fail-open on any error).
  *
- * Two gates over Bash git commands (pure logic in ../lib/hook-pack-gate.mjs):
+ * Two gates over shell git commands, from the Bash tool or the PowerShell tool
+ * (pure logic in ../lib/hook-pack-gate.mjs):
  *   - push-to-main : a direct `git push` to main/master/release-*
  *   - commit-size  : a `git commit` staging more than COMMIT_FILE_LIMIT files
  *
@@ -20,7 +21,7 @@
  *   off   : no-op.
  *
  * Only `git push` / `git commit` commands spawn a git subprocess; every other
- * Bash command and non-Bash tool returns immediately. No network. Fail-open.
+ * shell command and non-shell tool returns immediately. No network. Fail-open.
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -66,6 +67,10 @@ function gitStagedCount() {
     }
 }
 const ALLOW = { action: "allow", reason: "" };
+// The tools whose input is a shell command. Claude Code on Windows exposes a
+// first-class PowerShell tool with the same { command } input as Bash; a
+// `git push` to main is the same push through either.
+const SHELL_TOOLS = new Set(["Bash", "PowerShell"]);
 function compute() {
     const mode = parseMode(process.env.CLAUDE_CI_HOOKPACK_GATE);
     if (mode === "off")
@@ -74,7 +79,7 @@ function compute() {
     if (!payload || typeof payload !== "object")
         return ALLOW;
     const obj = payload;
-    if (obj.tool_name !== "Bash")
+    if (typeof obj.tool_name !== "string" || !SHELL_TOOLS.has(obj.tool_name))
         return ALLOW;
     const input = (obj.tool_input && typeof obj.tool_input === "object"
         ? obj.tool_input

@@ -21,7 +21,8 @@
  *           forwards unknown tool params
  *
  * Read-only and exploratory tools (Read, Grep, Glob, routine Bash) bypass
- * unconditionally. Destructive Bash gates EVERY call, not just first.
+ * unconditionally. Destructive Bash gates EVERY call, not just first. The
+ * PowerShell tool is a shell tool too and is classified exactly like Bash.
  *
  * V1 honest limitations (see src/lib/gateguard-state.mts header):
  *   honor-system flag, state-file deletion, parallel-hook race.
@@ -48,7 +49,13 @@ const TOOL_ROUTE = {
     MultiEdit: "mutating-file",
     NotebookEdit: "mutating-file",
     Bash: "allow",
+    PowerShell: "allow",
 };
+// The tools whose input is a shell command. Claude Code on Windows exposes a
+// first-class PowerShell tool with the same { command } input as Bash, and a
+// destructive command is as destructive through either, so every shell rule
+// below applies to both.
+const SHELL_TOOLS = new Set(["Bash", "PowerShell"]);
 // The destructive-Bash classifier lives in lib/destructive-bash.mjs: structured
 // rules (flag order and spelling do not matter: `rm -r -f`, `git clean -fdx`,
 // `git checkout -- .`, `git restore .`, `find -delete`, `git push +ref`,
@@ -62,7 +69,7 @@ function classifyTool(toolName, toolInput) {
     const route = TOOL_ROUTE[toolName] ?? "allow";
     if (route !== "allow")
         return route;
-    if (toolName === "Bash" && typeof toolInput.command === "string") {
+    if (SHELL_TOOLS.has(toolName) && typeof toolInput.command === "string") {
         if (isDestructiveBash(toolInput.command))
             return "destructive-bash";
     }
@@ -325,7 +332,9 @@ function main() {
     // Unquoted @{…} refs trip the built-in Bash parser — catch them first, for
     // both routine and destructive commands, so the quoted fix surfaces before the
     // opaque post-hoc block (and before the destructive rollback demand).
-    if (toolName === "Bash" && typeof toolInput.command === "string") {
+    // PowerShell reads an unquoted @{u} as a broken hashtable literal, so the
+    // same quoted fix applies there.
+    if (SHELL_TOOLS.has(toolName) && typeof toolInput.command === "string") {
         const braceHit = findUnquotedBraceRef(toolInput.command);
         if (braceHit) {
             emitDeny(buildBraceRefReason(braceHit));

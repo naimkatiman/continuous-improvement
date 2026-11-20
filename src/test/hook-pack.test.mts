@@ -191,6 +191,41 @@ describe("hooks/hook-pack.mjs (runtime PreToolUse hook)", () => {
   });
 });
 
+// Claude Code on Windows exposes a first-class PowerShell tool whose input is
+// the same { command } shape as Bash. A `git push` to main is the same push
+// through either tool. Each row runs under both tool names: the Bash rows are
+// the control, the PowerShell rows are the defect (they were allowed).
+describe("hooks/hook-pack.mjs — the PowerShell tool is gated like Bash", () => {
+  const shellTools: ReadonlyArray<string> = ["Bash", "PowerShell"];
+
+  const cases: ReadonlyArray<[string, "allow" | "block"]> = [
+    ["git push origin main", "block"],
+    ["git push --force origin main", "block"],
+    ["git push -u origin HEAD:main", "block"],
+    ["git add README.md; git push origin release/1.0", "block"],
+    ["git push origin feature/x", "allow"],
+    ["git push --dry-run origin main", "allow"],
+    ["Get-ChildItem", "allow"],
+  ];
+  for (const tool of shellTools) {
+    for (const [command, expected] of cases) {
+      it(`${tool} in block mode: ${expected} for ${command}`, () => {
+        const r = runHook(tool, { command }, "block");
+        assert.equal(r.decision, expected);
+        if (expected === "block") assert.match(r.reason ?? "", /protected branch/);
+      });
+    }
+  }
+
+  for (const tool of shellTools) {
+    it(`${tool} in warn mode: a push to main is allowed with a stderr notice`, () => {
+      const r = runHook(tool, { command: "git push origin main" }, "warn");
+      assert.equal(r.decision, "allow");
+      assert.match(r.stderr, /\[hook-pack\] Direct push to protected branch "main"/);
+    });
+  }
+});
+
 describe("hooks/hook-pack.mjs commit-size gate (temp repo)", () => {
   let repo = "";
 
@@ -220,6 +255,17 @@ describe("hooks/hook-pack.mjs commit-size gate (temp repo)", () => {
     const dir = makeRepoWithStaged(15);
     try {
       assert.equal(runHook("Bash", { command: "git commit -m x" }, "block", dir).decision, "allow");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("blocks a PowerShell-tool commit staging more than 15 files in block mode", () => {
+    const dir = makeRepoWithStaged(16);
+    try {
+      const r = runHook("PowerShell", { command: "git commit -m x" }, "block", dir);
+      assert.equal(r.decision, "block");
+      assert.match(r.reason ?? "", /15|one[- ]concern|split/i);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
