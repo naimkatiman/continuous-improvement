@@ -106,40 +106,59 @@ describe("findOnPath", () => {
     });
 });
 describe("summarizeCodexHooks", () => {
-    const ours = (trustStatus, script = "gateguard") => ({ command: `node "/rt/hooks/${script}.mjs" --agent codex`, trustStatus });
+    const RT = "/home/u/.claude/instincts/runtime/3.27.0";
+    const ours = (trustStatus, script = "gateguard") => ({ command: `node "${RT}/hooks/${script}.mjs" --agent codex`, trustStatus });
+    const line = (result) => summarizeCodexHooks(result).line;
     it("counts our hooks by trust status and tells the user to open /hooks", () => {
-        const text = summarizeCodexHooks({ data: [{ cwd: "/p", hooks: [ours("untrusted"), ours("trusted", "session"), ours("untrusted", "observe"), { command: "node other.js", trustStatus: "untrusted" }] }] });
-        assert.match(text, /3 continuous-improvement hooks: 1 trusted, 2 untrusted/);
-        assert.match(text, /\/hooks/);
+        const summary = summarizeCodexHooks({ data: [{ cwd: "/p", hooks: [ours("untrusted"), ours("trusted", "session"), ours("untrusted", "observe"), { command: "node other.js", trustStatus: "untrusted" }] }] });
+        assert.match(summary.line, /3 continuous-improvement hooks: 1 trusted, 2 untrusted/);
+        assert.match(summary.line, /\/hooks/);
+        assert.equal(summary.ok, true);
     });
     it("says so when every hook of ours is trusted, and when none is listed", () => {
-        assert.match(summarizeCodexHooks({ data: [{ hooks: [ours("trusted")] }] }), /1 continuous-improvement hook: 1 trusted$/);
-        assert.match(summarizeCodexHooks({ data: [{ hooks: [{ command: "node x.js", trustStatus: "trusted" }] }] }), /no continuous-improvement hooks/);
-        assert.match(summarizeCodexHooks({ data: [] }), /no continuous-improvement hooks/);
+        assert.match(line({ data: [{ hooks: [ours("trusted")] }] }), /1 continuous-improvement hook: 1 trusted$/);
+        assert.match(line({ data: [{ hooks: [{ command: "node x.js", trustStatus: "trusted" }] }] }), /no continuous-improvement hooks/);
+        assert.match(line({ data: [] }), /no continuous-improvement hooks/);
+        assert.equal(summarizeCodexHooks({ data: [] }).ok, true);
     });
     it("reads a plugin hook by its pluginId", () => {
-        assert.match(summarizeCodexHooks({ data: [{ hooks: [{ command: "node x.mjs", pluginId: "continuous-improvement@mkt", trustStatus: "modified" }] }] }), /1 continuous-improvement hook: 1 modified/);
+        assert.match(line({ data: [{ hooks: [{ command: "node x.mjs", pluginId: "continuous-improvement@mkt", trustStatus: "modified" }] }] }), /1 continuous-improvement hook: 1 modified/);
+    });
+    it("does not count another plugin's hook, or one outside the runtime copy, as ours because of its script name", () => {
+        // Review finding: a foreign plugin's hooks/session.mjs was counted as ours.
+        const foreign = { command: "node /home/u/some-other-tool/hooks/session.mjs", trustStatus: "trusted", pluginId: "other-tool@mkt" };
+        const loose = { command: "python3 ~/.codex/bin/observe.mjs", trustStatus: "trusted" };
+        const prefixed = { command: `node "${RT}/hooks/gateguard.mjs"`, trustStatus: "trusted", pluginId: "continuous-improvement-fork@mkt" };
+        assert.match(line({ data: [{ hooks: [foreign, loose, prefixed] }] }), /no continuous-improvement hooks/);
+        assert.match(line({ data: [{ hooks: [foreign, ours("untrusted")] }] }), /1 continuous-improvement hook: 1 untrusted/);
     });
     it("reports an unreadable result instead of throwing", () => {
         for (const bad of [null, undefined, 1, "x", {}, { data: null }, { data: [null] }, { data: [{ hooks: "x" }] }, { data: [{ hooks: [null, 1, { command: 3 }] }] }]) {
-            const text = summarizeCodexHooks(bad);
-            assert.equal(typeof text, "string", JSON.stringify(bad));
+            const summary = summarizeCodexHooks(bad);
+            assert.equal(typeof summary.line, "string", JSON.stringify(bad));
         }
-        assert.match(summarizeCodexHooks(null), /could not read/);
-        assert.match(summarizeCodexHooks({ data: null }), /could not read/);
+        for (const bad of [null, undefined, 1, "x", {}, { data: null }, { hooks: [] }]) {
+            const summary = summarizeCodexHooks(bad);
+            assert.match(summary.line, /could not read/, JSON.stringify(bad));
+            assert.equal(summary.ok, false, JSON.stringify(bad));
+        }
     });
     it("counts a hook of ours with no trust status as unknown", () => {
-        assert.match(summarizeCodexHooks({ data: [{ hooks: [{ command: "node /rt/hooks/gateguard.mjs" }] }] }), /1 unknown/);
+        assert.match(line({ data: [{ hooks: [{ command: `node ${RT}/hooks/gateguard.mjs` }] }] }), /1 unknown/);
     });
 });
 // A stand-in vendor CLI: it logs its argv to <name>-calls.jsonl, prints one
 // line, and exits with FAKE_EXIT. As `app-server` it answers the JSON-RPC
 // requests, and answers hooks/list with one hook of ours and one foreign hook
-// (FAKE_SILENT makes it answer nothing).
+// (FAKE_SILENT makes it answer nothing, FAKE_SHAPE answers {hooks: []}). With
+// FAKE_HANG it records its pid in <name>-pids.txt and never exits. As
+// `features list` it prints a warning and 30 flags before hooks, plugins and
+// skill_search, as codex-cli 0.171.0 does (they are rows 90 and later there).
 function fakeCli(root, name) {
     const bin = join(root, "fakebin");
     mkdirSync(bin, { recursive: true });
     const log = join(root, `${name}-calls.jsonl`);
+    const pids = join(root, `${name}-pids.txt`);
     const script = join(bin, `${name}-fake.cjs`);
     writeFileSync(script, [
         `const fs = require("node:fs");`,
@@ -156,11 +175,19 @@ function fakeCli(root, name) {
         `      fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify({ rpc: m.method, params: m.params ?? null }) + "\\n");`,
         `      if (m.id === undefined) continue;`,
         `      const result = m.method === "hooks/list"`,
-        `        ? { data: [{ cwd: m.params.cwds[0], hooks: [{ command: "node /rt/hooks/gateguard.mjs --agent codex", trustStatus: "untrusted" }, { command: "node other.js", trustStatus: "trusted" }] }] }`,
+        `        ? (process.env.FAKE_SHAPE ? { hooks: [] } : { data: [{ cwd: m.params.cwds[0], hooks: [{ command: "node /u/.claude/instincts/runtime/3.27.0/hooks/gateguard.mjs --agent codex", trustStatus: "untrusted" }, { command: "node other.js", trustStatus: "trusted" }] }] })`,
         `        : { userAgent: "fake" };`,
         `      process.stdout.write(JSON.stringify({ id: m.id, result }) + "\\n");`,
         `    }`,
         `  });`,
+        `} else if (process.env.FAKE_HANG) {`,
+        `  fs.appendFileSync(${JSON.stringify(pids)}, process.pid + "\\n");`,
+        `  setInterval(() => {}, 1000);`,
+        `} else if (args[0] === "features") {`,
+        `  const rows = ["WARNING: proceeding, even though we could not update PATH"];`,
+        `  for (let i = 0; i < 30; i++) rows.push("flag_" + i + "  stable  false");`,
+        `  rows.push("hooks  stable  true", "plugin_hooks  removed  false", "plugins  stable  true", "skill_search  stable  true", "zzz_last  stable  false");`,
+        `  process.stdout.write(rows.join("\\n") + "\\n");`,
         `} else {`,
         `  process.stdout.write("fake ${name} " + args.join(" ") + "\\n");`,
         `  process.exitCode = Number(process.env.FAKE_EXIT ?? 0);`,
@@ -169,7 +196,16 @@ function fakeCli(root, name) {
     ].join("\n"));
     writeFileSync(join(bin, `${name}.cmd`), `@node "%~dp0${name}-fake.cjs" %*\r\n`);
     writeFileSync(join(bin, name), `#!/bin/sh\nexec node "$(dirname "$0")/${name}-fake.cjs" "$@"\n`, { mode: 0o755 });
-    return { bin, log };
+    return { bin, log, pids };
+}
+function alive(pid) {
+    try {
+        process.kill(pid, 0);
+        return true;
+    }
+    catch (error) {
+        return error.code === "EPERM";
+    }
 }
 function calls(log) {
     return existsSync(log) ? readFileSync(log, "utf8").trim().split("\n").map((line) => JSON.parse(line)) : [];
@@ -222,6 +258,48 @@ describe("runDoctor", () => {
         const ok = await runDoctor("codex", { env: fakeEnv(bin, { FAKE_SILENT: "1" }), platform: process.platform, cwd: root, timeoutMs: 3_000, write: (line) => out.push(line) });
         assert.equal(ok, false);
         assert.match(out.join("\n"), /timed out/);
+    });
+    it("fails the Codex hooks/list probe when its result cannot be read", async () => {
+        // Review finding: an unreadable reply printed "could not read" and then "-> ok", exit 0.
+        const root = tempRoot();
+        const { bin } = fakeCli(root, "codex");
+        const out = [];
+        const ok = await runDoctor("codex", { env: fakeEnv(bin, { FAKE_SHAPE: "1" }), platform: process.platform, cwd: root, timeoutMs: 20_000, write: (line) => out.push(line) });
+        const text = out.join("\n");
+        assert.equal(ok, false, text);
+        assert.match(text, /could not read the hooks\/list result\n  -> unreadable reply/);
+        assert.match(text, /4 of 5 probes ok/);
+    });
+    it("prints the hooks, plugins and skill_search rows of codex features list, not the first rows", async () => {
+        // Review finding: the first 12 of ~225 alphabetical rows never reached hooks (row 90) or plugins (row 140).
+        const root = tempRoot();
+        const { bin } = fakeCli(root, "codex");
+        const out = [];
+        await runDoctor("codex", { env: fakeEnv(bin), platform: process.platform, cwd: root, timeoutMs: 20_000, write: (line) => out.push(line) });
+        const text = out.join("\n");
+        const section = text.slice(text.indexOf("$ codex features list"), text.indexOf("$ codex plugin list"));
+        assert.match(section, /\n  hooks  stable  true\n  plugins  stable  true\n  skill_search  stable  true\n  -> ok/);
+        assert.doesNotMatch(section, /flag_0|WARNING|plugin_hooks|zzz_last/);
+    });
+    it("ends the whole process tree of a probe that times out, so nothing it started outlives the doctor", async () => {
+        // Review finding: on win32 a .cmd shim runs through cmd.exe, and killing
+        // cmd.exe left the real CLI running after the doctor returned.
+        const root = tempRoot();
+        const { bin, pids } = fakeCli(root, "junie");
+        const out = [];
+        let started = [];
+        try {
+            const ok = await runDoctor("junie", { env: fakeEnv(bin, { FAKE_HANG: "1" }), platform: process.platform, cwd: root, timeoutMs: 4_000, write: (line) => out.push(line) });
+            assert.equal(ok, false);
+            assert.match(out.join("\n"), /timed out after 4s/);
+            started = existsSync(pids) ? readFileSync(pids, "utf8").trim().split("\n").map(Number) : [];
+            assert.equal(started.length, DOCTOR_PROBES.junie.length, "the hanging fake recorded its pid");
+            assert.deepEqual(started.filter(alive), [], "a probe process outlived the doctor");
+        }
+        finally {
+            for (const pid of started.filter(alive))
+                process.kill(pid);
+        }
     });
     it("redacts a credential-shaped value a listing prints", async () => {
         const root = tempRoot();

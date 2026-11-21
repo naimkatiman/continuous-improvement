@@ -14,7 +14,7 @@
 // unreliable or slow is left out, and so is one that needs an interactive
 // session (`/hooks`, `/mcp`); those are printed as notes instead.
 
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { statSync } from "node:fs";
 import { delimiter, isAbsolute, join } from "node:path";
 
@@ -37,8 +37,10 @@ export interface DoctorProbe {
   source: string;
   /** JSON-RPC requests written to stdin, one per line; the reply to the last one is the result. */
   rpc?: readonly RpcRequest[];
-  /** Turns the last RPC result into one line. */
-  summarize?: (result: unknown) => string;
+  /** Turns the last RPC result into one line; ok is false when the result could not be read. */
+  summarize?: (result: unknown) => ProbeSummary;
+  /** Only the output lines this matches are printed. */
+  select?: RegExp;
 }
 
 /** The JSON-RPC methods a probe may send: the handshake and a listing. */
@@ -50,7 +52,11 @@ const cli = (bin: string, args: readonly string[], source: string): DoctorProbe 
 export const DOCTOR_PROBES: Readonly<Record<string, readonly DoctorProbe[]>> = {
   codex: [
     cli("codex", ["--version"], `${R} (Codex): prints codex-cli 0.171.0`),
-    cli("codex", ["features", "list"], `${R} (Codex): hooks and plugins feature flags`),
+    {
+      ...cli("codex", ["features", "list"], `${R} (Codex): \`codex features list | grep -E '^(hooks|plugins|skill_search) '\` (hooks stable true, plugins stable true)`),
+      // The list is alphabetical and about 225 rows long; hooks is row 90 and plugins row 140 on codex-cli 0.171.0.
+      select: /^(?:hooks|plugins|skill_search)\s/,
+    },
     cli("codex", ["plugin", "list", "--json"], `${R} (Codex): pluginId, installed, enabled`),
     cli("codex", ["mcp", "list", "--json"], `${R} (Codex): MCP servers, transport and args`),
     {
@@ -224,11 +230,20 @@ function ourHookNames(): Set<string> {
   return names;
 }
 
+// A plugin hook is ours only by its pluginId. A hook without one (install
+// --hooks writes ~/.codex/hooks.json) is ours when its command runs one of our
+// scripts from the runtime copy, <instincts root>/runtime/<version>/.
 function isOurCodexHook(hook: Record<string, unknown>, names: Set<string>): boolean {
-  if (typeof hook.pluginId === "string" && hook.pluginId.startsWith(`${PACKAGE_NAME}@`)) return true;
+  if (typeof hook.pluginId === "string") return hook.pluginId.startsWith(`${PACKAGE_NAME}@`);
   if (typeof hook.command !== "string") return false;
-  const match = /[\\/](?:hooks|bin)[\\/]([a-z-]+)\.mjs\b/.exec(hook.command);
+  const match = /[\\/]runtime[\\/][^\\/"]+[\\/](?:hooks|bin)[\\/]([a-z-]+)\.mjs\b/.exec(hook.command);
   return match !== null && names.has(match[1]!);
+}
+
+export interface ProbeSummary {
+  line: string;
+  /** False when the result has no readable `data` array, so the probe fails. */
+  ok: boolean;
 }
 
 /**
@@ -236,9 +251,9 @@ function isOurCodexHook(hook: Record<string, unknown>, names: Set<string>): bool
  * by trust status. Untrusted hooks do not run until the user trusts them in
  * /hooks (plan, Per-agent tier: Codex).
  */
-export function summarizeCodexHooks(result: unknown): string {
+export function summarizeCodexHooks(result: unknown): ProbeSummary {
   const data = (result as { data?: unknown } | null | undefined)?.data;
-  if (!Array.isArray(data)) return "could not read the hooks/list result";
+  if (!Array.isArray(data)) return { line: "could not read the hooks/list result", ok: false };
   const names = ourHookNames();
   const counts = new Map<string, number>();
   let total = 0;
@@ -253,11 +268,11 @@ export function summarizeCodexHooks(result: unknown): string {
       total++;
     }
   }
-  if (total === 0) return `no ${PACKAGE_NAME} hooks in this directory`;
+  if (total === 0) return { line: `no ${PACKAGE_NAME} hooks in this directory`, ok: true };
   const parts = [...counts.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([status, n]) => `${n} ${status}`);
   const line = `${total} ${PACKAGE_NAME} hook${total === 1 ? "" : "s"}: ${parts.join(", ")}`;
   const pending = total - (counts.get("trusted") ?? 0) - (counts.get("managed") ?? 0);
-  return pending > 0 ? `${line}. They do not run until trusted: open /hooks in Codex.` : line;
+  return { line: pending > 0 ? `${line}. They do not run until trusted: open /hooks in Codex.` : line, ok: true };
 }
 
 interface Outcome {
@@ -272,6 +287,38 @@ interface Outcome {
 const OUTPUT_CAP = 64 * 1024;
 const SHOWN_LINES = 12;
 const SHOWN_CHARS = 240;
+
+const KILL_WAIT_MS = 5_000;
+
+/**
+ * Ends a probe that timed out and waits until it is gone. On win32 the whole
+ * tree goes: a .cmd shim runs through cmd.exe, and killing cmd.exe alone
+ * leaves the real CLI, and any MCP server it started, running after the
+ * doctor exits. taskkill gets a fixed argv, no shell.
+ */
+function stopProbe(child: ChildProcess, platform: string): Promise<void> {
+  return new Promise((resolve) => {
+    const grace = setTimeout(resolve, KILL_WAIT_MS);
+    const done = (): void => {
+      clearTimeout(grace);
+      resolve();
+    };
+    if (platform === "win32" && child.pid !== undefined) {
+      const taskkill = join(envValue(process.env, "SystemRoot", "win32") ?? "C:\\Windows", "System32", "taskkill.exe");
+      execFile(taskkill, ["/pid", String(child.pid), "/T", "/F"], { windowsHide: true, timeout: KILL_WAIT_MS }, (error) => {
+        if (error) child.kill();
+        done();
+      });
+      return;
+    }
+    if (child.exitCode !== null || child.signalCode !== null) {
+      done();
+      return;
+    }
+    child.once("exit", done);
+    child.kill();
+  });
+}
 
 function spawnProbe(path: string, args: readonly string[], platform: string, env: NodeJS.ProcessEnv, cwd: string): ChildProcess {
   // A .cmd or .bat shim runs only through cmd.exe. Every token in the table is
@@ -314,12 +361,15 @@ function runProbe(path: string, probe: DoctorProbe, opts: DoctorOptions): Promis
       resolve({ code: null, output, timedOut: false, ...outcome });
     };
     const timer = setTimeout(() => {
-      child.kill();
-      child.stdin?.destroy();
-      child.stdout?.destroy();
-      child.stderr?.destroy();
-      child.unref();
-      finish({ timedOut: true });
+      // Nothing that arrives while the probe is being ended counts.
+      done = true;
+      void stopProbe(child, opts.platform).then(() => {
+        child.stdin?.destroy();
+        child.stdout?.destroy();
+        child.stderr?.destroy();
+        child.unref();
+        resolve({ code: null, output, timedOut: true });
+      });
     }, opts.timeoutMs);
     const collect = (chunk: Buffer): void => {
       if (output.length < OUTPUT_CAP) output += chunk.toString("utf8");
@@ -370,8 +420,10 @@ export interface DoctorOptions {
   write: (line: string) => void;
 }
 
-function shown(text: string): string[] {
-  const lines = redactSecrets(text).replace(/\r\n?/g, "\n").split("\n").filter((line) => line.trim() !== "");
+function shown(text: string, select?: RegExp): string[] {
+  const lines = redactSecrets(text).replace(/\r\n?/g, "\n").split("\n")
+    .filter((line) => line.trim() !== "" && (select === undefined || select.test(line)));
+  if (select !== undefined && lines.length === 0) return [`  no line matched ${select}`];
   const head = lines.slice(0, SHOWN_LINES).map((line) => `  ${line.length > SHOWN_CHARS ? `${line.slice(0, SHOWN_CHARS)}...` : line}`);
   if (lines.length > SHOWN_LINES) head.push(`  (${lines.length - SHOWN_LINES} more lines)`);
   return head;
@@ -404,9 +456,11 @@ export async function runDoctor(agent: string, opts: DoctorOptions): Promise<boo
     else if (outcome.code !== 0) status = `exit ${outcome.code ?? "(signal)"}`;
     else status = "ok";
     if (probe.rpc && outcome.rpcResult !== undefined) {
-      opts.write(`  ${probe.summarize ? probe.summarize(outcome.rpcResult) : "replied"}`);
+      const summary = probe.summarize?.(outcome.rpcResult) ?? { line: "replied", ok: true };
+      opts.write(`  ${summary.line}`);
+      if (status === "ok" && !summary.ok) status = "unreadable reply";
     } else if (!probe.rpc || status !== "ok") {
-      for (const line of shown(outcome.output)) opts.write(line);
+      for (const line of shown(outcome.output, status === "ok" ? probe.select : undefined)) opts.write(line);
     }
     opts.write(`  -> ${status}`);
     if (status === "ok") ok++;
