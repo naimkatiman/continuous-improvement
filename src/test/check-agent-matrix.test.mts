@@ -159,6 +159,67 @@ describe("findBlockingClaims", () => {
     assert.equal(hit?.file, "docs/x.md");
     assert.equal(hit?.line, 2);
   });
+
+  // PR 17 review: the scan failed open on each of these. A negation counts only
+  // when it governs the verb, a sentence is read across wrapped lines, and the
+  // blocking synonyms count.
+  it("flags a claim whose only negation governs something else", () => {
+    for (const text of [
+      "Zed blocks destructive commands, not just blind edits.",
+      "The guard blocks rm in Zed, and Aider has no hooks.",
+      "Aider has no hooks and the guard blocks rm in Zed.",
+      "Zed cannot block a push, but the guard stops rm.",
+      "Zed blocks pushes: not just edits.",
+    ]) {
+      assert.equal(findBlockingClaims("README.md", text, rows).length, 1, text);
+    }
+  });
+
+  it("flags the blocking synonyms", () => {
+    for (const text of [
+      "In Zed the guard stops destructive commands before they run.",
+      "Zed: prevents force pushes.",
+      "Zed gates every push.",
+      "The guard guards against rm in Zed.",
+    ]) {
+      assert.equal(findBlockingClaims("README.md", text, rows).length, 1, text);
+    }
+  });
+
+  it("reads a sentence wrapped across lines, and reports the verb's line", () => {
+    const hits = findBlockingClaims("README.md", "The guard now runs in Zed and\nblocks destructive commands before they run.", rows);
+    assert.equal(hits.length, 1);
+    assert.equal(hits[0]?.line, 2);
+    assert.equal(findBlockingClaims("x.html", "<p>The guard runs in Zed and\n  <b>blocks</b> pushes.</p>", rows).length, 1);
+    assert.equal(findBlockingClaims("x.html", "<td>Zed</td>\n<td><b>blocks</b> pushes</td>", rows).length, 1);
+  });
+
+  it("keeps paragraphs, table rows, headings, list items and HTML blocks apart", () => {
+    for (const [file, text] of [
+      ["x.md", "Zed gets a rules file\n\nthe guard blocks pushes in Codex."],
+      ["x.md", "| Zed | rules |\n| Codex | blocks |"],
+      ["x.md", "## Zed\nCodex blocks pushes."],
+      ["x.md", "- Zed: rules file\n- Codex blocks pushes"],
+      ["x.html", "<tr><th>Zed</th><td>rules</td></tr>\n<tr><th>Codex</th><td>blocks</td></tr>"],
+      ["x.html", "<li>Zed</li><li>Codex blocks</li>"],
+      ["x.md", "<p>Zed</p>\n<p>Codex blocks</p>"],
+    ] as const) {
+      assert.deepEqual(findBlockingClaims(file, text, rows), [], text);
+    }
+  });
+
+  it("still accepts a negation that governs the verb, a 'verb: no' label, and the Stop event name", () => {
+    for (const text of [
+      "Zed never blocks anything.",
+      "Zed doesn't stop a push.",
+      "Neither Zed nor Aider can block.",
+      "Zed. Blocks: no.",
+      "Zed blocks: no",
+      "Zed has no Stop gate and no Stop hook.",
+    ]) {
+      assert.deepEqual(findBlockingClaims("README.md", text, rows), [], text);
+    }
+  });
 });
 
 describe("spliceBlock", () => {

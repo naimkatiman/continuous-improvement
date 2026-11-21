@@ -51,8 +51,19 @@ export const BLOCK_END = "<!-- agent-matrix:end -->";
 export const CLAIM_SCAN_FILES: readonly string[] = ["README.md", "QUICKSTART.md", "llms.txt", SUPPORT_DOC, "docs/landing/index.html"];
 
 const REGENERATE = "run `node bin/check-agent-matrix.mjs --write`";
-const BLOCK_WORDS = /\b(?:block(?:s|ed|ing)?|den(?:y|ies|ied)|refus(?:e|es|ed)|enforc(?:e|es|ed|ing|ement))\b/i;
-const NEGATION = /\b(?:no|not|cannot|never|without|none|nothing)\b|n't\b/i;
+// A bare "gate" is left out: it is nearly always the noun ("the drift gate").
+const BLOCK_WORDS = /\b(?:block(?:s|ed|ing)?|den(?:y|ies|ied)|refus(?:e|es|ed)|enforc(?:e|es|ed|ing|ement)|stop(?:s|ped|ping)?|prevent(?:s|ed|ing)?|gat(?:es|ed|ing)|guard(?:s|ed|ing)?\s+against)\b/gi;
+const NEGATION = /\b(?:no|not|cannot|never|without|none|nothing|nor|neither)\b|n't\b/i;
+// How many words before a blocking verb, in the same clause, a negation may sit and still govern it.
+const NEGATION_REACH = 3;
+const CLAUSE_BREAK = /[,:;()–—]|\s-\s/;
+// "Stop gate", "Stop hook": the agent event, not the verb.
+const STOP_EVENT = /\bStop(?=[ -](?:gate|hook|event|boundary)s?\b)/g;
+// HTML tags that end a run of text; inline tags (b, code, a, span, td, th) do not.
+const HTML_BREAK = /<\/?(?:p|div|li|ul|ol|dl|dt|dd|tr|table|thead|tbody|tfoot|caption|section|article|aside|header|footer|nav|main|h[1-6]|br|hr|pre|blockquote|figure|figcaption|title|head|body|html|script|style|meta|link|details|summary)\b[^>]*>/gi;
+// A Markdown line that stands alone: a table row, a heading, a fence or a list item's first line.
+const MD_STANDALONE = /^\s*(?:\||#{1,6}\s|```|~~~)/;
+const MD_ITEM = /^\s*(?:[-*+]|\d+[.)])\s/;
 const HOOK_INSTALLS: ReadonlySet<string> = new Set(["claude", ...HOOK_AGENT_IDS, ...PLUGIN_AGENT_IDS]);
 
 const EVIDENCE: Readonly<Record<AgentSupport["evidence"], string>> = {
@@ -100,14 +111,70 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function plainText(line: string): string {
-  return line.replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ");
+/** Same length as the input, so offsets still point into the source: tags, &nbsp; and the Stop event name become spaces. */
+function blankMarkup(text: string): string {
+  const blank = (match: string): string => " ".repeat(match.length);
+  return text.replace(/<[^>]*>/g, blank).replace(/&nbsp;/g, blank).replace(STOP_EVENT, blank);
+}
+
+interface Run {
+  start: number;
+  text: string;
+}
+
+/** Markdown runs: a paragraph or list item is one run, and a table row, heading or fence line stands alone. */
+function markdownRuns(text: string): Run[] {
+  const runs: Run[] = [];
+  let run: { start: number; end: number } | null = null;
+  const close = (): void => {
+    if (run) runs.push({ start: run.start, text: text.slice(run.start, run.end) });
+    run = null;
+  };
+  let offset = 0;
+  for (const line of text.split("\n")) {
+    const end = offset + line.length;
+    if (line.trim() === "") close();
+    else if (MD_STANDALONE.test(line)) {
+      close();
+      runs.push({ start: offset, text: line });
+    } else {
+      if (MD_ITEM.test(line)) close();
+      if (run) run.end = end;
+      else run = { start: offset, end };
+    }
+    offset = end + 1;
+  }
+  close();
+  return runs;
+}
+
+/** Runs of prose that are read as one, cut again at HTML block tags; markup is blanked in place. */
+function proseRuns(file: string, text: string): Run[] {
+  const runs = file.endsWith(".html") ? [{ start: 0, text }] : markdownRuns(text);
+  return runs.flatMap((run) => {
+    const pieces: Run[] = [];
+    let start = 0;
+    for (const tag of run.text.matchAll(HTML_BREAK)) {
+      pieces.push({ start: run.start + start, text: blankMarkup(run.text.slice(start, tag.index)) });
+      start = tag.index + tag[0].length;
+    }
+    pieces.push({ start: run.start + start, text: blankMarkup(run.text.slice(start)) });
+    return pieces;
+  });
+}
+
+/** True when a negation sits within reach before the verb in the same clause, or the verb is a "Blocks: no" label. */
+function negated(sentence: string, at: number, verb: string): boolean {
+  const clauses = sentence.slice(0, at).split(CLAUSE_BREAK);
+  const before = (clauses[clauses.length - 1] ?? "").trim().split(/\s+/).slice(-NEGATION_REACH);
+  if (before.some((word) => NEGATION.test(word))) return true;
+  return /^[^,;.]*:\s*(?:no|none|never|not)\b(?!\s+(?:just|only)\b)/i.test(sentence.slice(at + verb.length));
 }
 
 /**
  * Sentences that name an agent whose row cannot block (anything but a literal
- * true) together with a blocking verb, and do not negate it. Each line is split
- * into sentences, HTML tags read as spaces.
+ * true) together with a blocking verb that no negation governs. A sentence is
+ * read whole across wrapped lines; the line reported is the verb's.
  */
 export function findBlockingClaims(file: string, text: string, rows: readonly AgentSupport[] = AGENT_SUPPORT): Claim[] {
   const names = rows
@@ -115,13 +182,20 @@ export function findBlockingClaims(file: string, text: string, rows: readonly Ag
     .flatMap((row) => row.names)
     .map((name) => new RegExp(`\\b${escapeRegExp(name)}\\b`, "i"));
   if (names.length === 0) return [];
+  const source = text.replace(/\r/g, " ");
   const claims: Claim[] = [];
-  text.split(/\r?\n/).forEach((raw, index) => {
-    for (const sentence of plainText(raw).split(/(?<=[.!?;])\s+/)) {
-      if (!BLOCK_WORDS.test(sentence) || NEGATION.test(sentence)) continue;
-      if (names.some((name) => name.test(sentence))) claims.push({ file, line: index + 1, text: sentence.trim() });
+  for (const run of proseRuns(file, source)) {
+    let from = 0;
+    for (const sentence of run.text.split(/(?<=[.!?;])\s+/)) {
+      const at = run.text.indexOf(sentence, from);
+      from = at + sentence.length;
+      if (!names.some((name) => name.test(sentence))) continue;
+      const verb = [...sentence.matchAll(BLOCK_WORDS)].find((m) => !negated(sentence, m.index, m[0]));
+      if (!verb) continue;
+      const line = source.slice(0, run.start + at + verb.index).split("\n").length;
+      claims.push({ file, line, text: sentence.replace(/\s+/g, " ").trim() });
     }
-  });
+  }
   return claims;
 }
 
