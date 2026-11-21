@@ -11,7 +11,10 @@
 // shapes are session.mts (SessionStart, plain stdout) and recall-briefing /
 // query-cost-nudge (hookSpecificOutput.additionalContext), and the continue
 // shape is the Stop hooks' {decision:"block"}. fixtures/agent-hooks/claude.json
-// pins those bytes. Encoders for the other agents come in plan PR 8. Until
+// pins the allow and PreToolUse deny bytes now, through gateguard. The context
+// and continue shapes are checked only by src/test/hook-io.test.mts until plan
+// PR 7 moves session, recall-briefing, query-cost-nudge and the Stop hooks onto
+// encode, and their goldens then pin those bytes too. Encoders for the other agents come in plan PR 8. Until
 // then an agent id with no encoder fails closed: a deny or a continue is exit 2
 // with the reason on stderr and nothing on stdout, which the plan's research
 // found Claude Code, Codex, Cursor, Copilot, Devin, Grok, Qwen, Kiro, Droid,
@@ -201,10 +204,16 @@ function encodeClaude(event: string, decision: Decision, stderr: string): Encode
   }
 }
 
+// Codex blocks on exit 2 only when stderr is non-empty, and Gemini fails open
+// on exit 2 when stdout and stderr are both blank (result.json verify,
+// capability hook_pre_tool), so a blank reason gets a fixed line.
+const BLANK_REASON_FALLBACK = "[continuous-improvement] blocked";
+
 // No encoder for this agent: never let a deny read as an allow.
 function encodeUnknown(decision: Decision, stderr: string): EncodedOutput {
   if (decision.kind === "deny" || decision.kind === "continue") {
-    return { stdout: "", stderr: `${stderr}${decision.reason}\n`, exitCode: 2 };
+    const reason = decision.reason.trim() === "" ? BLANK_REASON_FALLBACK : decision.reason;
+    return { stdout: "", stderr: `${stderr}${reason}\n`, exitCode: 2 };
   }
   return { stdout: "", stderr, exitCode: 0 };
 }
@@ -253,7 +262,13 @@ export async function runHook(
   try {
     output = await body();
   } catch (error) {
-    const text = error instanceof Error ? (error.stack ?? `${error.name}: ${error.message}`) : String(error);
+    // String(error) and a stack getter can throw too; that must not reject.
+    let text: string;
+    try {
+      text = error instanceof Error ? (error.stack ?? `${error.name}: ${error.message}`) : String(error);
+    } catch {
+      text = "unprintable error";
+    }
     output = { stdout: "", stderr: `[continuous-improvement] hook error: ${text}\n`, exitCode: 0 };
   }
   emit(output, streams);

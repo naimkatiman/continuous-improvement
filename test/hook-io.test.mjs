@@ -71,6 +71,19 @@ describe("encode, an agent with no encoder fails closed", () => {
             exitCode: 2,
         });
     });
+    // Codex blocks on exit 2 only when stderr is non-empty, and Gemini fails open
+    // on exit 2 when stdout and stderr are both blank (result.json verify,
+    // capability hook_pre_tool). A blank reason must not read as an allow there.
+    for (const reason of ["", "  ", "\n"]) {
+        it(`deny and continue with the blank reason ${JSON.stringify(reason)} still put a non-blank line on stderr`, () => {
+            for (const kind of ["deny", "continue"]) {
+                const out = encode("codex", kind === "deny" ? "PreToolUse" : "Stop", { kind, reason });
+                assert.equal(out.exitCode, 2);
+                assert.equal(out.stdout, "");
+                assert.equal(out.stderr, "[continuous-improvement] blocked\n");
+            }
+        });
+    }
     it("allow and context print nothing on stdout and exit 0 (stray stdout can block an agent)", () => {
         assert.deepEqual(encode("unknown-agent", "PreToolUse", { kind: "allow" }), { stdout: "", stderr: "", exitCode: 0 });
         assert.deepEqual(encode("unknown-agent", "SessionStart", { kind: "context", text: "lessons" }), {
@@ -247,6 +260,42 @@ describe("runHook", () => {
         assert.equal(thrown.exitCode, 0);
         assert.match(thrown.stderr, /plain string/);
     });
+    // String(error) and error.stack can themselves throw. The formatting must not
+    // turn runHook into a rejection that emits nothing.
+    const unprintable = [
+        ["a null-prototype object", () => Object.create(null)],
+        [
+            "an object whose toString throws",
+            () => ({
+                toString() {
+                    throw new Error("boom");
+                },
+            }),
+        ],
+        [
+            "an Error whose stack getter throws",
+            () => {
+                const error = new Error("stack getter");
+                Object.defineProperty(error, "stack", {
+                    get() {
+                        throw new Error("stack getter");
+                    },
+                });
+                return error;
+            },
+        ],
+    ];
+    for (const [label, make] of unprintable) {
+        it(`ends a throw of ${label} as exit 0 with a stderr line`, async () => {
+            const io = capture();
+            await runHook(() => {
+                throw make();
+            }, io.streams);
+            assert.equal(io.stdout, "");
+            assert.equal(io.exitCode, 0);
+            assert.equal(io.stderr, "[continuous-improvement] hook error: unprintable error\n");
+        });
+    }
     it("prints nothing a body wrote before it threw", async () => {
         const io = capture();
         await runHook(() => {
