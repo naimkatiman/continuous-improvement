@@ -7,13 +7,13 @@
 <meta name="theme-color" content="#fcfaf6" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#16110e" media="(prefers-color-scheme: dark)">
 <title>continuous-improvement · Guard hooks and a local tool-call log for Claude Code</title>
-<meta name="description" content="A Claude Code plugin. One hook denies known destructive shell commands in every permission mode. Opt-in checks and a local, searchable log of tool calls.">
+<meta name="description" content="A Claude Code plugin. One hook denies known destructive shell commands in every permission mode, and edits of existing files the session has not looked at. Opt-in checks and a local, searchable log of tool calls.">
 <link rel="canonical" href="https://continuous-improvement.dev/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="continuous-improvement">
 <meta property="og:url" content="https://continuous-improvement.dev/">
 <meta property="og:title" content="continuous-improvement · Guard hooks and a local tool-call log for Claude Code">
-<meta property="og:description" content="One hook denies known destructive shell commands in every permission mode. Opt-in checks and a local, searchable log of tool calls. Every default, switch and cost is listed.">
+<meta property="og:description" content="One hook denies known destructive shell commands in every permission mode, and edits of existing files the session has not looked at. Opt-in checks and a local, searchable log of tool calls. Each hook's default, switch and cost is listed.">
 <meta property="og:image" content="https://continuous-improvement.dev/social-preview.png">
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
@@ -21,11 +21,11 @@
 <meta property="og:image:alt" content="A paper-coloured card. Headline: Guard hooks and a local tool-call log for Claude Code. Beside it, one captured hook result: the command rm -rf build/ dist/, the verdict deny in vermilion, the matched rule rm-recursive-force.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="continuous-improvement · Guard hooks and a local tool-call log for Claude Code">
-<meta name="twitter:description" content="One hook denies known destructive shell commands in every permission mode. Opt-in checks and a local, searchable log of tool calls.">
+<meta name="twitter:description" content="One hook denies known destructive shell commands in every permission mode, and edits of existing files the session has not looked at. Opt-in checks and a local, searchable log of tool calls.">
 <meta name="twitter:image" content="https://continuous-improvement.dev/social-preview.png">
 <meta name="twitter:image:alt" content="A paper-coloured card. Headline: Guard hooks and a local tool-call log for Claude Code. Beside it, one captured hook result: the command rm -rf build/ dist/, the verdict deny in vermilion, the matched rule rm-recursive-force.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2.5' y='2.5' width='27' height='27' rx='6' fill='%23faf7f0' stroke='%23231f17' stroke-width='2'/%3E%3Cpath d='M8 24 L24 8' stroke='%23d24a2e' stroke-width='4' stroke-linecap='round'/%3E%3Crect x='13' y='13' width='6' height='6' rx='1.5' fill='%23231f17'/%3E%3C/svg%3E">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"continuous-improvement","description":"A Claude Code plugin. One hook denies known destructive shell commands in every permission mode. Opt-in hooks refuse pushes to protected branches and hold a turn open on a failing typecheck. Tool calls go to a local, searchable log.","url":"https://continuous-improvement.dev/","applicationCategory":"DeveloperApplication","operatingSystem":"Linux, Windows","softwareRequirements":"Claude Code, Node.js 18 or newer","license":"https://opensource.org/license/mit","isAccessibleForFree":true,"sameAs":["https://github.com/naimkatiman/continuous-improvement","https://www.npmjs.com/package/continuous-improvement"]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"continuous-improvement","description":"A Claude Code plugin. One hook denies known destructive shell commands in every permission mode, and edits of existing files the session has not looked at. Opt-in hooks refuse pushes to protected branches and hold a turn open on a failing typecheck. Tool calls go to a local, searchable log.","url":"https://continuous-improvement.dev/","applicationCategory":"DeveloperApplication","operatingSystem":"Linux, Windows","softwareRequirements":"Claude Code, Node.js 18 or newer","license":"https://opensource.org/license/mit","isAccessibleForFree":true,"sameAs":["https://github.com/naimkatiman/continuous-improvement","https://www.npmjs.com/package/continuous-improvement"]}</script>
 <style>
 /*
   continuous-improvement.dev. One static file: no build step, no framework, no third-party request.
@@ -44,11 +44,6 @@
   The checks are src/bin/check-landing-version.mts, check-test-count.mts and check-skill-count.mts.
   Use the version number nowhere else on the page: a release replaces every copy of it.
 
-  Before a deploy: this page describes the defaults that the feat/frontier-defaults branch brings.
-  Three of them are in no build yet: the file gate that denies only a blind edit (and its switch,
-  CI_GATEGUARD_FILE_GATE), the prompt router and the three-heading reply check as opt-in, and the
-  process counts in section 4, which need matchers on the first two PreToolUse registrations.
-  Re-run the captures against the merged hooks first, and correct every line that differs.
 */
 
 /* ---------- fonts: self-hosted subsets, see fonts/README.md ---------- */
@@ -517,7 +512,7 @@ footer { border-top: 1px solid var(--line-strong); padding: 24px 0 32px; }
       <div class="pitch">
         <span class="kicker">CASE FILE <b>/</b> CLAUDE CODE PLUGIN <b>/</b> REV 3.26.0</span>
         <h1 class="display" id="h-top">Guard hooks and a local <span class="nb">tool-call log</span> <span class="belt">for Claude Code.</span></h1>
-        <p class="lead">Claude Code ships hooks and permission rules, and no rule content for them. This plugin is that content, tested. One hook denies known destructive shell commands on every call, in every permission mode. Tool calls go to a local, redacted log you can search. Stricter checks (no push to <code>main</code>, no turn end on a failing typecheck) wait for a switch.</p>
+        <p class="lead">Claude Code ships hooks and permission rules, and no rule content for them. This plugin is that content, tested. One hook denies known destructive shell commands on every call, in every permission mode, and edits of existing files the session has not looked at. Tool calls go to a local, redacted log you can search. Stricter checks (no push to <code>main</code>, no turn end on a failing typecheck) wait for a switch.</p>
       </div>
       <div class="install">
         <div class="install-head">
@@ -722,7 +717,7 @@ stderr: (node:54464) [DEP0190] DeprecationWarning: Passing args to a child proce
         </div>
         <dl class="facts">
           <div><dt>Claude Code</dt><dd><code>/goal</code> judges the transcript with a fresh model after each turn. It runs no commands.</dd></div>
-          <div><dt>This adds</dt><dd>At turn end, if a TypeScript file changed, it runs your <code>typecheck</code> script (or <code class="nb">tsc --noEmit</code>) and returns the last 15 lines of output as the reason the turn cannot end.</dd></div>
+          <div><dt>This adds</dt><dd>At turn end, if the working tree has an uncommitted TypeScript change, it runs your <code>typecheck</code> script (or the project's own <code class="nb">tsc --noEmit</code>) and returns the last 15 lines of output as the reason the turn cannot end.</dd></div>
           <div><dt>Default</dt><dd>Off.</dd></div>
           <div><dt>Switch</dt><dd><code>CLAUDE_TYPECHECK_GATE=block</code></dd></div>
           <div><dt>Cost</dt><dd>Off: one Node process per turn end that exits at once. On: your typecheck's run time, capped at 25 seconds.</dd></div>
@@ -843,7 +838,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
           <div><dt>This adds</dt><dd><code>ci-reconcile</code>: branch, upstream, in-progress operation, working tree, stashes and worktrees in one report. Exit 0 clear, 1 blocker, 2 not a repository.</dd></div>
           <div><dt>Default</dt><dd>On demand. It is a command, not a hook.</dd></div>
           <div><dt>Switch</dt><dd>None. The <code>/reconcile</code> command has the model run the copy in the plugin bundle. From a terminal, run <code><span class="nb">npx -p</span> <span class="nb">continuous-improvement</span> <span class="nb">ci-reconcile</span></code>.</dd></div>
-          <div><dt>Cost</dt><dd>One process when you run it. Every probe is a <code>git</code> call with no shell.</dd></div>
+          <div><dt>Cost</dt><dd>One process when you run it. Every probe is a <code>git</code> call with no shell, and only <code class="nb">--verify-push</code> contacts the remote.</dd></div>
         </dl>
           </div>
         </details>
@@ -871,14 +866,14 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
         <tbody role="rowgroup">
           <tr role="row">
             <th role="rowheader" scope="row"><i class="m deny" aria-hidden="true"></i><span class="no">01</span> <span class="ev">PreToolUse</span> <code>hooks/<wbr>gateguard.mjs</code></th>
-            <td role="cell" data-l="What it does">Four rules in one script. (a) Denies destructive shell commands. (b) Denies an unquoted git <code>@{u}</code> ref and prints the quoted command to run. (c) Denies the first Edit or Write of an existing file that this session has not read. (d) Wrong-repository write lock.</td>
+            <td role="cell" data-l="What it does">Four rules in one script. (a) Denies destructive shell commands. (b) Denies an unquoted git <code>@{u}</code> ref and prints the quoted command to run. (c) Denies an Edit or Write of an existing file unless this session's log shows a read of it, or a shell or search call whose command or output names the file. (d) Wrong-repository write lock.</td>
             <td role="cell" data-l="Default"><span class="st">(a) (b) (c) deny</span> <span class="st">(d) off</span></td>
             <td role="cell" data-l="Switch">(a) and (b): none. (c): <code>CI_GATEGUARD_FILE_GATE=off</code>, or <code>strict</code> for a fact list on every first edit. (d): <code>CI_GATEGUARD_TARGET_LOCK=block</code>. <code>CI_GATEGUARD_EXCLUDE</code> skips (c) and (d) for matching path fragments.</td>
             <td role="cell" data-l="Cost">1 process per edit or shell call. A deny reason to the model: about 300 characters for (a), two lines for (c).</td>
           </tr>
           <tr role="row">
             <th role="rowheader" scope="row"><i class="m on" aria-hidden="true"></i><span class="no">02</span> <span class="ev">PreToolUse</span> <code>hooks/<wbr>companion-preference.mjs</code></th>
-            <td role="cell" data-l="What it does">Acts only when a Skill call names <code>tdd-workflow</code>, <code>verification-loop</code>, <code>context-budget</code> or <code>ralph</code>: logs one row and allows the call.</td>
+            <td role="cell" data-l="What it does">Acts only when a Skill call names <code>tdd-workflow</code>, <code>verification-loop</code>, <code>context-budget</code> or <code>ralph</code> bare or with a <code>ci:</code> prefix: logs one row and allows the call. A plugin-namespaced name is not matched.</td>
             <td role="cell" data-l="Default"><span class="st">logs, allows</span></td>
             <td role="cell" data-l="Switch">Not an environment variable: the key <code>continuous_improvement.<wbr>companion_preference</code> in <code>~/.claude/settings.json</code>. The value <code>strict-companions</code> denies.</td>
             <td role="cell" data-l="Cost">1 process per Skill call. Writes <code>companion-preference.jsonl</code>.</td>
@@ -930,7 +925,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
             </tr>
             <tr role="row">
               <th role="rowheader" scope="row"><i class="m" aria-hidden="true"></i><span class="no">11</span> <span class="ev">Stop</span> <code>hooks/<wbr>goal-drift-stop.mjs</code></th>
-              <td role="cell" data-l="What it does">Scores the last 30 logged tool calls for the repository against keywords from <code>## Goal</code> in <code>task_plan.md</code>. Does nothing without a goal file.</td>
+              <td role="cell" data-l="What it does">Scores the last 30 logged tool calls for the repository against keywords from <code>## Goal</code> in <code>task_plan.md</code>. Without a goal file it warns of nothing and only records <code>no-goal</code> in its state file.</td>
               <td role="cell" data-l="Default"><span class="st">warn only</span></td>
               <td role="cell" data-l="Switch"><code>CLAUDE_GOAL_DRIFT_GATE=block</code>, <code>warn</code> or <code>off</code>.</td>
               <td role="cell" data-l="Cost">1 process per turn end. Rewrites <code>goal-drift-state.json</code> at every turn end unless off.</td>
@@ -944,7 +939,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
             </tr>
             <tr role="row">
               <th role="rowheader" scope="row"><i class="m off" aria-hidden="true"></i><span class="no">07</span> <span class="ev">UserPromptSubmit</span> <code>hooks/<wbr>recall-briefing.mjs</code></th>
-              <td role="cell" data-l="What it does">Once per session, on the first prompt of 12 or more characters, injects the top 3 search hits from the log.</td>
+              <td role="cell" data-l="What it does">Once per session, on the first prompt of 12 or more characters that matches the log, injects the top 3 search hits.</td>
               <td role="cell" data-l="Default"><span class="st">off</span></td>
               <td role="cell" data-l="Switch"><code>CLAUDE_RECALL_BRIEFING=1</code>.</td>
               <td role="cell" data-l="Cost">1 process per prompt. On: one reminder per session (533 characters in our capture).</td>
@@ -954,7 +949,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
               <td role="cell" data-l="What it does">Sends back any reply of 600 or more characters that lacks three fixed headings. It checks headings, not evidence: a house style.</td>
               <td role="cell" data-l="Default"><span class="st">off</span></td>
               <td role="cell" data-l="Switch"><code>CLAUDE_THREE_SECTION_CLOSE=1</code> turns it on. <code>CLAUDE_THREE_SECTION_<wbr>CLOSE_DISABLED=1</code> forces it off.</td>
-              <td role="cell" data-l="Cost">1 process per turn end. On: a 359-character block reason and a rewritten reply. Writes one row per gated turn to <code>~/.claude/hook-telemetry/</code>.</td>
+              <td role="cell" data-l="Cost">1 process per turn end. On: a 359-character block reason and a rewritten reply. Writes one row per turn end with a reply to <code>~/.claude/hook-telemetry/</code>.</td>
             </tr>
             <tr role="row">
               <th role="rowheader" scope="row"><i class="m off" aria-hidden="true"></i><span class="no">12</span> <span class="ev">Stop</span> <code>hooks/<wbr>workflow-distill.mjs</code></th>
@@ -984,7 +979,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
       <div class="also">
         <div>
           <h3>How the switches read.</h3>
-          <p class="sub">Every switch but one is an environment variable in the shell Claude Code starts from. Values are read without case, and an unknown value falls back to the default. One exception: <code>CLAUDE_THREE_SECTION_<wbr>CLOSE_DISABLED</code> must be exactly <code>1</code>.</p>
+          <p class="sub">Every switch but one is an environment variable, set in the shell Claude Code starts from or in a settings file's <code>env</code> block. Values are read without case, and an unknown value falls back to the default. One exception: <code>CLAUDE_THREE_SECTION_<wbr>CLOSE_DISABLED</code> must be exactly <code>1</code>.</p>
         </div>
         <div>
           <h3>Also in the bundle, not hooks.</h3>
@@ -1025,13 +1020,13 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
             <li><span>Each turn end (all exit at once when off)</span> <svg class="tally" aria-hidden="true"><use href="#t5"/></svg> <span class="n">5</span></li>
             <li><span>Session start, and session end</span> <svg class="tally" aria-hidden="true"><use href="#t1"/></svg> <span class="n">1</span></li>
           </ul>
-          <p class="note">One start per matching registration. A call denied before it runs starts one fewer, because there is nothing to log. The Skill and Monitor rows are derived from the hook matchers, not observed. No millisecond figure is given: the cost is your machine's Node startup time, and the hooks add little on top.</p>
+          <p class="note">One start per matching registration. A call denied before it runs starts one fewer, because there is nothing to log. The Skill and Monitor rows are derived from the hook matchers, not observed. No millisecond figure is given: none was measured. Each start costs your machine's Node startup time plus the hook's own work.</p>
         </div>
         <div>
           <h3>Context added by default.</h3>
           <ul class="plain">
             <li><b>Session start:</b> nothing when the repository has no lesson at 0.5 or above. Otherwise a header and up to 10 lines, 1,500 characters at most, about 375 tokens (Exhibit F).</li>
-            <li><b>Skill and command listing:</b> 41 names with descriptions, about 2,380 to 2,960 tokens before Claude Code applies its listing budget, which caps all installed skills together at 1% of the context window. The real per-turn cost was not measured.</li>
+            <li><b>Skill and command listing:</b> 41 names with descriptions. <code class="nb">claude plugin details</code> projects the always-on cost at about 4,500 tokens on Claude Code v2.1.325, MCP tools not counted, and counts <code>agents/README.md</code> as a fourth agent.</li>
             <li><b>MCP tool definitions:</b> 19 tools, 8,279 characters (about 2,070 tokens), unless your client defers tool schemas.</li>
             <li><b>Agent listing:</b> 3 agents, 574 characters.</li>
             <li><b>A denied call:</b> the deny reason. About 300 characters for a destructive command, two lines for a blind edit.</li>
@@ -1048,7 +1043,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
       <div class="side stick">
         <span class="tag"><b>§&nbsp;5</b> · Data</span>
         <h2 id="h-local">What leaves your machine: nothing.</h2>
-        <p class="lede">The hooks, the logger and the MCP server contain no network code. What they write stays on your machine: under <code>~/.claude/instincts/</code> and <code>~/.claude/hook-telemetry/</code>, plus three planning files in your project root when you ask for them.</p>
+        <p class="lede">The hooks, the logger and the MCP server contain no network code. What they write stays on your machine: under <code>~/.claude/instincts/</code> and <code>~/.claude/hook-telemetry/</code>, plus three planning files in your project root when you ask for them. The one exception you start yourself: <code class="nb">ci-reconcile --verify-push</code> asks your git remote for the branch tip.</p>
       </div>
       <div>
         <details class="fold" data-fold open style="margin-top:0">
@@ -1063,7 +1058,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
               <tr role="row"><th role="rowheader" scope="row">…/goal-drift-state.json</th><td role="cell">The last drift status, score and action.</td><td role="cell" data-l="Written">At every turn end, unless the drift gate is off</td></tr>
               <tr role="row"><th role="rowheader" scope="row">…/sessions/&lt;session-id&gt;/<wbr>gateguard-session.json</th><td role="cell">Files cleared through the file gate, with times, including files the log showed were read.</td><td role="cell" data-l="Written">When the file gate records a clearance</td></tr>
               <tr role="row"><th role="rowheader" scope="row">…/route-prompt.jsonl<br>…/recall-briefing-session.json<br>…/workflow-distill-state.json<br>…/query-cost-nudge/</th><td role="cell">State for four hooks that are off by default. <code>route-prompt.jsonl</code> holds one row per prompt, with no prompt text.</td><td role="cell" data-l="Written">By those hooks</td></tr>
-              <tr role="row"><th role="rowheader" scope="row">~/.claude/hook-telemetry/<wbr>&lt;hash&gt;.jsonl</th><td role="cell">One row per gated turn: time, action, reply length and the missing headings. No reply text.</td><td role="cell" data-l="Written">By the three-section close hook, which is off by default</td></tr>
+              <tr role="row"><th role="rowheader" scope="row">~/.claude/hook-telemetry/<wbr>&lt;hash&gt;.jsonl</th><td role="cell">One row per turn end with a reply: time, action (skipped, passed or blocked), reply length, missing headings and run time. No reply text.</td><td role="cell" data-l="Written">By the three-section close hook, which is off by default</td></tr>
               <tr role="row"><th role="rowheader" scope="row">task_plan.md<br>findings.md<br>progress.md</th><td role="cell">Planning files in the project root. Nothing else is written inside your repository.</td><td role="cell" data-l="Written">Only when you run <code>/planning-with-files</code> or the <code>ci_plan_init</code> tool</td></tr>
             </tbody>
           </table>
@@ -1092,7 +1087,8 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
           <li><b>The log has gaps.</b> Only calls that reach PostToolUse are logged, so failed and denied calls are missing. Search is lexical and skips rotated archives.</li>
           <li><b>The commit-size gate counts staged files only.</b> <code class="nb">git commit -am</code> with 16 modified files and none staged passed in block mode. The same 16 files staged were refused.</li>
           <li><b>The config guard is a command scanner.</b> <code class="blk">python -c "open('.claude/settings.json','w').write('{}')"</code> passed in block mode.</li>
-          <li><b>The typecheck gate is TypeScript only.</b> It needs <code>tsconfig.json</code> at the project root and allows the turn after 25 seconds.</li>
+          <li><b>The typecheck gate is TypeScript only.</b> It needs <code>tsconfig.json</code> at the project root and a <code>typecheck</code> script or the project's own TypeScript, else it allows silently. It allows the turn after 25 seconds.</li>
+          <li><b>The blind-edit check trusts the log.</b> A listing that prints a file's name counts as a look, and with no log for the project yet every edit is allowed.</li>
           <li><b>Lessons are notes.</b> Confidence is a number on a file. <code>ci_reinforce</code> raises it by 0.15 or lowers it by 0.1, up to 0.9. No code applies a lesson.</li>
           <li><b>The skills are prose.</b> The project's own <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/docs/audits/2026-11-20-frontier-model-audit.md">audit</a> marked 10 of the 28 skills for retirement, 4 to merge and 14 to slim.</li>
           <li><b>Two commands need a clone of the repository.</b> <code>/harvest</code> and <code>/companion-preference</code> run <code class="nb">node bin/…</code> from the repository root, which neither install sets up.</li>
@@ -1118,12 +1114,12 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
     <div class="wrap split">
       <div class="side stick">
         <span class="tag"><b>§&nbsp;7</b> · Operation</span>
-        <h2 id="h-off">Try it in five minutes. Turn it off in one line.</h2>
+        <h2 id="h-off">Try it with four steps. Turn it off in one line.</h2>
         <p class="lede">The two install commands are at the <a href="#top">top of this page</a>. Node 18 or newer is the only requirement (CI runs 18, 20 and 22).</p>
       </div>
       <div class="three">
         <div>
-          <h3>Five minutes.</h3>
+          <h3>Four steps.</h3>
           <ol class="steps">
             <li>Run the two commands inside Claude Code, then restart it once so the commands load.</li>
             <li>Ask Claude to run <code class="nb">rm -rf ./no-such-dir</code>. The call is denied before it runs, and the reason names the rule, <code class="nb">rm-recursive-force</code>. The directory does not exist, so a broken install deletes nothing.</li>
