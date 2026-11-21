@@ -58,7 +58,7 @@
     }
   },
   "evidence": {
-    "source": "Junie hook_payload_example (one JSON line: hook_event_name, tool_name, tool_input, cwd, session_id) and hook_post_tool (tool_response, tool_use_id, duration_ms); Read and Edit are Junie tool names",
+    "source": "Junie hook_payload_example (one JSON line: hook_event_name, tool_name, tool_input; it has no cwd and no session_id) and hook_post_tool (tool_response, tool_use_id, duration_ms); Read and Edit are Junie tool names. session_id is assumed from the UserPromptSubmit and SessionStart payloads, which document it, and cwd from SessionStart",
     "checked": "2026-11-22",
     "unverified": ["cwd", "session_id", "Read and Edit tool_input.file_path"],
     "read": { "hook_event_name": "PostToolUse", "tool_name": "Read", "tool_input": { "file_path": "<FILE>" }, "tool_response": "a", "tool_use_id": "junie-read", "duration_ms": 3, "cwd": "<PROJECT>", "session_id": "<SESSION>" },

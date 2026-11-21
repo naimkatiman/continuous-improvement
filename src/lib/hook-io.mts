@@ -310,7 +310,9 @@ export function payloadToolCall(fields: Record<string, unknown>): { name: string
 
 // Where each agent's verified payload carries its session (research
 // hook_payload_example per agent, skeptic verdicts applied): session_id on
-// Claude, Codex, Qwen, Gemini, Grok, Devin, Droid, Kiro, Junie and Goose;
+// Claude, Codex, Qwen, Gemini, Grok, Devin, Droid, Kiro and Goose, and on
+// Junie's UserPromptSubmit and SessionStart (its PreToolUse example names no
+// session, so a Junie tool event may carry none and is then denied, fail closed);
 // Copilot's camelCase sessionId; conversation_id on Cursor tool events and on
 // Auggie; Cline's taskId (the CLI sets it to the conversation id). Read by
 // shape, in this order, so the observer and the gate name the same session.
