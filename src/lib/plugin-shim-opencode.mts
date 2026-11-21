@@ -27,13 +27,19 @@
 //   lessons are computed once per session and pushed on each one.
 // - Stop: V2 `ctx.session.hook("experimental.idle", e {sessionID,
 //   background})`, continued with `ctx.session.synthetic({sessionID, text})`.
-//   V1's session.idle only observes, so V1 has no Stop gate.
+//   V1's session.idle only observes, so V1 has no Stop gate. The idle hook
+//   does not run after an interruption or failure (skeptic hook_stop verdict),
+//   so a user prompt (V2 `ctx.session.hook("prompt", e {sessionID, messageID,
+//   prompt, ...})`, skeptic hook_user_prompt verdict) resets the bridge's
+//   one-continue guard. The prompt that carries our own synthetic text, or
+//   arrives while synthetic() runs, does not: OpenCode has no continuation cap,
+//   so that reset would loop.
 // - Tool ids (tool_names, skeptic-corrected): V1 bash {command}, edit
 //   {filePath, oldString, newString}, write {filePath, content}, read
 //   {filePath}, apply_patch {patchText} (the only edit tool on GPT models);
 //   V2 shell, edit/write/read with `path`, patch {patchText}.
 
-import { type BridgeCall, type BridgeOptions, createBridge, renderPluginFile } from "./hook-bridge.mjs";
+import { type BridgeCall, type BridgeOptions, createBridge, missingHostApi, renderPluginFile } from "./hook-bridge.mjs";
 
 type Hook = (input: unknown, output: unknown) => Promise<void>;
 
@@ -115,6 +121,7 @@ export function createOpenCodePlugin(options: BridgeOptions): OpenCodePlugin {
     async setup(ctx) {
       const tool = asRecord(asRecord(ctx).tool);
       const session = asRecord(asRecord(ctx).session);
+      if (typeof tool.hook !== "function") return missingHostApi("OpenCode", "ctx.tool.hook", options.failClosed);
       // Called as methods, in case a domain reads `this`.
       const hook = async (domain: Record<string, unknown>, name: string, callback: (event: unknown) => Promise<void>): Promise<void> => {
         if (typeof domain.hook === "function") await (domain.hook as (n: string, c: typeof callback) => unknown).call(domain, name, callback);
@@ -132,6 +139,22 @@ export function createOpenCodePlugin(options: BridgeOptions): OpenCodePlugin {
         const system = asRecord(event).system;
         if (text !== null && Array.isArray(system)) system.push({ type: "text", text });
       });
+      // The text each session's last synthetic() admitted, and the sessions inside a synthetic() call.
+      const admitted = new Map<string, string>();
+      const admitting = new Set<string>();
+      await hook(session, "prompt", async (event) => {
+        const sessionId = sessionOf(event);
+        if (sessionId === undefined) return;
+        const text = admitted.get(sessionId);
+        admitted.delete(sessionId);
+        let ours = admitting.has(sessionId);
+        try {
+          ours ||= text !== undefined && (JSON.stringify(asRecord(event).prompt) ?? "").includes(text);
+        } catch {
+          ours = true; // unreadable: keep the guard rather than risk a loop
+        }
+        if (!ours) bridge.resetStop(sessionId);
+      });
       await hook(session, "experimental.idle", async (event) => {
         const sessionId = sessionOf(event);
         const background = asRecord(event).background;
@@ -139,7 +162,18 @@ export function createOpenCodePlugin(options: BridgeOptions): OpenCodePlugin {
         if (sessionId === undefined || (Array.isArray(background) && background.length > 0) || synthetic === undefined) return;
         try {
           const reason = await bridge.stop(sessionId);
-          if (reason !== null) await synthetic({ sessionID: sessionId, text: reason });
+          if (reason === null) return;
+          admitted.set(sessionId, reason);
+          admitting.add(sessionId);
+          try {
+            await synthetic({ sessionID: sessionId, text: reason });
+          } catch {
+            // nothing was admitted, so the next idle is a first fire
+            admitted.delete(sessionId);
+            bridge.resetStop(sessionId);
+          } finally {
+            admitting.delete(sessionId);
+          }
         } catch {
           // the session goes idle as it would without the plugin
         }

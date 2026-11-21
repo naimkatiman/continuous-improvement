@@ -18,7 +18,9 @@
 // `failClosed` (install --fail-closed) it blocks it. Loop guard: with
 // `--agent claude` the Stop hooks do not check stop_hook_active, so the bridge
 // itself skips the Stop fire right after one it continued, the non-Claude rule
-// of hook-io's skipsStopGate.
+// of hook-io's skipsStopGate. A shim calls resetStop() when a new user prompt
+// starts, since a continuation can end without another Stop fire (an Amp
+// cancel, an OpenCode 2.x interruption), which would leave the guard set.
 
 import { spawn } from "node:child_process";
 import { join } from "node:path";
@@ -64,6 +66,8 @@ export interface Bridge {
   lessons(sessionId: string | undefined): Promise<string | null>;
   /** The reason to continue the turn, or null to let it end. */
   stop(sessionId: string | undefined): Promise<string | null>;
+  /** A new user prompt, or a continuation that was not admitted: the next Stop is a first fire again. */
+  resetStop(sessionId: string | undefined): void;
 }
 
 const SHELL_TOOLS = ["Bash", "PowerShell"];
@@ -209,7 +213,21 @@ export function createBridge(options: BridgeOptions): Bridge {
       if (reason !== null) continued.add(key);
       return reason;
     },
+    resetStop(sessionId) {
+      continued.delete(sessionId ?? "");
+    },
   };
+}
+
+/**
+ * A host plugin API without the member that registers the tool gate: with
+ * failClosed the plugin load fails, so the host reports it; otherwise one
+ * warning says the calls run ungated.
+ */
+export function missingHostApi(agent: string, member: string, failClosed: boolean): void {
+  const message = `[continuous-improvement] the ${agent} plugin API has no ${member}, so every tool call would run ungated.`;
+  if (failClosed) throw new Error(`${message} This plugin was installed with --fail-closed, so it does not load.`);
+  console.error(message);
 }
 
 /** The line in every plugin file the installer writes; a file without it is the user's. */

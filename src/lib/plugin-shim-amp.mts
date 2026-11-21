@@ -13,7 +13,10 @@
 // - `agent.start` {thread, message, id} fires on every user prompt;
 //   {message:{content, display:false}} appends hidden text to that turn.
 //   session.start cannot return text, so the lessons go here, on the first turn
-//   of each thread.
+//   of each thread. A user prompt also resets the bridge's one-continue guard,
+//   as Amp resets its continuation count on any user message (skeptic hook_stop
+//   verdict); a continuation that ends cancelled or in error never reaches the
+//   Stop gate, so the guard would otherwise outlive it.
 // - `agent.end` {thread, status, messages, ...} returns {action:"continue",
 //   userMessage, maxContinuations} to start another turn. maxContinuations 1
 //   matches the non-Claude Stop guard: one continuation in a row.
@@ -22,7 +25,7 @@
 // {path, old_str, new_str}; create_file {path, content}; apply_patch
 // {patchText}; Read and read_file {path}.
 
-import { type BridgeCall, type BridgeOptions, createBridge, renderPluginFile } from "./hook-bridge.mjs";
+import { type BridgeCall, type BridgeOptions, createBridge, missingHostApi, renderPluginFile } from "./hook-bridge.mjs";
 
 type Handler = (event: unknown, ctx?: unknown) => Promise<unknown>;
 
@@ -56,12 +59,11 @@ const threadOf = (event: unknown): string | undefined => {
 
 export function createAmpPlugin(options: BridgeOptions): (amp: unknown) => void {
   return (amp) => {
+    const api = asRecord(amp);
+    if (typeof api.on !== "function") return missingHostApi("Amp", "amp.on", options.failClosed);
     const bridge = createBridge(options);
     const started = new Set<string>();
-    const on = (name: string, handler: Handler): void => {
-      const api = asRecord(amp);
-      if (typeof api.on === "function") (api.on as (n: string, h: Handler) => unknown).call(api, name, handler);
-    };
+    const on = (name: string, handler: Handler): void => void (api.on as (n: string, h: Handler) => unknown).call(api, name, handler);
     on("tool.call", async (event) => {
       const fields = asRecord(event);
       const call = ampCall(fields.tool, fields.input);
@@ -86,6 +88,7 @@ export function createAmpPlugin(options: BridgeOptions): (amp: unknown) => void 
     });
     on("agent.start", async (event) => {
       const thread = threadOf(event);
+      bridge.resetStop(thread);
       if (thread === undefined || started.has(thread)) return {};
       started.add(thread);
       try {

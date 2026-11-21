@@ -269,11 +269,11 @@ describe("OpenCode plugin", () => {
     }
   });
 
-  it("V2: setup registers execute.before, execute.after, context and experimental.idle; execute.before rejects a destructive shell call", async () => {
+  it("V2: setup registers execute.before, execute.after, context, prompt and experimental.idle; execute.before rejects a destructive shell call", async () => {
     const plugin = await load<{ setup: (ctx: unknown) => Promise<void> }>(renderOpenCodePlugin(REPO_ROOT, false), "continuous-improvement.js");
     const { ctx, hooks } = v2Context();
     await plugin.setup(ctx);
-    assert.deepEqual([...hooks.keys()].sort(), ["session:context", "session:experimental.idle", "tool:execute.after", "tool:execute.before"]);
+    assert.deepEqual([...hooks.keys()].sort(), ["session:context", "session:experimental.idle", "session:prompt", "tool:execute.after", "tool:execute.before"]);
     const event = { tool: "shell", sessionID: "ses_2", agent: "build", messageID: "m", id: "c", input: { command: FORCE_PUSH } };
     await assert.rejects(hooks.get("tool:execute.before")!(event), /Destructive command/);
     await hooks.get("tool:execute.before")!({ ...event, input: { command: "ls" } });
@@ -389,6 +389,100 @@ describe("Amp plugin", () => {
       const reply = (await handlers.get("tool.call")!({ toolUseID: "t", tool: "Bash", input: { cmd: "ls" }, thread: { id: "T" } }, {})) as { action: string };
       assert.equal(reply.action, failClosed ? "reject-and-continue" : "allow");
     }
+  });
+});
+
+// Review finding (PR 14): the one-continue guard was cleared only by the next
+// stop(), so a continuation that never reached it (an Amp cancel or error, an
+// OpenCode 2.x interruption, a throwing synthetic()) left it set, and the
+// first real Stop after a new prompt let the turn end.
+describe("the Stop guard resets on a new user prompt", () => {
+  it("bridge: resetStop clears the one-continue guard for that session only", async () => {
+    const bridge = createBridge(opts(fakeRun({ "hooks/goal-drift-stop.mjs": { ...OK, stdout: blockJson("drift") } })));
+    assert.equal(await bridge.stop("a"), "drift");
+    assert.equal(await bridge.stop("b"), "drift");
+    bridge.resetStop("a");
+    assert.equal(await bridge.stop("a"), "drift", "a new prompt makes the next Stop a first fire");
+    assert.equal(await bridge.stop("b"), null, "another session keeps its guard");
+    bridge.resetStop(undefined);
+  });
+
+  it("Amp: a cancelled continuation then a new prompt gates the next finished turn again", async () => {
+    const log: Call[] = [];
+    const { amp, handlers } = fakeAmp();
+    createAmpPlugin(opts(fakeRun({ "hooks/goal-drift-stop.mjs": { ...OK, stdout: blockJson("drift: keep going") } }, log)))(amp);
+    const start = handlers.get("agent.start")!;
+    const end = handlers.get("agent.end")!;
+    const thread = { id: "T-r" };
+    await start({ thread, message: "do x", id: "m1" }, {});
+    assert.deepEqual(await end({ thread, status: "done", messages: [] }, {}), { action: "continue", userMessage: "drift: keep going", maxContinuations: 1 });
+    assert.equal(await end({ thread, status: "cancelled", messages: [] }, {}), undefined);
+    await start({ thread, message: "now do y", id: "m2" }, {});
+    assert.deepEqual(await end({ thread, status: "done", messages: [] }, {}), { action: "continue", userMessage: "drift: keep going", maxContinuations: 1 });
+    assert.equal(log.filter((call) => call.script === "hooks/goal-drift-stop.mjs").length, 2);
+  });
+
+  it("OpenCode 2.x: a user prompt resets the guard, our own synthetic prompt does not, and a throwing synthetic() resets it", async () => {
+    const { ctx, hooks, synthetic } = v2Context();
+    await createOpenCodePlugin(opts(fakeRun({ "hooks/goal-drift-stop.mjs": { ...OK, stdout: blockJson("back to the goal") } }))).setup(ctx);
+    const idle = hooks.get("session:experimental.idle")!;
+    const prompt = hooks.get("session:prompt")!;
+    assert.ok(prompt, "setup registers the session prompt hook");
+    await idle({ sessionID: "s", background: [] });
+    // The continuation's own prompt carries the text we admitted: still a repeat.
+    await prompt({ sessionID: "s", messageID: "m1", prompt: { text: "back to the goal", files: [] } });
+    await idle({ sessionID: "s", background: [] });
+    assert.equal(synthetic.length, 1, "no loop through our own synthetic message");
+    await prompt({ sessionID: "s", messageID: "m2", prompt: { text: "next task", files: [] } });
+    await idle({ sessionID: "s", background: [] });
+    assert.equal(synthetic.length, 2, "a user prompt makes the next idle a first fire");
+
+    const failing = v2Context();
+    let calls = 0;
+    failing.ctx.session.synthetic = async () => {
+      calls += 1;
+      if (calls === 1) throw new Error("not admitted");
+    };
+    await createOpenCodePlugin(opts(fakeRun({ "hooks/goal-drift-stop.mjs": { ...OK, stdout: blockJson("drift") } }))).setup(failing.ctx);
+    await failing.hooks.get("session:experimental.idle")!({ sessionID: "t", background: [] });
+    await failing.hooks.get("session:experimental.idle")!({ sessionID: "t", background: [] });
+    assert.equal(calls, 2, "nothing was admitted, so the next idle is not a repeat");
+  });
+});
+
+// Review finding (PR 14): a host API of the wrong shape registered nothing and said nothing.
+describe("a host plugin API without the hook registry", () => {
+  async function capturingErrors<T>(body: () => Promise<T>): Promise<{ value: T; errors: string[] }> {
+    const errors: string[] = [];
+    const original = console.error;
+    console.error = (...args: unknown[]) => void errors.push(args.map(String).join(" "));
+    try {
+      return { value: await body(), errors };
+    } finally {
+      console.error = original;
+    }
+  }
+
+  it("OpenCode 2.x setup without ctx.tool.hook fails the plugin load under --fail-closed and warns otherwise", async () => {
+    for (const ctx of [{}, { tool: {} }, { tool: { hook: "x" }, session: {} }]) {
+      await assert.rejects(createOpenCodePlugin(opts(fakeRun(), { failClosed: true })).setup(ctx), /continuous-improvement.*tool\.hook/);
+      const { errors } = await capturingErrors(() => createOpenCodePlugin(opts(fakeRun())).setup(ctx));
+      assert.equal(errors.length, 1, JSON.stringify(ctx));
+      assert.match(errors[0]!, /continuous-improvement.*tool\.hook.*ungated/);
+    }
+    const { errors } = await capturingErrors(() => createOpenCodePlugin(opts(fakeRun(), { failClosed: true })).setup(v2Context().ctx));
+    assert.deepEqual(errors, [], "a full context warns about nothing");
+  });
+
+  it("Amp without amp.on fails the plugin load under --fail-closed and warns otherwise", async () => {
+    for (const amp of [{}, null, { on: 1 }]) {
+      assert.throws(() => createAmpPlugin(opts(fakeRun(), { failClosed: true }))(amp), /continuous-improvement.*amp\.on/);
+      const { errors } = await capturingErrors(async () => createAmpPlugin(opts(fakeRun()))(amp));
+      assert.equal(errors.length, 1, JSON.stringify(amp));
+      assert.match(errors[0]!, /continuous-improvement.*amp\.on.*ungated/);
+    }
+    const { errors } = await capturingErrors(async () => createAmpPlugin(opts(fakeRun(), { failClosed: true }))(fakeAmp().amp));
+    assert.deepEqual(errors, []);
   });
 });
 
