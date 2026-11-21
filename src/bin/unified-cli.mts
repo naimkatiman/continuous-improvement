@@ -12,10 +12,22 @@
  * the out-of-band phuryn/pm-skills marketplace install. See CHANGELOG [3.13.0].
  */
 
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
+import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import CLIAnything from "../lib/cli-anything.mjs";
+import {
+  isLessonPathAllowed,
+  LESSON_FORMATS,
+  lessonRoute,
+  lessonRouteNote,
+  readLessonSources,
+  renderLessonBlock,
+  renderLessons,
+} from "../lib/lesson-render.mjs";
+import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 
 interface Config {
   verbose: boolean;
@@ -68,6 +80,8 @@ class UnifiedCLI {
         return this.handleList();
       case "config":
         return this.handleConfig(args);
+      case "lessons":
+        return handleLessons(args);
       default:
         throw new Error(`Unknown command: ${command}`);
     }
@@ -138,6 +152,62 @@ class UnifiedCLI {
   }
 }
 
+const LESSONS_USAGE = `Usage: ci lessons --format <${LESSON_FORMATS.join("|")}> [--write]`;
+
+function parseLessonsArgs(args: readonly string[]): { format: string; write: boolean } {
+  let format: string | undefined;
+  let write = false;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--write") write = true;
+    else if (arg === "--format") format = args[++i];
+    else if (arg.startsWith("--format=")) format = arg.slice("--format=".length);
+    else throw new Error(`${LESSONS_USAGE}\nUnexpected argument: ${arg}`);
+  }
+  if (!format) throw new Error(LESSONS_USAGE);
+  return { format, write };
+}
+
+function lessonCount(block: string): number {
+  return block.split("\n").filter((line) => line.startsWith("- ")).length;
+}
+
+// `ci lessons --format <agent> [--write]` (docs/plans/2026-11-21-all-agents.md,
+// Architecture item 10). A hook agent gets the SessionStart bytes its encoder
+// writes, for this project and global/. A static route gets global/ only,
+// because the file loads in every repository; it is written only with --write.
+function handleLessons(args: readonly string[]): void {
+  const { format, write } = parseLessonsArgs(args);
+  const home = resolveHomeDir();
+  if (!home) throw new Error("no home directory: set HOME or USERPROFILE");
+  const route = lessonRoute(format, home, process.env, process.platform);
+  const instinctsRoot = resolveInstinctsRoot(home);
+  if (route === null) {
+    if (write) {
+      throw new Error(`${format} reads the lessons from its SessionStart hook (hooks/session.mjs --agent ${format}); there is no static route to write`);
+    }
+    const { contents, projectCount } = readLessonSources(instinctsRoot, resolveProjectRoot());
+    process.stdout.write(renderLessons(format, renderLessonBlock(contents, projectCount), null));
+    return;
+  }
+  if (!isLessonPathAllowed(route.path, home)) {
+    throw new Error(`refusing to write ${route.path}: nothing is written under ${join(home, ".agents")}`);
+  }
+  const block = renderLessonBlock(readLessonSources(instinctsRoot, null).contents, 0);
+  if (!write) {
+    process.stdout.write(renderLessons(format, block, null));
+    console.error(`Would write ${route.path}; pass --write to write it.`);
+    return;
+  }
+  const existing = route.mode === "managed" && existsSync(route.path) ? readFileSync(route.path, "utf8") : null;
+  const content = renderLessons(format, block, existing);
+  mkdirSync(dirname(route.path), { recursive: true });
+  writeFileSync(route.path, content);
+  console.log(`Wrote ${lessonCount(block)} lessons to ${route.path}`);
+  const note = lessonRouteNote(format, route.path, home, process.env);
+  if (note) console.log(note);
+}
+
 function parseGlobalOptions(args: string[]): ParsedOptions {
   const options: ParsedOptions = {};
 
@@ -180,6 +250,9 @@ Commands:
   list                      Show CLI-Anything capabilities
   config show               Show current configuration
   config set <key> <value>  Set a configuration value (workspace | verbose)
+  lessons --format <agent>  Print the saved lessons as <agent> reads them
+          [--write]         Write the agent's lessons rules file (grok, auggie,
+                            junie, goose, zed, aider); nothing is written without it
 
 Global Options:
   --workspace <dir>         Workspace directory (default: ./ci-workspace)
@@ -207,7 +280,19 @@ Examples:
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// argv[1] is a native path (backslashes on Windows) and may be an npm bin
+// symlink, so compare real paths rather than a file:// string.
+function isEntryPoint(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isEntryPoint()) {
   main().catch((error: unknown) => {
     console.error(`Fatal error: ${getErrorMessage(error)}`);
     process.exit(1);

@@ -218,11 +218,13 @@ describe("core docs say only what the code does", () => {
     });
 
     // bin/harvest-friction.mjs appends JSON lines to instincts.jsonl, the
-    // session hook lists only *.yaml (through lib/gateguard-state.mjs), and the
-    // plugin bundle has no copy of it.
+    // session hook lists only *.yaml (through lib/lesson-render.mjs, which
+    // lists them with lib/gateguard-state.mjs), and the plugin bundle has no
+    // copy of it.
     it(`${doc} says the friction harvest writes instincts.jsonl, which the session-start block does not load`, () => {
       assert.match(readRepoFile("bin/harvest-friction.mjs"), /join\(projectDir, "instincts\.jsonl"\)/);
-      assert.match(readRepoFile("hooks/session.mjs"), /import \{ hashProjectRoot, projectYamlFiles, yamlFiles \} from "\.\.\/lib\/gateguard-state\.mjs";/);
+      assert.match(readRepoFile("hooks/session.mjs"), /import \{ readLessonSources, renderLessonBlock \} from "\.\.\/lib\/lesson-render\.mjs";/);
+      assert.match(readRepoFile("lib/lesson-render.mjs"), /import \{ hashProjectRoot, projectYamlFiles, yamlFiles \} from "\.\/gateguard-state\.mjs";/);
       assert.match(readRepoFile("lib/gateguard-state.mjs"), /export function yamlFiles\(dir\) \{\s*try \{\s*return readdirSync\(dir\)\s*\.filter\(\(name\) => name\.endsWith\("\.yaml"\)\)/);
       assert.ok(!readdirSync(join(REPO_ROOT, "plugins", "continuous-improvement", "bin")).includes("harvest-friction.mjs"));
       const text = readRepoFile(doc);

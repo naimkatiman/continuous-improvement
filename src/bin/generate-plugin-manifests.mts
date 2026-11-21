@@ -300,6 +300,11 @@ async function writePluginBundle(): Promise<void> {
       join(REPO_ROOT, "lib", "instinct-yaml.mjs"),
       join(PLUGIN_BUNDLE_DIR, "lib", "instinct-yaml.mjs"),
     ),
+    // The lesson block, imported by hooks/session.mjs.
+    copyFileTo(
+      join(REPO_ROOT, "lib", "lesson-render.mjs"),
+      join(PLUGIN_BUNDLE_DIR, "lib", "lesson-render.mjs"),
+    ),
     copyFileTo(
       join(REPO_ROOT, "lib", "observe-event.mjs"),
       join(PLUGIN_BUNDLE_DIR, "lib", "observe-event.mjs"),
