@@ -154,4 +154,4 @@ function main() {
     const output = encode(agent, EVENT, decision);
     return decision.kind === "deny" && agent === "claude" ? withoutFinalNewline(output) : output;
 }
-emit(await settleHook(main, hookAgent));
+emit(await settleHook(main, hookAgent, EVENT));

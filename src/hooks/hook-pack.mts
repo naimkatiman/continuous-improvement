@@ -185,4 +185,4 @@ function main(): EncodedOutput {
   return decision.kind === "deny" && agent === "claude" ? withoutFinalNewline(output) : output;
 }
 
-emit(await settleHook(main, hookAgent));
+emit(await settleHook(main, hookAgent, EVENT));

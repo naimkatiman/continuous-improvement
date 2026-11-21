@@ -79,4 +79,4 @@ function main() {
         return ALLOW;
     }
 }
-emit(await settleHook(() => encode(hookAgent(), EVENT, main()), hookAgent));
+emit(await settleHook(() => encode(hookAgent(), EVENT, main()), hookAgent, EVENT));

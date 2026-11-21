@@ -15,7 +15,11 @@
  * Owner decision: the guard never applies to Claude Code, so its Stop bytes
  * stay those of v3.27.0 (fixtures/agent-hooks/claude.json). For the same
  * reason a hook crash under Claude Code is left to Node (exit 1, which Claude
- * Code reads as a non-blocking error) and every other agent gets exit 0.
+ * Code reads as a non-blocking error). On every other agent a crash at Stop,
+ * at a prompt or at session start is exit 0. A PreToolUse crash keeps a
+ * non-zero exit (owner decision: the vendor's fail-closed default is kept):
+ * exit 1, as Node gave in v3.27.0, for an agent with an encoder (Copilot and
+ * the Kiro IDE read it as a deny), and exit 2 for an id with no encoder.
  */
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
@@ -86,7 +90,20 @@ describe("skipsStopGate", () => {
             assert.equal(skips(agent, null), false);
             assert.equal(skips(agent, { reason: "shutdown" }), false, "the end_turn rule is Grok's alone");
         });
+        it(`${agent || "(empty id)"}: a repeat flag that is present but not a boolean fails closed, like loop_count`, () => {
+            for (const value of ["true", "false", 1, 0, null, {}, []]) {
+                assert.equal(skips(agent, { stop_hook_active: value }), true, `stop_hook_active ${JSON.stringify(value)}`);
+                assert.equal(skips(agent, { stopHookActive: value }), true, `stopHookActive ${JSON.stringify(value)}`);
+            }
+            assert.equal(skips(agent, { stop_hook_active: false, stopHookActive: false }), false);
+        });
     }
+    it("claude: a malformed repeat flag changes nothing (v3.27.0 bytes)", () => {
+        for (const value of ["true", 1, null]) {
+            assert.equal(skips("claude", { stop_hook_active: value }), false, JSON.stringify(value));
+            assert.equal(skips("claude", { stopHookActive: value }), false, JSON.stringify(value));
+        }
+    });
     it("grok: skips unless reason is end_turn, and on a repeat end_turn fire", () => {
         assert.equal(skips("grok", { reason: "end_turn" }), false);
         assert.equal(skips("grok", { reason: "end_turn", stopHookActive: false, stop_hook_active: false }), false);
@@ -101,6 +118,7 @@ describe("skipsStopGate", () => {
             { reason: "end_turn", stopHookActive: true },
             { reason: "end_turn", stop_hook_active: true },
             { reason: "end_turn", loop_count: 2 },
+            { reason: "end_turn", stopHookActive: "true" },
         ]) {
             assert.equal(skips("grok", payload), true, JSON.stringify(payload));
         }
@@ -113,16 +131,46 @@ describe("settleHook", () => {
         assert.deepEqual(await settleHook(async () => OUT, () => "codex"), OUT);
         assert.deepEqual(await settleHook(() => OUT), OUT);
     });
+    const crash = (agent, event) => settleHook(() => {
+        throw new TypeError("Cannot read properties of null (reading 'tool_name')");
+    }, agent, event);
     for (const agent of NON_CLAUDE) {
-        it(`${agent || "(empty id)"}: a throw ends as exit 0, empty stdout, the error on stderr`, async () => {
-            const out = await settleHook(() => {
-                throw new TypeError("Cannot read properties of null (reading 'tool_name')");
-            }, () => agent);
+        it(`${agent || "(empty id)"}: a throw outside PreToolUse ends as exit 0, empty stdout, the error on stderr`, async () => {
+            for (const event of [undefined, "Stop", "UserPromptSubmit", "SessionStart"]) {
+                const out = await crash(() => agent, event);
+                assert.equal(out.stdout, "", String(event));
+                assert.equal(out.exitCode, 0, String(event));
+                assert.match(out.stderr, /^\[continuous-improvement\] hook error: TypeError: Cannot read properties of null/);
+            }
+        });
+    }
+    for (const agent of AGENT_IDS.filter((id) => id !== "claude")) {
+        it(`${agent}: a PreToolUse throw keeps v3.27.0's exit 1, so the vendor's own crash rule decides`, async () => {
+            const out = await crash(() => agent, "PreToolUse");
             assert.equal(out.stdout, "");
-            assert.equal(out.exitCode, 0);
+            assert.equal(out.exitCode, 1);
             assert.match(out.stderr, /^\[continuous-improvement\] hook error: TypeError: Cannot read properties of null/);
         });
     }
+    for (const agent of ["unknown", "", "mystery"]) {
+        it(`${agent || "(empty id)"}: a PreToolUse throw for an id with no encoder is the fail-closed exit 2`, async () => {
+            const out = await crash(() => agent, "PreToolUse");
+            assert.equal(out.stdout, "");
+            assert.equal(out.exitCode, 2);
+            assert.match(out.stderr, /^\[continuous-improvement\] hook error: TypeError: Cannot read properties of null/);
+        });
+    }
+    it("a PreToolUse throw whose agent cannot be read is the fail-closed exit 2", async () => {
+        const out = await crash(() => {
+            throw new Error("reader");
+        }, "PreToolUse");
+        assert.equal(out.exitCode, 2);
+        assert.equal(out.stdout, "");
+        const none = await settleHook(() => {
+            throw new Error("body");
+        }, undefined, "PreToolUse");
+        assert.equal(none.exitCode, 2);
+    });
     it("with no agent reader a throw ends as exit 0", async () => {
         const out = await settleHook(async () => Promise.reject(new Error("boom")));
         assert.equal(out.stdout, "");
@@ -317,24 +365,53 @@ describe("Claude Code Stop bytes are unchanged (owner decision)", () => {
         assertStayedOut(runs, "claude", [STOP_HOOKS[2]]);
     });
 });
-describe("a hook crash ends as exit 0 on every other agent", () => {
+describe("bare Stop payloads: the guard applies only where the agent is selected", () => {
+    // With no --agent and no CI_AGENT, an agent with no sniff (Codex, Droid,
+    // Junie, and Copilot's Stop payload, which names no event) resolves to
+    // claude, and the guard never applies to claude. Codex and Droid load the
+    // unchanged Claude plugin, which passes no --agent, so a repeat block there
+    // is unbounded until the installer renders the flag (docs/deferred.md).
+    const repeats = stopFixtures
+        .map((fixture) => ({ fixture, repeat: repeatOf(fixture.events.Stop.stdin) }))
+        .filter((entry) => entry.repeat !== null);
+    it("a repeat fire with no flag still continues on Codex, Copilot, Droid and Junie, and stays out where a sniff names the agent", async () => {
+        const continued = [];
+        for (const { fixture, repeat } of repeats) {
+            const sniffEnv = substitute(fixture.selection?.sniff?.env ?? {});
+            const payload = JSON.stringify({ ...substitute(repeat), transcript_path: transcript });
+            const output = await run(STOP_HOOKS[0].script, [], payload, { ...STOP_HOOKS[0].env, ...sniffEnv });
+            assert.equal(output.status, 0, detail(STOP_HOOKS[0], output, `${fixture.agent} bare`));
+            if (output.stdout.includes(STOP_HOOKS[0].marker) || output.stderr.includes(STOP_HOOKS[0].marker))
+                continued.push(fixture.agent);
+        }
+        assert.deepEqual(continued, ["codex", "copilot", "droid", "junie"]);
+    });
+});
+describe("a hook crash ends as exit 0 on every other agent, except at PreToolUse", () => {
     const CRASHERS = [
-        { script: "hooks/gateguard.mjs", env: {} },
-        { script: "hooks/companion-preference.mjs", env: {} },
-        { script: "hooks/route-prompt.mjs", env: { CI_ROUTE_PROMPT: "1" } },
+        { script: "hooks/gateguard.mjs", env: {}, preTool: true },
+        { script: "hooks/companion-preference.mjs", env: {}, preTool: true },
+        { script: "hooks/route-prompt.mjs", env: { CI_ROUTE_PROMPT: "1" }, preTool: false },
     ];
     for (const hook of CRASHERS) {
         it(`${hook.script} on JSON null stdin`, async () => {
+            // A PreToolUse crash keeps v3.27.0's exit 1, which Copilot (fail-closed on
+            // errors) and the Kiro IDE read as a deny; every other exit is 0.
+            const expected = hook.preTool ? 1 : 0;
             for (const agent of AGENT_IDS.filter((id) => id !== "claude")) {
                 const output = await run(hook.script, ["--agent", agent], "null", hook.env);
                 const where = `${agent}\nstdout: ${output.stdout}\nstderr: ${output.stderr}`;
-                assert.equal(output.status, 0, where);
+                assert.equal(output.status, expected, where);
                 assert.equal(output.stdout, "", where);
                 assert.match(output.stderr, /^\[continuous-improvement\] hook error: TypeError: Cannot read properties of null/, where);
             }
+            // An id with no encoder fails closed at PreToolUse.
+            const unknown = await run(hook.script, ["--agent", "unknown"], "null", hook.env);
+            assert.equal(unknown.status, hook.preTool ? 2 : 0, unknown.stderr);
+            assert.equal(unknown.stdout, "");
             // CI_AGENT selects the agent the same way.
-            const viaEnv = await run(hook.script, [], "null", { ...hook.env, CI_AGENT: "kiro" });
-            assert.equal(viaEnv.status, 0, viaEnv.stderr);
+            const viaEnv = await run(hook.script, [], "null", { ...hook.env, CI_AGENT: "copilot" });
+            assert.equal(viaEnv.status, expected, viaEnv.stderr);
             // Claude Code keeps the v3.27.0 crash (goldens <hook>/null-stdin): exit 1, Node's own report.
             const claude = await run(hook.script, [], "null", hook.env);
             assert.equal(claude.status, 1, claude.stderr);
@@ -353,7 +430,19 @@ describe("hook entry points", () => {
     });
     for (const file of hooks) {
         it(`${file} emits what settleHook returns, reading the agent through hookAgent`, () => {
-            assert.match(code(file), /emit\(await settleHook\([\s\S]*?,\s*hookAgent\)\);/);
+            assert.match(code(file), /emit\(await settleHook\([\s\S]*?,\s*hookAgent(?:,\s*EVENT)?\)\);/);
+        });
+    }
+    const PRE_TOOL = ["companion-preference.mjs", "config-guard.mjs", "gateguard.mjs", "hook-pack.mjs"];
+    it("the PreToolUse hooks are the ones listed", () => {
+        const wired = hooks.filter((file) => /const EVENT = "PreToolUse"/.test(code(file))).sort();
+        assert.deepEqual(wired, PRE_TOOL);
+    });
+    for (const file of hooks) {
+        const preTool = PRE_TOOL.includes(file);
+        it(`${file} ${preTool ? "passes" : "does not pass"} its PreToolUse event to settleHook`, () => {
+            const passes = /emit\(await settleHook\([\s\S]*?,\s*hookAgent,\s*EVENT\)\);/.test(code(file));
+            assert.equal(passes, preTool);
         });
     }
     for (const file of ["goal-drift-stop.mjs", "typecheck-stop.mjs", "three-section-close.mjs"]) {

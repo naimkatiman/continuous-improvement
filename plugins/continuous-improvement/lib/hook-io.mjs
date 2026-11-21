@@ -298,24 +298,38 @@ export function normalizeEvent(agent, event, payload) {
         payload,
     };
 }
+// A repeat flag that is present but not a boolean cannot prove a first fire,
+// so the Stop guard reads it as a repeat, the same rule as loop_count.
+function malformedRepeatFlag(payload) {
+    const fields = asRecord(payload);
+    if (fields === null)
+        return false;
+    return ["stop_hook_active", "stopHookActive"].some((key) => key in fields && typeof fields[key] !== "boolean");
+}
 /**
  * Whether a Stop hook that can continue the turn stays out of this Stop fire
  * (plan PR 9, Architecture item 7). Never for claude: by owner decision Claude
  * Code's Stop bytes stay those of v3.27.0. For every other agent, including
  * one with no encoder: a repeat fire, where stop_hook_active or stopHookActive
- * is true or loop_count is not 0, because Cursor gives imported Claude hooks
- * loop_limit null (no cap) and the other agents cap at 8 continuations at most.
- * On Grok, also every fire whose reason is not end_turn: Grok fires an extra
- * Stop at session end (channel_closed or shutdown) whose decision it ignores
- * (verified research 2026-11-21, hook_stop for Grok, Cursor, Copilot, Codex,
- * Qwen, Gemini, Devin, Droid and Junie, skeptic verdicts applied).
+ * is true (or present but not a boolean) or loop_count is not 0. The verified
+ * research documents a cap on Stop continuations only for Grok (8), Copilot
+ * (8), Qwen (8, overridable), Amp (5) and Goose (GOOSE_STOP_HOOK_BLOCK_CAP).
+ * Cursor gives imported Claude hooks loop_limit null, and Codex, Droid, Junie
+ * and Devin document no cap (Devin warns a Stop block can loop), so there the
+ * guard is the only bound. On Grok, also every fire whose reason is not
+ * end_turn: Grok fires an extra Stop at session end (channel_closed or
+ * shutdown) whose decision it ignores (verified research 2026-11-21, hook_stop
+ * for Grok, Cursor, Copilot, Codex, Qwen, Gemini, Devin, Droid and Junie,
+ * skeptic verdicts applied). It reads only the selected agent: with no
+ * --agent or CI_AGENT a Codex, Droid, Junie or Copilot Stop payload selects
+ * claude, so the guard does not apply there.
  */
 export function skipsStopGate(event) {
     if (event.agent === "claude")
         return false;
     if (event.agent === "grok" && event.stopReason !== "end_turn")
         return true;
-    return event.stopActive || (event.loopCount !== null && event.loopCount !== 0);
+    return event.stopActive || malformedRepeatFlag(event.payload) || (event.loopCount !== null && event.loopCount !== 0);
 }
 function noticeLines(decision) {
     return (decision.notices ?? []).map((notice) => `${notice}\n`).join("");
@@ -469,7 +483,7 @@ export function emit(output, streams = PROCESS_STREAMS) {
         streams.writeStdout(output.stdout);
     streams.exit(output.exitCode);
 }
-function crashOutput(error) {
+function crashOutput(error, agent, event) {
     // String(error) and a stack getter can throw too; that must not reject.
     let text;
     try {
@@ -478,39 +492,58 @@ function crashOutput(error) {
     catch {
         text = "unprintable error";
     }
-    return { stdout: "", stderr: `[continuous-improvement] hook error: ${text}\n`, exitCode: 0 };
+    return { stdout: "", stderr: `[continuous-improvement] hook error: ${text}\n`, exitCode: crashExitCode(agent, event) };
+}
+// A PreToolUse crash keeps a non-zero exit (owner decision: the vendor's
+// fail-closed default is kept). Exit 1 is what Node gave in v3.27.0, so the
+// vendor's own crash rule decides: Copilot's preToolUse is fail-closed on
+// errors and the Kiro IDE blocks on any non-zero exit, while Codex, Qwen,
+// Gemini, Devin, Cursor, Grok and Auggie fail open unless their own
+// fail-closed option is set (verified research 2026-11-21, hook_pre_tool,
+// skeptic verdicts applied). An id with no encoder gets the fail-closed exit
+// 2. Every other event exits 0: on Kiro an exit 1 from a Stop hook starts
+// another turn.
+function crashExitCode(agent, event) {
+    if (event !== "PreToolUse")
+        return 0;
+    return ENCODERS.has(agent) ? 1 : 2;
 }
 /**
- * The output of a hook body, crash-safe. Any throw ends as exit 0 with empty
- * stdout and the error on stderr: on Kiro an exit 1 from a Stop hook starts
- * another turn, on Cursor 3.x non-JSON stdout blocks every tool call (plan,
- * "What the research found" item 3), and Copilot reads a crashed preToolUse as
- * a deny. Nothing the body encoded before the throw is printed.
+ * The output of a hook body, crash-safe. A throw ends with empty stdout and
+ * the error on stderr, and nothing the body encoded before it is printed, so
+ * Cursor 3.x never sees non-JSON stdout from a crash. `event` is the Claude
+ * Code name of the event the hook is wired to. At Stop, a prompt or session
+ * start the exit is 0, because on Kiro an exit 1 from a Stop hook starts
+ * another turn (plan, "What the research found" item 3). At PreToolUse the
+ * exit stays non-zero (crashExitCode), so a crash that the vendor read as a
+ * deny in v3.27.0 is still a deny.
  *
  * `agent` is read only after a throw. When it names claude the throw is
  * rethrown unchanged, so Node reports it as v3.27.0 did (exit 1, which Claude
  * Code reads as a non-blocking error) and the goldens keep their bytes (owner
- * decision: Claude Code behaviour stays byte-identical). Every hook entry point
- * is `emit(await settleHook(body, hookAgent))`.
+ * decision: Claude Code behaviour stays byte-identical). An agent that cannot
+ * be read counts as an id with no encoder. Every hook entry point is
+ * `emit(await settleHook(body, hookAgent))`, with EVENT as a third argument
+ * in the PreToolUse hooks.
  */
-export async function settleHook(body, agent) {
+export async function settleHook(body, agent, event) {
     try {
         return await body();
     }
     catch (error) {
-        let claude = false;
+        let id = FALLBACK_AGENT;
         try {
-            claude = agent?.() === "claude";
+            id = agent?.() ?? FALLBACK_AGENT;
         }
         catch {
             // An agent that cannot be read is not Claude Code.
         }
-        if (claude)
+        if (id === "claude")
             throw error;
-        return crashOutput(error);
+        return crashOutput(error, id, event);
     }
 }
-/** Run a hook body and emit what it returns; a throw ends as settleHook's exit 0. */
+/** Run a hook body and emit what it returns; with no agent and no event a throw ends as exit 0. */
 export async function runHook(body, streams = PROCESS_STREAMS) {
     emit(await settleHook(body), streams);
 }

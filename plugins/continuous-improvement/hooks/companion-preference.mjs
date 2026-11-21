@@ -35,6 +35,7 @@ import { join } from "node:path";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 import { emit, hookAgent, settleHook } from "../lib/hook-io.mjs";
+const EVENT = "PreToolUse";
 const OVERRIDES = {
     "tdd-workflow": {
         companion: "superpowers:test-driven-development",
@@ -178,7 +179,7 @@ async function main() {
 }
 // Every path through main exits on its own. main() is called here, not inside
 // settleHook, so a Claude Code crash's stack names main and this module only
-// (golden companion-preference/null-stdin); settleHook ends a crash as exit 0
-// for every other agent.
+// (golden companion-preference/null-stdin); for every other agent settleHook
+// ends a crash as a non-zero PreToolUse exit.
 const pending = main();
-emit(await settleHook(() => pending, hookAgent));
+emit(await settleHook(() => pending, hookAgent, EVENT));

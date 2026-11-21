@@ -78,8 +78,8 @@ async function main(): Promise<EncodedOutput> {
   if (!parsed.ok) return encode(agent, EVENT, { kind: "allow" }); // fail-open
   const payload = parsed.value as { tool_name?: unknown };
   // The hook read payload.tool_name here before the move, so JSON null stdin
-  // crashes with a TypeError. settleHook ends that as exit 0 for every agent
-  // but Claude Code, which keeps the v3.27.0 exit 1 (golden gateguard/null-stdin).
+  // crashes with a TypeError. settleHook keeps that a non-zero PreToolUse exit
+  // on every agent (Claude Code: the v3.27.0 exit 1, golden gateguard/null-stdin).
   void payload.tool_name;
   const event = normalizeEvent(agent, EVENT, payload);
   return encode(agent, EVENT, await decideGateguard(event, CONFIG));
@@ -88,4 +88,4 @@ async function main(): Promise<EncodedOutput> {
 // main() is called here, not inside settleHook, so a Claude Code crash's stack
 // names main and this module only, as the golden pins.
 const pending = main();
-emit(await settleHook(() => pending, hookAgent));
+emit(await settleHook(() => pending, hookAgent, EVENT));
