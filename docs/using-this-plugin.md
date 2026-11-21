@@ -7,7 +7,7 @@ A practical guide to getting the most out of this plugin. It is organized around
 The persistent-memory and runtime-discipline layer for Claude Code, built on the 7 Laws of AI Agent Discipline (research, plan, verify, reflect, learn). Three things do the work:
 
 - **Mulahazah instinct engine** — hooks log your tool calls, `/continuous-improvement` records a correction as an instinct when you run it, and `hooks/session.mjs` loads the instincts at 0.5 confidence and above (at most 10) into the next session's context. Nothing applies an instinct for you: it works because the model reads it.
-- **Boundary hooks** — `hooks/gateguard.mjs` blocks Edit/Write/Bash until you present grounding facts; `hooks/goal-drift-stop.mjs` flags drift at the Stop boundary.
+- **Boundary hooks** — `hooks/gateguard.mjs` blocks an edit of an existing file the session has not read and every destructive shell command (`CI_GATEGUARD_FILE_GATE=strict` asks for grounding facts first); `hooks/goal-drift-stop.mjs` flags drift at the Stop boundary.
 - **Memory + recall** — auto-memory, MemoryCore, and the instinct index carry context across sessions.
 
 Everything below is a way to feed those three loops.

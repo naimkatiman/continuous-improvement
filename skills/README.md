@@ -19,7 +19,7 @@ These add concrete enforcement to the 7 Laws. Tier-1 skills are the always-on mi
 | Skill | What it does | Pairs with which Law |
 |-------|--------------|----------------------|
 | `deploy-receipt` | Deploy verification receipt — SHA-match + healthcheck proof that what merged is what's live, closing the merged-but-not-deployed gap | Law 4 (Verify Before Reporting) |
-| `gateguard` | PreToolUse fact-forcing gate that blocks Edit/Write/destructive Bash until concrete investigation is presented | Law 1 (Research) |
+| `gateguard` | PreToolUse gate that denies an Edit/Write of an existing file the session has not read and every destructive Bash; `CI_GATEGUARD_FILE_GATE=strict` blocks the first edit of each file until concrete investigation is presented | Law 1 (Research) |
 | `model-forward` | Standing stance: go with Claude Code and the model, not against it — skills are scaffolding that merges into the model; the durable core is goal-driven execution + guardrails | All 7 Laws (stance) |
 | `recall` | BM25 search over the observation log so "have I hit this before?" is answerable before re-deriving a fix | Law 1 (Research) |
 | `ship` | Single-defect delivery path that preserves unrelated dirty work in an owner-locked worktree, verifies through TDD, opens one PR, and safely returns eligible clean checkouts to `main` or `master` | Laws 1, 3, and 4 |

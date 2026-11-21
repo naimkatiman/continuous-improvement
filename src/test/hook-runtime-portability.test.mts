@@ -186,25 +186,61 @@ describe("plugin-managed hook runtime portability", () => {
       return entry.matcher;
     };
 
-    assert.equal(matcherFor("hook-pack.mjs"), "Bash|PowerShell");
-    assert.equal(matcherFor("config-guard.mjs"), "Bash|PowerShell|Edit|MultiEdit|Write|NotebookEdit");
+    assert.equal(matcherFor("hook-pack.mjs"), "Bash|PowerShell|Monitor");
+    assert.equal(matcherFor("config-guard.mjs"), "Bash|PowerShell|Monitor|Edit|MultiEdit|Write|NotebookEdit");
+    assert.equal(matcherFor("gateguard.mjs"), "Bash|PowerShell|Monitor|Edit|MultiEdit|Write|NotebookEdit");
+    assert.equal(matcherFor("companion-preference.mjs"), "Skill");
 
-    // No matcher means every tool call. Any entry that does scope itself must
-    // not see one shell tool without the other; gateguard is included.
-    const gateguardMatcher = matcherFor("gateguard.mjs");
-    assert.ok(
-      gateguardMatcher === undefined || gateguardMatcher.split("|").includes("PowerShell"),
-      `gateguard must see PowerShell calls, matcher: ${gateguardMatcher}`,
-    );
+    // An entry that names a shell tool must name all three. Monitor's
+    // { command } runs in the same shell as Bash.
     for (const entry of preToolUse) {
-      if (entry.matcher === undefined) continue;
+      assert.ok(entry.matcher, "every PreToolUse group names its tools");
       const tools = entry.matcher.split("|");
-      assert.equal(
-        tools.includes("PowerShell"),
-        tools.includes("Bash"),
-        `matcher "${entry.matcher}" names one shell tool without the other`,
-      );
+      for (const shellTool of ["PowerShell", "Monitor"]) {
+        assert.equal(
+          tools.includes(shellTool),
+          tools.includes("Bash"),
+          `matcher "${entry.matcher}" names one shell tool without the others`,
+        );
+      }
     }
+  });
+
+  // Applies a PreToolUse matcher the way Claude Code does (hooks reference,
+  // "Matcher patterns"): "*", "" or no matcher matches every tool; a value of
+  // only letters, digits, _, -, spaces, "," and "|" is a list of exact names;
+  // anything else is a JavaScript regular expression, unanchored. A matcher
+  // that matches Bash also runs for a shell command started with Monitor.
+  function matcherMatches(matcher: string | undefined, toolName: string): boolean {
+    if (matcher === undefined || matcher === "" || matcher === "*") return true;
+    const test = (name: string): boolean =>
+      /^[A-Za-z0-9_\- ,|]+$/.test(matcher)
+        ? matcher.split(/[|,]/).map((part) => part.trim()).includes(name)
+        : new RegExp(matcher).test(name);
+    return test(toolName) || (toolName === "Monitor" && test("Bash"));
+  }
+
+  function preToolUseScriptsFor(toolName: string): string[] {
+    const preToolUse = getPluginHooksConfig().hooks.PreToolUse ?? [];
+    return preToolUse
+      .filter((entry) => matcherMatches(entry.matcher, toolName))
+      .flatMap((entry) => entry.hooks.map((hook) => /\/hooks\/([\w-]+)\.mjs"/.exec(hook.command)?.[1] ?? hook.command));
+  }
+
+  // gateguard can deny only the file tools and the shell tools, and
+  // companion-preference acts only on Skill. A read-only call spawns no
+  // PreToolUse process; the observer on PostToolUse still sees every tool.
+  it("spawns a PreToolUse hook only for the tools it can act on", () => {
+    for (const toolName of ["Read", "Grep", "Glob", "mcp__memory__create_entities"]) {
+      assert.deepEqual(preToolUseScriptsFor(toolName), [], `${toolName} must match no PreToolUse group`);
+    }
+    for (const toolName of ["Edit", "Write"]) {
+      assert.deepEqual(preToolUseScriptsFor(toolName), ["gateguard", "config-guard"], toolName);
+    }
+    for (const toolName of ["Bash", "PowerShell", "Monitor"]) {
+      assert.deepEqual(preToolUseScriptsFor(toolName), ["gateguard", "hook-pack", "config-guard"], toolName);
+    }
+    assert.deepEqual(preToolUseScriptsFor("Skill"), ["companion-preference"]);
   });
 
   it("gives hooks enough time to start on a loaded Windows host", () => {

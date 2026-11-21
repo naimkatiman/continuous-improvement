@@ -248,6 +248,11 @@ async function writePluginBundle(): Promise<void> {
       join(REPO_ROOT, "lib", "gateguard-state.mjs"),
       join(PLUGIN_BUNDLE_DIR, "lib", "gateguard-state.mjs"),
     ),
+    // Imported by hooks/gateguard.mjs. It imports observe-event.mjs, copied below.
+    copyFileTo(
+      join(REPO_ROOT, "lib", "gateguard-evidence.mjs"),
+      join(PLUGIN_BUNDLE_DIR, "lib", "gateguard-evidence.mjs"),
+    ),
     copyFileTo(
       join(REPO_ROOT, "lib", "destructive-bash.mjs"),
       join(PLUGIN_BUNDLE_DIR, "lib", "destructive-bash.mjs"),

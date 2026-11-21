@@ -36,11 +36,22 @@ function getString(value, fallback = "") {
 function getNumber(value, fallback = 0) {
     return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
+// Instinct and draft ids become `<id>.yaml`. A file name may be at most 255
+// bytes on NTFS, ext4 and APFS, and an id past that made writeFileSync throw
+// ENAMETOOLONG inside the tool handler. 160 covers the longest id the plugin
+// writes itself (draft-workflow-<120-char slug>, 135, in src/lib/skill-distill.mts;
+// starter-pack ids stay under 40) and keeps
+// <home>/.claude/instincts/<hash>/drafts/<id>.yaml under the 260-character
+// Windows path limit for an ordinary user profile.
+const MAX_ID_LENGTH = 160;
 // Draft ids are derived from slugified tool n-grams (src/lib/skill-distill.mts)
 // and are joined into a filesystem path, so a caller-supplied id must match the
 // safe shape before it is used to read/write/delete a draft file.
 function isSafeDraftId(id) {
-    return /^draft-[a-z0-9-]+$/.test(id);
+    return id.length <= MAX_ID_LENGTH && /^draft-[a-z0-9-]+$/.test(id);
+}
+function invalidDraftId(id) {
+    return `Invalid draft id "${id}". Draft ids look like draft-<slug> (lowercase letters, digits, hyphens), at most ${MAX_ID_LENGTH} characters.`;
 }
 // Instinct ids become a file name (`<instincts dir>/<id>.yaml`). They arrive from
 // model-controlled tool arguments (ci_create_instinct, ci_import), pack files
@@ -50,12 +61,11 @@ function isSafeDraftId(id) {
 // dot, so "." and ".." and dot-files are out while the underscore, capital and
 // dotted ids already on disk (instinct YAML is also written by hand) can still
 // be reinforced, imported and promoted. It is a superset of isSafeDraftId, so a
-// promoted draft keeps its id. No length cap: generated draft ids run past 130
-// characters (src/lib/skill-distill.mts).
+// promoted draft keeps its id.
 function isSafeInstinctId(id) {
-    return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id);
+    return id.length <= MAX_ID_LENGTH && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id);
 }
-const INSTINCT_ID_RULE = "An instinct id is a single file name: letters, digits, dots, underscores and hyphens, starting with a letter or digit (for example prefer-grep-before-edit).";
+const INSTINCT_ID_RULE = `An instinct id is a single file name: letters, digits, dots, underscores and hyphens, starting with a letter or digit, at most ${MAX_ID_LENGTH} characters (for example prefer-grep-before-edit).`;
 function invalidInstinctId(id) {
     return `Invalid instinct id ${JSON.stringify(id)}. ${INSTINCT_ID_RULE} Nothing was written.`;
 }
@@ -216,18 +226,18 @@ function detectLevel(projectHash) {
     }
     return "CAPTURE";
 }
-// The one place an instinct id becomes a filesystem path. Returns false, having
-// written nothing, when the id is not a safe file name; every caller must turn
-// that into a tool error.
+function writeFailed(id, reason) {
+    return `Could not write instinct ${JSON.stringify(id)}: ${reason}`;
+}
+// The one place an instinct id becomes a filesystem path.
 function writeInstinct(projectHash, instinct) {
     const scope = instinct.scope === "global" ? "global" : "project";
     const dir = scope === "global" ? GLOBAL_DIR : join(INSTINCTS_DIR, projectHash);
     const filePath = resolve(dir, `${instinct.id}.yaml`);
     // The containment check is the backstop should the id pattern ever be widened.
     if (!isSafeInstinctId(instinct.id) || dirname(filePath) !== resolve(dir)) {
-        return false;
+        return "invalid-id";
     }
-    mkdirSync(dir, { recursive: true });
     const today = new Date().toISOString().split("T")[0];
     const yaml = [
         `id: ${instinct.id}`,
@@ -243,11 +253,16 @@ function writeInstinct(projectHash, instinct) {
         "---",
         instinct.body,
     ].join("\n");
-    writeFileSync(filePath, `${yaml}\n`);
-    return true;
+    try {
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(filePath, `${yaml}\n`);
+    }
+    catch (err) {
+        return { error: err instanceof Error ? err.message : String(err) };
+    }
+    return "written";
 }
-// null when no instinct has that id; `written` is false when writeInstinct
-// refused the id the instinct carries on disk.
+// null when no instinct has that id; otherwise what writeInstinct did with it.
 function updateInstinctConfidence(projectHash, instinctId, delta) {
     const instincts = readInstincts(projectHash);
     const instinct = instincts.find((candidate) => candidate.id === instinctId);
@@ -257,7 +272,7 @@ function updateInstinctConfidence(projectHash, instinctId, delta) {
     const newConfidence = Math.max(0, Math.min(0.9, instinct.confidence + delta));
     instinct.confidence = Math.round(newConfidence * 100) / 100;
     instinct.last_seen = new Date().toISOString().split("T")[0];
-    return { instinct, written: writeInstinct(projectHash, instinct) };
+    return { instinct, outcome: writeInstinct(projectHash, instinct) };
 }
 function getWorkspaceRoot() {
     try {
@@ -430,6 +445,16 @@ function text(value) {
 function error(value) {
     return { content: [{ type: "text", text: value }], isError: true };
 }
+// Result of a bulk write (ci_import, ci_load_pack): the summary, then a line for
+// the ids writeInstinct refused and one per entry whose file could not be written.
+function bulkResult(summary, rejected, failed) {
+    const lines = [summary];
+    if (rejected.length > 0) {
+        lines.push(rejectedIdsReport(rejected));
+    }
+    lines.push(...failed);
+    return lines.length > 1 ? error(lines.join("\n")) : text(summary);
+}
 function handleTool(name, params) {
     const project = getProjectHash();
     switch (name) {
@@ -551,8 +576,11 @@ function handleTool(name, params) {
                 return error(`Instinct "${instinctId}" not found`);
             }
             const updated = update.instinct;
-            if (!update.written) {
+            if (update.outcome === "invalid-id") {
                 return error(`${invalidInstinctId(updated.id)} Correct the id: line in that instinct's file and rename the file to <new id>.yaml before reinforcing it.`);
+            }
+            if (update.outcome !== "written") {
+                return error(writeFailed(updated.id, update.outcome.error));
             }
             return text(`${getBoolean(params.accepted) ? "Accepted" : "Rejected"} **${updated.id}** — confidence now ${updated.confidence}`);
         }
@@ -571,8 +599,12 @@ function handleTool(name, params) {
                 scope,
                 observation_count: 1,
             };
-            if (!writeInstinct(project.hash, instinct)) {
+            const outcome = writeInstinct(project.hash, instinct);
+            if (outcome === "invalid-id") {
                 return error(invalidInstinctId(instinct.id));
+            }
+            if (outcome !== "written") {
+                return error(writeFailed(instinct.id, outcome.error));
             }
             return text(`Created instinct **${instinct.id}** with confidence ${instinct.confidence}`);
         }
@@ -619,24 +651,30 @@ function handleTool(name, params) {
             }
             const scope = getString(params.scope, "project") === "global" ? "global" : "project";
             const existing = readInstincts(project.hash);
-            const existingIds = new Set(existing.map((instinct) => instinct.id));
+            const existingIds = new Set(existing.map((instinct) => instinct.id.toLowerCase()));
             const rejected = [];
+            const failed = [];
             let imported = 0;
             for (const candidate of parsed) {
                 const instinct = toInstinct(candidate);
-                if (!instinct || existingIds.has(instinct.id)) {
+                if (!instinct || existingIds.has(instinct.id.toLowerCase())) {
                     continue;
                 }
                 instinct.scope = instinct.scope || scope;
                 instinct.source = "imported";
-                if (!writeInstinct(project.hash, instinct)) {
+                const outcome = writeInstinct(project.hash, instinct);
+                if (outcome === "invalid-id") {
                     rejected.push(instinct.id);
+                    continue;
+                }
+                if (outcome !== "written") {
+                    failed.push(writeFailed(instinct.id, outcome.error));
                     continue;
                 }
                 imported++;
             }
-            const summary = `Imported ${imported} instincts (${parsed.length - imported - rejected.length} skipped as duplicates)`;
-            return rejected.length > 0 ? error(`${summary}\n${rejectedIdsReport(rejected)}`) : text(summary);
+            const summary = `Imported ${imported} instincts (${parsed.length - imported - rejected.length - failed.length} skipped as duplicates)`;
+            return bulkResult(summary, rejected, failed);
         }
         case "ci_plan_init": {
             if (MODE !== "expert") {
@@ -829,7 +867,7 @@ function handleTool(name, params) {
                 return error("id is required — run ci_distill_candidates to list current candidate ids");
             }
             if (!isSafeDraftId(id)) {
-                return error(`Invalid draft id "${id}". Draft ids look like draft-<slug> (lowercase letters, digits, hyphens).`);
+                return error(invalidDraftId(id));
             }
             const distillObservations = readDistillObservations(project.hash);
             const candidate = findCandidates(extractTrajectories(distillObservations)).find((entry) => entry.id === id);
@@ -903,7 +941,7 @@ function handleTool(name, params) {
                 return error("id is required");
             }
             if (!isSafeDraftId(id)) {
-                return error(`Invalid draft id "${id}". Draft ids look like draft-<slug> (lowercase letters, digits, hyphens).`);
+                return error(invalidDraftId(id));
             }
             const draftPath = join(INSTINCTS_DIR, project.hash, "drafts", `${id}.yaml`);
             if (!existsSync(draftPath)) {
@@ -926,8 +964,12 @@ function handleTool(name, params) {
                 scope: "project",
                 observation_count: 1,
             };
-            if (!writeInstinct(project.hash, promoted)) {
+            const outcome = writeInstinct(project.hash, promoted);
+            if (outcome === "invalid-id") {
                 return error(`${invalidInstinctId(promoted.id)} The draft at ${draftPath} was kept: correct its id: line and promote again.`);
+            }
+            if (outcome !== "written") {
+                return error(`${writeFailed(promoted.id, outcome.error)}. The draft at ${draftPath} was kept.`);
             }
             try {
                 rmSync(draftPath);
@@ -1029,25 +1071,31 @@ function handleTool(name, params) {
             const packPath = join(PACKS_DIR, `${packName}.json`);
             const packInstincts = JSON.parse(readFileSync(packPath, "utf8"));
             const existing = readInstincts(project.hash);
-            const existingIds = new Set(existing.map((instinct) => instinct.id));
+            const existingIds = new Set(existing.map((instinct) => instinct.id.toLowerCase()));
             const rejected = [];
+            const failed = [];
             let loaded = 0;
             for (const candidate of packInstincts) {
                 const instinct = toInstinct(candidate);
-                if (!instinct || existingIds.has(instinct.id)) {
+                if (!instinct || existingIds.has(instinct.id.toLowerCase())) {
                     continue;
                 }
                 instinct.source = `pack-${packName}`;
                 instinct.scope = "project";
                 instinct.observation_count = 0;
-                if (!writeInstinct(project.hash, instinct)) {
+                const outcome = writeInstinct(project.hash, instinct);
+                if (outcome === "invalid-id") {
                     rejected.push(instinct.id);
+                    continue;
+                }
+                if (outcome !== "written") {
+                    failed.push(writeFailed(instinct.id, outcome.error));
                     continue;
                 }
                 loaded++;
             }
-            const summary = `Loaded ${loaded}/${packInstincts.length} instincts from **${packName}** pack (${packInstincts.length - loaded - rejected.length} already existed)`;
-            return rejected.length > 0 ? error(`${summary}\n${rejectedIdsReport(rejected)}`) : text(summary);
+            const summary = `Loaded ${loaded}/${packInstincts.length} instincts from **${packName}** pack (${packInstincts.length - loaded - rejected.length - failed.length} already existed)`;
+            return bulkResult(summary, rejected, failed);
         }
         default:
             return error(`Unknown tool: ${name}`);
@@ -1057,13 +1105,33 @@ const rl = createInterface({ input: process.stdin, terminal: false });
 let buffer = "";
 rl.on("line", (line) => {
     buffer += line;
+    let parsed;
     try {
-        const message = JSON.parse(buffer);
-        buffer = "";
-        handleMessage(message);
+        parsed = JSON.parse(buffer);
     }
     catch {
         // incomplete JSON, keep buffering
+        return;
+    }
+    buffer = "";
+    const message = asRecord(parsed);
+    if (!message) {
+        return;
+    }
+    // A handler that throws (a filesystem error, a malformed file on disk) is
+    // answered with a JSON-RPC error so the client is not left waiting, and the
+    // server goes on reading.
+    try {
+        handleMessage(message);
+    }
+    catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        const params = asRecord(message.params);
+        const label = message.method === "tools/call" && params ? getString(params.name, "tools/call") : getString(message.method, "request");
+        console.error(`${PACKAGE_NAME} MCP server: ${label} failed: ${reason}`);
+        if (message.id !== undefined) {
+            send({ jsonrpc: "2.0", id: message.id, error: { code: -32603, message: `${label} failed: ${reason}` } });
+        }
     }
 });
 function send(response) {

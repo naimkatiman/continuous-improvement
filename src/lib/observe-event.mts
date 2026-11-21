@@ -11,7 +11,7 @@
 // summary is passed through redactSecrets before the cut, so the secret shapes
 // it knows are not written to observations.jsonl.
 
-import { isSecretName, redactSecrets } from "./redact-secrets.mjs";
+import { isBareSecretName, isCredentialShaped, isSecretName, redactSecrets } from "./redact-secrets.mjs";
 
 const INPUT_TRUNCATE = 500;
 const OUTPUT_TRUNCATE = 200;
@@ -23,6 +23,7 @@ const OUTPUT_TRUNCATE = 200;
 const REDACT_LOOKAHEAD = 1024;
 const AUTHORIZATION_KEY_RE = /^(?:proxy-)?authorization$/i;
 const AUTHORIZATION_LABEL = "Authorization: ";
+const REDACTED = "<redacted>";
 
 export interface HookPayload {
   tool_name: string;
@@ -164,25 +165,47 @@ function redactedJsonHead(value: unknown, max: number): string {
  * that shrinks to a placeholder must not use up the budget while later leaves
  * still land inside the cut. Once it is spent a string becomes "", so no leaf
  * is ever written without having been redacted.
+ *
+ * `underBareName` is true below a property named `key`, `keys` or `token`.
+ * Those are ordinary property names (a key press, a cache key, a list of keys),
+ * so nothing is replaced on the name alone: a string under one is replaced
+ * when the part of it that can reach the row is credential-shaped, and is
+ * otherwise treated like any other leaf.
  */
-function redactLeaves(value: unknown, max: number, budget: { left: number }, label = ""): unknown {
+function redactLeaves(
+  value: unknown,
+  max: number,
+  budget: { left: number },
+  label = "",
+  underBareName = false,
+): unknown {
   if (typeof value === "string") {
     if (budget.left <= 0) return "";
+    if (underBareName && isCredentialShaped(truncate(value, max + REDACT_LOOKAHEAD))) {
+      budget.left -= REDACTED.length + 1;
+      return REDACTED;
+    }
     const redacted = redactedHead(label + value, max + label.length).slice(label.length);
     budget.left -= redacted.length + 1;
     return redacted;
   }
   if (value === null || typeof value !== "object") return value;
-  if (Array.isArray(value)) return value.map((item) => redactLeaves(item, max, budget));
+  if (Array.isArray(value)) return value.map((item) => redactLeaves(item, max, budget, "", underBareName));
   const copy: Record<string, unknown> = {};
   for (const [key, child] of Object.entries(value)) {
     if (isSecretName(key)) {
-      copy[key] = "<redacted>";
+      copy[key] = REDACTED;
     } else {
       // A header map holds the credential without the header name in front of
       // it ({"Authorization": "Basic abc"}); the rule that reads that name gets
       // it back for the redaction and loses it again afterwards.
-      copy[key] = redactLeaves(child, max, budget, AUTHORIZATION_KEY_RE.test(key) ? AUTHORIZATION_LABEL : "");
+      copy[key] = redactLeaves(
+        child,
+        max,
+        budget,
+        AUTHORIZATION_KEY_RE.test(key) ? AUTHORIZATION_LABEL : "",
+        underBareName || isBareSecretName(key),
+      );
     }
   }
   return copy;

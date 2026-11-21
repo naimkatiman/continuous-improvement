@@ -27,7 +27,7 @@ If a question can be answered by exploring the codebase, explore the codebase in
 
 ## How it differs from `gateguard`
 
-`gateguard` is a tool-boundary gate that blocks Edit / Write / Bash until the agent provides concrete investigation (importers, schemas, user instruction). It catches the case where the agent thinks it knows enough to mutate state. `grill-me` is the conversational layer one floor above: it surfaces the missing decisions before any tool call would even be attempted. They compose:
+`gateguard` is a tool-boundary gate that denies an edit of an existing file the session has not read, and every destructive shell command. Under `CI_GATEGUARD_FILE_GATE=strict` it blocks the first edit of each file until the agent provides concrete investigation (importers, schemas, user instruction). It catches the case where the agent thinks it knows enough to mutate state. `grill-me` is the conversational layer one floor above: it surfaces the missing decisions before any tool call would even be attempted. They compose:
 
 | Gap | Caught by |
 |---|---|
@@ -56,7 +56,7 @@ Five rules the agent should hold while grilling:
 
 ## Companion / alternative skills
 
-- [`gateguard`](./gateguard.md) — tool-boundary gate; blocks Edit / Write / Bash until grounding is presented. Fires after `grill-me` has aligned the spec.
+- [`gateguard`](./gateguard.md) — tool-boundary gate; denies an edit of an existing file the session has not read, and every destructive shell command (`CI_GATEGUARD_FILE_GATE=strict` asks for grounding facts first). Fires after `grill-me` has aligned the spec.
 - [`workspace-surface-audit`](./workspace-surface-audit.md) — Law 1 surface audit; inventory of MCP servers, plugins, env, hooks. Use when the missing context is "what is available in this repo" rather than "what should we build."
 - [`superpowers:brainstorming`](https://github.com/obra/superpowers/blob/main/skills/brainstorming/SKILL.md) — Socratic design refinement. Use for open-ended ideation; use `grill-me` once the idea is committed and needs hardening.
 - [`handoff`](./handoff.md) — session-end compaction. Pair with `grill-me`: grill at start, handoff at end.
