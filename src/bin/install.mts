@@ -32,6 +32,8 @@ import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PACKAGE_NAME, VERSION, getToolNames } from "../lib/plugin-metadata.mjs";
 import { hashProjectRoot, resolveProjectRoot } from "../lib/gateguard-state.mjs";
+import { resolveInstinctsRoot } from "../lib/agent-paths.mjs";
+import { readKnob } from "../lib/agent-env.mjs";
 import { TARGET_IDS, planTargetWrites, resolveTargets } from "../lib/install-targets.mjs";
 import {
   type UpdateCache,
@@ -972,7 +974,9 @@ if (packIndex !== -1 && rawArgs[packIndex + 1]) {
   const packPath = join(REPO_ROOT, "instinct-packs", `${packName}.json`);
   if (existsSync(packPath)) {
     const project = getProjectHashSync();
-    const targetDir = join(getHomeDir(), ".claude", "instincts", project.hash);
+    // The store the hooks and the MCP server read (CI_INSTINCTS_HOME, else
+    // <home>/.claude/instincts), so a loaded pack is one ci_instincts lists.
+    const targetDir = join(resolveInstinctsRoot(getHomeDir()), project.hash);
     mkdirSync(targetDir, { recursive: true });
 
     let instincts: PackInstinct[] = [];
@@ -1043,11 +1047,12 @@ console.log(`\n${installSummary}\n`);
 // Update-available nudge for the npm/CLI install path (the marketplace path is
 // covered by Claude Code's native plugin auto-update). Reads the public npm
 // registry only — no telemetry. Throttled, default-on, off via
-// CLAUDE_CI_UPDATE_CHECK=off. Fully fail-open: it can never change the
+// CLAUDE_CI_UPDATE_CHECK=off (or its alias CI_UPDATE_CHECK=off; the CLAUDE_*
+// value wins when both are set). Fully fail-open: it can never change the
 // installer's outcome. See docs/plans/2026-06-25-version-check-nudge.md.
 async function maybeNotifyUpdate(): Promise<void> {
-  if ((process.env.CLAUDE_CI_UPDATE_CHECK ?? "on").trim().toLowerCase() === "off") return;
-  const cacheFile = join(getHomeDir(), ".claude", "instincts", "global", "update-check.json");
+  if ((readKnob("CLAUDE_CI_UPDATE_CHECK") ?? "on").trim().toLowerCase() === "off") return;
+  const cacheFile = join(resolveInstinctsRoot(getHomeDir()), "global", "update-check.json");
   const now = Date.now();
 
   let cache: UpdateCache | null = null;

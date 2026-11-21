@@ -10,7 +10,6 @@
  *   node bin/mcp-server.mjs --mode expert    # all tools
  *   node bin/mcp-server.mjs --mode beginner  # explicit beginner
  */
-import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
@@ -21,7 +20,8 @@ import { formatDriftReport, parseGoalFromPlan, scoreObservations, } from "../lib
 import { flatten, parseYamlInstinct } from "../lib/instinct-yaml.mjs";
 import { buildIndex, formatRecallHits, parseSince, query as queryRecall, } from "../lib/recall-index.mjs";
 import { draftFromCandidate, draftFromWorkflowRun, extractTrajectories, findCandidates, formatCandidates, serializeDraft, workflowRunFromObservations, } from "../lib/skill-distill.mjs";
-import { MAX_CLEARED_FILES, canonicalizeFileKey, clearFiles, hashProjectRoot, projectYamlFiles, resolveInstinctsRoot, resolveProjectRoot, resolveSessionDir, } from "../lib/gateguard-state.mjs";
+import { mcpRootsPayload, resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
+import { MAX_CLEARED_FILES, canonicalizeFileKey, clearFiles, hashProjectRoot, projectYamlFiles, resolveSessionDir, } from "../lib/gateguard-state.mjs";
 function getHomeDir() {
     return process.env.HOME || process.env.USERPROFILE || homedir();
 }
@@ -109,7 +109,9 @@ function toInstinct(value) {
     };
 }
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const INSTINCTS_DIR = join(getHomeDir(), ".claude", "instincts");
+// The store every hook and the observer write: CI_INSTINCTS_HOME, else
+// <home>/.claude/instincts (lib/agent-paths.mjs).
+const INSTINCTS_DIR = resolveInstinctsRoot(getHomeDir());
 const GLOBAL_DIR = join(INSTINCTS_DIR, "global");
 const PACKS_DIR = join(REPO_ROOT, "instinct-packs");
 const PLANNING_TEMPLATES_DIR = join(REPO_ROOT, "templates", "planning-with-files");
@@ -124,11 +126,23 @@ const modeIndex = args.indexOf("--mode");
 const requestedMode = args[modeIndex + 1];
 const MODE = isPluginMode(requestedMode) ? requestedMode : "beginner";
 const GLOBAL_PROJECT = { root: "global", hash: "global", name: "global" };
+// The client's first root, from its latest roots/list reply (see
+// requestClientRoots), as the payload resolveProjectRoot reads. undefined until
+// a usable reply arrives, and for a client without the roots capability.
+let clientRoot;
+// One project for every tool, resolved like a hook resolves its payload: a
+// project env var, then the client's root when it is inside a repository, then
+// the git toplevel of the server's cwd, then global.
 function getProjectHash() {
-    const root = resolveProjectRoot();
+    const root = resolveProjectRoot(clientRoot);
     if (root === "global")
         return GLOBAL_PROJECT;
     return { root, hash: hashProjectRoot(root), name: basename(root) };
+}
+// The directory the planning tools read and write: the project root, or the
+// server's cwd when there is none (global).
+function workspaceRootOf(project) {
+    return project === GLOBAL_PROJECT ? process.cwd() : project.root;
 }
 // A missing directory holds no instincts; one that exists and cannot be read
 // throws, and the request handler answers with that error.
@@ -288,15 +302,6 @@ function updateInstinctConfidence(project, instinctId, delta) {
     instinct.confidence = Math.round(newConfidence * 100) / 100;
     instinct.last_seen = new Date().toISOString().split("T")[0];
     return { instinct, outcome: writeInstinct(project.hash, instinct) };
-}
-function getWorkspaceRoot() {
-    try {
-        const root = execSync("git rev-parse --show-toplevel 2>/dev/null", { encoding: "utf8" }).trim();
-        return root || process.cwd();
-    }
-    catch {
-        return process.cwd();
-    }
 }
 function readPlanningTemplate(fileName, fallback) {
     const templatePath = join(PLANNING_TEMPLATES_DIR, fileName);
@@ -541,8 +546,9 @@ function handleTool(name, params) {
             // install, so the clearance action must too. The hook's block reason now
             // prints state_path (the session-scoped state file); honoring it writes
             // the marker exactly where the hook looks. Without it the MCP server can't
-            // know the caller's session, so it falls back to the canonical session dir
-            // — correct only on the legacy unscoped path.
+            // know the caller's session, so it falls back to the unscoped session dir
+            // of the project getProjectHash resolves (the client's root counts) —
+            // correct only on the legacy unscoped path.
             const rawList = Array.isArray(params.file_paths) ? params.file_paths : [];
             const listPaths = rawList.filter((value) => typeof value === "string" && value.length > 0);
             const single = getString(params.file_path).trim();
@@ -569,7 +575,7 @@ function handleTool(name, params) {
                 sessionDir = candidateDir;
             }
             else {
-                sessionDir = resolveSessionDir();
+                sessionDir = resolveSessionDir(undefined, clientRoot);
             }
             const { cleared, skippedForCap } = clearFiles(sessionDir, paths);
             const lines = [
@@ -705,7 +711,7 @@ function handleTool(name, params) {
             }
             const phases = normalizePhases(params.phases);
             const force = getBoolean(params.force, false);
-            const workspaceRoot = getWorkspaceRoot();
+            const workspaceRoot = workspaceRootOf(project);
             const taskPlanStatus = writePlanningFile(join(workspaceRoot, PLANNING_FILES.taskPlan), renderTaskPlan(goal, phases), force);
             const findingsStatus = writePlanningFile(join(workspaceRoot, PLANNING_FILES.findings), renderFindings(), force);
             const progressStatus = writePlanningFile(join(workspaceRoot, PLANNING_FILES.progress), renderProgress(), force);
@@ -729,7 +735,7 @@ function handleTool(name, params) {
             if (MODE !== "expert") {
                 return error("ci_plan_status requires expert mode");
             }
-            const workspaceRoot = getWorkspaceRoot();
+            const workspaceRoot = workspaceRootOf(project);
             const includeContents = getBoolean(params.include_contents, false);
             const taskPlanPath = join(workspaceRoot, PLANNING_FILES.taskPlan);
             const findingsPath = join(workspaceRoot, PLANNING_FILES.findings);
@@ -802,7 +808,7 @@ function handleTool(name, params) {
                 return error(`limit must be a positive integer; got ${limit}. Omit it to score the default 30 most recent observations.`);
             }
             const explicit = getString(params.goal_file).trim();
-            const workspaceRoot = getWorkspaceRoot();
+            const workspaceRoot = workspaceRootOf(project);
             const candidates = explicit
                 ? [explicit]
                 : [
@@ -1139,6 +1145,12 @@ rl.on("line", (line) => {
     if (!message) {
         return;
     }
+    // A reply to a request this server sent (roots/list) has no method. It is
+    // never answered: JSON-RPC forbids replying to a response.
+    if (message.method === undefined && ("result" in message || "error" in message)) {
+        handleClientReply(message);
+        return;
+    }
     // A method handler that throws (a filesystem error, a malformed file on disk)
     // is answered with a JSON-RPC error so the client is not left waiting, and the
     // server goes on reading. tools/call answers its own failures in handleMessage.
@@ -1161,12 +1173,37 @@ function send(response) {
     // "Connecting…" hang because no line ever resolves to JSON.
     process.stdout.write(`${JSON.stringify(response)}\n`);
 }
+// MCP "Roots" (spec 2024-11-05, client features): a client that declares the
+// `roots` capability in initialize answers a `roots/list` request with
+// `{ roots: [{ uri, name? }] }` and sends `notifications/roots/list_changed`
+// when they change. The server asks once the client is initialized and again
+// on each change. Only the reply to the latest request counts, so a slow reply
+// to an older one cannot overwrite a newer root. Which agents declare the
+// capability is not part of the 2026-11-21 research, so a client that does not
+// keeps today's behaviour: no request, the project from env vars and the cwd.
+let clientOffersRoots = false;
+let rootsRequestCount = 0;
+let pendingRootsRequest = null;
+function requestClientRoots() {
+    rootsRequestCount += 1;
+    pendingRootsRequest = `ci-roots-${rootsRequestCount}`;
+    send({ jsonrpc: "2.0", id: pendingRootsRequest, method: "roots/list" });
+}
+function handleClientReply(message) {
+    if (pendingRootsRequest === null || message.id !== pendingRootsRequest)
+        return;
+    pendingRootsRequest = null;
+    // A reply with no usable root (an error, no file root) drops the previous
+    // root: the server falls back to its env vars and cwd, as with no roots.
+    clientRoot = mcpRootsPayload(message.result);
+}
 function handleMessage(message) {
     const id = message.id;
     const method = message.method;
     const params = asRecord(message.params) ?? {};
     switch (method) {
         case "initialize":
+            clientOffersRoots = asRecord(asRecord(params.capabilities)?.roots) !== null;
             send({
                 jsonrpc: "2.0",
                 id,
@@ -1184,6 +1221,9 @@ function handleMessage(message) {
             });
             break;
         case "notifications/initialized":
+        case "notifications/roots/list_changed":
+            if (clientOffersRoots)
+                requestClientRoots();
             break;
         case "tools/list":
             send({

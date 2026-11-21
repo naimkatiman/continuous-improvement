@@ -12,7 +12,12 @@
 // edit the .mjs directly.
 
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   aggregateInstincts,
@@ -20,6 +25,8 @@ import {
   computeDedupKey,
   type ObservationRow,
 } from "../bin/harvest-friction.mjs";
+
+const HARVEST_BIN = join(fileURLToPath(new URL(".", import.meta.url)), "..", "bin", "harvest-friction.mjs");
 
 const T0 = "2026-04-30T12:00:00Z";
 const T1 = "2026-05-05T12:00:00Z";
@@ -201,5 +208,34 @@ describe("aggregateInstincts", () => {
 
   it("returns empty array for empty input (idempotent zero case)", () => {
     assert.deepEqual(aggregateInstincts([]), []);
+  });
+});
+
+// PR 5 (refactor/agent-paths-bins): the CLI reads the bucket the observer
+// writes, so CI_INSTINCTS_HOME moves it too.
+describe("harvest-friction CLI: CI_INSTINCTS_HOME", () => {
+  it("reads <CI_INSTINCTS_HOME>/<hash>/observations.jsonl, not <home>/.claude/instincts", () => {
+    const base = mkdtempSync(join(tmpdir(), "ci-harvest-root-"));
+    try {
+      const home = join(base, "home");
+      const store = join(base, "store");
+      const hash = "cccccccccccc";
+      mkdirSync(join(store, hash), { recursive: true });
+      mkdirSync(home, { recursive: true });
+      const rows = [
+        { ts: "2026-04-29T01:00:00Z", event: "tool_start", session: "s1", tool: "Bash" },
+        { ts: "2026-04-29T01:00:01Z", event: "tool_start", session: "s1", tool: "Edit" },
+      ];
+      writeFileSync(join(store, hash, "observations.jsonl"), rows.map((r) => JSON.stringify(r)).join("\n") + "\n");
+      const result = spawnSync(process.execPath, [HARVEST_BIN, hash, "--list"], {
+        env: { ...process.env, HOME: home, USERPROFILE: home, CI_INSTINCTS_HOME: store },
+        encoding: "utf8",
+        timeout: 10_000,
+      });
+      assert.equal(result.status, 0, result.stderr);
+      assert.match(result.stdout, /observations rows:\s+2\n/);
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
   });
 });

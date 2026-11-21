@@ -35,6 +35,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { argv, exit } from "node:process";
 
+import { resolveInstinctsRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot, resolveProjectRoot } from "../lib/gateguard-state.mjs";
 
 export type FrictionType = "wrong_approach" | "buggy_code" | "env_issue" | "permission_block";
@@ -289,7 +290,8 @@ function main(): void {
   const listOnly = args.includes("--list");
   const positional = args.filter((a) => !a.startsWith("--"));
   const projectHash = positional[0] ?? defaultProjectHash();
-  const projectDir = join(homedir(), ".claude", "instincts", projectHash);
+  // The store the observer writes (CI_INSTINCTS_HOME, else <homedir>/.claude/instincts).
+  const projectDir = join(resolveInstinctsRoot(homedir()), projectHash);
   const observationsPath = join(projectDir, "observations.jsonl");
   const instinctsPath = join(projectDir, "instincts.jsonl");
 

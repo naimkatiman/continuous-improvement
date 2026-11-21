@@ -1,5 +1,5 @@
-// agent-env.mts — CI_* aliases for the CLAUDE_* knobs the hooks read, so a
-// user of another coding agent can configure the hooks without a CLAUDE_ name
+// agent-env.mts — CI_* aliases for the CLAUDE_* knobs the hooks and the
+// installer read, so a user of another coding agent can set them without a CLAUDE_ name
 // (owner decision "Env names" in docs/plans/2026-11-21-all-agents.md).
 //
 // The aliases are additive: every CLAUDE_* name keeps working. When both names
@@ -15,6 +15,12 @@ export const KNOB_ALIASES = {
     CLAUDE_TYPECHECK_GATE: "CI_TYPECHECK_GATE",
     CLAUDE_WORKFLOW_DISTILL_NUDGE: "CI_WORKFLOW_DISTILL_NUDGE",
 };
+// The one knob only bin/install.mjs reads (the npm update check). It is kept
+// out of KNOB_ALIASES, which lists the knobs the hooks read.
+export const INSTALLER_KNOB_ALIASES = {
+    CLAUDE_CI_UPDATE_CHECK: "CI_UPDATE_CHECK",
+};
+const ALIAS_OF = { ...KNOB_ALIASES, ...INSTALLER_KNOB_ALIASES };
 const isSet = (value) => value !== undefined && value.trim() !== "";
 /**
  * The raw value of a knob: the CLAUDE_* name when it is non-blank, else the
@@ -26,7 +32,7 @@ export function readKnob(name, env = process.env) {
     const legacy = env[name];
     if (isSet(legacy))
         return legacy;
-    const alias = env[KNOB_ALIASES[name]];
+    const alias = env[ALIAS_OF[name]];
     if (isSet(alias))
         return alias;
     return legacy ?? alias;

@@ -2,7 +2,8 @@
 // backfill.mts — Tag legacy thin-schema observation rows for skip-clean
 // consumption by the analysis pass.
 //
-// Walks ~/.claude/instincts/<hash>/observations.jsonl files and writes a
+// Walks <instincts root>/<hash>/observations.jsonl files (the root is
+// CI_INSTINCTS_HOME, else ~/.claude/instincts) and writes a
 // `schema: "thin" | "rich"` field on every row that doesn't already have one.
 // Per the plan doc: this is a flag-pass, not a content-recovery — the original
 // thin rows lack the input we'd need to fabricate richer fields. Tagging lets
@@ -11,9 +12,9 @@
 // pipeline historically produced nothing.
 //
 // Output:
-//   - <home>/.claude/instincts/<hash>/observations.jsonl   (rewritten in place
+//   - <instincts root>/<hash>/observations.jsonl   (rewritten in place
 //     with schema field appended; original preserved as .bak)
-//   - <home>/.claude/instincts/backfill-summary.json       (per-project digest)
+//   - <instincts root>/backfill-summary.json       (per-project digest)
 //
 // Flags:
 //   --dry-run  Read everything, write nothing; print counts to stdout.
@@ -23,6 +24,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
+import { resolveInstinctsRoot } from "../lib/agent-paths.mjs";
 const args = process.argv.slice(2);
 const DRY_RUN = args.includes("--dry-run");
 const HELP = args.includes("--help") || args.includes("-h");
@@ -61,7 +63,7 @@ function main() {
 }
 function runBackfill() {
     const home = process.env.HOME || process.env.USERPROFILE || homedir();
-    const instinctsDir = join(home, ".claude", "instincts");
+    const instinctsDir = resolveInstinctsRoot(home);
     if (!existsSync(instinctsDir)) {
         if (!DRY_RUN)
             mkdirSync(instinctsDir, { recursive: true });

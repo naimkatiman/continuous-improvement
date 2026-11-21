@@ -1,5 +1,5 @@
-// agent-env.mts — CI_* aliases for the CLAUDE_* knobs the hooks read, so a
-// user of another coding agent can configure the hooks without a CLAUDE_ name
+// agent-env.mts — CI_* aliases for the CLAUDE_* knobs the hooks and the
+// installer read, so a user of another coding agent can set them without a CLAUDE_ name
 // (owner decision "Env names" in docs/plans/2026-11-21-all-agents.md).
 //
 // The aliases are additive: every CLAUDE_* name keeps working. When both names
@@ -17,7 +17,15 @@ export const KNOB_ALIASES = {
   CLAUDE_WORKFLOW_DISTILL_NUDGE: "CI_WORKFLOW_DISTILL_NUDGE",
 } as const;
 
-export type KnobName = keyof typeof KNOB_ALIASES;
+// The one knob only bin/install.mjs reads (the npm update check). It is kept
+// out of KNOB_ALIASES, which lists the knobs the hooks read.
+export const INSTALLER_KNOB_ALIASES = {
+  CLAUDE_CI_UPDATE_CHECK: "CI_UPDATE_CHECK",
+} as const;
+
+const ALIAS_OF: Readonly<Record<string, string>> = { ...KNOB_ALIASES, ...INSTALLER_KNOB_ALIASES };
+
+export type KnobName = keyof typeof KNOB_ALIASES | keyof typeof INSTALLER_KNOB_ALIASES;
 
 const isSet = (value: string | undefined): value is string => value !== undefined && value.trim() !== "";
 
@@ -30,7 +38,7 @@ const isSet = (value: string | undefined): value is string => value !== undefine
 export function readKnob(name: KnobName, env: Record<string, string | undefined> = process.env): string | undefined {
   const legacy = env[name];
   if (isSet(legacy)) return legacy;
-  const alias = env[KNOB_ALIASES[name]];
+  const alias = env[ALIAS_OF[name]!];
   if (isSet(alias)) return alias;
   return legacy ?? alias;
 }

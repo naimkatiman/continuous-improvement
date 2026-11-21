@@ -15,6 +15,8 @@ import { dirname, join, resolve } from "node:path";
 import { after, before, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { hashProjectRoot } from "../lib/gateguard-state.mjs";
+
 interface HookCommand {
   command?: string;
 }
@@ -1422,5 +1424,75 @@ describe("installer - marketplace collision warning", () => {
     } finally {
       rmSync(cleanHome, { recursive: true, force: true });
     }
+  });
+});
+
+// PR 5 (refactor/agent-paths-bins): the installer's data paths follow the
+// shared store (CI_INSTINCTS_HOME), and its one knob, CLAUDE_CI_UPDATE_CHECK,
+// also answers to CI_UPDATE_CHECK; the CLAUDE_* value wins when both are set.
+describe("install: CI_INSTINCTS_HOME and CI_UPDATE_CHECK", () => {
+  let base = "";
+  let home = "";
+  let store = "";
+  let workspace = "";
+
+  before(() => {
+    base = join(tmpdir(), `ci-install-root-${process.pid}-${Date.now()}`);
+    home = join(base, "home");
+    store = join(base, "store");
+    workspace = join(base, "workspace");
+    for (const dir of [join(home, ".claude"), store, workspace]) mkdirSync(dir, { recursive: true });
+  });
+
+  after(() => {
+    rmSync(base, { recursive: true, force: true });
+  });
+
+  function runInstall(args: string[], extra: Record<string, string>) {
+    const env: NodeJS.ProcessEnv = { ...process.env };
+    for (const key of Object.keys(env)) {
+      if (/^(CI_|CLAUDE_)/i.test(key) || /_PROJECT_DIR$|^GROK_WORKSPACE_ROOT$/i.test(key)) delete env[key];
+    }
+    const result = spawnSync(process.execPath, [INSTALL_SCRIPT, ...args], {
+      cwd: workspace,
+      env: { ...env, HOME: home, USERPROFILE: home, CI_INSTINCTS_HOME: store, CLAUDE_PROJECT_DIR: workspace, ...extra },
+      encoding: "utf8",
+      timeout: 30_000,
+    });
+    assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+    return result.stdout;
+  }
+
+  // A fresh "upgrade available" cache in the store: the installer prints its
+  // notice without a network read, so the notice shows which cache it read and
+  // whether the check ran at all.
+  function seedUpdateCache(): void {
+    const version = (JSON.parse(readFileSync(join(__dirname, "..", "package.json"), "utf8")) as { version: string }).version;
+    mkdirSync(join(store, "global"), { recursive: true });
+    writeFileSync(
+      join(store, "global", "update-check.json"),
+      JSON.stringify({ status: "upgrade-available", local: version, remote: "999.0.0", checkedAt: Date.now() }) + "\n",
+    );
+  }
+
+  it("reads the update-check cache from CI_INSTINCTS_HOME", () => {
+    seedUpdateCache();
+    assert.match(runInstall(["install"], {}), /continuous-improvement 999\.0\.0 is available/);
+  });
+
+  it("CI_UPDATE_CHECK=off skips the check, and CLAUDE_CI_UPDATE_CHECK wins when both are set", () => {
+    seedUpdateCache();
+    assert.doesNotMatch(runInstall(["install"], { CI_UPDATE_CHECK: "off" }), /999\.0\.0 is available/);
+    assert.doesNotMatch(runInstall(["install"], { CI_UPDATE_CHECK: " OFF " }), /999\.0\.0 is available/);
+    assert.match(runInstall(["install"], { CLAUDE_CI_UPDATE_CHECK: "on", CI_UPDATE_CHECK: "off" }), /999\.0\.0 is available/);
+    assert.doesNotMatch(runInstall(["install"], { CLAUDE_CI_UPDATE_CHECK: "off", CI_UPDATE_CHECK: "on" }), /999\.0\.0 is available/);
+  });
+
+  it("--pack writes the pack's instincts into the project bucket under CI_INSTINCTS_HOME", () => {
+    const out = runInstall(["install", "--pack", "react"], { CI_UPDATE_CHECK: "off" });
+    assert.match(out, /Loaded \d+\/\d+ instincts from react pack/);
+    const bucket = join(store, hashProjectRoot(workspace));
+    assert.ok(existsSync(join(bucket, "react-check-existing-components.yaml")), `no pack instinct in ${bucket}`);
+    assert.equal(existsSync(join(home, ".claude", "instincts", hashProjectRoot(workspace))), false, "the default root was used");
   });
 });
