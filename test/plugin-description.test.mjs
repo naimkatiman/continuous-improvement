@@ -174,15 +174,17 @@ describe("core docs say only what the code does", () => {
         it(`${doc} does not say decay is applied, since no code decays an instinct`, () => {
             const server = readRepoFile("bin/mcp-server.mjs");
             assert.equal([...server.matchAll(/updateInstinctConfidence\(/g)].length, 2, "defined once, called once");
-            assert.match(server, /case "ci_reinforce": \{[\s\S]*?updateInstinctConfidence\(project\.hash/);
+            assert.match(server, /case "ci_reinforce": \{[\s\S]*?updateInstinctConfidence\(project,/);
             assert.deepEqual(matchingLines(doc, [/Decay is applied when analysis runs/]), []);
             assert.match(readRepoFile(doc), /No code decays an instinct\./);
         });
         // bin/harvest-friction.mjs appends JSON lines to instincts.jsonl, the
-        // session hook reads only *.yaml, and the plugin bundle has no copy of it.
+        // session hook lists only *.yaml (through lib/gateguard-state.mjs), and the
+        // plugin bundle has no copy of it.
         it(`${doc} says the friction harvest writes instincts.jsonl, which the session-start block does not load`, () => {
             assert.match(readRepoFile("bin/harvest-friction.mjs"), /join\(projectDir, "instincts\.jsonl"\)/);
-            assert.match(readRepoFile("hooks/session.mjs"), /name\.endsWith\("\.yaml"\)/);
+            assert.match(readRepoFile("hooks/session.mjs"), /import \{ hashProjectRoot, projectYamlFiles, yamlFiles \} from "\.\.\/lib\/gateguard-state\.mjs";/);
+            assert.match(readRepoFile("lib/gateguard-state.mjs"), /export function yamlFiles\(dir\) \{\s*try \{\s*return readdirSync\(dir\)\s*\.filter\(\(name\) => name\.endsWith\("\.yaml"\)\)/);
             assert.ok(!readdirSync(join(REPO_ROOT, "plugins", "continuous-improvement", "bin")).includes("harvest-friction.mjs"));
             const text = readRepoFile(doc);
             assert.doesNotMatch(text, /into typed instincts automatically/);
