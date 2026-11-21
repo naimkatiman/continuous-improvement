@@ -57,8 +57,11 @@ const AGENT_PATTERNS = [
     ".devin/config.json",
     ".devin/config.local.json",
     "AppData/Roaming/devin/config.json",
-    // Kiro: .kiro/hooks/*.json and ~/.kiro/hooks/ (hook_pre_tool).
+    // Kiro: .kiro/hooks/*.json and ~/.kiro/hooks/, and inline hooks in an agent profile under .kiro/agents/ and
+    // ~/.kiro/agents/ (research Kiro hook_pre_tool and subagents; skeptic hook_pre_tool: V2-harness sessions use
+    // agent-profile hooks).
     ".kiro/hooks/",
+    ".kiro/agents/",
     // Qwen: mcpServers and hooks in settings.json; extensions in <home>/.qwen/extensions (mcp_servers, plugin_or_extension_packaging).
     ".qwen/settings.json",
     ".qwen/extensions/",
@@ -490,24 +493,29 @@ const CLAUDE_CLI_MUTATIONS = {
 };
 // `<cli> <area> <verb>` forms of the other agents' CLIs that rewrite their
 // plugin, MCP, extension or hook configuration. An area of two words
-// (`plugin marketplace`) is tried before one. Only the verbs the verified
-// research names are listed (result.json, checked 2026-11-21), so the
-// listing, inspecting and validating forms stay allowed:
+// (`plugin marketplace`) is tried before one. Global flags and their values
+// may come first. Only the verbs the verified research or a skeptic correction
+// names are listed (result.json, checked 2026-11-21 and again 2026-11-22), so
+// the listing, inspecting and validating forms stay allowed:
 // - codex: research Codex mcp_servers (`codex mcp add`, `codex mcp list|get|remove`) and
 //   plugin_or_extension_packaging (`codex plugin add|remove`, `codex plugin marketplace add|upgrade|remove`).
 // - gemini: research Gemini mcp_servers (`gemini mcp add`, project scope by default per the skeptic),
 //   plugin_or_extension_packaging (`gemini extensions install|link`, `gemini hooks migrate --from-claude`,
 //   which writes .gemini/settings.json; unknowns: `gemini hooks` has only `migrate`).
 // - qwen: research Qwen mcp_servers (`qwen mcp add`, `qwen mcp list|remove|reconnect|approve|reject`;
-//   skeptic: approve|reject act on pending servers) and plugin_or_extension_packaging (`qwen extensions install|link`).
+//   skeptic: approve|reject act on pending servers) and plugin_or_extension_packaging (`qwen extensions install|link`,
+//   "Also uninstall/update/enable/disable/new/settings/sources"; of those, uninstall, update, enable and disable
+//   change which extensions load).
 // - grok: research Grok mcp_servers (`grok mcp add`, `grok mcp enable|disable`) and
 //   plugin_or_extension_packaging (`grok plugin install`, `grok plugin enable|disable|update|uninstall`,
 //   `grok plugin marketplace add`; skeptic: `grok plugin --help` lists them).
 // - copilot: research Copilot mcp_servers (`copilot mcp add`; skeptic: `remove`, `disable` and `enable` also exist)
 //   and plugin_or_extension_packaging (`copilot plugin install` (alias add), uninstall, update, enable, disable,
-//   `copilot plugin marketplace add|list|browse|update|remove`).
+//   `copilot plugin marketplace add|list|browse|update|remove`; skeptic: "uninstall (remove, rm), marketplace
+//   update (refresh)").
 // - devin: research Devin mcp_servers (`devin mcp add`, plus enable, disable and remove),
-//   plugin_or_extension_packaging (`devin plugins install`) and no_model_checks (`devin migrate hooks`
+//   plugin_or_extension_packaging (`devin plugins install`, "Manage with plugins list, info, update, remove and
+//   prune") and no_model_checks (`devin migrate hooks`
 //   writes .devin/hooks.v1.json).
 const AGENT_CLI_MUTATIONS = new Map(Object.entries({
     codex: {
@@ -516,36 +524,45 @@ const AGENT_CLI_MUTATIONS = new Map(Object.entries({
         mcp: ["add", "remove"],
     },
     gemini: { extensions: ["install", "link"], mcp: ["add"], hooks: ["migrate"] },
-    qwen: { extensions: ["install", "link"], mcp: ["add", "remove", "approve", "reject"] },
+    qwen: { extensions: ["install", "link", "uninstall", "update", "enable", "disable"], mcp: ["add", "remove", "approve", "reject"] },
     grok: {
         plugin: ["install", "uninstall", "update", "enable", "disable"],
         "plugin marketplace": ["add"],
         mcp: ["add", "enable", "disable"],
     },
     copilot: {
-        plugin: ["install", "add", "uninstall", "update", "enable", "disable"],
-        "plugin marketplace": ["add", "update", "remove"],
+        plugin: ["install", "add", "uninstall", "remove", "rm", "update", "enable", "disable"],
+        "plugin marketplace": ["add", "update", "refresh", "remove"],
         mcp: ["add", "remove", "enable", "disable"],
     },
-    devin: { plugins: ["install"], mcp: ["add", "enable", "disable", "remove"], migrate: ["hooks"] },
+    devin: { plugins: ["install", "update", "remove", "prune"], mcp: ["add", "enable", "disable", "remove"], migrate: ["hooks"] },
 }).map(([cli, areas]) => [cli, new Map(Object.entries(areas).map(([area, verbs]) => [area, new Set(verbs)]))]));
 // The CLI a command word names: its last path segment without a Windows
 // launcher suffix (`C:\...\grok.exe`, `gemini.cmd`, `/usr/local/bin/qwen`).
+// The word comes from splitArguments, so a quoted path with a space is one word.
 function cliName(cmd) {
     return stripQuotes(cmd).replace(/^.*[\\/]/, "").replace(/\.(?:exe|cmd)$/, "");
 }
-function classifyAgentCli(cmd, rest) {
+function classifyAgentCli({ cmd, rest }) {
     const cli = cliName(cmd);
     const areas = AGENT_CLI_MUTATIONS.get(cli);
     if (!areas)
         return null;
     const words = rest.map((word) => stripQuotes(word).toLowerCase());
-    for (const depth of [2, 1]) {
-        const area = words.slice(0, depth).join(" ");
-        const verb = words[depth];
-        if (verb !== undefined && areas.get(area)?.has(verb)) {
-            return { target: `${cli} ${area} ${verb}`, pattern: `${cli}-cli`, via: "agent-cli" };
+    for (let i = 0; i < words.length; i++) {
+        for (const depth of [2, 1]) {
+            const area = words.slice(i, i + depth).join(" ");
+            const verb = words[i + depth];
+            if (verb !== undefined && areas.get(area)?.has(verb)) {
+                return { target: `${cli} ${area} ${verb}`, pattern: `${cli}-cli`, via: "agent-cli" };
+            }
         }
+        // Only a global flag (`-c`, `--profile=x`) or the value after one may
+        // come before the area: `codex -c x=1 mcp remove`.
+        const previous = words[i - 1];
+        const isValue = previous !== undefined && previous.startsWith("-") && !previous.includes("=");
+        if (!words[i].startsWith("-") && !isValue)
+            break;
     }
     return null;
 }
@@ -566,7 +583,7 @@ function classifyBashSegment(segment) {
     }
     // Another agent's CLI verb that rewrites its configuration. A form that is
     // not one goes on through the checks below, so a redirect behind it is seen.
-    const agentCli = classifyAgentCli(cmd, rest);
+    const agentCli = classifyAgentCli(commandWord(splitArguments(segment)));
     if (agentCli)
         return agentCli;
     // Redirects: `> path`, `>> path`, `2>path`, `>path`, `&>path`, `*> path`.
