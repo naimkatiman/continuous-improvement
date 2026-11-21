@@ -39,9 +39,10 @@ export interface HookPayload {
 }
 
 // The result keys after Claude's tool_response, tool_output and toolOutput, per
-// the verified research: Cline's postToolUse.result (hook_post_tool, VS Code
-// and CLI), Grok's and Copilot's camelCase toolResult, and tool_result (Auggie,
-// Copilot's snake form). The first one present wins.
+// the verified research: Grok's and Copilot's camelCase toolResult, and
+// tool_result (Auggie, Copilot's snake form). The first one present wins, except
+// that Cline's postToolUse.result (hook_post_tool, VS Code and CLI) comes first:
+// the Cline CLI also sends tool_result, its whole call record with the input.
 const RESULT_KEYS = ["tool_response", "tool_output", "toolOutput", "toolResult", "tool_result"] as const;
 // The tool call id: Claude, Codex, Cursor, Qwen, Grok and Junie tool_use_id,
 // Grok's camelCase toolUseId, Goose's tool_call_id (skeptic, hook_pre_tool).
@@ -64,8 +65,8 @@ const PRE_EVENTS: ReadonlySet<string> = new Set(["PreToolUse", "BeforeTool", "pr
  *
  * The tool call is Claude's tool_name / tool_input, else Copilot's camelCase
  * toolName / toolArgs or Cline's nested preToolUse / postToolUse (hook-io
- * payloadToolCall). The result is the first of RESULT_KEYS present, then
- * Cline's postToolUse.result; for another agent a tool_response object with a
+ * payloadToolCall). The result is Cline's postToolUse.result when present,
+ * else the first of RESULT_KEYS present; for another agent a tool_response object with a
  * string `output` (Devin's {success, output, error}) is that output. The
  * session is hook-io payloadSessionId's, the one the gate reads.
  *
@@ -90,8 +91,8 @@ export function parseHookPayload(raw: string, agent = "claude"): Required<HookPa
   const call = typeof obj.tool_name === "string" ? { name: obj.tool_name, input: obj.tool_input } : payloadToolCall(obj);
   if (call.name.length === 0) return null;
 
-  const key = RESULT_KEYS.find((name) => obj[name] !== undefined);
   const cline = obj.postToolUse !== null && typeof obj.postToolUse === "object" ? (obj.postToolUse as Record<string, unknown>) : null;
+  const key = cline?.result !== undefined ? undefined : RESULT_KEYS.find((name) => obj[name] !== undefined);
   let toolResponse = key !== undefined ? obj[key] : cline?.result;
   const output = (toolResponse as Record<string, unknown> | null | undefined)?.output;
   if (agent !== "claude" && key === "tool_response" && typeof toolResponse === "object" && typeof output === "string") {

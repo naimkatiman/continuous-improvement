@@ -546,6 +546,16 @@ describe("parseHookPayload: other agents' payloads", () => {
         assert.equal(result.session_id, "t1");
         assert.equal(result.complete, true);
     });
+    it("takes the Cline CLI's postToolUse.result over its tool_result record, which also holds the input", () => {
+        // Research Cline hook_post_tool: the SDK's runToolCallEnd sends
+        // hookName "tool_result", tool_result: ctx.record ({id, name, input,
+        // output, error, durationMs}) and postToolUse {toolName, parameters, result}.
+        const record = { id: "c1", name: "read_file", input: { path: "a.txt" }, output: "body", error: null, durationMs: 3 };
+        const result = parse({ hookName: "tool_result", taskId: "t1", tool_result: record, postToolUse: { toolName: "read_file", parameters: { path: "a.txt" }, result: "body", success: true } }, "cline");
+        assert.ok(result);
+        assert.equal(result.tool_response, "body");
+        assert.equal(result.complete, true);
+    });
     it("marks Goose's PostToolUse complete though it carries no result, and its PreToolUse not", () => {
         const post = parse({ event: "PostToolUse", session_id: "g1", tool_name: "shell", tool_input: { command: "cat a.txt" }, working_dir: "/p" }, "goose");
         assert.equal(post?.tool_response, undefined);
