@@ -306,7 +306,7 @@ describe("writeFileAtomic", () => {
         assert.equal(dirname(from), dirname(target), "a cross-directory rename is not atomic");
     });
     for (const code of ["EPERM", "EBUSY"]) {
-        it(`retries the rename once on ${code} and succeeds`, () => {
+        it(`retries the rename on ${code} and succeeds`, () => {
             const sub = mkdtempSync(join(dir, `retry-${code}-`));
             const target = join(sub, "state.json");
             const fake = flakyRename([code]);
@@ -316,13 +316,22 @@ describe("writeFileAtomic", () => {
             assert.deepEqual(leftovers(target), []);
         });
     }
-    it("throws after a second EPERM, keeps the old file and removes the temp file", () => {
-        const sub = mkdtempSync(join(dir, "twice-"));
+    it("keeps retrying with backoff and succeeds on the third retry", () => {
+        const sub = mkdtempSync(join(dir, "thrice-"));
+        const target = join(sub, "state.json");
+        const fake = flakyRename(["EPERM", "EBUSY", "EPERM"]);
+        writeFileAtomic(target, "after", fake.rename);
+        assert.equal(fake.calls.length, 4);
+        assert.equal(readFileSync(target, "utf8"), "after");
+        assert.deepEqual(leftovers(target), []);
+    });
+    it("throws after the last retry, keeps the old file and removes the temp file", () => {
+        const sub = mkdtempSync(join(dir, "exhausted-"));
         const target = join(sub, "state.json");
         writeFileSync(target, "before");
-        const fake = flakyRename(["EPERM", "EPERM"]);
+        const fake = flakyRename(["EPERM", "EPERM", "EPERM", "EPERM"]);
         assert.throws(() => writeFileAtomic(target, "after", fake.rename), { code: "EPERM" });
-        assert.equal(fake.calls.length, 2, "exactly one retry");
+        assert.equal(fake.calls.length, 4, "one try and three retries");
         assert.equal(readFileSync(target, "utf8"), "before");
         assert.deepEqual(leftovers(target), []);
     });
@@ -382,7 +391,7 @@ describe("saveState concurrency", () => {
     }
     // Each writer saves a large state whose every value names the writer, so a
     // torn read fails JSON.parse and an interleaved one mixes writer ids. A
-    // writer error (a rename that still loses to a reader after its one retry)
+    // writer error (a rename that still loses to a reader after its retries)
     // is counted and tolerated: a lost cache write is the hook's existing policy,
     // a torn file is not.
     const KEYS = 3000;

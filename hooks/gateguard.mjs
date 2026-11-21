@@ -550,8 +550,16 @@ async function main() {
         for (const path of filePaths) {
             nextState = markFileCleared(nextState, path);
         }
-        if (filePaths.length > 0)
-            saveState(sessionDir, nextState);
+        // A failed save (a parallel hook holding the state file open on Windows)
+        // must not fail the hook: Copilot denies on any non-zero preToolUse exit.
+        // A lost clearance only re-asks for facts on the next call.
+        try {
+            if (filePaths.length > 0)
+                saveState(sessionDir, nextState);
+        }
+        catch {
+            // fall through to the allow
+        }
     }
     emitAllow();
 }

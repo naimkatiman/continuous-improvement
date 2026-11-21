@@ -157,10 +157,10 @@ export function saveState(sessionDir: string, state: GateguardState): void {
 }
 
 // Windows refuses to replace a file another process has open (a parallel hook
-// reading the state) with EPERM or EBUSY. The holder usually closes within a
-// few milliseconds, so one short wait and one retry clears most of them.
+// reading the state) with EPERM or EBUSY. A reader closes within a few
+// milliseconds, so the rename is retried after each of these waits.
 const RENAME_RETRY_CODES = new Set(["EPERM", "EBUSY"]);
-const RENAME_RETRY_DELAY_MS = 25;
+const RENAME_RETRY_DELAYS_MS = [25, 50, 100];
 
 function isRetryableRenameError(err: unknown): boolean {
   return RENAME_RETRY_CODES.has((err as NodeJS.ErrnoException | null)?.code ?? "");
@@ -170,9 +170,9 @@ function isRetryableRenameError(err: unknown): boolean {
  * Write `data` to `target` through a temp file in the same directory, then
  * rename it over the target. A rename within one directory replaces the file in
  * one step, so a concurrent reader never sees a half-written file. A rename that
- * fails with EPERM or EBUSY is retried once after a short wait. Any other error,
- * or a second failure, removes the temp file and is thrown, and the old target
- * stays as it was. `rename` is a seam for tests.
+ * fails with EPERM or EBUSY is retried after 25, 50 and 100 ms. Any other error,
+ * or a failure after the last retry, removes the temp file and is thrown, and the
+ * old target stays as it was. `rename` is a seam for tests.
  */
 export function writeFileAtomic(
   target: string,
@@ -182,12 +182,14 @@ export function writeFileAtomic(
   const temp = join(dirname(target), `.${basename(target)}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`);
   writeFileSync(temp, data);
   try {
-    try {
-      rename(temp, target);
-    } catch (err) {
-      if (!isRetryableRenameError(err)) throw err;
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, RENAME_RETRY_DELAY_MS);
-      rename(temp, target);
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        rename(temp, target);
+        return;
+      } catch (err) {
+        if (!isRetryableRenameError(err) || attempt >= RENAME_RETRY_DELAYS_MS.length) throw err;
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, RENAME_RETRY_DELAYS_MS[attempt]);
+      }
     }
   } catch (err) {
     rmSync(temp, { force: true });
