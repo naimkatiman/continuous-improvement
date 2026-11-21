@@ -23,27 +23,25 @@
  * Registered with a tool matcher
  * (Bash|PowerShell|Monitor|Edit|MultiEdit|Write|NotebookEdit) so read-only tools never
  * spawn it. No network. No git. Fail-open.
+ *
+ * The hook is: read stdin, normalize (lib/hook-io.mjs), decide
+ * (lib/config-guard-gate.mjs), encode for the agent.
  */
 
-import { readFileSync } from "node:fs";
-
 import { classifyMutation, decide, parseMode, type ConfigMutation } from "../lib/config-guard-gate.mjs";
+import {
+  emit,
+  encode,
+  normalizeEvent,
+  parsePayload,
+  readStdin,
+  type AgentId,
+  type Decision,
+} from "../lib/hook-io.mjs";
 
-function readStdinSync(): string {
-  try {
-    return readFileSync(0, "utf8");
-  } catch {
-    return "";
-  }
-}
-
-function safeJsonParse(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
+const AGENT: AgentId = "claude";
+const EVENT = "PreToolUse";
+const ALLOW: Decision = { kind: "allow" };
 
 function buildReason(toolName: string, hit: ConfigMutation, mode: "warn" | "block"): string {
   const what =
@@ -59,48 +57,41 @@ function buildReason(toolName: string, hit: ConfigMutation, mode: "warn" | "bloc
   ].join("\n");
 }
 
-function main(): void {
+function decideConfigGuard(): Decision {
   const mode = parseMode(process.env.CI_CONFIG_GUARD);
-  if (mode === "off") return;
+  if (mode === "off") return ALLOW;
 
-  const payload = safeJsonParse(readStdinSync());
-  if (!payload || typeof payload !== "object") return;
-  const obj = payload as { tool_name?: unknown; tool_input?: unknown };
-  const toolName = typeof obj.tool_name === "string" ? obj.tool_name : "";
-  const toolInput =
-    obj.tool_input && typeof obj.tool_input === "object" ? (obj.tool_input as Record<string, unknown>) : {};
+  const parsed = parsePayload(readStdin());
+  if (!parsed.ok) return ALLOW;
+  const event = normalizeEvent(AGENT, EVENT, parsed.value);
 
-  const hit = classifyMutation(toolName, toolInput);
-  if (!hit) return;
+  const hit = classifyMutation(event.toolName, event.toolInput);
+  if (!hit) return ALLOW;
 
   if (String(process.env.CI_CONFIG_GUARD_ALLOW ?? "").trim().toLowerCase() === "true") {
-    process.stderr.write(
-      `[continuous-improvement] config-guard: CI_CONFIG_GUARD_ALLOW=true let ${toolName} touch ${hit.target} on this call.\n`,
-    );
-    return;
+    return {
+      kind: "allow",
+      notices: [
+        `[continuous-improvement] config-guard: CI_CONFIG_GUARD_ALLOW=true let ${event.toolName} touch ${hit.target} on this call.`,
+      ],
+    };
   }
 
-  const decision = decide(mode, true, buildReason(toolName, hit, mode));
-  if (decision.action === "block") {
-    process.stdout.write(
-      `${JSON.stringify({
-        hookSpecificOutput: {
-          hookEventName: "PreToolUse",
-          permissionDecision: "deny",
-          permissionDecisionReason: decision.reason,
-        },
-      })}\n`,
-    );
-    return;
-  }
+  const decision = decide(mode, true, buildReason(event.toolName, hit, mode));
+  if (decision.action === "block") return { kind: "deny", reason: decision.reason };
   if (decision.action === "warn") {
-    process.stderr.write(`[continuous-improvement] ${decision.reason.split("\n")[0]}\n`);
+    return { kind: "allow", notices: [`[continuous-improvement] ${decision.reason.split("\n")[0]}`] };
+  }
+  return ALLOW;
+}
+
+function main(): Decision {
+  try {
+    return decideConfigGuard();
+  } catch {
+    // fail-open: never block a session on a hook error
+    return ALLOW;
   }
 }
 
-try {
-  main();
-} catch {
-  // fail-open: never block a session on a hook error
-}
-process.exit(0);
+emit(encode(AGENT, EVENT, main()));

@@ -10,11 +10,12 @@
 // moved, not rewritten: the deny JSON is gateguard's emitDeny, the context
 // shapes are session.mts (SessionStart, plain stdout) and recall-briefing /
 // query-cost-nudge (hookSpecificOutput.additionalContext), and the continue
-// shape is the Stop hooks' {decision:"block"}. fixtures/agent-hooks/claude.json
-// pins the allow and PreToolUse deny bytes now, through gateguard. The context
-// and continue shapes are checked only by src/test/hook-io.test.mts until plan
-// PR 7 moves session, recall-briefing, query-cost-nudge and the Stop hooks onto
-// encode, and their goldens then pin those bytes too. Encoders for the other agents come in plan PR 8. Until
+// shape is the Stop hooks' {decision:"block"}. Every hook but
+// companion-preference and bin/observe writes through encode (plan PR 7), so
+// fixtures/agent-hooks/claude.json pins all four shapes end to end: allow and
+// the PreToolUse deny through gateguard, hook-pack and config-guard, context
+// through session, route-prompt, recall-briefing and query-cost-nudge, and
+// continue through the Stop hooks. Encoders for the other agents come in plan PR 8. Until
 // then an agent id with no encoder fails closed: a deny or a continue is exit 2
 // with the reason on stderr and nothing on stdout, which the plan's research
 // found Claude Code, Codex, Cursor, Copilot, Devin, Grok, Qwen, Kiro, Droid,

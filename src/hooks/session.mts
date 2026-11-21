@@ -4,7 +4,12 @@ import { join } from "node:path";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot, projectYamlFiles, yamlFiles } from "../lib/gateguard-state.mjs";
 import { flatten, parseYamlInstinct } from "../lib/instinct-yaml.mjs";
+import { emit, encode, parsePayload, readStdin, type AgentId, type Decision } from "../lib/hook-io.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
+// The hook is: read stdin, decide (the lesson block and status line below),
+// encode for the agent (lib/hook-io.mjs). The claude encoder prints a
+// SessionStart context as plain stdout and every notice on stderr.
+const AGENT: AgentId = "claude";
 type SessionEvent = "SessionStart" | "SessionEnd" | "unknown";
 interface Lesson {
   body: string;
@@ -37,7 +42,7 @@ const MAX_FILES_READ = 200;
 const MAX_FILE_BYTES = 64 * 1024;
 const LOAD_OFF = new Set(["off", "0", "false", "no"]);
 const headBuffer = Buffer.allocUnsafe(MAX_FILE_BYTES);
-function read(path: string | number): string {
+function read(path: string): string {
   try { return readFileSync(path, "utf8"); } catch { return ""; }
 }
 function readHead(path: string): string {
@@ -56,16 +61,12 @@ function readHead(path: string): string {
 // The payload comes back too: its working directory picks the project root
 // when no agent sets a project-dir env var.
 function readPayload(): { event: SessionEvent; payload: Record<string, unknown> } | null {
-  const raw = read(0);
-  if (!raw) return null;
-  try {
-    const payload = JSON.parse(raw) as Record<string, unknown>;
-    if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
-    const event = payload.hook_event_name ?? payload.hook_type ?? payload.event_type;
-    return { event: event === "SessionStart" || event === "SessionEnd" ? event : "unknown", payload };
-  } catch {
-    return null;
-  }
+  const parsed = parsePayload(readStdin());
+  if (!parsed.ok) return null;
+  const payload = parsed.value as Record<string, unknown> | null;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  const event = payload.hook_event_name ?? payload.hook_type ?? payload.event_type;
+  return { event: event === "SessionStart" || event === "SessionEnd" ? event : "unknown", payload };
 }
 // Each trigger and body goes through flatten (src/lib/instinct-yaml.mts), so a
 // lesson cannot close the reminder or start a line of its own, which keeps the
@@ -134,16 +135,22 @@ function lessonBlock(contents: string[], projectCount: number): string {
   if (lines.length === 0) return "";
   return `${lessonHeader(lines.length, lessons.length)}\n${lines.join("\n")}\n`;
 }
-function main(): void {
+const ALLOW: Decision = { kind: "allow" };
+function decideSession(): { event: SessionEvent; decision: Decision } {
   const input = readPayload();
-  if (input === null) return;
+  if (input === null) return { event: "unknown", decision: ALLOW };
   const { event, payload } = input;
   if (event === "SessionEnd") {
-    process.stderr.write("[continuous-improvement] Session ending. Run /continuous-improvement to reflect and capture learnings.\n");
-    return;
+    return {
+      event,
+      decision: {
+        kind: "allow",
+        notices: ["[continuous-improvement] Session ending. Run /continuous-improvement to reflect and capture learnings."],
+      },
+    };
   }
   const home = resolveHomeDir();
-  if (!home) return;
+  if (!home) return { event, decision: ALLOW };
   const instinctsRoot = resolveInstinctsRoot(home);
   const root = resolveProjectRoot(payload);
   const hash = hashProjectRoot(root);
@@ -162,18 +169,22 @@ function main(): void {
     }
     if (Number.isFinite(value) && value >= 0.5) level = "SUGGEST";
   }
-  process.stderr.write(
-    `[continuous-improvement] Level: ${level} | Observations: ${observations} | Instincts: ${files.length}\n`,
-  );
-  if (event !== "SessionStart") return;
-  if (LOAD_OFF.has((process.env.CI_INSTINCT_LOAD ?? "").trim().toLowerCase())) return;
+  const notices = [`[continuous-improvement] Level: ${level} | Observations: ${observations} | Instincts: ${files.length}`];
+  if (event !== "SessionStart") return { event, decision: { kind: "allow", notices } };
+  if (LOAD_OFF.has((process.env.CI_INSTINCT_LOAD ?? "").trim().toLowerCase())) {
+    return { event, decision: { kind: "allow", notices } };
+  }
   const block = lessonBlock(contents, projectFiles.length);
-  if (block) {
-    process.stdout.on("error", () => { });
-    process.stdout.write(block);
+  return { event, decision: block ? { kind: "context", text: block, notices } : { kind: "allow", notices } };
+}
+function main(): { event: SessionEvent; decision: Decision } {
+  try {
+    return decideSession();
+  } catch {
+    return { event: "unknown", decision: ALLOW };
   }
 }
-try {
-  main();
-} catch {
-}
+const { event, decision } = main();
+// A closed stdout must not crash the hook after the decision is made.
+process.stdout.on("error", () => { });
+emit(encode(AGENT, event, decision));

@@ -22,22 +22,25 @@
  * unreadable state) emits nothing and exits 0. State at
  * ~/.claude/instincts/<project-hash>/recall-briefing-session.json records which
  * session_ids have been briefed so each session is briefed at most once.
+ *
+ * The hook is: read stdin, normalize (lib/hook-io.mjs), decide
+ * (lib/recall-briefing.mjs), encode for the agent.
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 
 import { buildIndex, query, type RecallObservation } from "../lib/recall-index.mjs";
 import { DEFAULT_MAX_HITS, decideBriefing } from "../lib/recall-briefing.mjs";
 import { readKnob } from "../lib/agent-env.mjs";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
+import { emit, encode, normalizeEvent, parsePayload, readStdin, type AgentId, type Decision } from "../lib/hook-io.mjs";
 
-interface Payload {
-  prompt?: unknown;
-  session_id?: unknown;
-}
+const AGENT: AgentId = "claude";
+const EVENT = "UserPromptSubmit";
+const ALLOW: Decision = { kind: "allow" };
 
 interface SessionState {
   briefed: Record<string, string>;
@@ -51,19 +54,11 @@ function isEnabled(): boolean {
   return ENABLED_VALUES.has(flag);
 }
 
-function readStdin(): string {
-  try {
-    return readFileSync(0, "utf8");
-  } catch {
-    return "";
-  }
-}
-
 function resolveHome(): string {
   return process.env.HOME ?? process.env.USERPROFILE ?? homedir();
 }
 
-function instinctsDir(home: string, payload: Payload): string {
+function instinctsDir(home: string, payload: unknown): string {
   const hash = hashProjectRoot(resolveProjectRoot(payload));
   return join(resolveInstinctsRoot(home), hash);
 }
@@ -112,39 +107,18 @@ function writeState(dir: string, state: SessionState, sessionKey: string): void 
   }
 }
 
-function emit(additionalContext: string | null): void {
-  if (additionalContext !== null) {
-    process.stdout.write(
-      `${JSON.stringify({
-        hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext },
-      })}\n`,
-    );
-  }
-  process.exit(0);
-}
+function decideRecall(): Decision {
+  if (!isEnabled()) return ALLOW;
 
-function main(): void {
-  if (!isEnabled()) {
-    emit(null);
-    return;
-  }
-
-  let payload: Payload;
-  try {
-    payload = JSON.parse(readStdin()) as Payload;
-  } catch {
-    emit(null);
-    return;
-  }
-  const prompt = typeof payload.prompt === "string" ? payload.prompt : "";
-  if (prompt.length === 0) {
-    emit(null);
-    return;
-  }
-  const sessionKey = typeof payload.session_id === "string" && payload.session_id ? payload.session_id : "no-session";
+  const parsed = parsePayload(readStdin());
+  if (!parsed.ok) return ALLOW;
+  const event = normalizeEvent(AGENT, EVENT, parsed.value);
+  const prompt = event.prompt ?? "";
+  if (prompt.length === 0) return ALLOW;
+  const sessionKey = event.sessionId || "no-session";
 
   const home = resolveHome();
-  const dir = instinctsDir(home, payload);
+  const dir = instinctsDir(home, event.payload);
   const state = readState(dir);
   const alreadyBriefed = Object.prototype.hasOwnProperty.call(state.briefed, sessionKey);
 
@@ -153,18 +127,19 @@ function main(): void {
   const hits = query(index, prompt, { k: DEFAULT_MAX_HITS });
 
   const decision = decideBriefing({ enabled: true, alreadyBriefed, prompt, hits });
-  if (!decision.shouldBrief || decision.reminder === null) {
-    emit(null);
-    return;
-  }
+  if (!decision.shouldBrief || decision.reminder === null) return ALLOW;
 
   writeState(dir, state, sessionKey);
-  emit(decision.reminder);
+  return { kind: "context", text: decision.reminder };
 }
 
-try {
-  main();
-} catch {
-  // Absolute fail-open backstop: never let a hook bug block a prompt.
-  process.exit(0);
+function main(): Decision {
+  try {
+    return decideRecall();
+  } catch {
+    // Absolute fail-open backstop: never let a hook bug block a prompt.
+    return ALLOW;
+  }
 }
+
+emit(encode(AGENT, EVENT, main()));

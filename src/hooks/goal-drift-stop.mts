@@ -16,6 +16,9 @@
 // reads the SAME observations.jsonl the observer writes. Fail-open by
 // construction: any error / missing goal / unreadable observations exits 0 and
 // never blocks. No network. 5s hook budget.
+//
+// The hook is: read stdin, decide (lib/goal-drift-gate.mjs), encode for the
+// agent (lib/hook-io.mjs).
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -25,18 +28,15 @@ import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs
 import { evaluateGoalDrift, type GoalDriftMode } from "../lib/goal-drift-gate.mjs";
 import type { GoalObservation } from "../lib/goal-state.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
+import { emit, encode, readStdin, type AgentId, type Decision } from "../lib/hook-io.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
+
+const AGENT: AgentId = "claude";
+const EVENT = "Stop";
+const ALLOW: Decision = { kind: "allow" };
 
 interface Payload {
   transcript_path?: string;
-}
-
-function readStdinSync(): string {
-  try {
-    return readFileSync(0, "utf8");
-  } catch {
-    return "";
-  }
 }
 
 function safeJsonParse(text: string): unknown {
@@ -139,17 +139,17 @@ function persistState(
   }
 }
 
-function main(): void {
+function decideGoalDrift(): Decision {
   const mode = resolveMode();
-  if (mode === "off") return;
+  if (mode === "off") return ALLOW;
 
-  const stdin = readStdinSync();
-  if (!stdin) return;
+  const stdin = readStdin();
+  if (!stdin) return ALLOW;
   const payload = safeJsonParse(stdin) as Payload | null;
-  if (!payload) return;
+  if (!payload) return ALLOW;
 
   const home = resolveHomeDir();
-  if (!home) return;
+  if (!home) return ALLOW;
   const projectRoot = resolveProjectRoot(payload);
   const instinctsProjectDir = join(resolveInstinctsRoot(home), projectHash(projectRoot));
 
@@ -167,15 +167,20 @@ function main(): void {
     action: decision.action,
   });
 
-  if (decision.action === "block") {
-    process.stdout.write(JSON.stringify({ decision: "block", reason: decision.reason }) + "\n");
-  } else if (decision.action === "warn") {
-    process.stderr.write(`[continuous-improvement] goal-drift: ${decision.reason}\n`);
+  if (decision.action === "block") return { kind: "continue", reason: decision.reason };
+  if (decision.action === "warn") {
+    return { kind: "allow", notices: [`[continuous-improvement] goal-drift: ${decision.reason}`] };
+  }
+  return ALLOW;
+}
+
+function main(): Decision {
+  try {
+    return decideGoalDrift();
+  } catch {
+    // fail open — never block the session due to a hook bug
+    return ALLOW;
   }
 }
 
-try {
-  main();
-} catch {
-  // fail open — never block the session due to a hook bug
-}
+emit(encode(AGENT, EVENT, main()));

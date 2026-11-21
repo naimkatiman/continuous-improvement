@@ -22,6 +22,9 @@
  * unreadable state) emits nothing and exits 0. State at
  * ~/.claude/instincts/<project-hash>/recall-briefing-session.json records which
  * session_ids have been briefed so each session is briefed at most once.
+ *
+ * The hook is: read stdin, normalize (lib/hook-io.mjs), decide
+ * (lib/recall-briefing.mjs), encode for the agent.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -31,19 +34,15 @@ import { DEFAULT_MAX_HITS, decideBriefing } from "../lib/recall-briefing.mjs";
 import { readKnob } from "../lib/agent-env.mjs";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
+import { emit, encode, normalizeEvent, parsePayload, readStdin } from "../lib/hook-io.mjs";
+const AGENT = "claude";
+const EVENT = "UserPromptSubmit";
+const ALLOW = { kind: "allow" };
 const ENABLED_VALUES = new Set(["1", "on", "true", "yes"]);
 const MAX_BRIEFED_KEYS = 1000;
 function isEnabled() {
     const flag = (readKnob("CLAUDE_RECALL_BRIEFING") ?? "").trim().toLowerCase();
     return ENABLED_VALUES.has(flag);
-}
-function readStdin() {
-    try {
-        return readFileSync(0, "utf8");
-    }
-    catch {
-        return "";
-    }
 }
 function resolveHome() {
     return process.env.HOME ?? process.env.USERPROFILE ?? homedir();
@@ -100,52 +99,37 @@ function writeState(dir, state, sessionKey) {
         // fail-open: a missed state write at worst briefs twice; it never blocks
     }
 }
-function emit(additionalContext) {
-    if (additionalContext !== null) {
-        process.stdout.write(`${JSON.stringify({
-            hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext },
-        })}\n`);
-    }
-    process.exit(0);
-}
-function main() {
-    if (!isEnabled()) {
-        emit(null);
-        return;
-    }
-    let payload;
-    try {
-        payload = JSON.parse(readStdin());
-    }
-    catch {
-        emit(null);
-        return;
-    }
-    const prompt = typeof payload.prompt === "string" ? payload.prompt : "";
-    if (prompt.length === 0) {
-        emit(null);
-        return;
-    }
-    const sessionKey = typeof payload.session_id === "string" && payload.session_id ? payload.session_id : "no-session";
+function decideRecall() {
+    if (!isEnabled())
+        return ALLOW;
+    const parsed = parsePayload(readStdin());
+    if (!parsed.ok)
+        return ALLOW;
+    const event = normalizeEvent(AGENT, EVENT, parsed.value);
+    const prompt = event.prompt ?? "";
+    if (prompt.length === 0)
+        return ALLOW;
+    const sessionKey = event.sessionId || "no-session";
     const home = resolveHome();
-    const dir = instinctsDir(home, payload);
+    const dir = instinctsDir(home, event.payload);
     const state = readState(dir);
     const alreadyBriefed = Object.prototype.hasOwnProperty.call(state.briefed, sessionKey);
     const observations = readObservations(dir);
     const index = buildIndex(observations);
     const hits = query(index, prompt, { k: DEFAULT_MAX_HITS });
     const decision = decideBriefing({ enabled: true, alreadyBriefed, prompt, hits });
-    if (!decision.shouldBrief || decision.reminder === null) {
-        emit(null);
-        return;
-    }
+    if (!decision.shouldBrief || decision.reminder === null)
+        return ALLOW;
     writeState(dir, state, sessionKey);
-    emit(decision.reminder);
+    return { kind: "context", text: decision.reminder };
 }
-try {
-    main();
+function main() {
+    try {
+        return decideRecall();
+    }
+    catch {
+        // Absolute fail-open backstop: never let a hook bug block a prompt.
+        return ALLOW;
+    }
 }
-catch {
-    // Absolute fail-open backstop: never let a hook bug block a prompt.
-    process.exit(0);
-}
+emit(encode(AGENT, EVENT, main()));

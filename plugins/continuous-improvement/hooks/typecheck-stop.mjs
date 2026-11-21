@@ -19,14 +19,21 @@
  * TS file, no runnable typecheck, or a run that times out exits 0 (allow). No
  * network. The wiring gives this hook a longer timeout than the 5s hooks
  * because `tsc` is slower; on the internal timeout it fails open.
+ *
+ * The hook is: decide (lib/typecheck-gate.mjs), encode for the agent
+ * (lib/hook-io.mjs). It reads no stdin.
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { readKnob } from "../lib/agent-env.mjs";
 import { GLOBAL_PROJECT_ROOT, resolveProjectRoot } from "../lib/agent-paths.mjs";
+import { emit, encode } from "../lib/hook-io.mjs";
 import { decideTypecheckAction, formatTypecheckReason, hasChangedTsFile, parseChangedFiles, pickTypecheckKind, resolveTypecheckMode, } from "../lib/typecheck-gate.mjs";
 const SPAWN_TIMEOUT_MS = 25_000;
+const AGENT = "claude";
+const EVENT = "Stop";
+const ALLOW = { kind: "allow" };
 // This hook never reads stdin, so the root comes from the env and git only.
 // Trimmed, as this hook has always trimmed CLAUDE_PROJECT_DIR; no root at all
 // is null, never the "global" bucket name.
@@ -86,27 +93,31 @@ function runTypecheck(root) {
         return { ran: false, rc: 0, output: "" };
     return { ran: true, rc: result.status, output: `${result.stdout ?? ""}${result.stderr ?? ""}` };
 }
-function main() {
+function decideTypecheck() {
     const mode = resolveTypecheckMode(readKnob("CLAUDE_TYPECHECK_GATE"));
     if (mode === "off")
-        return;
+        return ALLOW;
     const root = projectRoot();
     if (!root || !existsSync(join(root, "tsconfig.json")))
-        return; // not a TS project
+        return ALLOW; // not a TS project
     if (!hasChangedTsFile(collectChangedFiles(root)))
-        return; // nothing TS changed — near-zero cost
+        return ALLOW; // nothing TS changed — near-zero cost
     const { ran, rc, output } = runTypecheck(root);
     const action = decideTypecheckAction({ mode, ranTypecheck: ran, rc });
-    if (action === "block") {
-        process.stdout.write(`${JSON.stringify({ decision: "block", reason: formatTypecheckReason(output) })}\n`);
+    if (action === "block")
+        return { kind: "continue", reason: formatTypecheckReason(output) };
+    if (action === "warn") {
+        return { kind: "allow", notices: [`[continuous-improvement] typecheck: ${formatTypecheckReason(output)}`] };
     }
-    else if (action === "warn") {
-        process.stderr.write(`[continuous-improvement] typecheck: ${formatTypecheckReason(output)}\n`);
+    return ALLOW;
+}
+function main() {
+    try {
+        return decideTypecheck();
+    }
+    catch {
+        // fail open — never trap a turn on a hook bug
+        return ALLOW;
     }
 }
-try {
-    main();
-}
-catch {
-    // fail open — never trap a turn on a hook bug
-}
+emit(encode(AGENT, EVENT, main()));
