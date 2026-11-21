@@ -14,7 +14,7 @@
 // does the I/O.
 
 import { type SpawnSyncOptionsWithStringEncoding, spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import {
@@ -29,6 +29,7 @@ import {
   recordInstall,
   removeOwnedConfig,
   runtimesInUse,
+  toLedgerFile,
 } from "./agent-install-plans.mjs";
 import { planTargetWrites } from "./install-targets.mjs";
 
@@ -159,9 +160,11 @@ function saveLedger(io: HookRunIo, ledger: Ledger): void {
   writeFileSync(ledgerFile(io), `${JSON.stringify(ledger, null, 2)}\n`);
 }
 
-function writeFile(path: string, content: string): void {
+// `mode`: a hook script the agent executes directly (Cline's sh hook) needs the exec bit.
+function writeFile(path: string, content: string, mode?: number): void {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, content);
+  if (mode !== undefined) chmodSync(path, mode);
 }
 
 /**
@@ -174,7 +177,7 @@ function writeRecorded(io: HookRunIo, plan: InstallPlan, ledger: Ledger): Ledger
   try {
     for (const write of plan.writes) {
       const previous = readText(write.path);
-      writeFile(write.path, write.content);
+      writeFile(write.path, write.content, write.mode);
       written.push({ path: write.path, previous });
       io.out(`  ✓ ${plan.agent} → ${write.path}`);
     }
@@ -250,7 +253,7 @@ export function runHookInstall(args: ParsedArgs, io: HookRunIo): number {
       const entry: LedgerEntry = {
         target: plan.agent, scope: args.scope, project: args.scope === "project" ? slash(io.projectRoot) : null, version: io.version, runtime: rt,
         installedAt: new Date().toISOString(),
-        files: plan.writes.map(({ path, created, hooksAt, hookCommands, mcpAt, mcp }) => ({ path, created, hooksAt, hookCommands, mcpAt, mcp })),
+        files: plan.writes.map(toLedgerFile),
         runs: plan.runs.map((run: PlannedRun) => ({ ...run, ran: false, cwd: runCwd })),
       };
       // The agent's files and its ledger entry land together: a failure puts its

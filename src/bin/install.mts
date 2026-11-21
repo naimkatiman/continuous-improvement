@@ -853,7 +853,8 @@ Options for 'install':
                       copilot   — .github/copilot-instructions.md
                     Non-claude targets write the 7-Laws skill text into the
                     current project; hooks/MCP/instincts stay Claude Code-only.
-  --hooks           With --target codex, qwen, grok, devin (windsurf) or droid:
+  --hooks           With --target codex, qwen, grok, devin (windsurf), droid,
+                    gemini, cursor, copilot, kiro, auggie, junie, goose or cline:
                     also install that agent's hooks and MCP server, pointing at
                     a stable runtime copy under the instincts dir
   --scope <scope>   With --hooks: project (default) or user; user-level agent
