@@ -6,6 +6,7 @@ Do not edit files here manually; edit the source files in the repo root and rebu
 Included surfaces:
 - `.claude-plugin/plugin.json`
 - `.claude-plugin/marketplace.json`
+- `.mcp.json`
 - `skills/`
 - `commands/`
 - `agents/` — `code-reviewer`, `security-auditor`, `test-engineer` personas (auto-discovered Claude Code subagents; pattern from addy/agent-skills)

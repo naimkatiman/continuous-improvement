@@ -145,6 +145,8 @@ Full spec, reflection-block format, and anti-examples: [SKILL.md](SKILL.md). Ful
 
 **Beginner (recommended)** is the two-command [Quick start](#quick-start) above — the 7 Laws skill, the hooks that enforce it, and the slash commands. Nothing else to install.
 
+The plugin install also registers the MCP server (expert mode), so `/recall`, `/goal-check` and `/distill` work without the npm step. If `/mcp` then lists a second `continuous-improvement` server that you added at user scope from an npm copy, Claude Code runs both because their commands differ; remove that one with `claude mcp remove continuous-improvement`.
+
 <details>
 <summary><b>Optional companion — the <code>/superpowers</code> dispatcher (recommended)</b></summary>
 

@@ -1,11 +1,18 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const PACKAGE_NAME = "continuous-improvement";
 
-const PKG_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "package.json");
-export const VERSION: string = (JSON.parse(readFileSync(PKG_PATH, "utf8")) as { version: string }).version;
+// package.json sits beside lib/ in the repository and in the npm package. The
+// plugin bundle ships no package.json, so there the version comes from the
+// generated .claude-plugin/plugin.json, which carries the same value.
+const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const PKG_PATH = join(PACKAGE_ROOT, "package.json");
+const VERSION_SOURCE = existsSync(PKG_PATH)
+  ? PKG_PATH
+  : join(PACKAGE_ROOT, ".claude-plugin", "plugin.json");
+export const VERSION: string = (JSON.parse(readFileSync(VERSION_SOURCE, "utf8")) as { version: string }).version;
 
 export const PLUGIN_MODES = ["beginner", "expert"] as const;
 
@@ -77,6 +84,10 @@ export interface PluginHooksConfig {
   hooks: Partial<Record<HookType, Array<{ matcher?: string; hooks: PluginHookCommand[] }>>>;
 }
 
+export interface PluginMcpConfig {
+  mcpServers: Record<string, { args: string[]; command: string }>;
+}
+
 export interface ClaudePluginManifest {
   author: {
     name: string;
@@ -146,7 +157,7 @@ const KEYWORDS = [
 ];
 const CLAUDE_PLUGIN_CATEGORY = "productivity";
 const SHARED_PLUGIN_DESCRIPTION =
-  "The persistent-memory and runtime-discipline layer for Claude Code. It remembers the corrections you already gave, grounds every edit in real facts before it lands, and — through the Mulahazah engine — turns each fix into a reusable instinct, so a lesson learned once is applied automatically next time with no re-teaching. Built on the 7 Laws of AI Agent Discipline (research, plan, verify, reflect, learn) and shipped as 28 bundled skills, instinct-aware hooks, an MCP toolset for recall and reflection, and a GitHub Action transcript linter that feeds real work history back into sharper instincts.";
+  "Guard and memory plugin for Claude Code. A hook denies known destructive shell commands in every permission mode. Opt-in hooks also deny pushes to protected branches and edits to the files that wire the guardrails, and hold a turn open on a failing typecheck. Tool calls go to a local searchable log; up to 10 recorded lessons load at session start. Ships 28 bundled skills and an MCP server.";
 
 // Four vendored upstream companions registered alongside the CI plugin.
 // Each entry points at a pinned-SHA snapshot under third-party/<name>/.
@@ -608,6 +619,21 @@ export function getPluginManifest(mode: PluginMode): PluginManifest {
     hooks: {
       included: [...modeMetadata.hooks],
       description: modeMetadata.hookDescription,
+    },
+  };
+}
+
+// The MCP server `/plugin install` registers, written to `.mcp.json` at the
+// bundle root. Claude Code substitutes ${CLAUDE_PLUGIN_ROOT} in `args` and
+// starts the server when the plugin is enabled. Expert mode, because /recall,
+// /goal-check and /distill call tools the beginner mode does not serve.
+export function getPluginMcpConfig(): PluginMcpConfig {
+  return {
+    mcpServers: {
+      [PACKAGE_NAME]: {
+        command: "node",
+        args: ["${CLAUDE_PLUGIN_ROOT}/bin/mcp-server.mjs", "--mode", "expert"],
+      },
     },
   };
 }

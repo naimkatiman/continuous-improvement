@@ -152,6 +152,25 @@ describe("check-everything-mirror — unit", () => {
     }
   });
 
+  it("treats the generated .mcp.json as plugin-only", () => {
+    const root = setupRepo();
+    try {
+      // The MCP registration is generated into the bundle. A flat sibling at
+      // the repo root would be a project-scoped server config for this repo.
+      writeFileSync(
+        join(root, PLUGIN_ROOT_REL, ".mcp.json"),
+        '{"mcpServers":{}}\n',
+      );
+      assert.deepEqual(
+        discoverMirrorPairs(root).map((pair) => pair.relPath),
+        [],
+      );
+      assert.deepEqual(checkMirrorPairs(root), []);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("returns empty list when plugin root is missing", () => {
     const root = mkdtempSync(join(tmpdir(), "everything-mirror-empty-"));
     try {

@@ -36,6 +36,7 @@ interface TestSettings {
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const INSTALL_SCRIPT = join(__dirname, "..", "bin", "install.mjs");
+const PACKAGED_SESSION_HOOK = join(__dirname, "..", "hooks", "session.mjs");
 const SKILL_SOURCE = join(__dirname, "..", "SKILL.md");
 const SHIP_SKILL_SOURCE = join(__dirname, "..", "skills", "ship.md");
 const SHIP_SKILL_OWNER_FILE = ".continuous-improvement-owner";
@@ -557,6 +558,8 @@ describe("installer - installed entrypoints start from the installed tree", () =
       USERPROFILE: home,
       CLAUDE_PROJECT_DIR: projectRoot,
       CLAUDE_CI_UPDATE_CHECK: "off",
+      // A CI_INSTINCT_LOAD set in the developer's own shell must not hide the lesson block.
+      CI_INSTINCT_LOAD: "",
     };
     const result = spawnSync(process.execPath, [INSTALL_SCRIPT, "install", "--mode", "expert"], {
       cwd: root,
@@ -635,6 +638,39 @@ describe("installer - installed entrypoints start from the installed tree", () =
       result.stderr,
       /\[continuous-improvement\] Level: \S+ \| Observations: \d+ \| Instincts: \d+/,
     );
+  });
+
+  // The lesson block is the one path by which a recorded instinct reaches a
+  // later session, so the installed copy must print it, not only the packaged one.
+  it("the wired session hook prints the same lesson block as the packaged hook", () => {
+    const [session] = hookScripts(readSettings().hooks?.SessionStart);
+    assert.ok(session, "SessionStart should be wired to a node script");
+    const globalDir = join(home, ".claude", "instincts", "global");
+    mkdirSync(globalDir, { recursive: true });
+    writeFileSync(
+      join(globalDir, "build-before-staging.yaml"),
+      [
+        "id: build-before-staging",
+        'trigger: "when staging generated files"',
+        "confidence: 0.8",
+        "scope: global",
+        "---",
+        "Run npm run build first.",
+        "",
+      ].join("\n"),
+    );
+    const payload = { session_id: "installed-entrypoint", hook_event_name: "SessionStart" };
+
+    const installed = runHook(session, payload);
+    const packaged = runHook(PACKAGED_SESSION_HOOK, payload);
+
+    assert.equal(installed.status, 0, `stderr: ${installed.stderr}`);
+    assert.match(installed.stdout, /^Notes from continuous-improvement instinct files/);
+    assert.match(
+      installed.stdout,
+      /\n- \[global\] when staging generated files: Run npm run build first\. \(0\.8\)\n$/,
+    );
+    assert.equal(installed.stdout, packaged.stdout);
   });
 
   it("uninstall removes every script the installer copied", () => {
@@ -763,7 +799,7 @@ describe("installer - session hook starts when ~/.claude/instincts is a link", (
       false,
       "nothing may be resolved from beside the link target",
     );
-    for (const libFile of ["gateguard-state.mjs", "resolve-home-dir.mjs"]) {
+    for (const libFile of ["gateguard-state.mjs", "instinct-yaml.mjs", "resolve-home-dir.mjs"]) {
       assert.ok(
         existsSync(join(linkTarget, "lib", libFile)),
         `${libFile} should sit in instincts/lib, which moves with the link`,

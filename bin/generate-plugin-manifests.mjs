@@ -2,7 +2,7 @@
 import { copyFile, mkdir, readdir, readFile, rm, writeFile, } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PACKAGE_NAME, PLUGIN_MODES, getPluginHooksConfig, getClaudePluginManifest, getClaudePluginMarketplaceManifest, getClaudeRepoMarketplaceManifest, getPluginManifest, } from "../lib/plugin-metadata.mjs";
+import { PACKAGE_NAME, PLUGIN_MODES, getPluginHooksConfig, getClaudePluginManifest, getClaudePluginMarketplaceManifest, getClaudeRepoMarketplaceManifest, getPluginManifest, getPluginMcpConfig, } from "../lib/plugin-metadata.mjs";
 import { normalizeTier, parseSkillFrontmatter, renderBundledSkillsReadme, } from "../lib/skill-tiers.mjs";
 import { enforcementOf, lawOf, renderSkillCatalogHtml, } from "../lib/skill-catalog.mjs";
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -96,6 +96,7 @@ async function writePluginBundleReadme() {
         "Included surfaces:",
         "- `.claude-plugin/plugin.json`",
         "- `.claude-plugin/marketplace.json`",
+        "- `.mcp.json`",
         "- `skills/`",
         "- `commands/`",
         "- `agents/` — `code-reviewer`, `security-auditor`, `test-engineer` personas (auto-discovered Claude Code subagents; pattern from addy/agent-skills)",
@@ -173,6 +174,8 @@ async function writePluginBundle() {
         copyFileTo(join(REPO_ROOT, "lib", "destructive-bash.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "destructive-bash.mjs")),
         copyFileTo(join(REPO_ROOT, "lib", "plugin-metadata.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "plugin-metadata.mjs")),
         copyFileTo(join(REPO_ROOT, "lib", "resolve-home-dir.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "resolve-home-dir.mjs")),
+        // Imported by both bin/mcp-server.mjs and hooks/session.mjs.
+        copyFileTo(join(REPO_ROOT, "lib", "instinct-yaml.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "instinct-yaml.mjs")),
         copyFileTo(join(REPO_ROOT, "lib", "observe-event.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "observe-event.mjs")),
         // Imported by both observe-event.mjs and recall-index.mjs.
         copyFileTo(join(REPO_ROOT, "lib", "redact-secrets.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "redact-secrets.mjs")),
@@ -189,6 +192,7 @@ async function writePluginBundle() {
         writePluginBundleReadme(),
     ]);
     await writeJson(join(PLUGIN_BUNDLE_DIR, "hooks", "hooks.json"), getPluginHooksConfig());
+    await writeJson(join(PLUGIN_BUNDLE_DIR, ".mcp.json"), getPluginMcpConfig());
     await writeBundledSkills();
     // PM plugins are no longer surfaced in the repo-level marketplace as the project
     // refocuses on the 7 Laws of AI Agent Discipline. Source plugin directories under

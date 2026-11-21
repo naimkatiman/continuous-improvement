@@ -9,7 +9,7 @@ Mine this project's observation log for tool sequences that recurred across mult
 
 ## What it does
 
-Groups observations into trajectories, keeps the ones that ended in a passing verification, and finds tool-sequence n-grams that recurred across distinct sessions. Backed by the `ci_distill_candidates` / `ci_distill_propose` / `ci_distill_promote` MCP tools (expert mode) and the `skill-distillation` skill.
+Groups observations into trajectories, keeps the ones that ended in a passing verification, and finds tool-sequence n-grams that recurred across distinct sessions. Backed by the `ci_distill_candidates` / `ci_distill_propose` / `ci_distill_promote` MCP tools (expert mode; the plugin install registers the server in that mode) and the `skill-distillation` skill.
 
 ## The ladder
 

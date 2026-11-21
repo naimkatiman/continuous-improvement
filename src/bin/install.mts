@@ -112,7 +112,7 @@ const COMMAND_FILES = [
 // (observe-event.mjs imports redact-secrets.mjs); a hook with a missing import
 // dies at module load.
 const OBSERVER_LIB_FILES = ["observe-event.mjs", "redact-secrets.mjs", "gateguard-state.mjs"] as const;
-const SESSION_LIB_FILES = ["gateguard-state.mjs", "resolve-home-dir.mjs"] as const;
+const SESSION_LIB_FILES = ["gateguard-state.mjs", "instinct-yaml.mjs", "resolve-home-dir.mjs"] as const;
 const INSTALLED_LIB_FILES: readonly string[] = Array.from(
   new Set<string>([...OBSERVER_LIB_FILES, ...SESSION_LIB_FILES]),
 );

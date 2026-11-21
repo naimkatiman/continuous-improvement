@@ -14,7 +14,7 @@ This directory holds the **source-of-truth** for the companion skills bundled wi
 
 ## Tier 1 — recommended pairing for **beginner** mode
 
-These add concrete enforcement to the 7 Laws. Tier-1 skills are the always-on minimum for any user running `npx continuous-improvement install` (default beginner mode).
+These add concrete enforcement to the 7 Laws. The plugin install bundles every skill on this page, and each one loads when its description matches the task. `npx continuous-improvement install` copies only the core `continuous-improvement` skill and `ship`, in either mode.
 
 | Skill | What it does | Pairs with which Law |
 |-------|--------------|----------------------|
@@ -28,7 +28,7 @@ These add concrete enforcement to the 7 Laws. Tier-1 skills are the always-on mi
 
 ## Tier 2 — additional skills for **expert** mode
 
-Tier-2 skills layer on top of tier-1 for users running `npx continuous-improvement install --mode expert`. They cover response-depth control and context-window discipline that matter once an agent runs longer or more aggressively. Autonomous-mode write safety lives in tier-1 `gateguard` (`CI_GATEGUARD_TARGET_LOCK=block`), which replaced the retired `safety-guard` skill on 2026-08-07.
+Tier-2 skills layer on top of tier-1. They cover response-depth control and context-window discipline that matter once an agent runs longer or more aggressively. Autonomous-mode write safety lives in tier-1 `gateguard` (`CI_GATEGUARD_TARGET_LOCK=block`), which replaced the retired `safety-guard` skill on 2026-08-07.
 
 | Skill | What it does | When it pays off |
 |-------|--------------|------------------|
@@ -36,7 +36,7 @@ Tier-2 skills layer on top of tier-1 for users running `npx continuous-improveme
 | `strategic-compact` | Manual phase-boundary checklist for deciding when to run `/compact` (research→plan, plan→implement, debug→next) instead of relying on arbitrary auto-compaction | Multi-phase tasks that approach context limits |
 | `wild-risa-balance` | Decision-framing lens that pairs WILD (Wild/Imaginative/Limitless/Disruptive) generation with RISA (Realistic/Important/Specific/Agreeable) execution, used to split recommendation lists into bold pilots above a safe baseline | Multi-item recommendation blocks where bold options keep losing to safe ones in a flat list |
 
-The `/learn-eval` slash command also ships as part of the expert install: extract a session pattern, run a checklist quality gate, and decide global-vs-project save location before writing any skill file.
+The `/learn-eval` slash command ships with the plugin, and `npx continuous-improvement install` copies it in either mode: extract a session pattern, run a checklist quality gate, and decide global-vs-project save location before writing any skill file.
 
 ## Other always-bundled companion skills
 
