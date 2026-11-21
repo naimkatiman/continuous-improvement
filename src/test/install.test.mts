@@ -665,7 +665,7 @@ describe("installer - installed entrypoints start from the installed tree", () =
     const packaged = runHook(PACKAGED_SESSION_HOOK, payload);
 
     assert.equal(installed.status, 0, `stderr: ${installed.stderr}`);
-    assert.match(installed.stdout, /^Lessons from continuous-improvement instinct files/);
+    assert.match(installed.stdout, /^Notes from continuous-improvement instinct files/);
     assert.match(
       installed.stdout,
       /\n- \[global\] when staging generated files: Run npm run build first\. \(0\.8\)\n$/,
