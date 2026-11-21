@@ -171,6 +171,10 @@ async function writePluginBundle() {
         copyFileTo(join(REPO_ROOT, "lib", "gateguard-state.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "gateguard-state.mjs")),
         // Imported by hooks/gateguard.mjs. It imports observe-event.mjs, copied below.
         copyFileTo(join(REPO_ROOT, "lib", "gateguard-evidence.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "gateguard-evidence.mjs")),
+        // Imported by gateguard, hook-pack, config-guard-gate, gateguard-evidence and
+        // observe-event: other agents' tool names. It imports patch-paths.mjs.
+        copyFileTo(join(REPO_ROOT, "lib", "agent-profiles.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "agent-profiles.mjs")),
+        copyFileTo(join(REPO_ROOT, "lib", "patch-paths.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "patch-paths.mjs")),
         copyFileTo(join(REPO_ROOT, "lib", "destructive-bash.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "destructive-bash.mjs")),
         copyFileTo(join(REPO_ROOT, "lib", "plugin-metadata.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "plugin-metadata.mjs")),
         copyFileTo(join(REPO_ROOT, "lib", "resolve-home-dir.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "resolve-home-dir.mjs")),

@@ -253,6 +253,16 @@ async function writePluginBundle(): Promise<void> {
       join(REPO_ROOT, "lib", "gateguard-evidence.mjs"),
       join(PLUGIN_BUNDLE_DIR, "lib", "gateguard-evidence.mjs"),
     ),
+    // Imported by gateguard, hook-pack, config-guard-gate, gateguard-evidence and
+    // observe-event: other agents' tool names. It imports patch-paths.mjs.
+    copyFileTo(
+      join(REPO_ROOT, "lib", "agent-profiles.mjs"),
+      join(PLUGIN_BUNDLE_DIR, "lib", "agent-profiles.mjs"),
+    ),
+    copyFileTo(
+      join(REPO_ROOT, "lib", "patch-paths.mjs"),
+      join(PLUGIN_BUNDLE_DIR, "lib", "patch-paths.mjs"),
+    ),
     copyFileTo(
       join(REPO_ROOT, "lib", "destructive-bash.mjs"),
       join(PLUGIN_BUNDLE_DIR, "lib", "destructive-bash.mjs"),

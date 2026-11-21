@@ -29,12 +29,26 @@
 import { readFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 
+import { resolveInboundTool } from "./agent-profiles.mjs";
 import { summariseInput } from "./observe-event.mjs";
 
 /** Tools that act on one file: the row counts when its recorded path is the target. */
 const FILE_TOOLS: ReadonlySet<string> = new Set(["Read", "Edit", "Write", "MultiEdit", "NotebookEdit", "NotebookRead"]);
 /** Shell and search tools: the row counts when its command, pattern or output names the target. */
 const MENTION_TOOLS: ReadonlySet<string> = new Set(["Bash", "PowerShell", "Grep", "Glob"]);
+
+// Other agents' rows carry their own tool names (lib/agent-profiles.mjs). The
+// observer records a file alias by its path and a shell or patch by its text,
+// and keeps a search alias's input as JSON, so they sort the same way.
+function isFileTool(tool: string): boolean {
+  const kind = resolveInboundTool(tool)?.kind;
+  return FILE_TOOLS.has(tool) || kind === "file-read" || kind === "file-write";
+}
+
+function isMentionTool(tool: string): boolean {
+  const kind = resolveInboundTool(tool)?.kind;
+  return MENTION_TOOLS.has(tool) || kind === "shell" || kind === "search" || kind === "patch";
+}
 
 // Windows file names and drive letters do not distinguish case.
 const IGNORE_CASE = process.platform === "win32";
@@ -178,7 +192,7 @@ function mentions(summary: string, mention: RegExp): boolean {
 }
 
 function isEvidence(row: Row, target: Target, cwd: string): boolean {
-  if (FILE_TOOLS.has(row.tool)) {
+  if (isFileTool(row.tool)) {
     return recordedPaths(row.input_summary).some((path) => fileKey(path, cwd) === target.key);
   }
   if (target.mention === null) return false;
@@ -233,7 +247,7 @@ export function findEvidence(
       row !== null &&
       row.session === sessionId &&
       row.event === "tool_complete" &&
-      (FILE_TOOLS.has(row.tool) || MENTION_TOOLS.has(row.tool))
+      (isFileTool(row.tool) || isMentionTool(row.tool))
     ) {
       for (const target of targets) {
         if (!seen.has(target.path) && isEvidence(row, target, cwd)) seen.add(target.path);

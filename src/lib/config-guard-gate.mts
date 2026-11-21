@@ -14,6 +14,8 @@
 // and the pattern list are ours. Fail-open by construction: an unrecognized mode
 // resolves to warn, and a call that names no protected path is always allowed.
 
+import { inboundCommand, inboundPaths, resolveInboundTool } from "./agent-profiles.mjs";
+
 export type ConfigGuardMode = "off" | "warn" | "block";
 export type ConfigGuardAction = "allow" | "warn" | "block";
 
@@ -556,12 +558,33 @@ export function classifyMutation(toolName: string, toolInput: Record<string, unk
     return null;
   }
   if (SHELL_TOOLS.has(toolName) && typeof toolInput.command === "string" && toolInput.command.trim() !== "") {
-    for (const segment of allSimpleCommands(toolInput.command)) {
-      const hit = classifyBashSegment(segment);
-      if (hit) return hit;
-    }
+    return classifyShellCommand(toolInput.command);
+  }
+  return classifyAliasMutation(toolName, toolInput);
+}
+
+function classifyShellCommand(command: string): ConfigMutation | null {
+  for (const segment of allSimpleCommands(command)) {
+    const hit = classifyBashSegment(segment);
+    if (hit) return hit;
   }
   return null;
+}
+
+// Another agent's tool name (lib/agent-profiles.mjs, never a Claude Code one):
+// a file or patch tool is judged by the paths it names (a patch's come from its
+// *** File headers, a Delete included), a shell by the shell rules above.
+function classifyAliasMutation(toolName: string, toolInput: Record<string, unknown>): ConfigMutation | null {
+  const alias = resolveInboundTool(toolName);
+  if (alias?.kind === "file-write" || alias?.kind === "patch") {
+    for (const p of inboundPaths(alias, toolInput)) {
+      const pattern = matchProtectedPath(p);
+      if (pattern) return { target: p, pattern, via: "file" };
+    }
+    return null;
+  }
+  const command = alias === null ? null : inboundCommand(alias, toolInput);
+  return command !== null && command.trim() !== "" ? classifyShellCommand(command) : null;
 }
 
 export function decide(mode: ConfigGuardMode, gated: boolean, reason: string): ConfigGuardDecision {

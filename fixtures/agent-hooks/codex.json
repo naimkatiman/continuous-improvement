@@ -1,0 +1,214 @@
+{
+  "agent": "codex",
+  "checked": "2026-11-21",
+  "about": "Codex CLI 0.171.0 PreToolUse and PostToolUse payloads run through the unchanged Claude plugin hooks. Read by src/test/agent-tool-aliases.test.mts. expect.decision is deny (stdout carries a permissionDecision deny), allow (empty stdout, exit 0) or warn (empty stdout, exit 0, stderr says why). Placeholders: <HOME> and <PROJECT> are the per-case temp home and project, <PROJECT_HASH> hashProjectRoot(<PROJECT>). platform win32 or posix limits a case to that host.",
+  "sources": {
+    "payload": "Verified research, Codex entry, hook_payload_example: required keys from codex-rs/hooks/schema/generated/pre-tool-use.command.input.schema.json at rust-v0.171.0 (cwd, hook_event_name, model, permission_mode, session_id, tool_input, tool_name, tool_use_id, transcript_path, turn_id). Bash tool_input is {command}, built from exec_command.rs json!({ \"command\": args.cmd }).",
+    "tool_names": "Verified research, Codex entry, tool_names: the shell is \"Bash\" (also PowerShell on Windows); edits and writes are \"apply_patch\" with the full patch text in tool_input.command and the paths only in the *** Add File / *** Update File / *** Delete File headers. exec_command is the model-facing name, normalized to Bash in hook payloads. Skeptic verdict hook_pre_tool: tool names and tool_input.command for both Bash and apply_patch hold.",
+    "matcher": "The Claude matcher Bash|PowerShell|Monitor|Edit|MultiEdit|Write|NotebookEdit still matches Bash and apply_patch on Codex (tool_names: the matcher may also say Edit or Write for apply_patch), so the hooks fire; Skill never matches."
+  },
+  "cases": [
+    {
+      "id": "codex/bash-destructive-deny",
+      "note": "Codex reports its shell as Bash, which the Claude route already gates. Pinned so the alias work cannot regress it.",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "stdin": {
+            "session_id": "codex-session",
+            "transcript_path": null,
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PreToolUse",
+            "model": "gpt-5.5",
+            "permission_mode": "default",
+            "turn_id": "turn-1",
+            "tool_name": "Bash",
+            "tool_use_id": "call_1",
+            "tool_input": { "command": "git push --force origin main" }
+          },
+          "expect": { "decision": "deny", "stdoutIncludes": "git-push-force" }
+        }
+      ]
+    },
+    {
+      "id": "codex/apply-patch-blind-update-deny",
+      "note": "Before the aliases, apply_patch was an unknown tool and every patch was allowed.",
+      "setup": {
+        "files": {
+          "<PROJECT>/src/app.ts": "export const answer = 42;\n",
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            { "ts": "2026-11-21T00:00:00Z", "event": "tool_complete", "session": "codex-session", "tool": "Bash", "input_summary": "git status", "output_summary": "On branch main" }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "stdin": {
+            "session_id": "codex-session",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PreToolUse",
+            "model": "gpt-5.5",
+            "permission_mode": "default",
+            "turn_id": "turn-1",
+            "tool_name": "apply_patch",
+            "tool_use_id": "call_2",
+            "tool_input": { "command": "*** Begin Patch\n*** Update File: src/app.ts\n@@\n-export const answer = 42;\n+export const answer = 43;\n*** End Patch" }
+          },
+          "expect": { "decision": "deny", "stdoutIncludes": "shows no read of src/app.ts" }
+        }
+      ]
+    },
+    {
+      "id": "codex/bash-read-then-apply-patch-allow",
+      "note": "Codex has no Read tool and reads through Bash, so the observer's Bash row is the evidence for the patch.",
+      "setup": {
+        "files": {
+          "<PROJECT>/src/app.ts": "export const answer = 42;\n",
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": []
+        }
+      },
+      "steps": [
+        {
+          "hook": "bin/observe.mjs",
+          "stdin": {
+            "session_id": "codex-session",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Bash",
+            "tool_use_id": "call_1",
+            "tool_input": { "command": "cat src/app.ts" },
+            "tool_response": "export const answer = 42;"
+          },
+          "expect": { "decision": "allow" }
+        },
+        {
+          "hook": "hooks/gateguard.mjs",
+          "stdin": {
+            "session_id": "codex-session",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "apply_patch",
+            "tool_use_id": "call_2",
+            "tool_input": { "command": "*** Begin Patch\n*** Update File: src/app.ts\n@@\n-42\n+43\n*** End Patch" }
+          },
+          "expect": { "decision": "allow" }
+        }
+      ]
+    },
+    {
+      "id": "codex/apply-patch-add-file-allow",
+      "setup": {
+        "files": {
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            { "ts": "2026-11-21T00:00:00Z", "event": "tool_complete", "session": "codex-session", "tool": "Bash", "input_summary": "git status", "output_summary": "" }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "stdin": {
+            "session_id": "codex-session",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "apply_patch",
+            "tool_use_id": "call_3",
+            "tool_input": { "command": "*** Begin Patch\n*** Add File: src/new.ts\n+export const x = 1;\n*** End Patch" }
+          },
+          "expect": { "decision": "allow" }
+        }
+      ]
+    },
+    {
+      "id": "codex/apply-patch-strict-deny",
+      "note": "The plan's 'Codex apply_patch gated' gate.",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "env": { "CI_GATEGUARD_FILE_GATE": "strict" },
+          "stdin": {
+            "session_id": "codex-session",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "apply_patch",
+            "tool_use_id": "call_4",
+            "tool_input": { "command": "*** Begin Patch\n*** Update File: package.json\n*** End Patch" }
+          },
+          "expect": { "decision": "deny", "stdoutIncludes": "package.json" }
+        }
+      ]
+    },
+    {
+      "id": "codex/apply-patch-unparseable-strict-deny",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "env": { "CI_GATEGUARD_FILE_GATE": "strict" },
+          "stdin": {
+            "session_id": "codex-session",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "apply_patch",
+            "tool_use_id": "call_5",
+            "tool_input": { "command": "this is not a patch" }
+          },
+          "expect": { "decision": "deny", "stdoutIncludes": "names no file" }
+        }
+      ]
+    },
+    {
+      "id": "codex/apply-patch-unparseable-evidence-warn",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "stdin": {
+            "session_id": "codex-session",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "apply_patch",
+            "tool_use_id": "call_6",
+            "tool_input": { "command": "this is not a patch" }
+          },
+          "expect": { "decision": "warn", "stderrIncludes": "names no file" }
+        }
+      ]
+    },
+    {
+      "id": "codex/apply-patch-settings-config-guard-block",
+      "steps": [
+        {
+          "hook": "hooks/config-guard.mjs",
+          "env": { "CI_CONFIG_GUARD": "block" },
+          "stdin": {
+            "session_id": "codex-session",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "apply_patch",
+            "tool_use_id": "call_7",
+            "tool_input": { "command": "*** Begin Patch\n*** Update File: .claude/settings.json\n@@\n-{}\n+{\"hooks\":{}}\n*** End Patch" }
+          },
+          "expect": { "decision": "deny", "stdoutIncludes": ".claude/settings.json" }
+        }
+      ]
+    },
+    {
+      "id": "codex/exec-command-destructive-deny",
+      "note": "exec_command is Codex's model-facing shell name; hook payloads report Bash. Gated anyway, reading the model-facing cmd key.",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "stdin": {
+            "session_id": "codex-session",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "exec_command",
+            "tool_use_id": "call_8",
+            "tool_input": { "cmd": "git push --force origin main" }
+          },
+          "expect": { "decision": "deny", "stdoutIncludes": "git-push-force" }
+        }
+      ]
+    }
+  ]
+}
