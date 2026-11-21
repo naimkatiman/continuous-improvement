@@ -188,7 +188,9 @@ function getRecentObservations(projectHash, limit = 50) {
             .filter((line) => line.trim().length > 0);
         return lines.slice(-cappedLimit).flatMap((line) => {
             try {
-                return [JSON.parse(line)];
+                // A row that parses to null, a number or an array is not an observation.
+                const row = asRecord(JSON.parse(line));
+                return row ? [row] : [];
             }
             catch {
                 return [];
@@ -1004,10 +1006,12 @@ function handleTool(name, params) {
             const autoBar = "█".repeat(Math.min(10, byConfidence.auto.length)) + "░".repeat(Math.max(0, 10 - byConfidence.auto.length));
             const suggestBar = "█".repeat(Math.min(10, byConfidence.suggest.length)) + "░".repeat(Math.max(0, 10 - byConfidence.suggest.length));
             const silentBar = "█".repeat(Math.min(10, byConfidence.silent.length)) + "░".repeat(Math.max(0, 10 - byConfidence.silent.length));
+            // A hand-edited file can hold any confidence; the bar stays 0 to 10 cells.
+            const barCells = (confidence) => Math.max(0, Math.min(10, Math.round(confidence * 10)));
             const top5 = instincts
                 .sort((left, right) => right.confidence - left.confidence)
                 .slice(0, 5)
-                .map((instinct) => `  ${"█".repeat(Math.round(instinct.confidence * 10)) + "░".repeat(10 - Math.round(instinct.confidence * 10))} ${instinct.confidence.toFixed(2)} ${instinct.id}`)
+                .map((instinct) => `  ${"█".repeat(barCells(instinct.confidence)) + "░".repeat(10 - barCells(instinct.confidence))} ${instinct.confidence.toFixed(2)} ${instinct.id}`)
                 .join("\n");
             let packInfo = "";
             if (existsSync(PACKS_DIR)) {
@@ -1118,16 +1122,15 @@ rl.on("line", (line) => {
     if (!message) {
         return;
     }
-    // A handler that throws (a filesystem error, a malformed file on disk) is
-    // answered with a JSON-RPC error so the client is not left waiting, and the
-    // server goes on reading.
+    // A method handler that throws (a filesystem error, a malformed file on disk)
+    // is answered with a JSON-RPC error so the client is not left waiting, and the
+    // server goes on reading. tools/call answers its own failures in handleMessage.
     try {
         handleMessage(message);
     }
     catch (err) {
         const reason = err instanceof Error ? err.message : String(err);
-        const params = asRecord(message.params);
-        const label = message.method === "tools/call" && params ? getString(params.name, "tools/call") : getString(message.method, "request");
+        const label = getString(message.method, "request");
         console.error(`${PACKAGE_NAME} MCP server: ${label} failed: ${reason}`);
         if (message.id !== undefined) {
             send({ jsonrpc: "2.0", id: message.id, error: { code: -32603, message: `${label} failed: ${reason}` } });
@@ -1175,7 +1178,17 @@ function handleMessage(message) {
         case "tools/call": {
             const toolName = getString(params.name);
             const toolArgs = asRecord(params.arguments) ?? {};
-            const result = handleTool(toolName, toolArgs);
+            // A tool that throws is answered as a failed tool call (isError), so the
+            // model reads the reason; other methods that throw get -32603 below.
+            let result;
+            try {
+                result = handleTool(toolName, toolArgs);
+            }
+            catch (err) {
+                const reason = `${toolName || "tools/call"} failed: ${err instanceof Error ? err.message : String(err)}`;
+                console.error(`${PACKAGE_NAME} MCP server: ${reason}`);
+                result = error(reason);
+            }
             send({ jsonrpc: "2.0", id, result });
             break;
         }

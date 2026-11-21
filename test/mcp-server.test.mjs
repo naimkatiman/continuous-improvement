@@ -810,18 +810,26 @@ describe("MCP server — a failing request is answered, not dropped (expert)", (
             // Windows can briefly keep stdio handles open after the child exits.
         }
     });
-    it("a tool handler that throws gets a JSON-RPC error with the request id, and the server keeps serving", async () => {
+    it("a tool handler that throws gets a tool error with the request id, and the server keeps serving", async () => {
         // ci_plan_init with force overwrites task_plan.md; a directory in its place
         // makes writeFileSync throw inside the handler.
         mkdirSync(join(tempWorkspace, "task_plan.md"), { recursive: true });
         const response = await call("ci_plan_init", { goal: "Answer every request", force: true }, "throwing-call");
-        assert.equal(response.id, "throwing-call", "the error must carry the id of the request that failed");
-        assert.equal(response.result, undefined);
-        assert.equal(response.error?.code, -32603);
-        assert.match(response.error?.message ?? "", /ci_plan_init failed/);
+        assert.equal(response.id, "throwing-call", "the result must carry the id of the request that failed");
+        assert.equal(response.error, undefined, "a failed tool call is a tool result, not a protocol error");
+        assert.ok(response.result?.isError, "the result must be flagged isError");
+        assert.match(response.result.content[0].text, /ci_plan_init failed/);
         const next = await call("ci_status", {});
         assert.ok(!next.error, "the next request must still be answered");
         assert.match(next.result.content[0].text, /continuous-improvement Status/);
+    });
+    it("ci_plan_status answers with a tool error when task_plan.md is a directory", async () => {
+        mkdirSync(join(tempWorkspace, "task_plan.md"), { recursive: true });
+        const response = await call("ci_plan_status", {}, "plan-status-dir");
+        assert.equal(response.id, "plan-status-dir");
+        assert.equal(response.error, undefined, "a failed tool call is a tool result, not a protocol error");
+        assert.ok(response.result?.isError, "the result must be flagged isError");
+        assert.match(response.result.content[0].text, /ci_plan_status failed/);
     });
     it("a line that is not valid JSON on its own is still buffered until the message is complete", async () => {
         const response = await client.sendRaw('{"jsonrpc": "2.0", "id": "split-line",\n"method": "tools/list", "params": {}}\n', "a message split across two lines");
@@ -878,6 +886,80 @@ describe("MCP server — a failing request is answered, not dropped (expert)", (
         const content = readFileSync(join(projectDir, files[0]), "utf8");
         assert.match(content, /^id: Parallelize-Independent-Tool-Calls$/m);
         assert.match(content, /my own trigger/);
+    });
+    // A hand-edited file can claim any confidence. The top-instincts bar used
+    // "░".repeat(10 - 70), which throws, so the dashboard answered nothing.
+    it("ci_dashboard draws an instinct whose file says confidence 7", async () => {
+        writeFileSync(join(projectDir, "hand-edited-seven.yaml"), 'id: hand-edited-seven\ntrigger: "when the file was edited by hand"\nconfidence: 7\n---\nA confidence past the scale.\n');
+        const response = await call("ci_dashboard", {}, "dashboard-seven");
+        assert.equal(response.error, undefined, response.error?.message);
+        assert.ok(!response.result.isError, response.result.content[0].text);
+        assert.match(response.result.content[0].text, /██████████ 7\.00 hand-edited-seven/);
+    });
+    // observations.jsonl is appended by hooks and can hold a row that parses to
+    // JSON null; reading `.ts` off it threw inside both handlers.
+    it("ci_observations and ci_recall skip an observation row that is JSON null", async () => {
+        mkdirSync(projectDir, { recursive: true });
+        writeFileSync(join(projectDir, "observations.jsonl"), [
+            JSON.stringify({ ts: "2026-11-20T10:00:00Z", event: "tool_complete", tool: "Grep", input_summary: "search for nullrow marker" }),
+            "null",
+            JSON.stringify({ ts: "2026-11-20T10:01:00Z", event: "tool_complete", tool: "Edit", input_summary: "edit after nullrow marker" }),
+            "",
+        ].join("\n"));
+        const observations = await call("ci_observations", { limit: 10 }, "observations-null-row");
+        assert.equal(observations.error, undefined, observations.error?.message);
+        assert.ok(!observations.result.isError, observations.result.content[0].text);
+        assert.match(observations.result.content[0].text, /Recent Observations \(2\)/);
+        const recall = await call("ci_recall", { query: "nullrow" }, "recall-null-row");
+        assert.equal(recall.error, undefined, recall.error?.message);
+        assert.ok(!recall.result.isError, recall.result.content[0].text);
+        assert.match(recall.result.content[0].text, /nullrow/);
+    });
+});
+describe("MCP server — a method other than tools/call that throws gets -32603 (expert)", () => {
+    let client;
+    let tempHome = "";
+    before(async () => {
+        tempHome = mkdtempSync(join(tmpdir(), "ci-mcp-throw-method-"));
+        const instinctsRoot = join(tempHome, ".claude", "instincts");
+        mkdirSync(instinctsRoot, { recursive: true });
+        // A file where the global directory belongs makes readdirSync throw in
+        // every reader of the store.
+        writeFileSync(join(instinctsRoot, "global"), "not a directory\n");
+        const workspace = join(tempHome, "workspace");
+        mkdirSync(workspace, { recursive: true });
+        const env = { ...process.env, HOME: tempHome, USERPROFILE: tempHome, CLAUDE_PROJECT_DIR: workspace };
+        const proc = spawn("node", [MCP_SERVER, "--mode", "expert"], { env, cwd: workspace, stdio: ["pipe", "pipe", "pipe"] });
+        client = new McpTestClient(proc);
+        await new Promise((resolve) => setTimeout(resolve, 200));
+    });
+    after(async () => {
+        client.destroy();
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        try {
+            rmSync(tempHome, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+        }
+        catch {
+            // Windows can briefly keep stdio handles open after the child exits.
+        }
+    });
+    it("resources/read answers with a JSON-RPC -32603 error", async () => {
+        const response = await client.send({ jsonrpc: "2.0", id: "read-throws", method: "resources/read", params: { uri: "instincts://global" } });
+        assert.equal(response.id, "read-throws");
+        assert.equal(response.error?.code, -32603);
+        assert.match(response.error?.message ?? "", /resources\/read failed/);
+    });
+    it("tools/call on the same broken store answers with a tool error", async () => {
+        const response = await client.send({
+            jsonrpc: "2.0",
+            id: "status-throws",
+            method: "tools/call",
+            params: { name: "ci_status", arguments: {} },
+        });
+        assert.equal(response.id, "status-throws");
+        assert.equal(response.error, undefined, "a failed tool call is a tool result, not a protocol error");
+        assert.ok(response.result?.isError, "the result must be flagged isError");
+        assert.match(response.result.content[0].text, /ci_status failed/);
     });
 });
 describe("Plugin configs", () => {
