@@ -90,6 +90,8 @@ interface Row {
   tool: string;
   input_summary: string;
   output_summary: string;
+  /** The --agent of a non-Claude row; "" on a Claude row, which carries none. */
+  agent: string;
 }
 
 /** What the observer writes for a path: redacted, then cut at its input budget. */
@@ -156,6 +158,7 @@ function parseRow(line: string): Row | null {
     tool: text(fields.tool),
     input_summary: text(fields.input_summary),
     output_summary: text(fields.output_summary),
+    agent: text(fields.agent),
   };
 }
 
@@ -217,7 +220,8 @@ function isEvidence(row: Row, target: Target, cwd: string): boolean {
  * A row counts when it is a completed call of this session and either a file
  * tool recorded the same file, a patch header named it, or a shell or search
  * tool named the file's base name in its command, pattern or output. Relative
- * paths, on either side, are resolved against `cwd`.
+ * paths, on either side, are resolved against `cwd`. With no session id, only a
+ * Claude row (one with no `agent` field) under session "" counts.
  *
  * The log is searched from its end and the search stops once every path is
  * accounted for. It runs before every edit of a file the session state does
@@ -256,6 +260,10 @@ export function findEvidence(
     if (
       row !== null &&
       row.session === sessionId &&
+      // Session "" is no conversation. A Claude row under it is the legacy
+      // session-less case, but a row another agent wrote under it may be any
+      // conversation of any agent, so it never shows a read.
+      !(sessionId === "" && row.agent !== "") &&
       row.event === "tool_complete" &&
       (isFileTool(row.tool) || isPatchTool(row.tool) || isMentionTool(row.tool))
     ) {

@@ -310,4 +310,19 @@ describe("observe a read, then gate the edit, on every hook agent", () => {
         const run = await runHook("hooks/gateguard.mjs", ["--agent", "goose"], strip(fill(goose.evidence.edit, "x", read)), ROUTINE, {}, false, dirs);
         assertDeny(goose.expect.deny, run, "goose edit with no session id", "names no session");
     });
+    it("another agent's session-less read does not clear a session-less Claude-shaped edit", async () => {
+        // The Amp/OpenCode bridge runs the hooks as --agent claude and omits
+        // session_id when it has none, so a Claude-selected edit can name no
+        // session. A row another agent wrote under session "" is not its read.
+        const goose = fixtures.find((fixture) => fixture.agent === "goose");
+        const claude = fixtures.find((fixture) => fixture.agent === "claude");
+        const strip = (payload) => {
+            const { session_id: _session, ...rest } = payload.stdin;
+            return { ...payload, stdin: rest };
+        };
+        const { dirs, read } = evidenceWorkspace();
+        await runHook("bin/observe.mjs", ["--agent", "goose"], strip(fill(goose.evidence.read, "x", read)), ROUTINE, {}, false, dirs);
+        const run = await runHook("hooks/gateguard.mjs", [], strip(fill(claude.evidence.edit, "x", read)), ROUTINE, {}, false, dirs);
+        assertDeny(claude.expect.deny, run, "session-less claude edit after a session-less goose read", "notes.txt");
+    });
 });
