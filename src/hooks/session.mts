@@ -57,6 +57,7 @@ function readHead(path: string): string {
     }
   }
 }
+const COPILOT_START_SOURCES: ReadonlySet<string> = new Set(["startup", "resume", "new"]);
 // The payload comes back too: its working directory picks the project root
 // when no agent sets a project-dir env var.
 function readPayload(): { event: SessionEvent; payload: Record<string, unknown> } | null {
@@ -65,7 +66,12 @@ function readPayload(): { event: SessionEvent; payload: Record<string, unknown> 
   const payload = parsed.value as Record<string, unknown> | null;
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
   // Cursor and Copilot say sessionStart, Kiro agentSpawn, Cline (hookName) TaskStart.
-  const event = claudeEventName(payload.hook_event_name ?? payload.hook_type ?? payload.event_type ?? payload.hookName);
+  const name = payload.hook_event_name ?? payload.hook_type ?? payload.event_type ?? payload.hookName;
+  // Copilot's camelCase sessionStart stdin names no event: it is sessionId,
+  // timestamp, cwd, optional initialPrompt and a source of startup, resume or new.
+  const event = name === undefined && !("hookEventName" in payload) && !("event" in payload) && COPILOT_START_SOURCES.has(String(payload.source))
+    ? "SessionStart"
+    : claudeEventName(name);
   return { event: event === "SessionStart" || event === "SessionEnd" ? event : "unknown", payload };
 }
 // Each trigger and body goes through flatten (src/lib/instinct-yaml.mts), so a

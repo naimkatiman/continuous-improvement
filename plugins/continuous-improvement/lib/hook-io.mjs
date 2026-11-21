@@ -103,19 +103,34 @@ const GEMINI_EVENTS = new Set([
 const NON_CLAUDE_EVENTS = new Set([
     ...CURSOR_EVENTS, ...GEMINI_EVENTS, "agentStop", "userPromptSubmitted", "errorOccurred", "agentSpawn", "AgentSpawn",
 ]);
+// A hook_event_name that names a Claude Code event, as Qwen and Devin send.
+function claudeNamed(fields) {
+    return typeof fields.hook_event_name === "string" && !NON_CLAUDE_EVENTS.has(fields.hook_event_name);
+}
+// Qwen's createBaseInput adds a string timestamp and its tool calls add
+// tool_call_id. Neither is in Claude Code's or Devin's documented payloads.
+function qwenMarked(fields) {
+    return typeof fields.timestamp === "string" || "tool_call_id" in fields;
+}
+const DEVIN_KEYS = ["prompt_id", "tool_provenance", "trajectory_id", "execution_id"];
 const SNIFFS = [
     // Cursor: CURSOR_VERSION / CURSOR_PROJECT_DIR; payloads carry cursor_version and camelCase events.
-    { agent: "cursor", env: ["CURSOR_VERSION", "CURSOR_PROJECT_DIR"], shape: (f) => typeof f.cursor_version === "string" || CURSOR_EVENTS.has(String(f.hook_event_name)) },
+    { agent: "cursor", env: ["CURSOR_VERSION", "CURSOR_PROJECT_DIR"], foreign: true, shape: (f) => typeof f.cursor_version === "string" || CURSOR_EVENTS.has(String(f.hook_event_name)) },
     // Gemini: GEMINI_SESSION_ID / GEMINI_CWD (Qwen also sets GEMINI_PROJECT_DIR, so it is not used); Gemini's own event names.
-    { agent: "gemini", env: ["GEMINI_SESSION_ID", "GEMINI_CWD"], shape: (f) => GEMINI_EVENTS.has(String(f.hook_event_name)) },
-    // Devin: DEVIN_PROJECT_DIR; Claude-format payloads add prompt_id, tool_provenance, trajectory_id or execution_id.
-    { agent: "devin", env: ["DEVIN_PROJECT_DIR"], shape: (f) => ["prompt_id", "tool_provenance", "trajectory_id", "execution_id"].some((key) => key in f) },
+    { agent: "gemini", env: ["GEMINI_SESSION_ID", "GEMINI_CWD"], foreign: true, shape: (f) => GEMINI_EVENTS.has(String(f.hook_event_name)) },
+    // Gemini keeps the Claude names SessionStart and SessionEnd; its base payload adds a string timestamp.
+    { agent: "gemini", env: ["GEMINI_SESSION_ID", "GEMINI_CWD"], shape: (f) => (f.hook_event_name === "SessionStart" || f.hook_event_name === "SessionEnd") && typeof f.timestamp === "string" },
+    // Devin: DEVIN_PROJECT_DIR; Claude-named events whose payloads add prompt_id, tool_provenance, trajectory_id
+    // or execution_id. Qwen payloads carry prompt_id too, so Qwen's own keys rule Devin out.
+    { agent: "devin", env: ["DEVIN_PROJECT_DIR"], shape: (f) => claudeNamed(f) && !qwenMarked(f) && DEVIN_KEYS.some((key) => key in f) },
+    // Devin's SessionStart has no prompt_id ("Absent for events that fire before the first user prompt"): it
+    // carries source startup or resume and session_id, with no transcript_path (which Claude Code always sends).
+    { agent: "devin", env: ["DEVIN_PROJECT_DIR"], shape: (f) => f.hook_event_name === "SessionStart" && (f.source === "startup" || f.source === "resume") && !("transcript_path" in f) && !qwenMarked(f) },
     // Grok: GROK_SESSION_ID / GROK_WORKSPACE_ROOT / GROK_HOOK_EVENT; payloads carry the camelCase hookEventName too.
     { agent: "grok", env: ["GROK_SESSION_ID", "GROK_WORKSPACE_ROOT", "GROK_HOOK_EVENT"], shape: (f) => typeof f.hookEventName === "string" },
-    // Qwen: QWEN_PROJECT_DIR; createBaseInput adds timestamp and tool calls add tool_call_id.
-    { agent: "qwen", env: ["QWEN_PROJECT_DIR"], shape: (f) => typeof f.timestamp === "string" || "tool_call_id" in f },
+    // Qwen: QWEN_PROJECT_DIR; a Claude event name plus createBaseInput's timestamp or a tool call's tool_call_id.
+    { agent: "qwen", env: ["QWEN_PROJECT_DIR"], shape: (f) => claudeNamed(f) && qwenMarked(f) },
 ];
-const KNOWN_AGENTS = new Set(AGENT_IDS);
 function isSet(value) {
     return typeof value === "string" && value.trim() !== "";
 }
@@ -152,10 +167,15 @@ export function selectAgent(args, env, payload) {
     const fields = asRecord(payload);
     if (fields === null)
         return "claude";
-    const sniffed = SNIFFS.find((sniff) => sniff.env.some((name) => isSet(env[name])) && sniff.shape(fields));
+    // On a payload that is clearly not Claude's, only a sniff whose shape is
+    // itself non-Claude may name the agent. A stray env var must not move another
+    // agent's payload (Goose's tool_call_id, Cline's string timestamp) off the
+    // exit 2 fallback into output that agent does not read as a deny.
+    const notClaude = clearlyNotClaude(fields);
+    const sniffed = SNIFFS.find((sniff) => (sniff.foreign || !notClaude) && sniff.env.some((name) => isSet(env[name])) && sniff.shape(fields));
     if (sniffed)
         return sniffed.agent;
-    return clearlyNotClaude(fields) ? FALLBACK_AGENT : "claude";
+    return notClaude ? FALLBACK_AGENT : "claude";
 }
 /** The agent for this hook process: its argv, its env, and the stdin it already read (never read here). */
 export function hookAgent() {

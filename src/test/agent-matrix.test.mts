@@ -187,6 +187,19 @@ function assertDeny(expect: DenyExpect, run: Run, where: string): void {
   }
 }
 
+function assertContext(expect: ContextExpect, run: Run, where: string): void {
+  const detail = `${where}\nstdout: ${run.stdout}\nstderr: ${run.stderr}`;
+  assert.equal(run.status, 0, detail);
+  if ("none" in expect) {
+    assert.equal(run.stdout, "", detail);
+  } else if ("plain" in expect) {
+    assert.ok(run.stdout.includes(LESSON) && !run.stdout.startsWith("{"), detail);
+  } else {
+    const text = at(JSON.parse(run.stdout) as unknown, expect.jsonAt);
+    assert.ok(typeof text === "string" && text.includes(LESSON), detail);
+  }
+}
+
 const CLAUDE_DENY: DenyExpect = {
   source: "fixtures/agent-matrix/claude.json",
   exitCode: 0,
@@ -265,20 +278,32 @@ for (const fixture of fixtures) {
 
     it("context: session start puts a stored lesson in the agent's verified field", async () => {
       const run = await runHook("hooks/session.mjs", flag, fixture.events.SessionStart!, ROUTINE, {}, true);
-      const where = `${fixture.agent}\nstdout: ${run.stdout}\nstderr: ${run.stderr}`;
-      assert.equal(run.status, 0, where);
-      const expect = fixture.expect.context;
-      if ("none" in expect) {
-        assert.equal(run.stdout, "", where);
-      } else if ("plain" in expect) {
-        assert.ok(run.stdout.includes(LESSON) && !run.stdout.startsWith("{"), where);
-      } else {
-        const text = at(JSON.parse(run.stdout) as unknown, expect.jsonAt);
-        assert.ok(typeof text === "string" && text.includes(LESSON), where);
-      }
+      assertContext(fixture.expect.context, run, `${fixture.agent} --agent`);
+    });
+
+    it("context without --agent: the sniff picks the agent's field at session start too", { skip: fixture.selection.sniff ? false : "no sniff" }, async () => {
+      const run = await runHook("hooks/session.mjs", [], fixture.events.SessionStart!, ROUTINE, fixture.selection.sniff!.env, true);
+      assertContext(fixture.expect.context, run, `${fixture.agent} sniff`);
     });
   });
 }
+
+describe("a session payload that names no event", () => {
+  // Copilot's camelCase sessionStart is read as SessionStart by its source alone,
+  // so a payload with no event key and no start source prints no lessons.
+  for (const stdin of [
+    { sessionId: "c", cwd: "<PROJECT>" },
+    { sessionId: "c", cwd: "<PROJECT>", source: "compact" },
+    { sessionId: "c", cwd: "<PROJECT>", source: 3 },
+    { sessionId: "c", cwd: "<PROJECT>", source: "new", event: "Stop" },
+  ]) {
+    it(`prints no lessons for ${JSON.stringify(stdin)}`, async () => {
+      const run = await runHook("hooks/session.mjs", ["--agent", "copilot"], { source: "edge case", checked: "2026-11-22", unverified: [], stdin }, ROUTINE, {}, true);
+      assert.equal(run.status, 0, run.stderr);
+      assert.equal(run.stdout, "", run.stderr);
+    });
+  }
+});
 
 describe("an agent id with no encoder", () => {
   it("fails closed: a deny is exit 2 with the reason on stderr, not an allow", async () => {

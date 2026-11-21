@@ -24,6 +24,7 @@ import {
   parsePayload,
   runHook,
   selectAgent,
+  type Decision,
   type EncodedOutput,
   type HookStreams,
 } from "../lib/hook-io.mjs";
@@ -558,6 +559,61 @@ describe("selectAgent", () => {
     assert.equal(selectAgent([], { DEVIN_PROJECT_DIR: "/r" }, { ...claudePayload, prompt_id: "p" }), "devin");
     assert.equal(selectAgent([], { GROK_SESSION_ID: "x" }, { ...claudePayload, hookEventName: "pre_tool_use" }), "grok");
     assert.equal(selectAgent([], { QWEN_PROJECT_DIR: "/r" }, { ...claudePayload, timestamp: "2026-11-21T00:00:00Z" }), "qwen");
+  });
+
+  it("a stray agent env var never changes the deny another agent's own payload gets", () => {
+    // Each agent's verified PreToolUse payload, with every other agent's sniff
+    // env var set: the deny bytes stay what the payload gets with no env var.
+    // Goose (tool_call_id), Cline (string timestamp) and Qwen (prompt_id) carry
+    // keys another agent's sniff once read as its own shape, and the stray
+    // agent's format is one the real agent does not read as a deny.
+    const dir = new URL("../fixtures/agent-matrix/", import.meta.url);
+    const fixtures = AGENT_IDS.map((agent) => JSON.parse(readFileSync(new URL(`${agent}.json`, dir), "utf8")) as {
+      agent: string;
+      selection: { sniff: { env: Record<string, string> } | null };
+      events: { PreToolUse: { stdin: unknown } };
+    });
+    const deny: Decision = { kind: "deny", reason: "r" };
+    const changed: string[] = [];
+    for (const fixture of fixtures) {
+      const payload = fixture.events.PreToolUse.stdin;
+      const bare = encode(selectAgent([], {}, payload), "PreToolUse", deny);
+      for (const other of fixtures) {
+        if (other.agent === fixture.agent || other.selection.sniff === null) continue;
+        const agent = selectAgent([], other.selection.sniff.env, payload);
+        if (JSON.stringify(encode(agent, "PreToolUse", deny)) !== JSON.stringify(bare)) changed.push(`${fixture.agent} payload with ${other.agent} env -> ${agent}`);
+      }
+    }
+    assert.deepEqual(changed, []);
+    assert.equal(encode(selectAgent([], { QWEN_PROJECT_DIR: "/r" }, fixtures.find((f) => f.agent === "goose")!.events.PreToolUse.stdin), "PreToolUse", deny).exitCode, 2);
+    assert.equal(encode(selectAgent([], { QWEN_PROJECT_DIR: "/r" }, fixtures.find((f) => f.agent === "cline")!.events.PreToolUse.stdin), "PreToolUse", deny).exitCode, 2);
+    assert.notEqual(selectAgent([], { DEVIN_PROJECT_DIR: "/r" }, fixtures.find((f) => f.agent === "qwen")!.events.PreToolUse.stdin), "devin");
+  });
+
+  it("the Qwen and Devin sniffs need a Claude event name, and Devin's shape rejects Qwen's timestamp", () => {
+    assert.equal(selectAgent([], { QWEN_PROJECT_DIR: "/r" }, { event: "PreToolUse", tool_call_id: "c" }), "unknown");
+    assert.equal(selectAgent([], { QWEN_PROJECT_DIR: "/r" }, { hookName: "PreToolUse", timestamp: "1763712000000" }), "unknown");
+    assert.equal(selectAgent([], { QWEN_PROJECT_DIR: "/r" }, { tool_name: "Bash", timestamp: "t" }), "claude");
+    assert.equal(selectAgent([], { DEVIN_PROJECT_DIR: "/r" }, { event: "PreToolUse", prompt_id: "p" }), "unknown");
+    assert.equal(selectAgent([], { DEVIN_PROJECT_DIR: "/r" }, { ...claudePayload, prompt_id: "p", timestamp: "t" }), "claude");
+    assert.equal(selectAgent([], { DEVIN_PROJECT_DIR: "/r" }, { ...claudePayload, prompt_id: "p", tool_call_id: "c" }), "claude");
+  });
+
+  it("the Gemini and Devin sniffs fire at session start, where their events keep the Claude name", () => {
+    const gemini = { session_id: "g", transcript_path: "/t.json", cwd: "/r", hook_event_name: "SessionStart", timestamp: "2026-11-21T11:08:00.000Z", source: "startup" };
+    assert.equal(selectAgent([], { GEMINI_SESSION_ID: "g" }, gemini), "gemini");
+    assert.equal(selectAgent([], { GEMINI_SESSION_ID: "g" }, { ...gemini, hook_event_name: "SessionEnd" }), "gemini");
+    assert.equal(selectAgent([], {}, gemini), "claude");
+    const { timestamp: _timestamp, ...noTimestamp } = gemini;
+    assert.equal(selectAgent([], { GEMINI_SESSION_ID: "g" }, noTimestamp), "claude");
+    const devin = { hook_event_name: "SessionStart", source: "startup", session_id: "d", cwd: "/r" };
+    assert.equal(selectAgent([], { DEVIN_PROJECT_DIR: "/r" }, devin), "devin");
+    assert.equal(selectAgent([], { DEVIN_PROJECT_DIR: "/r" }, { ...devin, source: "resume" }), "devin");
+    assert.equal(selectAgent([], {}, devin), "claude");
+    // Claude Code's SessionStart carries transcript_path; Qwen's carries a timestamp.
+    assert.equal(selectAgent([], { DEVIN_PROJECT_DIR: "/r" }, { ...devin, transcript_path: "/t.jsonl" }), "claude");
+    assert.equal(selectAgent([], { DEVIN_PROJECT_DIR: "/r" }, { ...devin, timestamp: "t" }), "claude");
+    assert.equal(selectAgent([], { DEVIN_PROJECT_DIR: "/r" }, { ...devin, source: "clear" }), "claude");
   });
 
   it("a clearly non-Claude payload with no matching profile gets the fail-closed id, never claude", () => {
