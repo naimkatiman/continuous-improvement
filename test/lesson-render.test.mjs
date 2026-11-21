@@ -12,7 +12,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { encode } from "../lib/hook-io.mjs";
 import { MANAGED_BEGIN, MANAGED_END, mergeManagedBlock } from "../lib/install-targets.mjs";
-import { LESSON_FORMATS, LESSONS_BEGIN, LESSONS_END, MAX_BLOCK_CHARS, MAX_LESSONS, isLessonPathAllowed, lessonRoute, lessonRouteNote, mergeLessonBlock, renderLessonBlock, renderLessons, } from "../lib/lesson-render.mjs";
+import { LESSON_FORMATS, LESSONS_BEGIN, LESSONS_END, MAX_BLOCK_CHARS, MAX_LESSONS, isInstinctLoadOff, isLessonPathAllowed, lessonRoute, lessonRouteNote, mergeLessonBlock, projectLessonRoute, renderForRoute, renderLessonBlock, renderLessons, } from "../lib/lesson-render.mjs";
 function instinct(id, confidence, body, extra = "") {
     return `id: ${id}\ntrigger: "when ${id}"\nconfidence: ${confidence}\ndomain: workflow\nsource: manual\n${extra}---\n${body}\n`;
 }
@@ -161,6 +161,67 @@ describe("lessonRouteNote", () => {
         assert.match(lessonRouteNote("aider", "/x.md", HOME, {}) ?? "", /read:/);
         for (const format of ["grok", "auggie", "junie", "zed"])
             assert.equal(lessonRouteNote(format, "/x.md", HOME, {}), null, format);
+    });
+    it("names the file GOOSE_MOIM_MESSAGE_FILE points at now, since Goose reads one file and repointing drops it", () => {
+        const other = join(HOME, "my-instructions.md");
+        const note = lessonRouteNote("goose", goose, HOME, { GOOSE_MOIM_MESSAGE_FILE: other }) ?? "";
+        assert.ok(note.includes(other), note);
+        assert.match(note, /one file/);
+        assert.match(note, /append/i);
+        const tilde = lessonRouteNote("goose", goose, HOME, { GOOSE_MOIM_MESSAGE_FILE: "~/my-instructions.md" }) ?? "";
+        assert.ok(tilde.includes("~/my-instructions.md"), tilde);
+        assert.doesNotMatch(lessonRouteNote("goose", goose, HOME, {}) ?? "", /one file/);
+    });
+    it("asks for nothing for the project .goosehints, and names the project's .aider.conf.yml for Aider", () => {
+        assert.equal(lessonRouteNote("goose", join("/p", ".goosehints"), HOME, {}, "project"), null);
+        assert.match(lessonRouteNote("aider", "/p/x.md", HOME, {}, "project") ?? "", /project's \.aider\.conf\.yml/);
+    });
+});
+describe("projectLessonRoute: the route inside the project (the default scope)", () => {
+    const ROOT = join("/", "work", "repo");
+    const probe = (entries) => (path) => entries[path] ?? null;
+    const none = probe({});
+    it("is null for a hook agent and throws on an unknown format", () => {
+        assert.equal(projectLessonRoute("codex", ROOT, none), null);
+        for (const bad of ["", "Grok", "__proto__", "windsurf"]) {
+            assert.throws(() => projectLessonRoute(bad, ROOT, none), /Unknown lessons format/, bad);
+        }
+    });
+    it("puts Grok, Auggie, Goose and Aider in the project", () => {
+        assert.deepEqual(projectLessonRoute("grok", ROOT, none), { mode: "whole", path: join(ROOT, ".grok", "rules", "continuous-improvement-lessons.md") });
+        const auggie = projectLessonRoute("auggie", ROOT, none);
+        assert.equal(auggie?.path, join(ROOT, ".augment", "rules", "continuous-improvement-lessons.md"));
+        assert.match(auggie?.prefix ?? "", /^---\ntype: always_apply\n/);
+        assert.deepEqual(projectLessonRoute("goose", ROOT, none), { mode: "managed", path: join(ROOT, ".goosehints") });
+        assert.deepEqual(projectLessonRoute("aider", ROOT, none), { mode: "whole", path: join(ROOT, ".aider.continuous-improvement-lessons.md") });
+    });
+    it("picks Junie's file so that no guidelines file the project has is hidden", () => {
+        const junieAgents = join(ROOT, ".junie", "AGENTS.md");
+        assert.deepEqual(projectLessonRoute("junie", ROOT, none), { mode: "managed", path: junieAgents });
+        assert.deepEqual(projectLessonRoute("junie", ROOT, probe({ [junieAgents]: "file", [join(ROOT, "AGENTS.md")]: "file" })), { mode: "managed", path: junieAgents });
+        assert.deepEqual(projectLessonRoute("junie", ROOT, probe({ [join(ROOT, "AGENTS.md")]: "file" })), { mode: "whole", path: join(ROOT, ".junie", "rules", "continuous-improvement-lessons.md") });
+        assert.throws(() => projectLessonRoute("junie", ROOT, probe({ [join(ROOT, ".junie", "guidelines.md")]: "file" })), /guidelines/);
+        assert.throws(() => projectLessonRoute("junie", ROOT, probe({ [join(ROOT, ".junie", "guidelines")]: "dir" })), /guidelines/);
+    });
+    it("puts the Zed block in the first rules file Zed reads, skips a directory, and throws when there is none", () => {
+        assert.throws(() => projectLessonRoute("zed", ROOT, none), /--scope user/);
+        assert.deepEqual(projectLessonRoute("zed", ROOT, probe({ [join(ROOT, ".clinerules")]: "dir", [join(ROOT, "AGENTS.md")]: "file", [join(ROOT, "CLAUDE.md")]: "file" })), { mode: "managed", path: join(ROOT, "AGENTS.md") });
+        assert.deepEqual(projectLessonRoute("zed", ROOT, probe({ [join(ROOT, ".rules")]: "file", [join(ROOT, "AGENTS.md")]: "file" })), { mode: "managed", path: join(ROOT, ".rules") });
+    });
+});
+describe("renderForRoute", () => {
+    it("prefixes a whole file and merges a managed block", () => {
+        assert.equal(renderForRoute({ mode: "whole", path: "/x", prefix: "---\na: b\n---\n" }, ONE, null), `---\na: b\n---\n${ONE}`);
+        assert.equal(renderForRoute({ mode: "whole", path: "/x" }, ONE, null), ONE);
+        assert.equal(renderForRoute({ mode: "managed", path: "/x" }, ONE, "mine\n"), `mine\n\n${LESSONS_BEGIN}\n${ONE}${LESSONS_END}\n`);
+    });
+});
+describe("isInstinctLoadOff: the session hook's CI_INSTINCT_LOAD switch", () => {
+    it("is on for unset, blank and any other value, and off for off, 0, false and no in any case", () => {
+        for (const value of [undefined, "", "on", "1", "yes"])
+            assert.equal(isInstinctLoadOff(value), false, String(value));
+        for (const value of ["off", " OFF ", "0", "false", "No"])
+            assert.equal(isInstinctLoadOff(value), true, value);
     });
 });
 describe("mergeLessonBlock: the managed block in a shared file", () => {

@@ -5,11 +5,13 @@
 // <agent>` (bin/unified-cli.mjs) renders it per agent: a hook agent gets the
 // SessionStart bytes its encoder writes (lib/hook-io.mjs), and an agent whose
 // session hook cannot reach the model gets a static route, a rules file that
-// `--write` fills (docs/plans/2026-11-21-all-agents.md, Architecture item 10).
+// `--write` fills (docs/plans/2026-11-21-all-agents.md, Architecture item 10):
+// in the project by default, and the user-level file only with `--scope user`
+// (Owner decisions, "User-level config writes").
 // Nothing is ever routed under ~/.agents/: Junie reads other *.md files there
 // as subagents, and only skills/ and plugins/<name>/ belong to us there.
 
-import { closeSync, openSync, readSync } from "node:fs";
+import { closeSync, openSync, readSync, statSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, win32 } from "node:path";
 import { hashProjectRoot, projectYamlFiles, yamlFiles } from "./gateguard-state.mjs";
 import { AGENT_IDS, encode } from "./hook-io.mjs";
@@ -149,6 +151,8 @@ export function renderLessonBlock(contents: readonly string[], projectCount: num
 export interface LessonRoute {
   mode: "whole" | "managed";
   path: string;
+  /** Written before the block in a whole file (Auggie's workspace-rule frontmatter). */
+  prefix?: string;
 }
 
 const LESSONS_FILE = "continuous-improvement-lessons.md";
@@ -189,18 +193,91 @@ const ROUTES: Readonly<Record<string, (home: string, env: Env, platform: string)
 };
 
 /**
- * What the user still has to do for `format`'s route at `path` to load, or
- * null. Goose reads the file only through GOOSE_MOIM_MESSAGE_FILE (which
- * supports ~/), and Aider only through `read:` or --read.
+ * `--scope`: where a static route lives. The owner decision "User-level config
+ * writes" (docs/plans/2026-11-21-all-agents.md, Owner decisions) makes the
+ * project the default and writes a user-level file only with `--scope user`.
  */
-export function lessonRouteNote(format: string, path: string, home: string, env: Env): string | null {
+export const LESSON_SCOPES: readonly string[] = ["project", "user"];
+export type LessonScope = "project" | "user";
+
+/** What `fs` holds at a path: a file, a directory, or nothing. */
+export type PathProbe = (path: string) => "file" | "dir" | null;
+
+function probePath(path: string): "file" | "dir" | null {
+  try {
+    const stat = statSync(path);
+    return stat.isFile() ? "file" : stat.isDirectory() ? "dir" : null;
+  } catch {
+    return null;
+  }
+}
+
+// Zed reads only the first of these that exists in the project, and does not
+// merge them (research instructions_file, skeptic verdict confirmed).
+const ZED_PROJECT_FILES = [".rules", ".cursorrules", ".windsurfrules", ".clinerules", ".github/copilot-instructions.md", "AGENT.md", "AGENTS.md", "CLAUDE.md", "GEMINI.md"];
+
+// The project-scope routes, from the same verified research (instructions_file).
+// Each throws when the project has no route that would not hide a file the
+// agent already reads.
+const PROJECT_ROUTES: Readonly<Record<string, (root: string, probe: PathProbe) => LessonRoute>> = {
+  // Grok: "every *.md directly inside <dir>/.grok/rules/" loads.
+  grok: (root) => ({ mode: "whole", path: join(root, ".grok", "rules", LESSONS_FILE) }),
+  // Auggie: <workspace>/.augment/rules/ is read with a frontmatter type of
+  // always_apply, agent_requested or manual; always_apply loads it every turn.
+  auggie: (root) => ({
+    mode: "whole",
+    path: join(root, ".augment", "rules", LESSONS_FILE),
+    prefix: "---\ntype: always_apply\ndescription: Saved lessons from continuous-improvement\n---\n",
+  }),
+  // Junie looks up .junie/AGENTS.md, then the root AGENTS.md combined with
+  // .junie/rules/*.md, then the legacy .junie/guidelines.md or .junie/guidelines/.
+  // A new .junie/AGENTS.md would hide the later two, so it is created only
+  // when the project has neither.
+  junie: (root, probe) => {
+    const junieAgents = join(root, ".junie", "AGENTS.md");
+    if (probe(junieAgents) === "file") return { mode: "managed", path: junieAgents };
+    if (probe(join(root, "AGENTS.md")) === "file") return { mode: "whole", path: join(root, ".junie", "rules", LESSONS_FILE) };
+    if (probe(join(root, ".junie", "guidelines.md")) !== null || probe(join(root, ".junie", "guidelines")) !== null) {
+      throw new Error("this project uses the legacy .junie/guidelines, which a new .junie/AGENTS.md would hide; move them to .junie/AGENTS.md and rerun, or pass --scope user");
+    }
+    return { mode: "managed", path: junieAgents };
+  },
+  // Goose reads AGENTS.md then .goosehints at each level; .goosehints is Goose's own.
+  goose: (root) => ({ mode: "managed", path: join(root, ".goosehints") }),
+  // Zed: a block in the first rules file Zed reads. A new file would hide the
+  // ones after it in the list, so none is created.
+  zed: (root, probe) => {
+    const first = ZED_PROJECT_FILES.map((name) => join(root, name)).find((path) => probe(path) === "file");
+    if (!first) {
+      throw new Error(`this project has none of the rules files Zed reads (${ZED_PROJECT_FILES.join(", ")}); create one and rerun, or pass --scope user`);
+    }
+    return { mode: "managed", path: first };
+  },
+  // Aider: auto-discovers no file; the project's .aider.conf.yml `read:` lists it.
+  aider: (root) => ({ mode: "whole", path: join(root, `.aider.${LESSONS_FILE}`) }),
+};
+
+/**
+ * What the user still has to do for `format`'s route at `path` to load, or
+ * null. Goose reads the user-scope file only through GOOSE_MOIM_MESSAGE_FILE
+ * (which supports ~/) and reads one such file; the project's .goosehints loads
+ * on its own. Aider reads the file only through `read:` or --read.
+ */
+export function lessonRouteNote(format: string, path: string, home: string, env: Env, scope: LessonScope = "user"): string | null {
   if (format === "goose") {
+    if (scope === "project") return null;
     const named = env.GOOSE_MOIM_MESSAGE_FILE?.trim();
     const expanded = named?.startsWith("~/") ? join(home, named.slice(2)) : named;
     if (expanded && isAbsolute(expanded) && resolve(expanded) === resolve(path)) return null;
+    if (named) {
+      return `GOOSE_MOIM_MESSAGE_FILE already names ${named}, and Goose injects only one file: setting GOOSE_MOIM_MESSAGE_FILE="${path}" would drop ${named} from every turn. Append this file's lessons to ${named} instead, or merge the two files and point the variable at the result.`;
+    }
     return `Goose injects this file every turn only when GOOSE_MOIM_MESSAGE_FILE names it: GOOSE_MOIM_MESSAGE_FILE="${path}"`;
   }
-  if (format === "aider") return `Aider loads this file only when it is listed: add it to read: in .aider.conf.yml, or pass --read "${path}"`;
+  if (format === "aider") {
+    const config = scope === "project" ? "the project's .aider.conf.yml" : ".aider.conf.yml";
+    return `Aider loads this file only when it is listed: add it to read: in ${config}, or pass --read "${path}"`;
+  }
   return null;
 }
 
@@ -217,6 +294,17 @@ function assertFormat(format: string): void {
 export function lessonRoute(format: string, home: string, env: Env, platform: string): LessonRoute | null {
   assertFormat(format);
   return Object.hasOwn(ROUTES, format) ? ROUTES[format](home, env, platform) : null;
+}
+
+/**
+ * The project-scope route for `format` inside `root` (an existing project
+ * directory), or null for an agent whose SessionStart hook carries the lessons.
+ * Throws on an unknown format, and when the project has no route that would
+ * leave the agent's other rules files readable.
+ */
+export function projectLessonRoute(format: string, root: string, probe: PathProbe = probePath): LessonRoute | null {
+  assertFormat(format);
+  return Object.hasOwn(PROJECT_ROUTES, format) ? PROJECT_ROUTES[format](root, probe) : null;
 }
 
 /**
@@ -268,6 +356,20 @@ export function renderLessons(format: string, block: string, existing: string | 
     return block === "" ? "" : encode(format, "SessionStart", { kind: "context", text: block }).stdout;
   }
   // The home is irrelevant to the mode, which is all that is read here.
-  if (ROUTES[format]("", {}, process.platform).mode === "whole") return block;
+  return renderForRoute(ROUTES[format]("", {}, process.platform), block, existing);
+}
+
+/** The content `route` gets for `block`: a whole file (after its prefix), or `existing` with the managed block merged in. */
+export function renderForRoute(route: LessonRoute, block: string, existing: string | null): string {
+  if (route.mode === "whole") return `${route.prefix ?? ""}${block}`;
   return mergeLessonBlock(existing, `${LESSONS_BEGIN}\n${block}${LESSONS_END}`);
+}
+
+// The same values hooks/session.mts reads as off. Its own copy stays, so its
+// import line (pinned by src/test/plugin-description.test.mts) is unchanged.
+const LOAD_OFF = new Set(["off", "0", "false", "no"]);
+
+/** True when CI_INSTINCT_LOAD turns the session-start lessons off. */
+export function isInstinctLoadOff(value: string | undefined): boolean {
+  return LOAD_OFF.has((value ?? "").trim().toLowerCase());
 }
