@@ -1,7 +1,7 @@
 # Frontier-model refresh
 
 - Date: 2026-11-20
-- Status: in progress (updated in place as each PR lands)
+- Status: PRs 1 to 4 done and verified; PR 5 is a proposal awaiting the owner
 - Base: `origin/main` at `b3477a3` (v3.26.0)
 - Evidence: [docs/audits/2026-11-20-frontier-model-audit.md](../audits/2026-11-20-frontier-model-audit.md)
 
@@ -37,7 +37,8 @@ against the hooks' real output. Four findings drive this plan.
 
 ## Non-goals
 
-- No release, npm publish, tag move or Cloudflare Pages deploy.
+- No release inside the train. The release (npm publish, tag, Cloudflare Pages
+  deploy) is its own `chore/release-v3.27.0` PR after PR 4 merges.
 - No change to `third-party/` snapshots.
 - No MCP tool removal, no installer retirement, no pivot of instinct storage
   to native memory. Those are owner decisions and are listed under Deferred.
@@ -49,11 +50,11 @@ Stacked, one concern each, merged in order. Each PR runs `npm run build`,
 
 | # | Branch | Concern | Status |
 |---|---|---|---|
-| 1 | `fix/audit-defects` | Five verified defects, one commit each: installer copies the libs its hooks import; instinct ids are validated before they reach a path; the PowerShell tool is classified like Bash by the three guards; secrets are redacted when an observation is written; the transcript linter parses real Claude Code transcripts | pending |
-| 2 | `feat/frontier-defaults` | Defaults for a model that already reads first: the file gate clears on evidence (a same-session Read of the target, or a new file) and denies only a blind edit; three-section close and the prompt router become opt-in; gateguard and companion-preference get matchers so read-only tools stop spawning them | pending |
-| 3 | `feat/memory-loads` | Memory that reaches the next session: SessionStart prints this repo's instincts at 0.5+ to stdout so they enter context; the plugin bundle registers the MCP server so `/recall`, `/goal-check` and `/distill` work on the two-command install | pending |
-| 4 | `docs/frontier-refresh` | README, QUICKSTART and landing page rewritten around what is not native, what turns on, what it costs and how to turn it off; stale claims removed; audit doc added | pending |
-| 5 | `chore/retire-native-covered-skills` | Remove five prose-only skills that Claude Code covers natively (`token-budget-advisor`, `strategic-compact`, `state-reconciliation`, `recovery-classification`, `worktree-safety`). Top of the stack so it can merge or close without touching 1 to 4. Needs the owner's explicit decision | pending owner |
+| 1 | `fix/audit-defects` | Five verified defects, one commit each: installer copies the libs its hooks import; instinct ids are validated before they reach a path; the PowerShell tool is classified like Bash by the three guards; secrets are redacted when an observation is written; the transcript linter parses real Claude Code transcripts | done |
+| 2 | `feat/frontier-defaults` | Defaults for a model that already reads first: the file gate clears on evidence (a same-session Read of the target, or a new file) and denies only a blind edit; three-section close and the prompt router become opt-in; gateguard and companion-preference get matchers so read-only tools stop spawning them | done |
+| 3 | `feat/memory-loads` | Memory that reaches the next session: SessionStart prints this repo's instincts at 0.5+ to stdout so they enter context; the plugin bundle registers the MCP server so `/recall`, `/goal-check` and `/distill` work on the two-command install | done |
+| 4 | `docs/frontier-refresh` | README, QUICKSTART and landing page rewritten around what is not native, what turns on, what it costs and how to turn it off; stale claims removed; audit doc added | done |
+| 5 | `chore/retire-native-covered-skills` | Remove five prose-only skills that Claude Code covers natively (`token-budget-advisor`, `strategic-compact`, `state-reconciliation`, `recovery-classification`, `worktree-safety`). Top of the stack so it can merge or close without touching 1 to 4. Needs the owner's explicit decision | proposal only: one owner decision and one PR per skill |
 
 ## Design decisions
 
@@ -76,6 +77,10 @@ Stacked, one concern each, merged in order. Each PR runs `npm run build`,
   runtime claim** (the `verify:doc-runtime-claims` rule).
 
 ## Deferred (owner decisions, logged not dropped)
+
+The full list, with the per-skill retirement rule, is the 2026-11-20 section of
+[docs/deferred.md](../deferred.md). Summary:
+
 
 - Second retirement wave with slash-command or hook coupling: `tdd-workflow`,
   `superpowers`, `ralph`, `workspace-surface-audit`, `simplicity-review`, and

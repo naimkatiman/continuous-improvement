@@ -26,3 +26,23 @@ Remaining skills that note flagged as retirement/slimming candidates. Each needs
 - **`strategic-compact`** — keep unless a broader tier-2 slimming pass happens; if slimmed, decide whether its core guidance merges into `handoff` or `verification-loop` first. Open.
 - **`handoff`** — keep unless native resume/memory demonstrably covers cross-harness handoffs. Open.
 - **`superpowers`** — keep; retiring it requires a replacement home for stacked-PR preconditions, companion preference, and routing docs. Open.
+
+## 2026-11-20 — frontier-model refresh (`docs/plans/2026-11-20-frontier-model-refresh.md`)
+
+Logged by the four-PR refresh train. Each item is an owner decision or broader than that train; action or close each explicitly.
+
+- **Five native-covered skills proposed for retirement:** `token-budget-advisor`, `strategic-compact`, `state-reconciliation`, `recovery-classification`, `worktree-safety`. Verdicts and the file cascade per skill are in `docs/audits/2026-11-20-frontier-model-audit.md`. Per the 2026-06-18 rule above: one operator decision and one PR per skill. `worktree-safety` also needs `commands/ship.md` and `scripts/README.md` edited in the same PR (ship lists it as a hard stop).
+- **Second retirement wave:** `tdd-workflow`, `superpowers`, `ralph`, `workspace-surface-audit`, `simplicity-review`, the commands `/swarm`, `/learn-eval`, `/companion-preference`; merges of `/dashboard`, `/goal-check`, `/distill`, `/harvest`, the `/continuous-improvement` alias, `audit`, `handoff`, `grill-me`.
+- **14 SLIM rewrites:** targets and pinned strings in the audit doc.
+- **MCP surface cut (19 tools to about 4):** changes a tool contract. Includes paging for `ci_instincts` and bounding the paths `ci_goal_check` may read.
+- **One install path:** retire the npm hook installer in favour of the plugin. Until then a host with both wired runs the session hook twice and prints the lesson block twice.
+- **Lessons into native memory** instead of instinct YAML.
+- **Session loader cost with the block off:** the 200-file read happens before the `CI_INSTINCT_LOAD` check, and the cap is not split between project and global files.
+- **File gate and attachments:** a file attached with @ or by the IDE leaves no observation row, so the evidence gate denies its first edit (the deny reason says so and gives the clear command). Logging prompt @-paths as evidence would close it.
+- **One Stop dispatcher** in place of five registrations; warn modes delivered through `additionalContext` instead of exit-0 stderr.
+- **Destructive commands return `ask` in interactive sessions** instead of deny.
+- **`hooks/observe.sh`** still ships, unwired and without the redaction `observe.mjs` now applies. Remove it or port redaction.
+- **Old observation rows are not scrubbed:** rows written before redaction landed keep any secret they held; `SECURITY.md` says where to delete them.
+- **Gateguard Parallel-Actor Gate is documented but not implemented:** `skills/gateguard.md` (section "Parallel-Actor Gate") and `skills/reconcile.md` say gateguard runs `scripts/git-state-snapshot.sh` on the first mutation of a session. No code in `src/hooks` or `src/lib` does. Implement it or remove the text.
+- **`proceed-with-the-recommendation` trigger claim:** its description says trigger phrases are matched by the companion hook; `hooks/route-table.json` has no proceed row. False before this train.
+- **Root `CLAUDE.md` companion table** still says gateguard "blocks Edit/Write/Bash before grounding", which is now true only under `CI_GATEGUARD_FILE_GATE=strict`.
