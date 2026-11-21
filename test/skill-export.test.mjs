@@ -22,8 +22,8 @@ import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { after, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
-import { parseLedger, planAgentInstall, toLedgerFile } from "../lib/agent-install-plans.mjs";
-import { installRuntime } from "../lib/install-runtime.mjs";
+import { parseHookArgs, parseLedger, planAgentInstall, recordInstall, toLedgerFile } from "../lib/agent-install-plans.mjs";
+import { installRuntime, runHookInstall, runHookUninstall } from "../lib/install-runtime.mjs";
 import { SKILL_EXPORT_AGENTS, SKILL_MARK, parseSkillSource, planSkillExport, readSkillCatalog, renderExportedSkill, } from "../lib/skill-export.mjs";
 const REPO_ROOT = join(fileURLToPath(new URL(".", import.meta.url)), "..");
 const INSTALL = join(REPO_ROOT, "bin", "install.mjs");
@@ -292,3 +292,96 @@ describe("install --hooks copies the skills (spawned)", () => {
 function slashed(path) {
     return path.replace(/\\/g, "/");
 }
+// PR 15 review fixes. RED first: each test below failed on f4c9aa1.
+describe("PR 15 review fixes", () => {
+    const CLAUDE_SHIP = `${HOME}/.claude/skills/ship/SKILL.md`;
+    const OWNER = `${HOME}/.claude/skills/ship/.continuous-improvement-owner`;
+    it("copies our skill, with a name-clash warning, when the ~/.claude/skills one of that name is not ours", () => {
+        for (const agent of READS_CLAUDE) {
+            const plan = planSkillExport(agent, ctx({}, { [CLAUDE_SHIP]: skill("ship", "Someone else's ship.\n") }), CATALOG);
+            assert.ok(plan.files.some((file) => file.name === "ship"), agent);
+            assert.ok(!plan.notes.some((note) => note.includes("already reads") && note.includes("ship")), agent);
+            assert.ok(plan.warnings.some((warning) => warning.includes(CLAUDE_SHIP) && warning.includes("ship")), agent);
+        }
+    });
+    it("still skips the ~/.claude/skills copy when it is ours: the bundled text (any line endings) or the npx installer's owned ship", () => {
+        const owned = { [CLAUDE_SHIP]: skill("ship", "An older ship.\n"), [OWNER]: "continuous-improvement\n" };
+        const crlf = { [CLAUDE_SHIP]: skill("ship").replace(/\n/g, "\r\n") };
+        for (const agent of READS_CLAUDE) {
+            for (const files of [owned, crlf]) {
+                const plan = planSkillExport(agent, ctx({}, files), CATALOG);
+                assert.ok(!plan.files.some((file) => file.name === "ship"), agent);
+                assert.deepEqual(plan.warnings, [], agent);
+            }
+            const wrongOwner = { [CLAUDE_SHIP]: skill("ship", "An older ship.\n"), [OWNER]: "someone-else\n" };
+            assert.ok(names(agent, ctx({}, wrongOwner)).includes("ship"), agent);
+        }
+    });
+    it("treats every TOML spelling of Grok's compat.claude skills = false as off, and an unreadable config as off", () => {
+        const files = { [CLAUDE_SHIP]: skill("ship") };
+        const config = `${HOME}/.grok/config.toml`;
+        for (const toml of [
+            "[compat.claude]\nskills = false\n",
+            "[compat]\nclaude = { skills = false }\n",
+            "[compat]\nclaude = { hooks = true, skills = false }\n",
+            "[compat]\nclaude.skills = false\n",
+            "compat.claude.skills = false\n",
+            "[ compat . claude ]\nskills=false\n",
+        ])
+            assert.ok(names("grok", ctx({}, { ...files, [config]: toml })).includes("ship"), JSON.stringify(toml));
+        for (const toml of ["[compat]\nclaude = { skills = true }\n", "[other]\nclaude.skills = false\n", "[compat.claude]\nhooks = false\n"]) {
+            assert.ok(!names("grok", ctx({}, { ...files, [config]: toml })).includes("ship"), JSON.stringify(toml));
+        }
+        const unreadable = ctx({ read: (path) => { if (path === config)
+                throw new Error("EACCES"); return path === CLAUDE_SHIP ? skill("ship") : null; } });
+        assert.ok(names("grok", unreadable).includes("ship"), "a config that cannot be read fails toward copying");
+    });
+    it("recordInstall moves another entry's hash for a whole file the new install rewrote, and nothing else", () => {
+        const path = `${HOME}/.agents/skills/ship/SKILL.md`;
+        const file = (p, sha) => ({ path: p, created: true, hooksAt: null, hookCommands: [], mcpAt: null, mcp: null, ...(sha ? { script: { sha256: sha } } : {}) });
+        const entry = (target, files) => ({ target, scope: "user", project: null, version: "9", runtime: RT, installedAt: "t", files, runs: [] });
+        const before = { version: 1, entries: [entry("codex", [file(path, "old"), file(`${HOME}/.agents/skills/x/SKILL.md`, "x"), file(`${HOME}/.codex/hooks.json`)])], runtimes: [RT] };
+        const next = recordInstall(before, entry("devin", [file(path.replace(/\//g, "\\"), "new"), file(`${HOME}/.codex/hooks.json`, "y")]));
+        const codex = next.entries.find((e) => e.target === "codex");
+        assert.deepEqual(codex.files.map((f) => f.script?.sha256 ?? null), ["new", "x", null]);
+        assert.equal(before.entries[0].files[0].script.sha256, "old", "the old ledger is not mutated");
+    });
+    function hookIo(root, version, lines) {
+        const home = join(root, "home");
+        return {
+            home, projectRoot: join(root, "proj"), packageRoot: REPO_ROOT, version, platform: process.platform, env: {}, instinctsRoot: join(home, ".claude", "instincts"),
+            documentsDir: () => null, skillMd: () => skill("x"), out: (line) => lines.push(line), err: (line) => lines.push(`ERR ${line}`),
+        };
+    }
+    const hookRun = (root, version, argv) => {
+        const lines = [];
+        const args = parseHookArgs(argv);
+        assert.ok(args.mode === "install" || args.mode === "uninstall");
+        const code = (args.mode === "install" ? runHookInstall : runHookUninstall)(args, hookIo(root, version, lines));
+        return { code, lines };
+    };
+    it("uninstalls the last of two agents sharing ~/.agents/skills when they were installed at different versions", () => {
+        const root = temp("ci-skill-twover-");
+        mkdirSync(join(root, "home"), { recursive: true });
+        const shared = join(root, "home", ".agents", "skills");
+        assert.equal(hookRun(root, "9.0.0", ["install", "--target", "codex", "--hooks", "--scope", "user"]).code, 0);
+        assert.equal(hookRun(root, "9.0.1", ["install", "--target", "devin", "--hooks", "--scope", "user"]).code, 0);
+        const devin = hookRun(root, "9.0.1", ["--uninstall", "--target", "devin", "--scope", "user"]);
+        assert.equal(devin.code, 0, devin.lines.join("\n"));
+        assert.ok(existsSync(join(shared, "reconcile", "SKILL.md")), "codex still records the shared copy");
+        const codex = hookRun(root, "9.0.0", ["--uninstall", "--target", "codex", "--scope", "user"]);
+        assert.equal(codex.code, 0, codex.lines.join("\n"));
+        assert.ok(!existsSync(join(shared, "reconcile")), "the shared copy goes with the last install");
+        assert.ok(!existsSync(join(root, "home", ".codex", "hooks.json")), "the codex hooks go too");
+    });
+    it("counts each shared copy once when the agents that share it are uninstalled together", () => {
+        const root = temp("ci-skill-double-");
+        mkdirSync(join(root, "home"), { recursive: true });
+        const install = hookRun(root, VERSION, ["install", "--target", "codex,devin", "--hooks", "--scope", "user"]);
+        assert.equal(install.code, 0, install.lines.join("\n"));
+        const copies = readdirSync(join(root, "home", ".agents", "skills")).length;
+        const gone = hookRun(root, VERSION, ["--uninstall", "--target", "codex,devin", "--scope", "user"]);
+        assert.equal(gone.code, 0, gone.lines.join("\n"));
+        assert.ok(gone.lines.includes(`  ✓ deleted ${copies} skill copies`), gone.lines.join("\n"));
+    });
+});

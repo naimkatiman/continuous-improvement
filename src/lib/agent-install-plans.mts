@@ -1027,10 +1027,24 @@ export function parseLedger(text: string | null): Ledger | null {
 
 const sameSlot = (a: LedgerEntry, b: LedgerEntry): boolean => a.target === b.target && a.scope === b.scope && a.project === b.project;
 
+/**
+ * The ledger with `entry` in its slot. A whole file `entry` owns that another
+ * entry also records (a skill copy Codex and Devin share in ~/.agents/skills)
+ * was just rewritten, so the other entry's hash moves to the new content: its
+ * uninstall then still recognises the file as unchanged.
+ */
 export function recordInstall(ledger: Ledger, entry: LedgerEntry): Ledger {
+  const rewritten = new Map(entry.files.flatMap((file) => (file.script ? [[slash(file.path), file.script.sha256] as const] : [])));
+  const rehash = (other: LedgerEntry): LedgerEntry => ({
+    ...other,
+    files: other.files.map((file) => {
+      const sha256 = file.script ? rewritten.get(slash(file.path)) : undefined;
+      return sha256 === undefined ? file : { ...file, script: { sha256 } };
+    }),
+  });
   return {
     version: 1,
-    entries: [...ledger.entries.filter((other) => !sameSlot(other, entry)), entry],
+    entries: [...ledger.entries.filter((other) => !sameSlot(other, entry)).map(rehash), entry],
     runtimes: ledger.runtimes.includes(entry.runtime) ? ledger.runtimes : [...ledger.runtimes, entry.runtime],
   };
 }

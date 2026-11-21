@@ -23,7 +23,8 @@
 //   skills.directories. Commands: .qwen/commands markdown.
 // - grok: $GROK_HOME/skills (default ~/.grok), .grok/skills; also reads
 //   ~/.claude/skills unless GROK_CLAUDE_SKILLS_ENABLED=false or
-//   `[compat.claude] skills = false` (skeptic: the Grok TUI config sets it).
+//   `[compat.claude] skills = false` (skeptic: the Grok TUI config sets it;
+//   the dotted and inline-table TOML spellings count the same).
 //   Commands: commands/*.md.
 // - devin: user ~/.agents/skills (`devin skills paths`), project .devin/skills;
 //   imports ~/.claude/skills by default. No command type: a skill is the slash
@@ -124,13 +125,38 @@ const always = (): boolean => true;
 const home = (dir: string) => (ctx: SkillExportContext): string => join(ctx.home, dir);
 const grokHome = (ctx: SkillExportContext): string => absEnv(ctx, "GROK_HOME") ?? join(ctx.home, ".grok");
 
-// Off when the env var says so, or the config's [compat.claude] table sets skills = false.
+// True when config.toml sets compat.claude.skills = false in any TOML spelling:
+// the [compat.claude] table, a dotted key under [compat] or at the top level,
+// or an inline table. A line scan, not a TOML parser.
+function grokConfigTurnsClaudeOff(config: string): boolean {
+  let table = "";
+  for (const line of config.split(/\r?\n/)) {
+    const header = /^\s*\[(\[?)([^[\]]+)\]/.exec(line);
+    if (header) {
+      table = header[1] ? "[[array]]" : header[2]!.replace(/[\s"']/g, "");
+      continue;
+    }
+    const pair = /^\s*([\w\s."'-]+?)\s*=\s*(.*)$/.exec(line);
+    if (!pair) continue;
+    const key = [table, pair[1]!.replace(/[\s"']/g, "")].filter(Boolean).join(".");
+    const value = pair[2]!;
+    if (key === "compat.claude.skills" && /^false\b/.test(value)) return true;
+    if (key === "compat.claude" && /\bskills\s*=\s*false\b/.test(value)) return true;
+    if (key === "compat" && /\bclaude\s*(?:\.\s*skills\s*=\s*false|=\s*\{[^}]*\bskills\s*=\s*false)\b/.test(value)) return true;
+  }
+  return false;
+}
+
+// Off when the env var says so or the config turns it off. A config that cannot
+// be read counts as off: a duplicate skill is cheaper than a missing one.
 function grokReadsClaude(ctx: SkillExportContext): boolean {
   const flag = ctx.env.GROK_CLAUDE_SKILLS_ENABLED?.trim().toLowerCase();
   if (flag !== undefined && flag !== "" && flag !== "true" && flag !== "1") return false;
-  const config = ctx.read(join(grokHome(ctx), "config.toml")) ?? "";
-  const table = /^\s*\[compat\.claude\][^\n]*\n((?:(?!\s*\[)[^\n]*\n?)*)/m.exec(config)?.[1] ?? "";
-  return !/^\s*skills\s*=\s*false\b/m.test(table);
+  try {
+    return !grokConfigTurnsClaudeOff(ctx.read(join(grokHome(ctx), "config.toml")) ?? "");
+  } catch {
+    return false;
+  }
 }
 
 const TARGETS: Readonly<Record<string, SkillTarget>> = {
@@ -204,11 +230,23 @@ export function renderExportedSkill(text: string, runtimeDir: string): string {
   return `${rewritten.slice(0, end)}${front[2] ? "" : eol}${SKILL_MARK}${eol}${rewritten.slice(end)}`;
 }
 
+// The npx installer's owner file beside its ~/.claude/skills/ship copy (src/bin/install.mts).
+const SHIP_OWNER = ".continuous-improvement-owner";
+
+// A ~/.claude/skills copy is ours when it is the bundled text (the npx installer
+// copies it verbatim) or the npx installer's owned ship skill, of any version.
+function ownClaudeCopy(ctx: SkillExportContext, source: SkillSource, dir: string, text: string): boolean {
+  const lf = (value: string): string => value.replace(/\r\n/g, "\n");
+  if (lf(text) === lf(source.text)) return true;
+  return source.name === "ship" && ctx.read(join(dir, SHIP_OWNER)) === `${PACKAGE_NAME}\n`;
+}
+
 /**
  * The SKILL.md files `agent` gets in `ctx.scope`: every skill, plus each
  * command with no same-name skill when the agent has no command files. A
- * skill the agent already reads from ~/.claude/skills is left out, and so is
- * one whose path holds a SKILL.md this installer did not write.
+ * skill the agent already reads from ~/.claude/skills as our copy is left
+ * out; a foreign skill of that name there gets ours anyway, with a warning.
+ * One whose path holds a SKILL.md this installer did not write is left out.
  */
 export function planSkillExport(agent: string, ctx: SkillExportContext, catalog: SkillCatalog): SkillExport {
   if (!Object.hasOwn(TARGETS, agent)) throw new Error(`${agent} has no skill export. Agents with one: ${SKILL_EXPORT_AGENTS.join(", ")}`);
@@ -220,7 +258,9 @@ export function planSkillExport(agent: string, ctx: SkillExportContext, catalog:
   const plan: SkillExport = { dir, files: [], notes: [], warnings: [] };
   const already: string[] = [];
   for (const source of [...catalog.skills, ...asSkills]) {
-    if (readsClaude && ctx.read(join(ctx.home, ".claude", "skills", source.name, "SKILL.md")) !== null) {
+    const claudeDir = join(ctx.home, ".claude", "skills", source.name);
+    const claudeCopy = readsClaude ? ctx.read(join(claudeDir, "SKILL.md")) : null;
+    if (claudeCopy !== null && ownClaudeCopy(ctx, source, claudeDir, claudeCopy)) {
       already.push(source.name);
       continue;
     }
@@ -229,6 +269,9 @@ export function planSkillExport(agent: string, ctx: SkillExportContext, catalog:
     if (existing !== null && !existing.includes(SKILL_MARK)) {
       plan.warnings.push(`${path} is not a copy this installer wrote, so the ${source.name} skill was not copied there.`);
       continue;
+    }
+    if (claudeCopy !== null) {
+      plan.warnings.push(`${claudeDir}/SKILL.md is another skill named ${source.name}, which ${target.label} also reads; ours is copied beside it, so ${target.label} sees two skills of that name.`);
     }
     plan.files.push({ name: source.name, path, content: renderExportedSkill(source.text, ctx.runtimeDir), created: existing === null });
   }

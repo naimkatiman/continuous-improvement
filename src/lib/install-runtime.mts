@@ -366,11 +366,17 @@ export function runHookUninstall(args: ParsedArgs, io: HookRunIo): number {
   const shared = new Set(ledger.entries.filter((entry) => !mine(entry)).flatMap((entry) => entry.files.filter((file) => file.script).map((file) => slash(file.path))));
   let actions: Array<{ path: string; skill: boolean; result: RemoveResult }>;
   let kept = 0;
+  // Agents that share a whole file and go together (`--target codex,devin`) remove it once.
+  const seen = new Set<string>();
   try {
     actions = entries.flatMap((entry) => entry.files.flatMap((file) => {
-      if (file.script && shared.has(slash(file.path))) {
-        kept++;
-        return [];
+      if (file.script) {
+        if (seen.has(slash(file.path))) return [];
+        seen.add(slash(file.path));
+        if (shared.has(slash(file.path))) {
+          kept++;
+          return [];
+        }
       }
       return [{ path: file.path, skill: file.skill !== undefined, result: removeOwnedConfig(readText(file.path), file) }];
     }));
