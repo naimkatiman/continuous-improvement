@@ -174,6 +174,7 @@ git commit -m "feat(skills): add <your-skill> for Law N enforcement"
 | `verify:everything-mirror` | non-skill files in `plugins/continuous-improvement/` drift from their root-level source |
 | `verify:routing-targets` | `proceed-with-the-recommendation` names a routing target that is neither bundled nor declared in `optional-companions.json` |
 | `verify:superpowers-companion-table` | `commands/superpowers.md` names a companion skill the vendored snapshot does not ship |
+| `verify:agent-matrix` | a doc's per-agent tier table drifts from `src/lib/agent-support.mts`, or a doc claims blocking for an agent that cannot block |
 | `verify:generated` | `npm run build` was not re-run after a source change |
 
 ### When to fold a new external skill into the 7 Laws

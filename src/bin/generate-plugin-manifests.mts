@@ -20,7 +20,9 @@ import {
   getClaudeRepoMarketplaceManifest,
   getPluginManifest,
   getPluginMcpConfig,
+  VERSION,
 } from "../lib/plugin-metadata.mjs";
+import { renderCloudplugin } from "../lib/agent-support.mjs";
 import { discoverPmMarketplaceEntries } from "../lib/pm-marketplace.mjs";
 import {
   normalizeTier,
@@ -39,6 +41,9 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const PLUGINS_DIR = join(REPO_ROOT, "plugins");
 const PLUGIN_BUNDLE_DIR = join(PLUGINS_DIR, PACKAGE_NAME);
 const CLAUDE_REPO_MARKETPLACE_PATH = join(REPO_ROOT, ".claude-plugin", "marketplace.json");
+// .cloudplugin/marketplace.json: its description and skill list are hand-maintained;
+// version and compatibleWith come from package.json and lib/agent-support.mjs.
+const CLOUDPLUGIN_PATH = join(REPO_ROOT, ".cloudplugin", "marketplace.json");
 
 async function writeJson(filePath: string, data: unknown): Promise<void> {
   await mkdir(dirname(filePath), { recursive: true });
@@ -379,3 +384,5 @@ for (const mode of PLUGIN_MODES) {
 await writePluginBundle();
 console.log(`Generated ${join(PLUGIN_BUNDLE_DIR, ".claude-plugin", "plugin.json")}`);
 console.log(`Generated ${CLAUDE_REPO_MARKETPLACE_PATH}`);
+await writeFile(CLOUDPLUGIN_PATH, renderCloudplugin(await readFile(CLOUDPLUGIN_PATH, "utf8"), VERSION));
+console.log(`Updated version and compatibleWith in ${CLOUDPLUGIN_PATH}`);

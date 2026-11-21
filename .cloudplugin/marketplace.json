@@ -1,6 +1,6 @@
 {
   "name": "continuous-improvement",
-  "version": "3.13.0",
+  "version": "3.27.0",
   "description": "Guard and memory plugin for Claude Code. A hook denies known destructive shell commands in every permission mode. Opt-in hooks also deny pushes to protected branches and edits to the files that wire the guardrails, and hold a turn open on a failing typecheck. Tool calls go to a local searchable log; up to 10 recorded lessons load at session start. Ships 28 bundled skills and an MCP server.",
   "author": "naimkatiman",
   "license": "MIT",
@@ -88,7 +88,50 @@
       "description": "Activate mandatory workflows: brainstorming, TDD, code review, git worktrees"
     }
   ],
-  "instinct_packs": ["react", "python", "go", "meta"],
-  "tags": ["productivity", "agent", "discipline", "workflow", "self-improvement", "planning", "mcp", "github-action", "workspace-audit", "superpowers", "ralph", "tdd", "autonomous"],
-  "compatibleWith": ["claude", "claude-code", "codex", "opencode", "openclaw", "cursor", "gemini-cli"]
+  "instinct_packs": [
+    "react",
+    "python",
+    "go",
+    "meta"
+  ],
+  "tags": [
+    "productivity",
+    "agent",
+    "discipline",
+    "workflow",
+    "self-improvement",
+    "planning",
+    "mcp",
+    "github-action",
+    "workspace-audit",
+    "superpowers",
+    "ralph",
+    "tdd",
+    "autonomous"
+  ],
+  "compatibleWith": [
+    "claude",
+    "claude-code",
+    "codex",
+    "gemini",
+    "gemini-cli",
+    "qwen",
+    "qwen-code",
+    "cursor",
+    "copilot",
+    "github-copilot",
+    "grok",
+    "devin",
+    "windsurf",
+    "kiro",
+    "droid",
+    "auggie",
+    "junie",
+    "cline",
+    "goose",
+    "opencode",
+    "amp",
+    "zed",
+    "aider"
+  ]
 }

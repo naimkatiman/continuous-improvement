@@ -25,7 +25,7 @@
  *   - plugins/continuous-improvement/.claude-plugin/plugin.json
  *   - package.json
  *   - llms.txt
- *   - .cloudplugin/marketplace.json   (hand-maintained, not generator-owned)
+ *   - .cloudplugin/marketplace.json   (description hand-maintained; the build sets only version and compatibleWith)
  *
  * Stat-block files (count lives in a split HTML stat, not the phrase):
  *   - docs/landing/index.html — `<span class="v">N</span><span class="k">Bundled skills</span>`

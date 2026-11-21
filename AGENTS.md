@@ -1,11 +1,11 @@
 # AGENTS.md — continuous-improvement
 
-Project-local rules for AI coding agents. Global rules live in `~/.Codex/AGENTS.md`. This file only adds what is *specific to this repo*.
+Project-local rules for AI coding agents. Global rules live in `~/.codex/AGENTS.md`. This file only adds what is *specific to this repo*.
 
 ## Repository
 
-- npm package `continuous-improvement` (Codex plugin + GitHub Action transcript linter)
-- Marketplace at `.Codex-plugin/marketplace.json` ships 5 plugins: 1 native + 4 vendored companions (Obra superpowers, addy/agent-skills, ruflo-swarm, oh-my-Codex). pm-skills is out-of-band per [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md).
+- npm package `continuous-improvement` (Claude Code plugin first, hooks for other coding agents through `install --target <agent> --hooks`, plus a GitHub Action transcript linter; per-agent support in [docs/AGENT-SUPPORT.md](docs/AGENT-SUPPORT.md))
+- Marketplace at `.claude-plugin/marketplace.json` ships 5 plugins: 1 native + 4 vendored companions (Obra superpowers, addy/agent-skills, ruflo-swarm, oh-my-claudecode). pm-skills is out-of-band per [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md).
 - Source layout: `skills/`, `commands/`, `hooks/`, `agents/`, `bin/`, `lib/`, `templates/`, `instinct-packs/`, `synthetic-checks/`, `third-party/`, `plugins/continuous-improvement/`.
 
 ## Think Before Acting
@@ -16,7 +16,7 @@ Project-local rules for AI coding agents. Global rules live in `~/.Codex/AGENTS.
 
 ## Verification Discipline
 
-- After any code change, run `npm run verify:all` (19 content invariants + typecheck: skill-mirror, skill-tiers, skill-law-tag, skill-count, skill-count-prose, command-count, test-count, invariant-count, docs-substrings, everything-mirror, routing-targets, superpowers-companion-table, doc-runtime-claims, test-imports-only, landing-version, scripts-citation-drift, third-party-shape, tool-count, reconcile-parity, typecheck). Anything below that is incomplete.
+- After any code change, run `npm run verify:all` (20 content invariants + typecheck: skill-mirror, skill-tiers, skill-law-tag, skill-count, skill-count-prose, command-count, test-count, invariant-count, docs-substrings, everything-mirror, routing-targets, superpowers-companion-table, doc-runtime-claims, agent-matrix, test-imports-only, landing-version, scripts-citation-drift, third-party-shape, tool-count, reconcile-parity, typecheck). Anything below that is incomplete.
 - For doc-only or template-only changes, `npm run typecheck` is the floor.
 - Run all commands from repo root. Verify CWD with `pwd` if a previous step may have changed it.
 - Never claim "verified" or "done" without the passing output. Silence is not a pass.
@@ -42,15 +42,15 @@ Project-local rules for AI coding agents. Global rules live in `~/.Codex/AGENTS.
 
 ## third-party vendoring contract
 
-- The 5 vendored companions (`third-party/superpowers/`, `third-party/addy-agent-skills/`, `third-party/ruflo-swarm/`, `third-party/oh-my-Codex/`, `third-party/mattpocock-skills/`) are **pinned-SHA snapshots**.
+- The 5 vendored companions (`third-party/superpowers/`, `third-party/addy-agent-skills/`, `third-party/ruflo-swarm/`, `third-party/oh-my-claudecode/`, `third-party/mattpocock-skills/`) are **pinned-SHA snapshots**.
 - Each snapshot must carry `MANIFEST.md` (SHA + version), `OUR_NOTES.md` (drift radar + integration scope), `AGENTS.md` (read-only guard).
 - To refresh a snapshot: `node bin/refresh-third-party.mjs <name>` from a worktree off `origin/main`.
 - Never edit files inside `third-party/<name>/` directly — those are verbatim upstream copies. Cross-cutting integration code lives outside the snapshot.
 
 ## Single source of truth
 
-- Exactly one `AGENTS.md` at repo root (this file). Do not create `AGENTS.md` (lowercase) — Windows treats them as the same file but Git treats them as distinct.
-- Plugin manifests at `.Codex-plugin/marketplace.json` and `plugins/continuous-improvement/.Codex-plugin/plugin.json` are **generated** by `bin/generate-plugin-manifests.mjs`. Source is `package.json` + `marketplace.json` plus discovery walk.
+- Exactly one `AGENTS.md` at repo root (this file). Do not create `agents.md` (lowercase) — Windows treats them as the same file but Git treats them as distinct.
+- Plugin manifests at `.claude-plugin/marketplace.json` and `plugins/continuous-improvement/.claude-plugin/plugin.json` are **generated** by `bin/generate-plugin-manifests.mjs`. Source is `package.json` + `marketplace.json` plus discovery walk.
 
 ## Past Mistakes
 

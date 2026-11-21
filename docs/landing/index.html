@@ -5,13 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#0f0d0c">
-<title>continuous-improvement · Guard hooks and a local tool-call log for Claude Code</title>
-<meta name="description" content="A Claude Code plugin. One hook denies known destructive shell commands in every permission mode, and edits of existing files the session has not looked at. Opt-in checks and a local, searchable log of tool calls.">
+<title>continuous-improvement · Guard hooks and a local tool-call log for coding agents, Claude Code first</title>
+<meta name="description" content="Guardrails for coding agents, Claude Code first. On Claude Code, one hook denies known destructive shell commands in every permission mode, and edits of existing files the session has not looked at. Opt-in checks and a local, searchable log of tool calls.">
 <link rel="canonical" href="https://continuous-improvement.dev/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="continuous-improvement">
 <meta property="og:url" content="https://continuous-improvement.dev/">
-<meta property="og:title" content="continuous-improvement · Guard hooks and a local tool-call log for Claude Code">
+<meta property="og:title" content="continuous-improvement · Guard hooks and a local tool-call log for coding agents, Claude Code first">
 <meta property="og:description" content="One hook denies known destructive shell commands in every permission mode, and edits of existing files the session has not looked at. Opt-in checks and a local, searchable log of tool calls. Each hook's default, switch and cost is listed.">
 <meta property="og:image" content="https://continuous-improvement.dev/social-preview.png">
 <meta property="og:image:type" content="image/png">
@@ -19,12 +19,12 @@
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="A paper-coloured card. Headline: Guard hooks and a local tool-call log for Claude Code. Beside it, one captured hook result: the command rm -rf build/ dist/, the verdict deny in vermilion, the matched rule rm-recursive-force.">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="continuous-improvement · Guard hooks and a local tool-call log for Claude Code">
+<meta name="twitter:title" content="continuous-improvement · Guard hooks and a local tool-call log for coding agents, Claude Code first">
 <meta name="twitter:description" content="One hook denies known destructive shell commands in every permission mode, and edits of existing files the session has not looked at. Opt-in checks and a local, searchable log of tool calls.">
 <meta name="twitter:image" content="https://continuous-improvement.dev/social-preview.png">
 <meta name="twitter:image:alt" content="A paper-coloured card. Headline: Guard hooks and a local tool-call log for Claude Code. Beside it, one captured hook result: the command rm -rf build/ dist/, the verdict deny in vermilion, the matched rule rm-recursive-force.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2.5' y='2.5' width='27' height='27' rx='6' fill='%23faf7f0' stroke='%23231f17' stroke-width='2'/%3E%3Cpath d='M8 24 L24 8' stroke='%23d24a2e' stroke-width='4' stroke-linecap='round'/%3E%3Crect x='13' y='13' width='6' height='6' rx='1.5' fill='%23231f17'/%3E%3C/svg%3E">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"continuous-improvement","description":"A Claude Code plugin. One hook denies known destructive shell commands in every permission mode, and edits of existing files the session has not looked at. Opt-in hooks refuse pushes to protected branches and hold a turn open on a failing typecheck. Tool calls go to a local, searchable log.","url":"https://continuous-improvement.dev/","applicationCategory":"DeveloperApplication","operatingSystem":"Linux, Windows","softwareRequirements":"Claude Code, Node.js 18 or newer","license":"https://opensource.org/license/mit","isAccessibleForFree":true,"sameAs":["https://github.com/naimkatiman/continuous-improvement","https://www.npmjs.com/package/continuous-improvement"]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"continuous-improvement","description":"Guardrails for coding agents, Claude Code first. On Claude Code, one hook denies known destructive shell commands in every permission mode, and edits of existing files the session has not looked at. Opt-in hooks refuse pushes to protected branches and hold a turn open on a failing typecheck. Tool calls go to a local, searchable log.","url":"https://continuous-improvement.dev/","applicationCategory":"DeveloperApplication","operatingSystem":"Linux, Windows","softwareRequirements":"Claude Code or another supported coding agent, Node.js 18 or newer","license":"https://opensource.org/license/mit","isAccessibleForFree":true,"sameAs":["https://github.com/naimkatiman/continuous-improvement","https://www.npmjs.com/package/continuous-improvement"]}</script>
 <style>
 /*
   continuous-improvement.dev. Static files, no build step, no framework, no third-party request:
@@ -279,6 +279,9 @@ th, td { text-align: left; vertical-align: top; padding: 10px 12px 10px 0; borde
 thead th { font-weight: 600; color: var(--text); font-size: 12.5px; border-top: 0; }
 tbody th { font-weight: 500; color: var(--text); }
 td { color: var(--soft); }
+.agents code { overflow-wrap: anywhere; }
+@media (min-width: 861px) { .agents tbody th { width: 17%; } .agents td:nth-child(2) { width: 22%; } .agents td:last-child { width: 34%; } }
+@media (min-width: 861px) { #agents > .copy { border: 1px solid var(--line-2); border-radius: 16px; background: rgba(12, 10, 9, 0.86); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); padding: clamp(18px, 2.4vw, 30px); } }
 .docs { display: block; font-size: 12px; color: var(--muted); margin-top: 4px; }
 .st { display: inline-block; font-size: 12px; white-space: nowrap; }
 .ev, .no { font-size: 11.5px; color: var(--muted); margin-right: 4px; }
@@ -481,6 +484,7 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
       <a href="#cost">Cost</a>
       <a href="#limits">Limits</a>
       <a href="#off">Turn off</a>
+      <a href="#agents" class="mid">Agents</a>
       <a href="https://github.com/naimkatiman/continuous-improvement" class="cta">GitHub</a>
     </nav>
   </div>
@@ -490,9 +494,9 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
 
   <section class="sec hero" id="top" data-cam="hero" data-cam-top aria-labelledby="h-top">
     <div class="copy">
-      <span class="kicker"><i aria-hidden="true"></i><b>Claude Code plugin</b> REV 3.27.0</span>
-      <h1 id="h-top">Guard hooks for Claude Code.</h1>
-      <p class="lead">Destructive commands are refused in every permission mode. Every call that runs is logged, on your machine.</p>
+      <span class="kicker"><i aria-hidden="true"></i><b>Claude Code first</b> REV 3.27.0</span>
+      <h1 id="h-top">Guard hooks for coding agents.</h1>
+      <p class="lead">Destructive commands are refused in every permission mode. Every call that runs is logged, on your machine. Other coding agents get the same hook through their own hook system: <a href="#agents">what each one gets</a>.</p>
 
       <div class="actions">
         <button class="btn primary copy-btn" type="button" data-target="cmds" data-copy="/plugin marketplace add naimkatiman/continuous-improvement&#10;/plugin install continuous-improvement@continuous-improvement">Copy install commands</button>
@@ -1025,6 +1029,131 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
     </div>
   </section>
 
+  <section class="sec wide-sec" id="agents" aria-labelledby="h-agents">
+    <div class="copy">
+      <h2 id="h-agents">Other coding agents, and what each one gets.</h2>
+      <p class="lead">The same hook files run on every agent, from a stable copy under <code>~/.claude/instincts/runtime/</code>, and each answer is written in the format that agent reads. This table is the promise. Blocks means the call stops when the hook runs: an agent that fails open on a hook crash or timeout, or has hooks switched off, lets it through. Each row's follow-up step and sources are in <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/docs/AGENT-SUPPORT.md">docs/AGENT-SUPPORT.md</a>.</p>
+      <div class="wide">
+<!-- agent-matrix:start -->
+      <table class="files agents" role="table" aria-labelledby="h-agents">
+        <thead role="rowgroup"><tr role="row"><th role="columnheader" scope="col"><span class="tag">Agent</span></th><th role="columnheader" scope="col"><span class="tag">Tier</span></th><th role="columnheader" scope="col"><span class="tag">Install</span></th><th role="columnheader" scope="col"><span class="tag">Cannot</span></th></tr></thead>
+        <tbody role="rowgroup">
+          <tr role="row">
+            <th role="rowheader" scope="row">Claude Code</th>
+            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes, in every permission mode.</td>
+            <td role="cell" data-l="Install"><code>/plugin marketplace add naimkatiman/continuous-improvement</code><br>then <code>/plugin install continuous-improvement@continuous-improvement</code></td>
+            <td role="cell" data-l="Cannot">Nothing is lost. The npm installer wires no guard for Claude Code, so use the plugin.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Codex CLI</th>
+            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes, after you trust each hook in /hooks.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target codex --hooks</code></td>
+            <td role="cell" data-l="Cannot">Hooks stay off until trusted. Hosted tools bypass hooks. No Skill tool, so companion-preference is not wired.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Gemini CLI</th>
+            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target gemini --hooks</code></td>
+            <td role="cell" data-l="Cannot">A malformed hooks.json is dropped silently. No CLI lists the hooks.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Qwen Code</th>
+            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target qwen --hooks</code></td>
+            <td role="cell" data-l="Cannot"><code>$ARGUMENTS</code> is not substituted in commands. The prompt hook also fires on tool results.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Cursor</th>
+            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes (3.x).</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target cursor --hooks</code></td>
+            <td role="cell" data-l="Cannot">Cloud agents run no session hooks. 2.5.26 has no prompt context. Stray output from a hook stops every tool call on 3.x. The Cursor CLI is not covered.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">GitHub Copilot CLI</th>
+            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target copilot --hooks</code></td>
+            <td role="cell" data-l="Cannot">Prompt hook output is dropped, so the prompt hooks are not wired. A hook that times out fails open. The cloud agent reads only .github/hooks, and disableAllHooks turns every hook off.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Grok CLI</th>
+            <td role="cell" data-l="Tier"><b>partial</b>. Blocks: yes, in a trusted folder.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target grok --hooks</code></td>
+            <td role="cell" data-l="Cannot">No session or prompt context, so lessons need the rules file. No <code>mcp remove</code>, so the MCP undo is a config edit.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Devin Local</th>
+            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes, outside Restricted Mode.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target devin --hooks</code></td>
+            <td role="cell" data-l="Cannot">Restricted Mode runs no hooks. Hooks it imports from ~/.claude can fire twice. Plugin hooks fail open.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Kiro CLI and IDE</th>
+            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes (exit 2).</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target kiro --hooks</code></td>
+            <td role="cell" data-l="Cannot">CLI sessions on the V2 harness read agent-profile hooks, not this file. The IDE docs conflict on what an exit other than 2 means, so a hook crash may allow there.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Factory Droid</th>
+            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target droid --hooks</code></td>
+            <td role="cell" data-l="Cannot">Context printed at PreToolUse is ignored. SubagentStop cannot send a turn back.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Auggie</th>
+            <td role="cell" data-l="Tier"><b>partial</b>. Blocks: yes.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target auggie --hooks</code></td>
+            <td role="cell" data-l="Cannot">Only the tool-call hooks act. Session, Stop and prompt hooks run in the background, so only the guards and the log are wired.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Junie CLI</th>
+            <td role="cell" data-l="Tier"><b>partial</b>. Blocks: yes, on the Early Access build.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target junie --hooks --scope user</code></td>
+            <td role="cell" data-l="Cannot">Stable builds run no hooks. SessionStart context is ignored.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Cline</th>
+            <td role="cell" data-l="Tier"><b>partial</b>. Blocks: yes, while Enable Hooks is on.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target cline --hooks</code></td>
+            <td role="cell" data-l="Cannot">No Stop gate and no session lessons. A hook error fails open.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Goose</th>
+            <td role="cell" data-l="Tier"><b>partial</b>. Blocks: yes.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target goose --hooks</code></td>
+            <td role="cell" data-l="Cannot">Post-tool, session and prompt hooks only observe. Hook commands run through sh -c, unverified on Windows.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">OpenCode</th>
+            <td role="cell" data-l="Tier"><b>partial</b>. Blocks: yes, through a local plugin file.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target opencode --hooks</code></td>
+            <td role="cell" data-l="Cannot">1.x has no Stop gate (2.x continues a turn through experimental.idle). A deny reaches the model as a failed tool call and the turn goes on. OPENCODE_PURE turns plugins off.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Amp</th>
+            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes, through a local plugin file.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target amp --hooks</code></td>
+            <td role="cell" data-l="Cannot">The plugin API is experimental. Plugins do not load in Puck or Spaces, and <code>amp -x</code> needs --plugin-ready-timeout.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Zed</th>
+            <td role="cell" data-l="Tier"><b>rules only</b>. Blocks: no.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target zed</code></td>
+            <td role="cell" data-l="Cannot">Zed has no hooks, so nothing is blocked. This package installs no MCP server or skills for Zed yet.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Aider</th>
+            <td role="cell" data-l="Tier"><b>rules only</b>. Blocks: no.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target aider</code></td>
+            <td role="cell" data-l="Cannot">Aider has no hooks, MCP client or skills, so nothing is blocked.</td>
+          </tr>
+        </tbody>
+      </table>
+<!-- agent-matrix:end -->
+      </div>
+      <p class="note">Full: blocks, lessons through a session hook, and a Stop gate. Partial: blocks, with one of the other two missing. Rules only: nothing is blocked. Without <code class="nb">--hooks</code>, <code class="nb">--target</code> writes only the rules file.</p>
+    </div>
+  </section>
+
   <section class="sec" id="limits" data-cam="limits" aria-labelledby="h-limits">
     <div class="copy">
       <h2 id="h-limits">What it cannot do.</h2>
@@ -1093,7 +1222,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
             <div><dt>Remove</dt><dd><code>/plugin uninstall <span class="nb">continuous-improvement</span><wbr>@<span class="nb">continuous-improvement</span></code> Then delete <code>~/.claude/instincts/</code> and <code class="nb">~/.claude/hook-telemetry/</code> yourself.</dd></div>
             <div><dt>Update</dt><dd><code>claude plugin marketplace update <span class="nb">continuous-improvement</span></code> Then <code>claude plugin update <span class="nb">continuous-improvement</span><wbr>@<span class="nb">continuous-improvement</span></code>. The new version loads in your next session.</dd></div>
             <div><dt>npm</dt><dd><code>npx <span class="nb">continuous-improvement</span> install</code> Installs the logger, 2 skills and 14 commands into <code>~/.claude</code>. With <code class="nb">--mode expert</code> it also registers the session hook and writes an MCP server entry into <code>~/.claude/settings.json</code>. Whether current Claude Code loads a server from that file was not verified. It installs none of the guard hooks, so <code>/verify-install</code> reports the missing guard on this path. Do not run both paths against the same <code>~/.claude</code>.</dd></div>
-            <div><dt>Other agents</dt><dd><code>npx <span class="nb">continuous-improvement</span> install <span class="nb">--target</span> gemini,codex</code> Writes a rules file for Gemini, Codex, Cursor, Windsurf, Zed, Aider or Copilot. A rules file only: no hooks, no MCP server, no lessons.</dd></div>
+            <div><dt>Other agents</dt><dd><code>npx <span class="nb">continuous-improvement</span> install <span class="nb">--target</span> codex <span class="nb">--hooks</span></code> Installs the hooks and the MCP server for that agent. Without <code class="nb">--hooks</code>, <code class="nb">--target</code> writes a rules file only. Every agent, its tier and what it cannot do: <a href="#agents">Agents</a>.</dd></div>
           </dl>
           <p class="note">These commands are from the <a href="https://code.claude.com/docs/en/plugins/cli-reference">plugin CLI reference</a>. They were not run against a live install here. The switch above only dims the gate in this picture.</p>
         </div>
@@ -1135,7 +1264,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
       <summary>This repository's own checks</summary>
       <div class="drawer">
         <p>The test line is a stated count, not a capture: CI compares it with the real run and fails when they differ. Three numbers above are pinned by a check: the version in four places (<code>verify:landing-version</code>), the skill count (<code>verify:skill-count</code>) and the test count in two (<code>verify:test-count</code>).</p>
-<pre class="tape">checks     18 invariants + typecheck
+<pre class="tape">checks     20 invariants + typecheck
 tests      PASS  4624/4624
 ci         Node 18, 20, 22 on Linux</pre>
       </div>

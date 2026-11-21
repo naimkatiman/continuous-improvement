@@ -1,7 +1,7 @@
 {
   "name": "continuous-improvement",
   "version": "3.27.0",
-  "description": "Guard and memory plugin for Claude Code. As a Claude Code plugin it wires a hook that denies known destructive shell commands in every permission mode; opt-in hooks that deny pushes to protected branches and edits to the files that wire the guardrails, and hold a turn open on a failing typecheck; a local searchable log of tool calls; up to 10 recorded lessons loaded at session start; and an MCP server. `npx continuous-improvement install` wires only the tool-call log (with --mode expert, also the session-start loader and the MCP server) and copies the core and ship skills. Ships 28 bundled skills.",
+  "description": "Guardrails for coding agents, Claude Code first. As a Claude Code plugin it wires a hook that denies known destructive shell commands in every permission mode; opt-in hooks that deny pushes to protected branches and edits to the files that wire the guardrails, and hold a turn open on a failing typecheck; a local searchable log of tool calls; up to 10 recorded lessons loaded at session start; and an MCP server. `npx continuous-improvement install` wires only the tool-call log for Claude Code (with --mode expert, also the session-start loader and the MCP server) and copies the core and ship skills. `--target <agent> --hooks` installs the guard for 15 other agents that can block a tool call, with the MCP server, per the tier table in docs/AGENT-SUPPORT.md. Ships 28 bundled skills.",
   "keywords": [
     "claude-code",
     "claude-code-plugin",
@@ -17,7 +17,25 @@
     "hooks",
     "mcp",
     "github-action",
-    "transcript-linter"
+    "transcript-linter",
+    "coding-agents",
+    "agent-guardrails",
+    "guardrails",
+    "codex",
+    "gemini-cli",
+    "qwen-code",
+    "cursor",
+    "github-copilot",
+    "grok",
+    "devin",
+    "kiro",
+    "factory-droid",
+    "auggie",
+    "junie",
+    "cline",
+    "goose",
+    "opencode",
+    "amp"
   ],
   "author": "naimkatiman",
   "license": "MIT",
@@ -59,13 +77,14 @@
     "verify:routing-targets": "node bin/check-routing-targets.mjs",
     "verify:superpowers-companion-table": "node bin/check-superpowers-companion-table.mjs",
     "verify:doc-runtime-claims": "node bin/check-doc-runtime-claims.mjs",
+    "verify:agent-matrix": "node bin/check-agent-matrix.mjs",
     "verify:test-imports-only": "node bin/check-test-imports-only.mjs",
     "verify:landing-version": "node bin/check-landing-version.mjs",
     "verify:scripts-citation-drift": "node bin/check-scripts-citation-drift.mjs && node bin/check-scripts-citation-drift.mjs plugins/continuous-improvement",
     "verify:third-party-shape": "node bin/check-third-party-shape.mjs",
     "verify:tool-count": "node bin/check-tool-count.mjs",
     "verify:reconcile-parity": "node bin/check-reconcile-parity.mjs",
-    "verify:all": "npm run verify:skill-mirror && npm run verify:skill-tiers && npm run verify:skill-law-tag && npm run verify:skill-count && npm run verify:skill-count-prose && npm run verify:command-count && npm run verify:test-count && npm run verify:invariant-count && npm run verify:docs-substrings && npm run verify:everything-mirror && npm run verify:routing-targets && npm run verify:superpowers-companion-table && npm run verify:doc-runtime-claims && npm run verify:test-imports-only && npm run verify:landing-version && npm run verify:scripts-citation-drift && npm run verify:third-party-shape && npm run verify:tool-count && npm run verify:reconcile-parity && npm run typecheck"
+    "verify:all": "npm run verify:skill-mirror && npm run verify:skill-tiers && npm run verify:skill-law-tag && npm run verify:skill-count && npm run verify:skill-count-prose && npm run verify:command-count && npm run verify:test-count && npm run verify:invariant-count && npm run verify:docs-substrings && npm run verify:everything-mirror && npm run verify:routing-targets && npm run verify:superpowers-companion-table && npm run verify:doc-runtime-claims && npm run verify:agent-matrix && npm run verify:test-imports-only && npm run verify:landing-version && npm run verify:scripts-citation-drift && npm run verify:third-party-shape && npm run verify:tool-count && npm run verify:reconcile-parity && npm run typecheck"
   },
   "files": [
     ".claude-plugin/",
