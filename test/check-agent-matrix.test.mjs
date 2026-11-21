@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
-import { HOOK_AGENT_IDS, PLUGIN_AGENT_IDS } from "../lib/agent-install-plans.mjs";
+import { HOOK_AGENT_IDS, PLUGIN_AGENT_IDS, planAgentInstall, resolveHookAgent } from "../lib/agent-install-plans.mjs";
 import { AGENT_PROFILES } from "../lib/agent-profiles.mjs";
 import { AGENT_SUPPORT, blocksPreTool, compatibleWith, renderCloudplugin, supportTier, } from "../lib/agent-support.mjs";
 import { BLOCK_END, BLOCK_START, CLAIM_SCAN_FILES, checkAgentMatrix, findBlockingClaims, renderSupportDoc, renderTierHtml, renderTierMarkdown, spliceBlock, supportViolations, writeAgentMatrix, } from "../bin/check-agent-matrix.mjs";
@@ -42,6 +42,40 @@ describe("agent support table", () => {
     });
     it("passes its own consistency check", () => {
         assert.deepEqual(supportViolations(AGENT_SUPPORT), []);
+    });
+    // PR 17 review: the Then cell left out the MCP step the installer prints for
+    // Codex at project scope, Auggie and Amp. Every row whose documented install
+    // prints a step the user must carry out says so.
+    it("names the printed step in Then for every install that prints one", () => {
+        for (const r of AGENT_SUPPORT) {
+            for (const cmd of r.install) {
+                const target = /--target (\S+)/.exec(cmd)?.[1];
+                if (!target || !cmd.includes("--hooks"))
+                    continue;
+                const agent = resolveHookAgent(target);
+                assert.ok(agent, `${r.id}: ${target} is not a hook agent`);
+                const scope = /--scope (\S+)/.exec(cmd)?.[1] === "user" ? "user" : "project";
+                const plan = planAgentInstall(agent, {
+                    scope,
+                    runtimeDir: "/home/u/rt",
+                    projectRoot: "/work/repo",
+                    home: "/home/u",
+                    platform: "linux",
+                    env: {},
+                    failClosed: false,
+                    read: () => null,
+                    listDir: () => [],
+                    documentsDir: () => null,
+                });
+                assert.equal(plan.error, undefined, `${r.id}: ${plan.error}`);
+                if (plan.printed.length > 0)
+                    assert.match(r.then, /\bprinted\b/, `${r.id}: the install prints ${plan.printed.length} step(s) but Then does not name them`);
+            }
+        }
+    });
+    it("says a Kiro hook crash exits 1, which Kiro CLI allows", () => {
+        const kiro = AGENT_SUPPORT.find((r) => r.id === "kiro");
+        assert.match(kiro?.cannot ?? "", /crash exits 1, which Kiro CLI allows/);
     });
     it("claims blocking only for claude and the agents the installer wires a pre-tool hook for", () => {
         const wired = new Set(["claude", ...HOOK_AGENT_IDS, ...PLUGIN_AGENT_IDS]);

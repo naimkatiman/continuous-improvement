@@ -1090,7 +1090,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
             <th role="rowheader" scope="row">Kiro CLI and IDE</th>
             <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes (exit 2).</td>
             <td role="cell" data-l="Install"><code>npx continuous-improvement install --target kiro --hooks</code></td>
-            <td role="cell" data-l="Cannot">CLI sessions on the V2 harness read agent-profile hooks, not this file. The IDE docs conflict on what an exit other than 2 means, so a hook crash may allow there.</td>
+            <td role="cell" data-l="Cannot">CLI sessions on the V2 harness read agent-profile hooks, not this file. A hook crash exits 1, which Kiro CLI allows, and the IDE docs disagree on what that exit means.</td>
           </tr>
           <tr role="row">
             <th role="rowheader" scope="row">Factory Droid</th>
@@ -1222,7 +1222,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
             <div><dt>Remove</dt><dd><code>/plugin uninstall <span class="nb">continuous-improvement</span><wbr>@<span class="nb">continuous-improvement</span></code> Then delete <code>~/.claude/instincts/</code> and <code class="nb">~/.claude/hook-telemetry/</code> yourself.</dd></div>
             <div><dt>Update</dt><dd><code>claude plugin marketplace update <span class="nb">continuous-improvement</span></code> Then <code>claude plugin update <span class="nb">continuous-improvement</span><wbr>@<span class="nb">continuous-improvement</span></code>. The new version loads in your next session.</dd></div>
             <div><dt>npm</dt><dd><code>npx <span class="nb">continuous-improvement</span> install</code> Installs the logger, 2 skills and 14 commands into <code>~/.claude</code>. With <code class="nb">--mode expert</code> it also registers the session hook and writes an MCP server entry into <code>~/.claude/settings.json</code>. Whether current Claude Code loads a server from that file was not verified. It installs none of the guard hooks, so <code>/verify-install</code> reports the missing guard on this path. Do not run both paths against the same <code>~/.claude</code>.</dd></div>
-            <div><dt>Other agents</dt><dd><code>npx <span class="nb">continuous-improvement</span> install <span class="nb">--target</span> codex <span class="nb">--hooks</span></code> Installs the hooks and the MCP server for that agent. Without <code class="nb">--hooks</code>, <code class="nb">--target</code> writes a rules file only. Every agent, its tier and what it cannot do: <a href="#agents">Agents</a>.</dd></div>
+            <div><dt>Other agents</dt><dd><code>npx <span class="nb">continuous-improvement</span> install <span class="nb">--target</span> codex <span class="nb">--hooks</span></code> Installs the hooks for that agent, and writes or prints the MCP server step. Without <code class="nb">--hooks</code>, <code class="nb">--target</code> writes a rules file only. Every agent, its tier and what it cannot do: <a href="#agents">Agents</a>.</dd></div>
           </dl>
           <p class="note">These commands are from the <a href="https://code.claude.com/docs/en/plugins/cli-reference">plugin CLI reference</a>. They were not run against a live install here. The switch above only dims the gate in this picture.</p>
         </div>

@@ -127,6 +127,19 @@ describe("package description (npm and llms.txt)", () => {
     );
     assert.match(pkg.description, /docs\/AGENT-SUPPORT\.md/);
   });
+
+  // PR 17 review: at project scope 8 of the 15 agents get the MCP server as a
+  // printed step, not a written file, so no surface may say the install adds it.
+  it("says the other-agent install writes or prints the MCP server step, on every surface", () => {
+    assert.ok(pkg.description.includes("and writes or prints the MCP server step"), "package.json description");
+    assert.doesNotMatch(pkg.description, /with the MCP server, per/);
+    const llms = readRepoFile("llms.txt");
+    assert.doesNotMatch(llms, /run from a stable copy, plus the MCP server/);
+    assert.match(llms, /writes or prints the MCP server step/);
+    const landing = readRepoFile("docs/landing/index.html");
+    assert.doesNotMatch(landing, /Installs the hooks and the MCP server for that agent/);
+    assert.match(landing, /writes or prints the MCP server step/);
+  });
 });
 
 describe("llms.txt install steps", () => {

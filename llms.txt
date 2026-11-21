@@ -1,6 +1,6 @@
 # continuous-improvement
 
-> Guardrails for coding agents, Claude Code first. As a Claude Code plugin it wires a hook that denies known destructive shell commands in every permission mode; opt-in hooks that deny pushes to protected branches and edits to the files that wire the guardrails, and hold a turn open on a failing typecheck; a local searchable log of tool calls; up to 10 recorded lessons loaded at session start; and an MCP server. `npx continuous-improvement install` wires only the tool-call log for Claude Code (with --mode expert, also the session-start loader and the MCP server) and copies the core and ship skills. `--target <agent> --hooks` installs the guard for 15 other agents that can block a tool call, with the MCP server, per the tier table in docs/AGENT-SUPPORT.md. Ships 28 bundled skills.
+> Guardrails for coding agents, Claude Code first. As a Claude Code plugin it wires a hook that denies known destructive shell commands in every permission mode; opt-in hooks that deny pushes to protected branches and edits to the files that wire the guardrails, and hold a turn open on a failing typecheck; a local searchable log of tool calls; up to 10 recorded lessons loaded at session start; and an MCP server. `npx continuous-improvement install` wires only the tool-call log for Claude Code (with --mode expert, also the session-start loader and the MCP server) and copies the core and ship skills. `--target <agent> --hooks` installs the guard for 15 other agents that can block a tool call, and writes or prints the MCP server step, per the tier table in docs/AGENT-SUPPORT.md. Ships 28 bundled skills.
 
 ## What This Is
 
@@ -32,7 +32,7 @@ From npm, tool-call log only (add `--mode expert` for the session-start loader a
 npx continuous-improvement install
 ```
 
-For another coding agent (hooks/gateguard.mjs and the other hooks, run from a stable copy, plus the MCP server), per the tier table in docs/AGENT-SUPPORT.md:
+For another coding agent (hooks/gateguard.mjs and the other hooks, run from a stable copy; it writes or prints the MCP server step), per the tier table in docs/AGENT-SUPPORT.md:
 
 ```bash
 npx continuous-improvement install --target <agent> --hooks

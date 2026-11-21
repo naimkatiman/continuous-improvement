@@ -28,7 +28,7 @@ The guard is `hooks/gateguard.mjs` (destructive shell commands and blind edits),
 | GitHub Copilot CLI | full | yes | yes | `npx continuous-improvement install --target copilot --hooks` | Prompt hook output is dropped, so the prompt hooks are not wired. A hook that times out fails open. The cloud agent reads only .github/hooks, and disableAllHooks turns every hook off. |
 | Grok CLI | partial | yes, in a trusted folder | rules file | `npx continuous-improvement install --target grok --hooks` | No session or prompt context, so lessons need the rules file. No `mcp remove`, so the MCP undo is a config edit. |
 | Devin Local | full | yes, outside Restricted Mode | yes | `npx continuous-improvement install --target devin --hooks` | Restricted Mode runs no hooks. Hooks it imports from ~/.claude can fire twice. Plugin hooks fail open. |
-| Kiro CLI and IDE | full | yes (exit 2) | yes | `npx continuous-improvement install --target kiro --hooks` | CLI sessions on the V2 harness read agent-profile hooks, not this file. The IDE docs conflict on what an exit other than 2 means, so a hook crash may allow there. |
+| Kiro CLI and IDE | full | yes (exit 2) | yes | `npx continuous-improvement install --target kiro --hooks` | CLI sessions on the V2 harness read agent-profile hooks, not this file. A hook crash exits 1, which Kiro CLI allows, and the IDE docs disagree on what that exit means. |
 | Factory Droid | full | yes | yes | `npx continuous-improvement install --target droid --hooks` | Context printed at PreToolUse is ignored. SubagentStop cannot send a turn back. |
 | Auggie | partial | yes | rules file | `npx continuous-improvement install --target auggie --hooks` | Only the tool-call hooks act. Session, Stop and prompt hooks run in the background, so only the guards and the log are wired. |
 | Junie CLI | partial | yes, on the Early Access build | rules file | `npx continuous-improvement install --target junie --hooks --scope user` | Stable builds run no hooks. SessionStart context is ignored. |
@@ -65,7 +65,7 @@ The guard is `hooks/gateguard.mjs` (destructive shell commands and blind edits),
 - MCP server: yes
 - Checked against: installed binary
 - Install: `npx continuous-improvement install --target codex --hooks`
-- Then: Open /hooks in Codex and trust each hook. A project's .codex/hooks.json loads only in a trusted project; `--scope user --run` writes ~/.codex/hooks.json and runs `codex mcp add`.
+- Then: Open /hooks in Codex and trust each hook. Add the printed MCP block to .codex/config.toml; it and .codex/hooks.json load only in a trusted project. `--scope user --run` writes ~/.codex/hooks.json and runs `codex mcp add` instead.
 - Cannot: Hooks stay off until trusted. Hosted tools bypass hooks. No Skill tool, so companion-preference is not wired.
 - Source: Research Codex CLI 0.171 hook_pre_tool (skeptic: corrected; permissionDecision deny, exit 2 and empty-stdout allow hold) and hook_session_start (plain stdout); matrix row Codex CLI 0.171.
 
@@ -154,7 +154,7 @@ The guard is `hooks/gateguard.mjs` (destructive shell commands and blind edits),
 - MCP server: yes
 - Checked against: vendor docs
 - Install: `npx continuous-improvement install --target kiro --hooks`
-- Cannot: CLI sessions on the V2 harness read agent-profile hooks, not this file. The IDE docs conflict on what an exit other than 2 means, so a hook crash may allow there.
+- Cannot: CLI sessions on the V2 harness read agent-profile hooks, not this file. A hook crash exits 1, which Kiro CLI allows, and the IDE docs disagree on what that exit means.
 - Source: Research Kiro hook_pre_tool (skeptic: corrected; exit 2 blocks on every surface, IDE non-zero exit docs contradict each other); matrix rows Kiro CLI V3 and Kiro IDE 1.x.
 
 ### Factory Droid
@@ -178,7 +178,7 @@ The guard is `hooks/gateguard.mjs` (destructive shell commands and blind edits),
 - MCP server: yes
 - Checked against: vendor docs
 - Install: `npx continuous-improvement install --target auggie --hooks`
-- Then: For the lessons, run `npx -p continuous-improvement ci lessons --format auggie --write`.
+- Then: Run the printed `auggie mcp add --project` step. For the lessons, run `npx -p continuous-improvement ci lessons --format auggie --write`.
 - Cannot: Only the tool-call hooks act. Session, Stop and prompt hooks run in the background, so only the guards and the log are wired.
 - Source: Research [Auggie] hook_pre_tool (skeptic: confirmed; JSON read only on exit 0) and the background session, Stop and prompt hooks; matrix row Auggie 1.2.2.
 
@@ -243,6 +243,7 @@ The guard is `hooks/gateguard.mjs` (destructive shell commands and blind edits),
 - MCP server: yes
 - Checked against: vendor docs
 - Install: `npx continuous-improvement install --target amp --hooks`
+- Then: Add the printed `amp.mcpServers` entry to .amp/settings.json, then run `amp mcp approve continuous-improvement`.
 - Cannot: The plugin API is experimental. Plugins do not load in Puck or Spaces, and `amp -x` needs --plugin-ready-timeout.
 - Source: Research Amp hook_pre_tool (skeptic: corrected; tool.call reject-and-continue reaches the model as 'Tool rejected by plugin'); matrix row Amp.
 
