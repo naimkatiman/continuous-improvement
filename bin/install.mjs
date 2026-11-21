@@ -7,6 +7,7 @@
  *   npx continuous-improvement install --mode expert  # + MCP server + session hooks
  *   npx continuous-improvement install --pack react   # load starter instinct pack
  *   npx continuous-improvement install --target gemini,codex  # skill into other agents' rules files
+ *   npx continuous-improvement install --target qwen --hooks  # hooks + MCP for another agent
  *   npx continuous-improvement install --uninstall    # remove everything
  */
 import { chmodSync, copyFileSync, existsSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, readdirSync, renameSync, rmSync, statSync, writeFileSync, } from "node:fs";
@@ -18,6 +19,8 @@ import { hashProjectRoot, resolveProjectRoot } from "../lib/gateguard-state.mjs"
 import { resolveInstinctsRoot } from "../lib/agent-paths.mjs";
 import { readKnob } from "../lib/agent-env.mjs";
 import { TARGET_IDS, planTargetWrites, resolveTargets } from "../lib/install-targets.mjs";
+import { parseHookArgs } from "../lib/agent-install-plans.mjs";
+import { runHookInstall, runHookUninstall } from "../lib/install-runtime.mjs";
 import { evaluateUpdateCheck, fetchLatestNpmVersion, isThrottled, pendingNotice, } from "../lib/version-check.mjs";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -709,6 +712,18 @@ Options for 'install':
                       copilot   — .github/copilot-instructions.md
                     Non-claude targets write the 7-Laws skill text into the
                     current project; hooks/MCP/instincts stay Claude Code-only.
+  --hooks           With --target codex, qwen, grok, devin (windsurf) or droid:
+                    also install that agent's hooks and MCP server, pointing at
+                    a stable runtime copy under the instincts dir
+  --scope <scope>   With --hooks: project (default) or user; user-level agent
+                    config is written only with --scope user
+  --dry-run         With --hooks: print what would be written and run; write nothing
+  --run             With --hooks: run the vendor commands that need no security
+                    consent (<agent> mcp add); otherwise they are printed
+  --fail-closed     With --hooks: set the agent's fail-closed hook option where
+                    it has one (the default keeps the agent's own behaviour)
+  --uninstall --target <ids>
+                    Remove exactly what --hooks installed for those agents
   --help            Show this help
 
 Options for 'backfill':
@@ -755,6 +770,30 @@ if (command === "backfill") {
         // status without a stack trace so operator output stays clean.
     }
     process.exit(0);
+}
+// --hooks, --scope, --dry-run, --run, --fail-closed and --uninstall --target
+// <agent> (docs/plans/2026-11-21-all-agents.md, PR 12). An argv with none of
+// them takes the paths below unchanged.
+const hookArgs = parseHookArgs(rawArgs);
+if (hookArgs.mode === "error") {
+    console.error(hookArgs.message);
+    process.exit(1);
+}
+if (hookArgs.mode !== "none") {
+    const project = getProjectHashSync();
+    const hookIo = {
+        home: getHomeDir(),
+        projectRoot: project.root === "global" ? process.cwd() : project.root,
+        packageRoot: REPO_ROOT,
+        version: VERSION,
+        platform: process.platform,
+        env: process.env,
+        instinctsRoot: resolveInstinctsRoot(getHomeDir()),
+        skillMd: () => readFileSync(SKILL_SOURCE, "utf8"),
+        out: (line) => console.log(line),
+        err: (line) => console.error(line),
+    };
+    process.exit(hookArgs.mode === "install" ? runHookInstall(hookArgs, hookIo) : runHookUninstall(hookArgs, hookIo));
 }
 if (args.includes("--uninstall")) {
     process.exit(uninstallAll() ? 0 : 1);
