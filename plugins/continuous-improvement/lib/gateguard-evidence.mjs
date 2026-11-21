@@ -29,20 +29,26 @@ import { readFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { resolveInboundTool } from "./agent-profiles.mjs";
 import { summariseInput } from "./observe-event.mjs";
+import { parsePatchPaths } from "./patch-paths.mjs";
 /** Tools that act on one file: the row counts when its recorded path is the target. */
 const FILE_TOOLS = new Set(["Read", "Edit", "Write", "MultiEdit", "NotebookEdit", "NotebookRead"]);
 /** Shell and search tools: the row counts when its command, pattern or output names the target. */
 const MENTION_TOOLS = new Set(["Bash", "PowerShell", "Grep", "Glob"]);
 // Other agents' rows carry their own tool names (lib/agent-profiles.mjs). The
-// observer records a file alias by its path and a shell or patch by its text,
-// and keeps a search alias's input as JSON, so they sort the same way.
+// observer records a file alias by its path, a shell by its command and a patch
+// by its text, and keeps a search alias's input as JSON. A patch row counts for
+// the files its headers name, as a Write row counts for its file_path: a name
+// in a new file's body is not a look at that file.
 function isFileTool(tool) {
     const kind = resolveInboundTool(tool)?.kind;
     return FILE_TOOLS.has(tool) || kind === "file-read" || kind === "file-write";
 }
+function isPatchTool(tool) {
+    return resolveInboundTool(tool)?.kind === "patch";
+}
 function isMentionTool(tool) {
     const kind = resolveInboundTool(tool)?.kind;
-    return MENTION_TOOLS.has(tool) || kind === "shell" || kind === "search" || kind === "patch";
+    return MENTION_TOOLS.has(tool) || kind === "shell" || kind === "search";
 }
 // Windows file names and drive letters do not distinguish case.
 const IGNORE_CASE = process.platform === "win32";
@@ -162,6 +168,9 @@ function isEvidence(row, target, cwd) {
     if (isFileTool(row.tool)) {
         return recordedPaths(row.input_summary).some((path) => fileKey(path, cwd) === target.key);
     }
+    if (isPatchTool(row.tool)) {
+        return parsePatchPaths(row.input_summary).some((path) => fileKey(path, cwd) === target.key);
+    }
     if (target.mention === null)
         return false;
     return mentions(row.input_summary, target.mention) || mentions(row.output_summary, target.mention);
@@ -172,9 +181,9 @@ function isEvidence(row, target, cwd) {
  * when there is no log to read, in which case the caller cannot judge.
  *
  * A row counts when it is a completed call of this session and either a file
- * tool recorded the same file, or a shell or search tool named the file's base
- * name in its command, pattern or output. Relative paths, on either side, are
- * resolved against `cwd`.
+ * tool recorded the same file, a patch header named it, or a shell or search
+ * tool named the file's base name in its command, pattern or output. Relative
+ * paths, on either side, are resolved against `cwd`.
  *
  * The log is searched from its end and the search stops once every path is
  * accounted for. It runs before every edit of a file the session state does
@@ -208,7 +217,7 @@ export function findEvidence(logFile, sessionId, cwd, paths) {
         if (row !== null &&
             row.session === sessionId &&
             row.event === "tool_complete" &&
-            (isFileTool(row.tool) || isMentionTool(row.tool))) {
+            (isFileTool(row.tool) || isPatchTool(row.tool) || isMentionTool(row.tool))) {
             for (const target of targets) {
                 if (!seen.has(target.path) && isEvidence(row, target, cwd))
                     seen.add(target.path);

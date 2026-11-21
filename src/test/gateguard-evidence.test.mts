@@ -309,6 +309,26 @@ describe("hooks/gateguard.mjs file gate, evidence mode (the default)", () => {
     assert.equal(run.decision, "allow", run.reason);
   });
 
+  it("does not count an apply_patch row whose body only mentions the file", () => {
+    // A patch row is matched by its header paths, as a Write row is by its
+    // file_path. Text in a new file's body is not a look at the target.
+    const session = nextSession();
+    const file = makeFile(fixture, "src/patch-mentioned.ts");
+    const notes = "*** Begin Patch\n*** Add File: notes.txt\n+TODO: rewrite src/patch-mentioned.ts\n*** End Patch";
+    observe(fixture, session, "apply_patch", { command: notes }, "Success. A notes.txt");
+    assertUnreadDeny(gate(fixture, session, "Edit", { file_path: file, ...EDIT }), file);
+    const update = "*** Begin Patch\n*** Update File: src/patch-mentioned.ts\n@@\n-export const value = 1;\n+export const value = 2;\n*** End Patch";
+    assert.equal(gate(fixture, session, "apply_patch", { command: update }).decision, "block");
+  });
+
+  it("counts an earlier apply_patch row whose header names the file", () => {
+    const session = nextSession();
+    const file = makeFile(fixture, "src/patched-earlier.ts");
+    const update = "*** Begin Patch\n*** Update File: src/patched-earlier.ts\n@@\n-export const value = 1;\n+export const value = 2;\n*** End Patch";
+    observe(fixture, session, "apply_patch", { command: update }, "Success. M src/patched-earlier.ts");
+    assert.equal(gate(fixture, session, "Edit", { file_path: file, ...EDIT }).decision, "allow");
+  });
+
   it("allows an Edit when a Bash command's output names the file (a grep hit, a listing)", () => {
     const session = nextSession();
     const grepHit = makeFile(fixture, "src/grep-hit.ts");

@@ -225,4 +225,35 @@ describe("config-guard classifyMutation over inbound aliases", () => {
   it("classifies a shell alias command with the shell rules", () => {
     assert.equal(classifyMutation("Execute", { command: "cp x .mcp.json" })?.via, "bash");
   });
+
+  it("reads an indented header of a mixed patch as a write to that file", () => {
+    const command = "*** Begin Patch\n*** Add File: notes.txt\n+hi\n  *** Update File: .mcp.json\n@@\n-{}\n+{}\n*** End Patch";
+    assert.equal(classifyMutation("apply_patch", { command })?.target, ".mcp.json");
+  });
+});
+
+describe("Codex Bash on Windows", () => {
+  // Codex reports its shell as "Bash", a Claude name, and runs PowerShell on
+  // Windows (verified research, Codex tool_names). Classifying it both ways
+  // needs agent selection (--agent, CI_AGENT or the sniff, plan PR 8); doing it
+  // for every Bash on win32 would change the Claude goldens. Logged in
+  // docs/deferred.md. Remove the todo when PR 8 lands.
+  it(
+    "denies a recursive rm through Codex's Bash on win32, where it is Remove-Item -Recurse",
+    { todo: "needs agent selection (plan PR 8)" },
+    () => {
+      if (process.platform !== "win32") return;
+      const dirs = prepare({ id: "codex-bash-win32", steps: [] });
+      const step: Step = {
+        hook: "hooks/gateguard.mjs",
+        stdin: {
+          session_id: "codex-session", cwd: "<PROJECT>", hook_event_name: "PreToolUse", model: "gpt-5.5",
+          permission_mode: "default", turn_id: "turn-1", tool_name: "Bash", tool_use_id: "call_1",
+          tool_input: { command: ["rm", "-r", "build"].join(" ") },
+        },
+        expect: { decision: "deny", stdoutIncludes: "powershell-remove-item" },
+      };
+      assertDecision("codex-bash-win32", step, runStep(step, dirs));
+    },
+  );
 });

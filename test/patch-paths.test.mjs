@@ -37,17 +37,34 @@ describe("parsePatchPaths", () => {
     it("keeps a path with spaces and trims only the edges", () => {
         assert.deepEqual(parsePatchPaths("*** Update File:   docs/my notes.md  \n"), ["docs/my notes.md"]);
     });
-    it("does not read a header-shaped line inside a hunk", () => {
+    it("does not read an added or removed line of a hunk as a header", () => {
         const patch = [
             "*** Begin Patch",
             "*** Update File: README.md",
             "@@",
             "+*** Add File: not-a-target.ts",
             "-*** Delete File: also-not.ts",
-            " *** Update File: context-line.ts",
             "*** End Patch",
         ].join("\n");
         assert.deepEqual(parsePatchPaths(patch), ["README.md"]);
+    });
+    it("reads a header-shaped context line as one more path, so the gate fails closed", () => {
+        // Codex trims leading whitespace before it looks for a header, so a context
+        // line that reads like a header can only add a path to gate, never hide one.
+        const patch = "*** Begin Patch\n*** Update File: README.md\n@@\n *** Update File: context-line.ts\n*** End Patch";
+        assert.deepEqual(parsePatchPaths(patch), ["README.md", "context-line.ts"]);
+    });
+    it("reads a header indented by spaces, which Codex applies (codex --codex-run-as-apply-patch, 0.171)", () => {
+        const patch = "*** Begin Patch\n  *** Update File: target.txt\n@@\n-a\n+z\n*** End Patch";
+        assert.deepEqual(parsePatchPaths(patch), ["target.txt"]);
+    });
+    it("reads a header indented by a tab, and an indented Begin line", () => {
+        assert.deepEqual(parsePatchPaths("*** Begin Patch\n\t*** Delete File: .mcp.json\n*** End Patch"), [".mcp.json"]);
+        assert.deepEqual(parsePatchPaths("  *** Begin Patch\n  *** Update File: a.ts\n@@\n-a\n+b\n  *** End Patch"), ["a.ts"]);
+    });
+    it("reads every header of a mixed patch when a later one is indented", () => {
+        const patch = "*** Begin Patch\n*** Add File: new.txt\n+hi\n *** Update File: target.txt\n@@\n-a\n+z\n*** End Patch";
+        assert.deepEqual(parsePatchPaths(patch), ["new.txt", "target.txt"]);
     });
     it("lists a path once when two headers name it", () => {
         const patch = "*** Update File: a.ts\n*** Update File: a.ts\n*** Delete File: a.ts\n";

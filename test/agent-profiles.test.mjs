@@ -124,6 +124,20 @@ describe("inbound input readers", () => {
         assert.deepEqual(inboundPaths(patch, { command: "not a patch" }), []);
         assert.deepEqual(inboundPaths(patch, {}), []);
     });
+    it("gives every patch tool at least one patch key, so a well-formed patch is gated", () => {
+        const patchTools = [
+            ...new Set(AGENT_PROFILES.flatMap((profile) => Object.keys(profile.tools)).filter((name) => resolveInboundTool(name)?.kind === "patch")),
+        ];
+        assert.ok(patchTools.includes("ApplyPatch"));
+        for (const name of patchTools)
+            assert.ok(resolveInboundTool(name).input.patch.length > 0, name);
+    });
+    it("reads a patch under each candidate key where the agent does not document one", () => {
+        const text = "*** Begin Patch\n*** Update File: target.txt\n*** End Patch";
+        assert.deepEqual(inboundPaths(resolveInboundTool("ApplyPatch"), { command: text }), ["target.txt"]);
+        assert.deepEqual(inboundPaths(resolveInboundTool("apply_patch"), { input: text }), ["target.txt"]);
+        assert.deepEqual(inboundPaths(resolveInboundTool("apply_patch"), { patch: text }), ["target.txt"]);
+    });
     it("reads no paths from a shell tool and no command from a file tool", () => {
         assert.deepEqual(inboundPaths(resolveInboundTool("exec"), { command: "cat a.ts", file_path: "a.ts" }), []);
         assert.equal(inboundCommand(resolveInboundTool("write_file"), { command: "x", file_path: "a.ts" }), null);

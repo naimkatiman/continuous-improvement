@@ -193,6 +193,77 @@
       ]
     },
     {
+      "id": "codex/apply-patch-indented-update-deny",
+      "note": "Codex 0.171 applies a header indented by spaces or a tab (codex --codex-run-as-apply-patch in a temp dir, no model: exit 0, 'Success. M target.txt'). Before, an indented header was unreadable and evidence mode allowed the patch with a warning.",
+      "setup": {
+        "files": {
+          "<PROJECT>/src/app.ts": "export const answer = 42;\n",
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            { "ts": "2026-11-21T00:00:00Z", "event": "tool_complete", "session": "codex-session", "tool": "Bash", "input_summary": "git status", "output_summary": "On branch main" }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "stdin": {
+            "session_id": "codex-session",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "apply_patch",
+            "tool_use_id": "call_8",
+            "tool_input": { "command": "*** Begin Patch\n  *** Update File: src/app.ts\n@@\n-export const answer = 42;\n+export const answer = 43;\n*** End Patch" }
+          },
+          "expect": { "decision": "deny", "stdoutIncludes": "shows no read of src/app.ts" }
+        }
+      ]
+    },
+    {
+      "id": "codex/apply-patch-add-then-indented-update-deny",
+      "note": "Codex applies this mixed patch ('Success. A new.txt M target.txt'). Before, the Add File header made the patch readable, the indented Update of an unread file was missed, and evidence mode allowed it.",
+      "setup": {
+        "files": {
+          "<PROJECT>/src/app.ts": "export const answer = 42;\n",
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            { "ts": "2026-11-21T00:00:00Z", "event": "tool_complete", "session": "codex-session", "tool": "Bash", "input_summary": "git status", "output_summary": "On branch main" }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "stdin": {
+            "session_id": "codex-session",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "apply_patch",
+            "tool_use_id": "call_9",
+            "tool_input": { "command": "*** Begin Patch\n*** Add File: new.txt\n+hi\n *** Update File: src/app.ts\n@@\n-export const answer = 42;\n+export const answer = 43;\n*** End Patch" }
+          },
+          "expect": { "decision": "deny", "stdoutIncludes": "shows no read of src/app.ts" }
+        }
+      ]
+    },
+    {
+      "id": "codex/apply-patch-add-then-indented-delete-settings-config-guard-block",
+      "note": "Before, classifyMutation returned null for a tab-indented Delete File of the settings after an Add File.",
+      "steps": [
+        {
+          "hook": "hooks/config-guard.mjs",
+          "env": { "CI_CONFIG_GUARD": "block" },
+          "stdin": {
+            "session_id": "codex-session",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "apply_patch",
+            "tool_use_id": "call_10",
+            "tool_input": { "command": "*** Begin Patch\n*** Add File: notes.txt\n+hi\n\t*** Delete File: .claude/settings.json\n*** End Patch" }
+          },
+          "expect": { "decision": "deny", "stdoutIncludes": ".claude/settings.json" }
+        }
+      ]
+    },
+    {
       "id": "codex/exec-command-destructive-deny",
       "note": "exec_command is Codex's model-facing shell name; hook payloads report Bash. Gated anyway, reading the model-facing cmd key.",
       "steps": [

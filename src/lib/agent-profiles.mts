@@ -63,6 +63,10 @@ const READ: ToolSpec = { kind: "file-read" };
 const SEARCH: ToolSpec = { kind: "search" };
 const OTHER: ToolSpec = { kind: "other" };
 const NONE: readonly string[] = [];
+// For a patch tool whose input key the research does not document: every
+// candidate key is read, so a well-formed patch is gated whichever one it uses.
+// Unverified; the citing source says so.
+const PATCH_KEYS_UNVERIFIED: readonly string[] = ["command", "patch", "input"];
 
 /**
  * The Claude Code tool names: the ones this repo's hooks route and match
@@ -122,22 +126,22 @@ export const AGENT_PROFILES: readonly AgentProfile[] = [
   },
   {
     id: "devin",
-    source: "Devin Local 3000.14 (Windsurf), research tool_names (skeptic: confirmed) + hook_payload_example (exec tool_input {command, shell_id}). The input keys of edit, write and read are not documented. The Windows default shell is PowerShell and exec_shell can pick bash, so the flavor is unknown.",
+    source: "Devin Local 3000.14 (Windsurf), research tool_names (skeptic: confirmed) + hook_payload_example (exec tool_input {command, shell_id}). The input keys of edit, write and read are not documented. The Windows default shell is PowerShell and exec_shell can pick bash, so the flavor is unknown. apply_patch's input key is not documented: patch keys command, patch and input are unverified candidates.",
     tools: {
       exec: SHELL, shell_command: SHELL, edit: WRITE, write: WRITE, apply_patch: PATCH, notebook_edit: WRITE,
       read: READ, notebook_read: READ, grep: SEARCH, glob: SEARCH, find_file_by_name: SEARCH,
       webfetch: OTHER, skill: OTHER, todo_write: OTHER, run_subagent: OTHER,
     },
-    input: { command: ["command"], path: NONE, patch: NONE },
+    input: { command: ["command"], path: NONE, patch: PATCH_KEYS_UNVERIFIED },
   },
   {
     id: "droid",
-    source: "Factory Droid 1.17, research tool_names + hook_payload_example (Create tool_input {file_path, content}). Claude matchers Bash and Write select Execute and Create; the payload reports the Droid name. Execute's input key is not documented.",
+    source: "Factory Droid 1.17, research tool_names + hook_payload_example (Create tool_input {file_path, content}). Claude matchers Bash and Write select Execute and Create; the payload reports the Droid name. Execute's input key is not documented. ApplyPatch's input key is not documented: patch keys command, patch and input are unverified candidates.",
     tools: {
       Execute: SHELL, Edit: WRITE, Create: WRITE, ApplyPatch: PATCH, Read: READ, LS: SEARCH, Glob: SEARCH, Grep: SEARCH,
       Task: OTHER, FetchUrl: OTHER, WebSearch: OTHER,
     },
-    input: { command: ["command"], path: ["file_path"], patch: NONE },
+    input: { command: ["command"], path: ["file_path"], patch: PATCH_KEYS_UNVERIFIED },
   },
   {
     id: "kiro",
@@ -153,12 +157,12 @@ export const AGENT_PROFILES: readonly AgentProfile[] = [
   },
   {
     id: "copilot",
-    source: "Copilot CLI, research tool_names (cli-hooks-reference tool table; skeptic: powershell maps to Bash under PascalCase events). Shell args carry command. Camel-case payloads use toolName/toolArgs, which these hooks do not read yet.",
+    source: "Copilot CLI, research tool_names (cli-hooks-reference tool table; skeptic: powershell maps to Bash under PascalCase events). Shell args carry command. Camel-case payloads use toolName/toolArgs, which these hooks do not read yet. apply_patch's input key is not documented: patch keys command, patch and input are unverified candidates.",
     tools: {
       bash: sh("posix"), powershell: sh("powershell"), edit: WRITE, str_replace_editor: WRITE, apply_patch: PATCH,
       create: WRITE, view: READ, grep: SEARCH, rg: SEARCH, glob: SEARCH, web_fetch: OTHER, web_search: OTHER,
     },
-    input: { command: ["command"], path: NONE, patch: NONE },
+    input: { command: ["command"], path: NONE, patch: PATCH_KEYS_UNVERIFIED },
   },
   {
     id: "auggie",
@@ -171,12 +175,12 @@ export const AGENT_PROFILES: readonly AgentProfile[] = [
   },
   {
     id: "junie",
-    source: "Junie CLI (Early Access hooks), research tool_names: Bash or powershell, Write, Read, Edit, Glob, Grep, apply_patch (not matched by Edit|Write) + hook_payload_example (Bash tool_input {command}).",
+    source: "Junie CLI (Early Access hooks), research tool_names: Bash or powershell, Write, Read, Edit, Glob, Grep, apply_patch (not matched by Edit|Write) + hook_payload_example (Bash tool_input {command}). apply_patch's input key is not documented: patch keys command, patch and input are unverified candidates.",
     tools: {
       Bash: sh("posix"), powershell: sh("powershell"), Write: WRITE, Edit: WRITE, apply_patch: PATCH,
       Read: READ, Glob: SEARCH, Grep: SEARCH,
     },
-    input: { command: ["command"], path: NONE, patch: NONE },
+    input: { command: ["command"], path: NONE, patch: PATCH_KEYS_UNVERIFIED },
   },
   {
     id: "goose",
@@ -186,13 +190,13 @@ export const AGENT_PROFILES: readonly AgentProfile[] = [
   },
   {
     id: "cline",
-    source: "Cline 4.1.27 / CLI 3.0.75, research tool_names (docs.cline.bot/sdk/tools.md: run_commands reads commands/command/cmd, read_files reads files/path/paths/file_paths) + skeptic legacy names. Payloads use preToolUse.toolName, which these hooks do not read yet.",
+    source: "Cline 4.1.27 / CLI 3.0.75, research tool_names (docs.cline.bot/sdk/tools.md: run_commands reads commands/command/cmd, read_files reads files/path/paths/file_paths) + skeptic legacy names. Payloads use preToolUse.toolName, which these hooks do not read yet. apply_patch's input key is not documented: patch keys command, patch and input are unverified candidates.",
     tools: {
       run_commands: SHELL, execute_command: SHELL, editor: WRITE, apply_patch: PATCH, replace_in_file: WRITE,
       write_to_file: WRITE, delete_file: WRITE, read_files: READ, read_file: READ, list_files: SEARCH,
       search_codebase: SEARCH, search_files: SEARCH, list_code_definition_names: SEARCH, spawn_agent: OTHER,
     },
-    input: { command: ["commands", "command", "cmd"], path: ["path", "paths", "file_paths"], patch: NONE },
+    input: { command: ["commands", "command", "cmd"], path: ["path", "paths", "file_paths"], patch: PATCH_KEYS_UNVERIFIED },
   },
 ];
 
