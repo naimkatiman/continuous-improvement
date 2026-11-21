@@ -47,7 +47,7 @@ describe("redactSecrets", () => {
         assert.equal(redactSecrets("DB_PASSWORD: hunter2hunter2"), "DB_PASSWORD: <redacted>");
     });
     it("redacts long hex strings", () => {
-        assert.equal(redactSecrets("sha 0123456789abcdef0123456789abcdef done"), "sha <hex-redacted> done");
+        assert.equal(redactSecrets("sha 0123456789abcdef0123456789abcdef done"), "sha <hex-redacted:01234567> done");
     });
     it("does not redact ordinary code", () => {
         const ordinary = 'console.log("test result ok")';
@@ -94,6 +94,33 @@ describe("buildIndex + query", () => {
         const hits = query(index, "permission scope");
         assert.ok(hits.length > 0);
         assert.ok(!hits[0].snippet.includes("topsecretvalue123"));
+    });
+    // The observer writes a run of 32 or more hex characters as
+    // <hex-redacted:XXXXXXXX>. The row has to stay findable by the id it stood
+    // for, pasted whole or as the 8 characters the placeholder keeps.
+    const SHA = "c5810ad91a7dd663c6706c955a7a1b37c92aae1e";
+    it("finds a row whose commit id was redacted at write time, by the full id and by its first 8 characters", () => {
+        const index = buildIndex([
+            obs({ input_summary: "git rev-parse HEAD", output_summary: redactSecrets(SHA) }),
+            obs({ input_summary: "npm run build", output_summary: "build succeeded" }),
+        ]);
+        for (const queryString of [SHA, SHA.toUpperCase(), SHA.slice(0, 8), `commit ${SHA}`]) {
+            const hits = query(index, queryString);
+            assert.equal(hits.length, 1, `query ${queryString}`);
+            assert.match(hits[0].snippet, /git rev-parse HEAD/);
+            assert.match(hits[0].snippet, /<hex-redacted:c5810ad9>/);
+        }
+    });
+    it("still finds a row written before redaction by its full commit id, and redacts the snippet", () => {
+        const index = buildIndex([obs({ input_summary: "git rev-parse HEAD", output_summary: SHA })]);
+        const hits = query(index, SHA);
+        assert.equal(hits.length, 1);
+        assert.ok(!hits[0].snippet.includes(SHA), hits[0].snippet);
+        assert.match(hits[0].snippet, /<hex-redacted:c5810ad9>/);
+    });
+    it("does not match a redacted row on a different id that only shares the word hex", () => {
+        const index = buildIndex([obs({ input_summary: "git rev-parse HEAD", output_summary: redactSecrets(SHA) })]);
+        assert.deepEqual(query(index, "9f8e7d6c5b4a39281706f5e4d3c2b1a09f8e7d6c"), []);
     });
 });
 describe("parseSince", () => {

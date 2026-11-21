@@ -16,7 +16,7 @@
         ]
       },
       {
-        "matcher": "Bash",
+        "matcher": "Bash|PowerShell|Monitor",
         "hooks": [
           {
             "type": "command",
@@ -26,7 +26,7 @@
         ]
       },
       {
-        "matcher": "Bash|Edit|MultiEdit|Write|NotebookEdit",
+        "matcher": "Bash|PowerShell|Monitor|Edit|MultiEdit|Write|NotebookEdit",
         "hooks": [
           {
             "type": "command",

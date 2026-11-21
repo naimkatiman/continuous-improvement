@@ -21,7 +21,9 @@
  *           forwards unknown tool params
  *
  * Read-only and exploratory tools (Read, Grep, Glob, routine Bash) bypass
- * unconditionally. Destructive Bash gates EVERY call, not just first.
+ * unconditionally. Destructive Bash gates EVERY call, not just first. The
+ * PowerShell tool is a shell tool too and goes through the same classifier,
+ * which is told the tool name (`rm -r` is Remove-Item -Recurse there).
  *
  * V1 honest limitations (see src/lib/gateguard-state.mts header):
  *   honor-system flag, state-file deletion, parallel-hook race.
@@ -48,22 +50,33 @@ const TOOL_ROUTE = {
     MultiEdit: "mutating-file",
     NotebookEdit: "mutating-file",
     Bash: "allow",
+    PowerShell: "allow",
+    Monitor: "allow",
 };
+// The tools whose input is a shell command. Claude Code on Windows exposes a
+// first-class PowerShell tool with the same { command } input as Bash, and the
+// Monitor tool runs its { command } in the same shell as Bash. A destructive
+// command is as destructive through any of them, so every shell rule below
+// applies to all three. A Monitor call in its { ws } form has no command and
+// is allowed.
+const SHELL_TOOLS = new Set(["Bash", "PowerShell", "Monitor"]);
 // The destructive-Bash classifier lives in lib/destructive-bash.mjs: structured
 // rules (flag order and spelling do not matter: `rm -r -f`, `git clean -fdx`,
 // `git checkout -- .`, `git restore .`, `find -delete`, `git push +ref`,
 // `git stash drop`) plus the original substring list as the fallback. The
 // message-flag carve-out (`git commit -m "…"`) lives there too. Each rule has
-// a stable id the deny reason prints, so a block is explainable.
-function isDestructiveBash(command) {
-    return classifyDestructiveBash(command).destructive;
+// a stable id the deny reason prints, so a block is explainable. The tool name
+// goes with the command: `rm -r build` is Remove-Item -Recurse under the
+// PowerShell tool and the unforced POSIX rm under Bash.
+function isDestructiveBash(command, toolName) {
+    return classifyDestructiveBash(command, toolName).destructive;
 }
 function classifyTool(toolName, toolInput) {
     const route = TOOL_ROUTE[toolName] ?? "allow";
     if (route !== "allow")
         return route;
-    if (toolName === "Bash" && typeof toolInput.command === "string") {
-        if (isDestructiveBash(toolInput.command))
+    if (SHELL_TOOLS.has(toolName) && typeof toolInput.command === "string") {
+        if (isDestructiveBash(toolInput.command, toolName))
             return "destructive-bash";
     }
     return "allow";
@@ -265,8 +278,8 @@ function buildBraceRefReason(hit) {
         "Single quotes stop the shell from touching the braces; git reads the ref as-is.",
     ].join("\n");
 }
-function buildDestructiveBashReason(command) {
-    const rule = classifyDestructiveBash(command).rule ?? "unknown";
+function buildDestructiveBashReason(command, toolName) {
+    const rule = classifyDestructiveBash(command, toolName).rule ?? "unknown";
     return [
         `Destructive command requested: ${command}`,
         "",
@@ -325,7 +338,9 @@ function main() {
     // Unquoted @{…} refs trip the built-in Bash parser — catch them first, for
     // both routine and destructive commands, so the quoted fix surfaces before the
     // opaque post-hoc block (and before the destructive rollback demand).
-    if (toolName === "Bash" && typeof toolInput.command === "string") {
+    // PowerShell reads an unquoted @{u} as a broken hashtable literal, so the
+    // same quoted fix applies there.
+    if (SHELL_TOOLS.has(toolName) && typeof toolInput.command === "string") {
         const braceHit = findUnquotedBraceRef(toolInput.command);
         if (braceHit) {
             emitDeny(buildBraceRefReason(braceHit));
@@ -338,7 +353,7 @@ function main() {
     }
     if (gate === "destructive-bash") {
         const cmd = typeof toolInput.command === "string" ? toolInput.command : "";
-        emitDeny(buildDestructiveBashReason(cmd));
+        emitDeny(buildDestructiveBashReason(cmd, toolName));
         return;
     }
     // mutating-file — scope state to THIS session so the clearance cap never

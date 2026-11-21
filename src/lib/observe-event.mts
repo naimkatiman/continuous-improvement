@@ -7,10 +7,23 @@
 // touching the filesystem or computing project hashes.
 //
 // Truncation budgets match the prior bash/jq behavior to preserve the existing
-// privacy contract: input head ≤500 chars, output head ≤200 chars.
+// privacy contract: input head ≤500 chars, output head ≤200 chars. Every
+// summary is passed through redactSecrets before the cut, so the secret shapes
+// it knows are not written to observations.jsonl.
+
+import { isBareSecretName, isCredentialShaped, isSecretName, redactSecrets } from "./redact-secrets.mjs";
 
 const INPUT_TRUNCATE = 500;
 const OUTPUT_TRUNCATE = 200;
+// How far past the budget redaction reads. A secret that straddles the cut is
+// matched whole instead of leaving its head in the row, and the regex work per
+// event stays bounded however large the payload is (this runs on every tool
+// call, and the redactor is quadratic on some long inputs). The one shape this
+// can miss is a bare JWT whose third segment starts past the lookahead.
+const REDACT_LOOKAHEAD = 1024;
+const AUTHORIZATION_KEY_RE = /^(?:proxy-)?authorization$/i;
+const AUTHORIZATION_LABEL = "Authorization: ";
+const REDACTED = "<redacted>";
 
 export interface HookPayload {
   tool_name: string;
@@ -73,7 +86,8 @@ export function parseHookPayload(raw: string): HookPayload | null {
  * Extract a tool-aware short summary from `tool_input`. Tool-specific cases
  * cover the high-frequency surfaces the linter/analyser reads (Bash command
  * head, Edit/Write/Read file_path, Grep/Glob pattern). Unknown tools fall
- * back to JSON.stringify(input) capped at INPUT_TRUNCATE.
+ * back to JSON.stringify(input) capped at INPUT_TRUNCATE. Every branch is
+ * redacted before the cut.
  *
  * Returns an empty string when the expected field is missing on a known tool
  * or when input is null/undefined — never returns "undefined" or "null"
@@ -85,52 +99,116 @@ export function summariseInput(toolName: string, input: unknown): string {
   switch (toolName) {
     case "Bash": {
       const cmd = readStringField(input, "command");
-      return cmd === null ? "" : truncate(cmd, INPUT_TRUNCATE);
+      return cmd === null ? "" : redactedHead(cmd, INPUT_TRUNCATE);
     }
     case "Edit":
     case "Write":
     case "Read":
     case "NotebookEdit": {
       const path = readStringField(input, "file_path");
-      return path === null ? "" : truncate(path, INPUT_TRUNCATE);
+      return path === null ? "" : redactedHead(path, INPUT_TRUNCATE);
     }
     case "Grep":
     case "Glob": {
       const pattern = readStringField(input, "pattern");
-      return pattern === null ? "" : truncate(pattern, INPUT_TRUNCATE);
+      return pattern === null ? "" : redactedHead(pattern, INPUT_TRUNCATE);
     }
-    default: {
+    default:
       // Unknown tool: stringify input so we record *something* useful for
       // future analysis. Truncate to keep observations.jsonl row size bounded.
-      let serialised: string;
-      try {
-        serialised = JSON.stringify(input);
-      } catch {
-        serialised = "";
-      }
-      return truncate(serialised ?? "", INPUT_TRUNCATE);
-    }
+      return redactedJsonHead(input, INPUT_TRUNCATE);
   }
 }
 
 /**
- * Extract a short summary from `tool_response`. Strings pass through (capped
- * at OUTPUT_TRUNCATE); numbers/booleans coerce to string; objects
- * JSON-stringify. Null/undefined collapse to "".
+ * Extract a short summary from `tool_response`. Strings pass through (redacted,
+ * then capped at OUTPUT_TRUNCATE); numbers/booleans coerce to string; objects
+ * JSON-stringify and get the same redaction and cap. Null/undefined collapse
+ * to "".
  */
 export function summariseOutput(output: unknown): string {
   if (output === null || output === undefined) return "";
-  if (typeof output === "string") return truncate(output, OUTPUT_TRUNCATE);
+  if (typeof output === "string") return redactedHead(output, OUTPUT_TRUNCATE);
   if (typeof output === "number" || typeof output === "boolean") {
     return String(output);
   }
-  let serialised: string;
+  return redactedJsonHead(output, OUTPUT_TRUNCATE);
+}
+
+/** Redact secret shapes in the head of `value`, then cut it to the `max` budget. */
+function redactedHead(value: string, max: number): string {
+  return truncate(redactSecrets(truncate(value, max + REDACT_LOOKAHEAD)), max);
+}
+
+/**
+ * Serialise `value` with its strings already redacted, then cut to `max`.
+ *
+ * Redacting the serialised text instead does not work: JSON.stringify turns a
+ * newline into backslash + n, which glues a secret on the next line to a word
+ * character (the hex rule's boundary fails) and removes the whitespace that
+ * ends an unquoted value (the rest of the row is swallowed). Returns "" for a
+ * value JSON cannot serialise, as before.
+ */
+function redactedJsonHead(value: unknown, max: number): string {
+  let serialised: string | undefined;
   try {
-    serialised = JSON.stringify(output);
+    serialised = JSON.stringify(redactLeaves(value, max, { left: max + REDACT_LOOKAHEAD }));
   } catch {
     serialised = "";
   }
-  return truncate(serialised ?? "", OUTPUT_TRUNCATE);
+  return truncate(serialised ?? "", max);
+}
+
+/**
+ * Copy `value` with every string redacted and the value of every secret-named
+ * property replaced. `budget.left` counts redacted output, not input: a leaf
+ * that shrinks to a placeholder must not use up the budget while later leaves
+ * still land inside the cut. Once it is spent a string becomes "", so no leaf
+ * is ever written without having been redacted.
+ *
+ * `underBareName` is true below a property named `key`, `keys` or `token`.
+ * Those are ordinary property names (a key press, a cache key, a list of keys),
+ * so nothing is replaced on the name alone: a string under one is replaced
+ * when the part of it that can reach the row is credential-shaped, and is
+ * otherwise treated like any other leaf.
+ */
+function redactLeaves(
+  value: unknown,
+  max: number,
+  budget: { left: number },
+  label = "",
+  underBareName = false,
+): unknown {
+  if (typeof value === "string") {
+    if (budget.left <= 0) return "";
+    if (underBareName && isCredentialShaped(truncate(value, max + REDACT_LOOKAHEAD))) {
+      budget.left -= REDACTED.length + 1;
+      return REDACTED;
+    }
+    const redacted = redactedHead(label + value, max + label.length).slice(label.length);
+    budget.left -= redacted.length + 1;
+    return redacted;
+  }
+  if (value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map((item) => redactLeaves(item, max, budget, "", underBareName));
+  const copy: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (isSecretName(key)) {
+      copy[key] = REDACTED;
+    } else {
+      // A header map holds the credential without the header name in front of
+      // it ({"Authorization": "Basic abc"}); the rule that reads that name gets
+      // it back for the redaction and loses it again afterwards.
+      copy[key] = redactLeaves(
+        child,
+        max,
+        budget,
+        AUTHORIZATION_KEY_RE.test(key) ? AUTHORIZATION_LABEL : "",
+        underBareName || isBareSecretName(key),
+      );
+    }
+  }
+  return copy;
 }
 
 function readStringField(input: unknown, field: string): string | null {

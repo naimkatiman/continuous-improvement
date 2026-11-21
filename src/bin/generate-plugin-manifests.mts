@@ -262,6 +262,11 @@ async function writePluginBundle(): Promise<void> {
       join(REPO_ROOT, "lib", "observe-event.mjs"),
       join(PLUGIN_BUNDLE_DIR, "lib", "observe-event.mjs"),
     ),
+    // Imported by both observe-event.mjs and recall-index.mjs.
+    copyFileTo(
+      join(REPO_ROOT, "lib", "redact-secrets.mjs"),
+      join(PLUGIN_BUNDLE_DIR, "lib", "redact-secrets.mjs"),
+    ),
     copyFileTo(
       join(REPO_ROOT, "lib", "goal-state.mjs"),
       join(PLUGIN_BUNDLE_DIR, "lib", "goal-state.mjs"),

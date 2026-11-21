@@ -38,11 +38,15 @@ const SHARED_PLUGIN_DESCRIPTION = "The persistent-memory and runtime-discipline 
 // installable plugins (pm-toolkit, pm-product-strategy, pm-product-discovery,
 // pm-market-research, pm-data-analytics, pm-marketing-growth,
 // pm-go-to-market, pm-execution).
+// The version is not written here: getClaudeRepoMarketplaceManifest reads it
+// from each snapshot's own .claude-plugin/plugin.json, so a refresh cannot leave
+// the marketplace stating the old one. Skill, agent and command names and
+// counts in a description are checked against the snapshot by
+// src/test/marketplace-companions.test.mts.
 const THIRD_PARTY_COMPANIONS = [
     {
         name: "superpowers",
-        description: "Obra's core skills library: TDD, debugging, brainstorming, writing-plans, executing-plans, dispatching-parallel-agents, using-git-worktrees, finishing-a-development-branch, subagent-driven-development, requesting-code-review, receiving-code-review, systematic-debugging, verification-before-completion, writing-skills, using-superpowers. Vendored snapshot at third-party/superpowers/ pinned to upstream SHA f2cbfbe (v5.1.0). Companion to the /superpowers dispatcher in continuous-improvement plugin.",
-        version: "5.1.0",
+        description: "Obra's core skills library for Claude Code, 14 skills for TDD, debugging, planning, review and branch work. Skills: brainstorming, dispatching-parallel-agents, executing-plans, finishing-a-development-branch, receiving-code-review, requesting-code-review, subagent-driven-development, systematic-debugging, test-driven-development, using-git-worktrees, using-superpowers, verification-before-completion, writing-plans, writing-skills. Vendored snapshot at third-party/superpowers/ pinned to upstream SHA b36e082. Companion to the /superpowers dispatcher in continuous-improvement plugin.",
         source: "./third-party/superpowers",
         author: {
             name: "Jesse Vincent",
@@ -53,8 +57,7 @@ const THIRD_PARTY_COMPANIONS = [
     },
     {
         name: "agent-skills",
-        description: "Addy Osmani's production-grade engineering skills for AI coding agents — 21 skills covering the full software development lifecycle: spec-driven-development, source-driven-development, context-engineering, idea-refine, incremental-implementation, test-driven-development, code-review-and-quality, code-simplification, security-and-hardening, debugging-and-error-recovery, performance-optimization, api-and-interface-design, frontend-ui-engineering, browser-testing-with-devtools, ci-cd-and-automation, deprecation-and-migration, documentation-and-adrs, git-workflow-and-versioning, planning-and-task-breakdown, shipping-and-launch, using-agent-skills. Vendored snapshot at third-party/addy-agent-skills/ pinned to upstream SHA 742dca5 (v1.0.0).",
-        version: "1.0.0",
+        description: "Addy Osmani's production-grade engineering skills for AI coding agents: 21 skills and 3 agents covering the full software development lifecycle. Skills: spec-driven-development, source-driven-development, context-engineering, idea-refine, incremental-implementation, test-driven-development, code-review-and-quality, code-simplification, security-and-hardening, debugging-and-error-recovery, performance-optimization, api-and-interface-design, frontend-ui-engineering, browser-testing-with-devtools, ci-cd-and-automation, deprecation-and-migration, documentation-and-adrs, git-workflow-and-versioning, planning-and-task-breakdown, shipping-and-launch, using-agent-skills. Vendored snapshot at third-party/addy-agent-skills/ pinned to upstream SHA 742dca5.",
         source: "./third-party/addy-agent-skills",
         author: {
             name: "Addy Osmani",
@@ -64,8 +67,7 @@ const THIRD_PARTY_COMPANIONS = [
     },
     {
         name: "ruflo-swarm",
-        description: "Agent teams, swarm coordination, Monitor streams, and worktree isolation. Wraps 4 swarm_* + 8 agent_* MCP tools (12 total) plus 6 topologies (hierarchical, mesh, hierarchical-mesh, ring, star, adaptive). Slash commands /swarm and /watch. Skills swarm-init and monitor-stream. Cherry-picked from ruvnet/ruflo monorepo (the other 31 plugins are explicitly out of scope). Vendored snapshot at third-party/ruflo-swarm/ pinned to upstream SHA addb5cd (v0.2.0). Activation note: assets reference unpinned npx @claude-flow/cli@latest — supply-chain risk inert until installed.",
-        version: "0.2.0",
+        description: "Agent teams, swarm coordination, Monitor streams, and worktree isolation. Wraps 4 swarm_* + 8 agent_* MCP tools (12 total) plus 6 topologies (hierarchical, mesh, hierarchical-mesh, ring, star, adaptive). Ships 2 skills, 2 agents and 2 commands. Skills: swarm-init and monitor-stream. Commands: /swarm and /watch. Cherry-picked from ruvnet/ruflo monorepo (the other 31 plugins are explicitly out of scope). Vendored snapshot at third-party/ruflo-swarm/ pinned to upstream SHA addb5cd. Activation note: assets reference unpinned npx @claude-flow/cli@latest — supply-chain risk inert until installed.",
         source: "./third-party/ruflo-swarm",
         author: {
             name: "ruvnet",
@@ -76,8 +78,7 @@ const THIRD_PARTY_COMPANIONS = [
     },
     {
         name: "oh-my-claudecode",
-        description: "Multi-agent orchestration system for Claude Code — 38 skills + 19 agents covering audit, plan, build, verify, ship, release, retrospective, and ops. Includes ralph (autonomous PRD loop), release, ultrawork, ultraqa, team, trace, visual-verdict, debug, deep-dive, deep-interview, autopilot, autoresearch. Vendored snapshot at third-party/oh-my-claudecode/ pinned to upstream SHA aacde3e (v4.13.6). Heavy overlap with continuous-improvement /ralph and /superpowers — pick per task.",
-        version: "4.13.6",
+        description: "Multi-agent orchestration system for Claude Code: 37 skills and 19 agents covering audit, plan, build, verify, ship, release, and ops. Skills include: ralph, ralplan, autopilot, ultragoal, team, trace, release, review, verify, debug, deep-interview, autoresearch, visual-verdict. Vendored snapshot at third-party/oh-my-claudecode/ pinned to upstream SHA 4820f56. Heavy overlap with continuous-improvement /ralph and /superpowers, so pick per task.",
         source: "./third-party/oh-my-claudecode",
         author: {
             name: "Yeachan-Heo",
@@ -86,6 +87,13 @@ const THIRD_PARTY_COMPANIONS = [
         homepage: "https://github.com/Yeachan-Heo/oh-my-claudecode",
     },
 ];
+// Called only through getClaudeRepoMarketplaceManifest (the generator and its
+// test, from the repo root, where third-party/ exists). Reading it lazily keeps
+// the bundled copy of this module under plugins/ from touching third-party/.
+function snapshotVersion(source) {
+    const pluginJson = join(PKG_PATH, "..", source, ".claude-plugin", "plugin.json");
+    return JSON.parse(readFileSync(pluginJson, "utf8")).version;
+}
 export function isPluginMode(value) {
     return value === "beginner" || value === "expert";
 }
@@ -537,18 +545,20 @@ export function getPluginHooksConfig() {
             // through with no output.
             PreToolUse: [
                 { hooks: [gateguardCommand, companionPreferenceCommand] },
-                // hook-pack gates Bash `git push` to protected branches and oversized
-                // `git commit`s. The "Bash" matcher scopes it off the hot path for all
-                // non-Bash tools, so the two-subprocess note above still holds for
-                // Edit/Read/etc. Warn-default (CLAUDE_CI_HOOKPACK_GATE) — never blocks
-                // until the operator opts in.
-                { matcher: "Bash", hooks: [hookPackCommand] },
+                // hook-pack gates a shell `git push` to protected branches and oversized
+                // `git commit`s. The matcher names every shell tool (Bash, the
+                // PowerShell tool Claude Code exposes on Windows, and Monitor, whose
+                // command runs in the same shell as Bash) and scopes it off the hot
+                // path for every other tool, so the two-subprocess note above still
+                // holds for Edit/Read/etc. Warn-default (CLAUDE_CI_HOOKPACK_GATE) —
+                // never blocks until the operator opts in.
+                { matcher: "Bash|PowerShell|Monitor", hooks: [hookPackCommand] },
                 // config-guard watches the files that wire the guardrails
                 // (.claude/settings*.json, .mcp.json, hooks.json, .claude/hooks/,
                 // .claude/plugins/, .claude-plugin/) and the `claude plugin|mcp|config`
                 // CLI forms. Matcher keeps read-only tools off the hot path.
                 // Warn-default (CI_CONFIG_GUARD) — denies only under block.
-                { matcher: "Bash|Edit|MultiEdit|Write|NotebookEdit", hooks: [configGuardCommand] },
+                { matcher: "Bash|PowerShell|Monitor|Edit|MultiEdit|Write|NotebookEdit", hooks: [configGuardCommand] },
             ],
             PostToolUse: [{ hooks: [observeCommand] }],
             UserPromptSubmit: [{ hooks: [routePromptCommand, recallBriefingCommand] }],
@@ -599,7 +609,12 @@ export function getClaudeRepoMarketplaceManifest(extraPlugins = []) {
                 category: CLAUDE_PLUGIN_CATEGORY,
                 homepage: REPOSITORY_URL,
             },
-            ...THIRD_PARTY_COMPANIONS,
+            ...THIRD_PARTY_COMPANIONS.map(({ name, description, ...rest }) => ({
+                name,
+                description,
+                version: snapshotVersion(rest.source),
+                ...rest,
+            })),
             ...extraPlugins,
         ],
     };

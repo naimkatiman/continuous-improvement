@@ -10,7 +10,7 @@
 // is the whole point of replacing observe.sh.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
@@ -19,8 +19,11 @@ const __dirname = fileURLToPath(new URL(".", import.meta.url));
 // Compiled path is test/observe.test.mjs → repo root is one level up.
 const REPO_ROOT = join(__dirname, "..");
 const OBSERVE_BIN = join(REPO_ROOT, "bin", "observe.mjs");
-function runObserve(payload, extraEnv = {}) {
-    const result = spawnSync("node", [OBSERVE_BIN], {
+// The plugin bundle ships its own copy of the observer and of every lib module
+// it imports; `/plugin install` runs this one, not bin/observe.mjs.
+const BUNDLED_OBSERVE_BIN = join(REPO_ROOT, "plugins", "continuous-improvement", "bin", "observe.mjs");
+function runObserve(payload, extraEnv = {}, bin = OBSERVE_BIN) {
+    const result = spawnSync("node", [bin], {
         input: payload,
         env: { ...process.env, ...extraEnv },
         encoding: "utf8",
@@ -263,4 +266,136 @@ describe("observe.mjs (Node observer entrypoint)", () => {
         const elapsed = Date.now() - start;
         assert.ok(elapsed < 500, `observe took ${elapsed}ms, budget is 500ms`);
     });
+});
+// What lands on disk is what leaks: these read observations.jsonl as raw text,
+// so a secret in any field of the row fails them. Both values are fakes.
+describe("observe.mjs keeps secrets out of observations.jsonl", () => {
+    const BEARER = "sk-FAKE0123456789abcdefghijklmnopqrstuv";
+    const KV_SECRET = "FAKEvalue-9f8e7d6c5b4a";
+    const payload = JSON.stringify({
+        tool_name: "Bash",
+        session_id: "session-secrets",
+        tool_input: {
+            command: `API_TOKEN=${KV_SECRET} curl -H "Authorization: Bearer ${BEARER}" https://api.example.test/v1/items`,
+        },
+        tool_response: {
+            stdout: `Authorization: Bearer ${BEARER}\nAPI_TOKEN=${KV_SECRET}\n`,
+            stderr: "",
+            interrupted: false,
+        },
+    });
+    const observers = [
+        ["bin/observe.mjs", OBSERVE_BIN],
+        ["the plugin bundle's bin/observe.mjs", BUNDLED_OBSERVE_BIN],
+    ];
+    for (const [label, bin] of observers) {
+        it(`${label} writes a row with neither the bearer token nor the KEY=value secret`, () => {
+            const home = mkdtempSync(join(tmpdir(), "ci-node-observe-secrets-"));
+            try {
+                const result = runObserve(payload, { HOME: home, USERPROFILE: home, CLAUDE_PROJECT_DIR: "/tmp/test-project-secrets" }, bin);
+                assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+                const raw = readFileSync(join(findProjectDir(home), "observations.jsonl"), "utf8");
+                assert.ok(!raw.includes(BEARER), `bearer token at rest: ${raw}`);
+                assert.ok(!raw.includes(KV_SECRET), `KEY=value secret at rest: ${raw}`);
+                const lines = raw.split("\n").filter((line) => line.length > 0);
+                assert.equal(lines.length, 1, "exactly one row is written");
+                const row = JSON.parse(lines[0]);
+                assert.equal(row.tool, "Bash");
+                assert.equal(row.event, "tool_complete");
+                assert.equal(row.input_summary, 'API_TOKEN=<redacted> curl -H "Authorization: Bearer <redacted>" https://api.example.test/v1/items');
+                assert.match(row.output_summary, /^\{"stdout":"Authorization: Bearer <redacted>/);
+            }
+            finally {
+                rmSync(home, { recursive: true, force: true });
+            }
+        });
+    }
+    // One PostToolUse payload per secret shape. Each row is checked against the
+    // raw file, so the fake value in any field of the written row fails it.
+    const LEAK = "hunter2SECRETvalue";
+    const leakCases = [
+        // [what leaks, tool_name, tool_input, tool_response]
+        [
+            "a bare PASSWORD= / --password= name",
+            "Bash",
+            { command: `mysql -uroot --password=${LEAK} app` },
+            { stdout: `SECRET=${LEAK}\nPASSWORD=${LEAK}\n`, stderr: "", interrupted: false },
+        ],
+        [
+            "the words after the first of a quoted passphrase",
+            "Bash",
+            { command: `DB_PASSWORD="correct horse ${LEAK} staple" ./run.sh` },
+            { stdout: `API_TOKEN='part one ${LEAK}'\n`, stderr: "", interrupted: false },
+        ],
+        [
+            "a quoted passphrase in a PowerShell command",
+            "PowerShell",
+            { command: `$env:DB_PASSWORD = "two words ${LEAK}"; ./run.ps1`, description: "Run the script" },
+            "ok",
+        ],
+        [
+            "a password property of an MCP tool input",
+            "mcp__db__connect",
+            { host: "db.test", user: "app", password: LEAK },
+            { ok: true },
+        ],
+        [
+            "a JSON request body and a JSON reply",
+            "Bash",
+            { command: `curl -s -X POST https://x.test/login -d '{"user":"a","password":"${LEAK}"}'` },
+            { stdout: `{"access_token":"ya29.${LEAK}","token_type":"Bearer"}`, stderr: "", interrupted: false },
+        ],
+        [
+            "a clientSecret property in a file the Read tool returned",
+            "Read",
+            { file_path: "config/app.json" },
+            { type: "text", file: { filePath: "config/app.json", content: `{"clientSecret": "${LEAK}"}` } },
+        ],
+        [
+            "a password inside a connection URL",
+            "Bash",
+            { command: `psql postgres://admin:${LEAK}@db.example.test:5432/app` },
+            { stdout: `DATABASE_URL=postgres://app:${LEAK}@db.test:5432/app\n`, stderr: "", interrupted: false },
+        ],
+        [
+            "curl -u credentials and a non-Bearer Authorization header",
+            "Bash",
+            { command: `curl -u admin:${LEAK} -H "Authorization: token ${LEAK}" https://x.test` },
+            { stdout: "ok", stderr: "", interrupted: false },
+        ],
+        [
+            "an Authorization entry of a header map",
+            "WebFetch",
+            { url: "https://x.test", headers: { Authorization: `Basic ${LEAK}`, Accept: "application/json" } },
+            "ok",
+        ],
+        [
+            "a secret flag whose value is the next argument",
+            "Bash",
+            { command: `mysql -u root --password ${LEAK} db` },
+            { stdout: "ok", stderr: "", interrupted: false },
+        ],
+    ];
+    for (const [label, bin] of observers) {
+        for (const [what, toolName, toolInput, toolResponse] of leakCases) {
+            it(`${label} keeps ${what} out of the row`, () => {
+                const home = mkdtempSync(join(tmpdir(), "ci-node-observe-leak-"));
+                try {
+                    const result = runObserve(JSON.stringify({
+                        tool_name: toolName,
+                        session_id: "session-leak",
+                        tool_input: toolInput,
+                        tool_response: toolResponse,
+                    }), { HOME: home, USERPROFILE: home, CLAUDE_PROJECT_DIR: "/tmp/test-project-leak" }, bin);
+                    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+                    const raw = readFileSync(join(findProjectDir(home), "observations.jsonl"), "utf8");
+                    assert.equal(raw.split("\n").filter((line) => line.length > 0).length, 1, "exactly one row is written");
+                    assert.ok(!raw.includes(LEAK), `secret at rest: ${raw}`);
+                }
+                finally {
+                    rmSync(home, { recursive: true, force: true });
+                }
+            });
+        }
+    }
 });

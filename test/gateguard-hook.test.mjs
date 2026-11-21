@@ -573,6 +573,203 @@ describe("hooks/gateguard.mjs — destructive forms the substring list missed", 
         });
     }
 });
+// Claude Code on Windows exposes a first-class PowerShell tool whose input is
+// the same { command } shape as Bash. A destructive command is as destructive
+// through either tool, so every shell rule has to reach both tool names. Each
+// row runs under both: the Bash rows are the control, the PowerShell rows are
+// the defect (they were allowed).
+describe("hooks/gateguard.mjs — the PowerShell tool is gated like Bash", () => {
+    let sessionDir = "";
+    before(() => {
+        sessionDir = mkdtempSync(join(tmpdir(), "gateguard-pwsh-"));
+    });
+    after(() => {
+        if (sessionDir)
+            rmSync(sessionDir, { recursive: true, force: true });
+    });
+    const shellTools = ["Bash", "PowerShell"];
+    const blocked = [
+        // [command, rule id the deny must name]
+        ["Remove-Item -Recurse -Force x", "powershell-remove-item"],
+        // The spellings PowerShell users actually write: the path first, a named
+        // path, an alias, an abbreviated switch, a pipeline into the cmdlet.
+        ["Remove-Item build -Recurse -Force", "powershell-remove-item"],
+        ["Remove-Item -Path build -Recurse -Force", "powershell-remove-item"],
+        ["Remove-Item -LiteralPath build -Recurse -Force", "powershell-remove-item"],
+        ["Remove-Item .\\build\\* -Recurse -Force", "powershell-remove-item"],
+        ["ri -r -fo build", "powershell-remove-item"],
+        ["rd -Recurse -Force build", "powershell-remove-item"],
+        ["del -Recurse -Force build", "powershell-remove-item"],
+        ["rmdir build -Recurse -Force", "powershell-remove-item"],
+        ["Get-ChildItem build -Recurse | Remove-Item", "powershell-remove-item-pipeline"],
+        [["format", "d:", "/q"].join(" "), "format-volume"],
+        // Windows PowerShell 5.1 has no && operator, so `A && B` is written
+        // `A; if ($?) { B }`. B is as destructive inside the script block.
+        ["git status; if ($?) { git clean -fdx }", "git-clean-force"],
+        ["git fetch; if ($?) { git checkout -- . }", "git-checkout-discard"],
+        ["if ($?) { git stash drop }", "git-stash-drop"],
+        ["if ($?) { git restore . }", "git-restore-discard"],
+        ["if ($LASTEXITCODE -eq 0) { git clean -fdx }", "git-clean-force"],
+        ["$out = git clean -fdx", "git-clean-force"],
+        ["try { git clean -fdx } catch {}", "git-clean-force"],
+        ["git push --force origin main", "git-push-force"],
+        ["git reset --hard origin/main", "git-reset-hard"],
+        // `git -C <dir>` is the normal spelling for work across worktrees.
+        ["git -C ../wt clean -fdx", "git-clean-force"],
+        ["git -C ../wt reset --hard origin/main", "git-reset-hard"],
+        ["git -C ../wt push --force origin feat/x", "git-push-force"],
+        ["git -C ../wt branch -D feat/x", "git-branch-force-delete"],
+        // git.exe, and a capture written without spaces.
+        ["git.exe clean -fdx", "git-clean-force"],
+        ["$out=git clean -fdx", "git-clean-force"],
+        // A shell wrapper: this is how the Bash tool reaches PowerShell on Windows.
+        ['pwsh -c "Remove-Item build -Recurse -Force"', "powershell-remove-item"],
+        ['powershell -NoProfile -Command "Remove-Item build -Recurse -Force"', "powershell-remove-item"],
+        ['bash -c "git clean -fdx"', "git-clean-force"],
+        [["rm", "-r", "-f", "dist"].join(" "), "rm-recursive-force"],
+        ["Get-ChildItem; git clean -fdx", "git-clean-force"],
+    ];
+    for (const tool of shellTools) {
+        for (const [command, rule] of blocked) {
+            it(`${tool} blocks: ${command}`, () => {
+                const decision = runHook(tool, { command }, sessionDir);
+                assert.equal(decision.decision, "block", `${tool} must not let a destructive command through`);
+                assert.match(decision.reason ?? "", /Destructive command requested/);
+                assert.ok((decision.reason ?? "").includes(`Matched rule: ${rule}`), `expected the deny to name ${rule}, got: ${decision.reason}`);
+            });
+        }
+    }
+    const allowed = [
+        "Get-ChildItem -Recurse src",
+        "Remove-Item scratch.txt",
+        // A -Format parameter is not the volume formatter.
+        'Get-Date -Format "yyyy-MM-dd"',
+        "Get-Date -UFormat %s",
+        "claude -p hi --output-format json",
+        "git status",
+        "git push origin feat/x",
+        '$headers = @{ Accept = "application/json" }',
+        // Text that is data by the command it is written on: a search pattern, a
+        // message after git's clustered -am or gh's short -b, a line printed to the terminal.
+        'grep -rn "git reset --hard" docs/ README.md',
+        'git commit -am "docs: explain why rm -rf is gated"',
+        'gh pr comment 271 -b "the gate now covers rm -rf behind pwsh -c"',
+        'Write-Host "Next step: Remove-Item -Recurse -Force .\\dist (ask first)"',
+    ];
+    for (const tool of shellTools) {
+        for (const command of allowed) {
+            it(`${tool} allows: ${command}`, () => {
+                assert.equal(runHook(tool, { command }, sessionDir).decision, "allow");
+            });
+        }
+    }
+    for (const tool of shellTools) {
+        it(`${tool} blocks an unquoted @{u} ref and prints the quoted fix`, () => {
+            const decision = runHook(tool, { command: "git rev-list --left-right --count @{u}...HEAD" }, sessionDir);
+            assert.equal(decision.decision, "block");
+            assert.match(decision.reason ?? "", /'@\{u\}\.\.\.HEAD'/, "reason prints the quoted replacement");
+        });
+    }
+    // `rm -r build` is a tree delete under PowerShell (rm is the Remove-Item
+    // alias, -r abbreviates -Recurse) and the unforced POSIX rm under Bash.
+    it("PowerShell blocks rm -r, which Bash allows without -f", () => {
+        const viaPowerShell = runHook("PowerShell", { command: "rm -r build" }, sessionDir);
+        assert.equal(viaPowerShell.decision, "block");
+        assert.ok((viaPowerShell.reason ?? "").includes("Matched rule: powershell-remove-item"), viaPowerShell.reason);
+        assert.equal(runHook("PowerShell", { command: "rm build -r" }, sessionDir).decision, "block");
+        assert.equal(runHook("Bash", { command: "rm -r build" }, sessionDir).decision, "allow");
+    });
+    // -Force alone is the PowerShell spelling of `rm -f file`.
+    for (const tool of shellTools) {
+        it(`${tool} allows a PowerShell delete with -Force alone, a dry run and an Env: path`, () => {
+            for (const command of [
+                "Remove-Item scratch.txt -Force",
+                "Remove-Item build -Recurse -Force -WhatIf",
+                "Remove-Item Env:\\FOO -Force",
+            ]) {
+                assert.equal(runHook(tool, { command }, sessionDir).decision, "allow", command);
+            }
+        });
+    }
+    it("a destructive PowerShell command is never excluded, even under a catch-all fragment", () => {
+        const run = runHookRaw("PowerShell", { command: "Remove-Item -Recurse -Force build" }, sessionDir, {
+            CI_GATEGUARD_EXCLUDE: "/,.",
+        });
+        assert.equal(run.decision, "block");
+    });
+});
+// Claude Code's Monitor tool takes { command, description, timeout_ms } and runs
+// the command in the same shell as Bash (or takes { ws: { url } } and runs no
+// command). A destructive command is as destructive through Monitor. Each row
+// runs under both: the Bash rows are the control, the Monitor rows are the
+// defect (they were allowed).
+describe("hooks/gateguard.mjs — the Monitor tool is gated like Bash", () => {
+    let sessionDir = "";
+    let homeDir = "";
+    before(() => {
+        sessionDir = mkdtempSync(join(tmpdir(), "gateguard-monitor-"));
+        homeDir = mkdtempSync(join(tmpdir(), "gateguard-monitor-home-"));
+    });
+    after(() => {
+        if (sessionDir)
+            rmSync(sessionDir, { recursive: true, force: true });
+        if (homeDir)
+            rmSync(homeDir, { recursive: true, force: true });
+    });
+    const run = (tool, toolInput) => runHookRaw(tool, toolInput, sessionDir, { HOME: homeDir, USERPROFILE: homeDir });
+    const monitorInput = (command) => ({
+        command,
+        description: "watch",
+        timeout_ms: 60000,
+    });
+    const blocked = [
+        // [command, rule id the deny must name]
+        ["git push --force origin main", "git-push-force"],
+        ["git reset --hard origin/main", "git-reset-hard"],
+        ["git clean -fdx", "git-clean-force"],
+        [["rm", "-r", "-f", "dist"].join(" "), "rm-recursive-force"],
+        ['bash -c "git clean -fdx"', "git-clean-force"],
+        ["sleep 30; git push --force origin main", "git-push-force"],
+    ];
+    for (const tool of ["Bash", "Monitor"]) {
+        for (const [command, rule] of blocked) {
+            it(`${tool} blocks: ${command}`, () => {
+                const decision = run(tool, monitorInput(command));
+                assert.equal(decision.decision, "block", `${tool} must not let a destructive command through`);
+                assert.match(decision.reason ?? "", /Destructive command requested/);
+                assert.ok((decision.reason ?? "").includes(`Matched rule: ${rule}`), `expected the deny to name ${rule}, got: ${decision.reason}`);
+            });
+        }
+        for (const command of ["tail -f build.log", "git status", "git push origin feat/x", "rm -r build"]) {
+            it(`${tool} allows: ${command}`, () => {
+                assert.equal(run(tool, monitorInput(command)).decision, "allow");
+            });
+        }
+    }
+    // `git branch -d` is the safe delete (git refuses it for an unmerged branch).
+    // It was denied as `git branch -D`, with no way to clear the deny.
+    for (const tool of ["Bash", "PowerShell", "Monitor"]) {
+        it(`${tool} allows the safe branch delete and still blocks the forced one`, () => {
+            assert.equal(run(tool, monitorInput("git branch -d fix/merged-branch")).decision, "allow");
+            assert.equal(run(tool, monitorInput("git fetch --prune && git branch -d fix/merged-branch")).decision, "allow");
+            const forced = run(tool, monitorInput("git branch -D fix/merged-branch"));
+            assert.equal(forced.decision, "block");
+            assert.ok((forced.reason ?? "").includes("Matched rule: git-branch-force-delete"), forced.reason);
+        });
+    }
+    for (const tool of ["Bash", "Monitor"]) {
+        it(`${tool} blocks an unquoted @{u} ref and prints the quoted fix`, () => {
+            const decision = run(tool, monitorInput("git rev-list --left-right --count @{u}...HEAD"));
+            assert.equal(decision.decision, "block");
+            assert.match(decision.reason ?? "", /'@\{u\}\.\.\.HEAD'/, "reason prints the quoted replacement");
+        });
+    }
+    it("a Monitor call with no command (the ws form) is allowed without error", () => {
+        const result = run("Monitor", { ws: { url: "ws://127.0.0.1:9229" }, description: "watch", timeout_ms: 60000 });
+        assert.equal(result.decision, "allow");
+        assert.equal(result.stderr, "");
+    });
+});
 describe("hooks/gateguard.mjs — CI_GATEGUARD_EXCLUDE is observable", () => {
     let sessionDir = "";
     before(() => {

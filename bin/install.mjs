@@ -39,25 +39,44 @@ const COMMAND_FILES = [
     "verify-install.md",
     "workspace-surface-audit.md",
 ];
+// The lib modules each installed hook imports as ../lib/<file>. A hook resolves
+// ../lib from the REAL path of where it is installed, not from the package and
+// not from the path written to settings.json, so both hooks sit one level inside
+// the instincts tree and share instincts/lib: observe.mjs lands in instincts/bin
+// and session.mjs in instincts/hooks. That keeps ../lib inside the tree when
+// ~/.claude/instincts is a symlink or junction; a hook directly in instincts/
+// would resolve ../lib beside the link target, where nothing is installed.
+// Keep both lists in step with the imports of src/bin/observe.mts and
+// src/hooks/session.mts, including what those lib modules import in turn
+// (observe-event.mjs imports redact-secrets.mjs); a hook with a missing import
+// dies at module load.
+const OBSERVER_LIB_FILES = ["observe-event.mjs", "redact-secrets.mjs", "gateguard-state.mjs"];
+const SESSION_LIB_FILES = ["gateguard-state.mjs", "resolve-home-dir.mjs"];
+const INSTALLED_LIB_FILES = Array.from(new Set([...OBSERVER_LIB_FILES, ...SESSION_LIB_FILES]));
+// Where the session hook was installed before it moved to instincts/hooks.
+const LEGACY_SESSION_HOOK_FILE = "session.mjs";
 const HOOK_TYPES = ["PreToolUse", "PostToolUse"];
 const SESSION_HOOK_TYPES = ["SessionStart", "SessionEnd"];
 // Iterated by install cleanup and uninstall cleanup. Deduped via Set so an
 // accidental overlap between HOOK_TYPES and SESSION_HOOK_TYPES never causes
 // a hook bucket to be processed twice.
 const ALL_HOOK_TYPES = Array.from(new Set([...HOOK_TYPES, ...SESSION_HOOK_TYPES]));
-// Match only installer-owned lifecycle commands. Bash rows are legacy and get
-// migrated on install; both legacy and current Node rows are removed on uninstall.
+// Match only installer-owned lifecycle commands. Bash rows and the session
+// hook's old location (instincts/session.mjs) are legacy and get migrated on
+// install; legacy and current Node rows are all removed on uninstall.
 const LEGACY_OBSERVE_SESSION_COMMAND_RE = /^bash ".*[\\/]\.claude[\\/]instincts[\\/](?:observe|session)\.sh"$/;
-const NODE_OBSERVE_SESSION_COMMAND_RE = /^node ".*[\\/]\.claude[\\/]instincts[\\/](?:bin[\\/]observe|session)\.mjs"$/;
+const LEGACY_NODE_SESSION_COMMAND_RE = /^node ".*[\\/]\.claude[\\/]instincts[\\/]session\.mjs"$/;
+const NODE_OBSERVE_SESSION_COMMAND_RE = /^node ".*[\\/]\.claude[\\/]instincts[\\/](?:bin[\\/]observe|hooks[\\/]session)\.mjs"$/;
 function isLegacyObserveOrSessionCommand(command) {
     if (typeof command !== "string")
         return false;
-    return LEGACY_OBSERVE_SESSION_COMMAND_RE.test(command);
+    return LEGACY_OBSERVE_SESSION_COMMAND_RE.test(command) ||
+        LEGACY_NODE_SESSION_COMMAND_RE.test(command);
 }
 function isOurObserveOrSessionCommand(command) {
     if (typeof command !== "string")
         return false;
-    return LEGACY_OBSERVE_SESSION_COMMAND_RE.test(command) ||
+    return isLegacyObserveOrSessionCommand(command) ||
         NODE_OBSERVE_SESSION_COMMAND_RE.test(command);
 }
 function getHomeDir() {
@@ -295,25 +314,37 @@ function setupMulahazah() {
     const globalDir = join(instinctsDir, "global");
     mkdirSync(globalDir, { recursive: true });
     console.log(`  ✓ Instincts dir → ${instinctsDir}/`);
-    // Layout mirrors bin/ + lib/ so observe.mjs's relative import resolves.
+    // Layout mirrors bin/ + lib/ so observe.mjs's relative imports resolve.
+    const libSrcDir = join(REPO_ROOT, "lib");
     const observerJsSrc = join(REPO_ROOT, "bin", "observe.mjs");
-    const observeEventSrc = join(REPO_ROOT, "lib", "observe-event.mjs");
     const observerJsDest = join(instinctsDir, "bin", "observe.mjs");
-    if (existsSync(observerJsSrc) && existsSync(observeEventSrc)) {
+    if (existsSync(observerJsSrc) &&
+        OBSERVER_LIB_FILES.every((libFile) => existsSync(join(libSrcDir, libFile)))) {
         const binDir = join(instinctsDir, "bin");
         const libDir = join(instinctsDir, "lib");
         mkdirSync(binDir, { recursive: true });
         mkdirSync(libDir, { recursive: true });
-        const observeEventDest = join(libDir, "observe-event.mjs");
         copyFileSync(observerJsSrc, observerJsDest);
-        copyFileSync(observeEventSrc, observeEventDest);
+        for (const libFile of OBSERVER_LIB_FILES) {
+            copyFileSync(join(libSrcDir, libFile), join(libDir, libFile));
+        }
         console.log(`  ✓ Node observer → ${observerJsDest}`);
     }
     const sessionSrc = join(REPO_ROOT, "hooks", "session.mjs");
-    const sessionDest = join(instinctsDir, "session.mjs");
-    if (existsSync(sessionSrc)) {
+    const sessionDest = join(instinctsDir, "hooks", "session.mjs");
+    if (existsSync(sessionSrc) &&
+        SESSION_LIB_FILES.every((libFile) => existsSync(join(libSrcDir, libFile)))) {
+        const sessionLibDir = join(instinctsDir, "lib");
+        mkdirSync(join(instinctsDir, "hooks"), { recursive: true });
+        mkdirSync(sessionLibDir, { recursive: true });
         copyFileSync(sessionSrc, sessionDest);
         chmodSync(sessionDest, 0o755);
+        for (const libFile of SESSION_LIB_FILES) {
+            copyFileSync(join(libSrcDir, libFile), join(sessionLibDir, libFile));
+        }
+        // The hook used to live at instincts/session.mjs. patchClaudeSettings drops
+        // that settings row, so the old file would only be left behind as an orphan.
+        rmSync(join(instinctsDir, LEGACY_SESSION_HOOK_FILE), { force: true });
         console.log(`  ✓ Node session hook → ${sessionDest}`);
     }
     const commandsDir = join(home, ".claude", "commands");
@@ -326,7 +357,7 @@ function setupMulahazah() {
             console.log(`  ✓ /${commandFile.replace(".md", "")} command → ${commandDest}`);
         }
     }
-    patchClaudeSettings(observerJsDest);
+    patchClaudeSettings(observerJsDest, sessionDest);
     if (INSTALL_MODE === "expert") {
         setupMcpServer();
     }
@@ -379,7 +410,7 @@ function hookAlreadyPatched(entries, expectedCommand) {
         Array.isArray(entry.hooks) &&
         entry.hooks.some((hook) => typeof hook?.command === "string" && hook.command === expectedCommand));
 }
-function patchClaudeSettings(observePath) {
+function patchClaudeSettings(observePath, sessionPath) {
     const settingsPath = join(getHomeDir(), ".claude", "settings.json");
     const settings = existsSync(settingsPath) ? readJsonFile(settingsPath) : {};
     if (settings === null) {
@@ -450,7 +481,6 @@ function patchClaudeSettings(observePath) {
         }
     }
     if (preserveSessionHooks) {
-        const sessionPath = join(getHomeDir(), ".claude", "instincts", "session.mjs");
         const sessionCommand = `node "${toCommandPath(sessionPath)}"`;
         for (const hookType of SESSION_HOOK_TYPES) {
             if (!Array.isArray(settings.hooks[hookType])) {
@@ -523,7 +553,7 @@ function uninstallAll() {
             failed = true;
         }
     }
-    for (const hookFile of ["observe.sh", "session.sh", "session.mjs"]) {
+    for (const hookFile of ["observe.sh", "session.sh", LEGACY_SESSION_HOOK_FILE]) {
         const filePath = join(home, ".claude", "instincts", hookFile);
         if (!existsSync(filePath)) {
             continue;
@@ -537,10 +567,12 @@ function uninstallAll() {
             failed = true;
         }
     }
-    // Remove the Node observer artifacts deployed alongside observe.sh.
+    // Remove the Node observer and session hook deployed inside the instincts
+    // tree, with the lib modules they share.
     for (const observerFile of [
         join("bin", "observe.mjs"),
-        join("lib", "observe-event.mjs"),
+        join("hooks", "session.mjs"),
+        ...INSTALLED_LIB_FILES.map((libFile) => join("lib", libFile)),
     ]) {
         const filePath = join(home, ".claude", "instincts", observerFile);
         if (!existsSync(filePath))

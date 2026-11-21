@@ -20,8 +20,9 @@
  *   off   : no-op.
  * One-call bypass: CI_CONFIG_GUARD_ALLOW=true allows the call and says so.
  *
- * Registered with a tool matcher (Bash|Edit|MultiEdit|Write|NotebookEdit) so
- * read-only tools never spawn it. No network. No git. Fail-open.
+ * Registered with a tool matcher
+ * (Bash|PowerShell|Monitor|Edit|MultiEdit|Write|NotebookEdit) so read-only tools never
+ * spawn it. No network. No git. Fail-open.
  */
 import { readFileSync } from "node:fs";
 import { classifyMutation, decide, parseMode } from "../lib/config-guard-gate.mjs";

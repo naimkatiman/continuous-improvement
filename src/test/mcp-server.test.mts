@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative, sep } from "node:path";
 import { after, before, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 import {
   PACKAGE_NAME,
   VERSION,
@@ -23,6 +24,7 @@ interface JsonRpcResponse {
     code?: number;
     message?: string;
   };
+  id?: number | string | null;
   result?: any;
 }
 
@@ -81,17 +83,22 @@ class McpTestClient {
   }
 
   send(message: Record<string, unknown>): Promise<JsonRpcResponse> {
+    return this.sendRaw(`${JSON.stringify(message)}\n`, String(message.method || message.id));
+  }
+
+  // Writes `raw` to stdin as is, for messages that are not one JSON line.
+  sendRaw(raw: string, label: string): Promise<JsonRpcResponse> {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         const index = this.resolvers.findIndex((resolver) => resolver.timer === timer);
         if (index !== -1) {
           this.resolvers.splice(index, 1);
         }
-        reject(new Error(`Timeout waiting for response to ${String(message.method || message.id)}`));
+        reject(new Error(`Timeout waiting for response to ${label}`));
       }, 8000);
 
       this.resolvers.push({ resolve, reject, timer });
-      this.proc.stdin.write(`${JSON.stringify(message)}\n`);
+      this.proc.stdin.write(raw);
       this.drain();
     });
   }
@@ -107,6 +114,24 @@ class McpTestClient {
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const MCP_SERVER = join(__dirname, "..", "bin", "mcp-server.mjs");
+
+// Every file under `root`, as sorted forward-slash paths relative to it.
+// Hand-rolled because readdirSync's `recursive` option is missing on early Node 18.
+function listFilesUnder(root: string): string[] {
+  const files: string[] = [];
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+      } else {
+        files.push(relative(root, full).split(sep).join("/"));
+      }
+    }
+  };
+  walk(root);
+  return files.sort();
+}
 
 describe("MCP server — stdio wire format", () => {
   // The MCP stdio transport spec requires newline-delimited JSON-RPC
@@ -615,6 +640,449 @@ describe("MCP server — expert mode", () => {
     const response = await client.send({ jsonrpc: "2.0", id: 18, method: "nonexistent/method", params: {} });
     assert.ok(response.error, "Should return error for unknown method");
     assert.equal(response.error?.code, -32601);
+  });
+});
+
+// An instinct id becomes a file name (`<instincts dir>/<id>.yaml`). It is
+// model-controlled through ci_create_instinct and ci_import, and read back from
+// disk by ci_reinforce and ci_distill_promote, so an unvalidated `../../../x`
+// wrote a .yaml file anywhere the process could reach. HOME is a fresh temp dir
+// and the traversal ids below climb exactly to it, so an escape stays inside the
+// sandbox and shows up as a new file outside .claude/instincts/.
+describe("MCP server — an instinct id cannot leave the instincts dir (expert)", () => {
+  let client: McpTestClient;
+  let tempHome = "";
+  let projectDir = "";
+  let projectRel = "";
+  let nextId = 200;
+
+  const call = (name: string, args: Record<string, unknown>): Promise<JsonRpcResponse> =>
+    client.send({ jsonrpc: "2.0", id: nextId++, method: "tools/call", params: { name, arguments: args } });
+
+  // Runs one tool call and reports every file it created anywhere under HOME.
+  const createdBy = async (
+    run: () => Promise<JsonRpcResponse>,
+  ): Promise<{ created: string[]; response: JsonRpcResponse }> => {
+    const before = new Set(listFilesUnder(tempHome));
+    const response = await run();
+    const created = listFilesUnder(tempHome).filter((file) => !before.has(file));
+    return { created, response };
+  };
+
+  before(async () => {
+    tempHome = mkdtempSync(join(tmpdir(), "ci-mcp-instinct-id-"));
+    mkdirSync(join(tempHome, ".claude", "instincts", "global"), { recursive: true });
+    const tempWorkspace = join(tempHome, "workspace");
+    mkdirSync(tempWorkspace, { recursive: true });
+    // CLAUDE_PROJECT_DIR pins the project hash, so the project instincts dir is
+    // known up front instead of depending on whether tmpdir sits in a git repo.
+    const projectHash = hashProjectRoot(tempWorkspace);
+    projectRel = `.claude/instincts/${projectHash}`;
+    projectDir = join(tempHome, ".claude", "instincts", projectHash);
+
+    const proc = spawn("node", [MCP_SERVER, "--mode", "expert"], {
+      env: { ...process.env, HOME: tempHome, USERPROFILE: tempHome, CLAUDE_PROJECT_DIR: tempWorkspace },
+      cwd: tempWorkspace,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    client = new McpTestClient(proc);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  });
+
+  after(async () => {
+    client.destroy();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    try {
+      rmSync(tempHome, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    } catch {
+      // Windows can briefly keep stdio handles open after the child exits.
+    }
+  });
+
+  it("ci_create_instinct rejects a path-traversal id and writes nothing", async () => {
+    const { created, response } = await createdBy(() =>
+      call("ci_create_instinct", { id: "../../../ESCAPED-CREATE", trigger: "when escaping", body: "escape" }),
+    );
+    assert.deepEqual(created, [], "a traversal id must not create a file, least of all outside the instincts dir");
+    assert.ok(response.result.isError, "a traversal id must return a tool error");
+    assert.match(response.result.content[0].text, /Invalid instinct id/);
+  });
+
+  // Backslash is a path separator on Windows only, a bare separator never
+  // escapes but used to throw inside the handler (no response at all), and a
+  // missing id used to write a file named ".yaml".
+  for (const id of ["..\\..\\..\\ESCAPED-BACKSLASH", "nested/child", ""]) {
+    it(`ci_create_instinct rejects the id ${JSON.stringify(id)} and writes nothing`, async () => {
+      const { created, response } = await createdBy(() =>
+        call("ci_create_instinct", { id, trigger: "when escaping", body: "escape" }),
+      );
+      assert.deepEqual(created, [], `id ${JSON.stringify(id)} must not create a file`);
+      assert.ok(response.result.isError, `id ${JSON.stringify(id)} must return a tool error`);
+      assert.match(response.result.content[0].text, /Invalid instinct id/);
+    });
+  }
+
+  it("ci_import reports a path-traversal entry as rejected and still imports the valid ones", async () => {
+    const payload = JSON.stringify([
+      { id: "import-safe-one", trigger: "when deploying", body: "Check CI first" },
+      { id: "../../../ESCAPED-IMPORT", trigger: "when escaping", body: "escape" },
+      { id: "import-safe-two", trigger: "when reviewing", body: "Check coverage" },
+    ]);
+    const { created, response } = await createdBy(() => call("ci_import", { instincts_json: payload }));
+    assert.deepEqual(
+      created,
+      [`${projectRel}/import-safe-one.yaml`, `${projectRel}/import-safe-two.yaml`],
+      "only the two valid entries may be written, both inside the project instincts dir",
+    );
+    const text = response.result.content[0].text;
+    assert.match(text, /Imported 2 instincts \(0 skipped as duplicates\)/);
+    assert.match(text, /Rejected 1/);
+    assert.ok(text.includes("../../../ESCAPED-IMPORT"), "the rejected entry must be named in the report");
+    assert.ok(response.result.isError, "a rejected entry must flag the result as an error");
+  });
+
+  it("ci_reinforce refuses to rewrite an on-disk instinct whose id is a path traversal", async () => {
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(
+      join(projectDir, "planted-reinforce.yaml"),
+      ["id: ../../../ESCAPED-REINFORCE", 'trigger: "when escaping"', "confidence: 0.5", "scope: project", "---", "escape", ""].join("\n"),
+    );
+    const { created, response } = await createdBy(() =>
+      call("ci_reinforce", { instinct_id: "../../../ESCAPED-REINFORCE", accepted: true }),
+    );
+    assert.deepEqual(created, [], "an on-disk traversal id must not be written back outside the instincts dir");
+    assert.ok(response.result.isError, "the refused update must return a tool error");
+    assert.match(response.result.content[0].text, /Invalid instinct id/);
+  });
+
+  it("ci_distill_promote refuses a draft whose id line is a path traversal and keeps the draft", async () => {
+    const draftsDir = join(projectDir, "drafts");
+    mkdirSync(draftsDir, { recursive: true });
+    const draftPath = join(draftsDir, "draft-edited-id.yaml");
+    writeFileSync(
+      draftPath,
+      ["id: ../../../ESCAPED-PROMOTE", 'trigger: "when escaping"', "confidence: 0.3", "---", "escape", ""].join("\n"),
+    );
+    const { created, response } = await createdBy(() => call("ci_distill_promote", { id: "draft-edited-id" }));
+    assert.deepEqual(created, [], "a traversal id inside a draft must not be promoted outside the instincts dir");
+    assert.ok(response.result.isError, "the refused promotion must return a tool error");
+    assert.match(response.result.content[0].text, /Invalid instinct id/);
+    assert.ok(existsSync(draftPath), "a refused promotion must not consume the draft");
+  });
+
+  // The accepted shape must not reject a real id. The longest id the plugin
+  // generates itself is draft-workflow-<120-char slug> (src/lib/skill-distill.mts).
+  it("a valid id is written as a direct child of the instincts dir, project and global", async () => {
+    const longestGenerated = `draft-workflow-${"a".repeat(120)}`;
+    const project = await createdBy(() =>
+      call("ci_create_instinct", { id: longestGenerated, trigger: "when promoting", body: "keep the name" }),
+    );
+    assert.ok(!project.response.result.isError, project.response.result.content[0].text);
+    assert.deepEqual(project.created, [`${projectRel}/${longestGenerated}.yaml`]);
+
+    const global = await createdBy(() =>
+      call("ci_create_instinct", { id: "prefer-grep-before-edit", trigger: "when modifying code", body: "Grep first", scope: "global" }),
+    );
+    assert.ok(!global.response.result.isError, global.response.result.content[0].text);
+    assert.deepEqual(global.created, [".claude/instincts/global/prefer-grep-before-edit.yaml"]);
+  });
+
+  it("ci_load_pack still loads every id in every shipped starter pack", async () => {
+    const packsDir = join(__dirname, "..", "instinct-packs");
+    const packFiles = readdirSync(packsDir).filter((name) => name.endsWith(".json")).sort();
+    assert.ok(packFiles.length > 0, "expected at least one shipped starter pack");
+    for (const file of packFiles) {
+      const pack = file.replace(/\.json$/, "");
+      const ids = (JSON.parse(readFileSync(join(packsDir, file), "utf8")) as Array<{ id: string }>).map((entry) => entry.id);
+      const { created, response } = await createdBy(() => call("ci_load_pack", { pack }));
+      assert.ok(!response.result.isError, response.result.content[0].text);
+      assert.deepEqual(
+        created,
+        ids.map((id) => `${projectRel}/${id}.yaml`).sort(),
+        `every id in the ${pack} pack must be written inside the project instincts dir`,
+      );
+    }
+  });
+
+  // Regression: the first id rule was kebab-case only, which is narrower than
+  // path safety needs. Instinct YAML is also written by hand during reflection,
+  // so ids with an underscore, a capital or a dot exist on disk. They name a
+  // direct child of the instincts dir, and the kebab rule locked them out of
+  // ci_reinforce, ci_import and ci_distill_promote.
+  const SAFE_NON_KEBAB_IDS = ["use_snake_case", "React-Hooks-Deps", "tdd.red-first"];
+
+  for (const id of SAFE_NON_KEBAB_IDS) {
+    it(`ci_reinforce updates the on-disk instinct ${id} in place`, async () => {
+      mkdirSync(projectDir, { recursive: true });
+      const filePath = join(projectDir, `${id}.yaml`);
+      writeFileSync(
+        filePath,
+        [`id: ${id}`, 'trigger: "when writing code"', "confidence: 0.5", "scope: project", "---", "Keep the convention", ""].join("\n"),
+      );
+      const { created, response } = await createdBy(() => call("ci_reinforce", { instinct_id: id, accepted: true }));
+      assert.ok(!response.result.isError, response.result.content[0].text);
+      assert.match(response.result.content[0].text, /confidence now 0\.65/);
+      assert.deepEqual(created, [], "the instinct must be rewritten in place, not duplicated under another name");
+      assert.match(readFileSync(filePath, "utf8"), /^confidence: 0\.65$/m);
+    });
+  }
+
+  it("ci_import keeps path-safe ids that are not kebab-case", async () => {
+    const ids = ["Import_Snake", "Import-Caps", "import.dotted"];
+    const payload = JSON.stringify(ids.map((id) => ({ id, trigger: "when importing", body: "Keep it" })));
+    const { created, response } = await createdBy(() => call("ci_import", { instincts_json: payload }));
+    assert.ok(!response.result.isError, response.result.content[0].text);
+    assert.match(response.result.content[0].text, /Imported 3 instincts \(0 skipped as duplicates\)/);
+    assert.deepEqual(created, ids.map((id) => `${projectRel}/${id}.yaml`).sort());
+  });
+
+  it("ci_distill_promote promotes a draft whose id line is path-safe but not kebab-case", async () => {
+    const draftsDir = join(projectDir, "drafts");
+    mkdirSync(draftsDir, { recursive: true });
+    const draftPath = join(draftsDir, "draft-renamed-recipe.yaml");
+    writeFileSync(
+      draftPath,
+      ["id: my_renamed_recipe", 'trigger: "when repeating the recipe"', "confidence: 0.3", "---", "Run the recipe", ""].join("\n"),
+    );
+    const { created, response } = await createdBy(() => call("ci_distill_promote", { id: "draft-renamed-recipe" }));
+    assert.ok(!response.result.isError, response.result.content[0].text);
+    assert.deepEqual(created, [`${projectRel}/my_renamed_recipe.yaml`]);
+    assert.equal(existsSync(draftPath), false, "a promoted draft is consumed");
+  });
+
+  // Dots are allowed inside an id, never as the first character, so "." and ".."
+  // and dot-files stay out. A colon would open an NTFS alternate data stream.
+  for (const id of [".", "..", ".hidden", "a/../b", "stream:alt", "tab\tid", "space id"]) {
+    it(`ci_create_instinct still rejects the id ${JSON.stringify(id)}`, async () => {
+      const { created, response } = await createdBy(() =>
+        call("ci_create_instinct", { id, trigger: "when escaping", body: "escape" }),
+      );
+      assert.deepEqual(created, [], `id ${JSON.stringify(id)} must not create a file`);
+      assert.ok(response.result.isError, `id ${JSON.stringify(id)} must return a tool error`);
+      assert.match(response.result.content[0].text, /Invalid instinct id/);
+    });
+  }
+
+  // ci_reinforce rewrites <id>.yaml. Correcting only the id: line of a refused
+  // instinct would leave the old file beside the new one, both with the same id.
+  it("the ci_reinforce refusal tells the user to rename the file with the id", async () => {
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(
+      join(projectDir, "planted-hint.yaml"),
+      ["id: ../../../ESCAPED-HINT", 'trigger: "when escaping"', "confidence: 0.5", "scope: project", "---", "escape", ""].join("\n"),
+    );
+    const { created, response } = await createdBy(() =>
+      call("ci_reinforce", { instinct_id: "../../../ESCAPED-HINT", accepted: true }),
+    );
+    assert.deepEqual(created, []);
+    assert.ok(response.result.isError);
+    assert.match(response.result.content[0].text, /rename the file to <new id>\.yaml/);
+  });
+
+  // A file name has a 255-byte limit on NTFS, ext4 and APFS, so an id of 251+
+  // characters made writeFileSync throw ENAMETOOLONG inside the tool handler and
+  // the tool call got no response at all. The cap is 160 characters: the longest
+  // id the plugin itself writes is draft-workflow-<120-char slug> (135), and 160
+  // keeps <home>/.claude/instincts/<hash>/drafts/<id>.yaml under the 260-character
+  // Windows path limit for an ordinary user profile.
+  const TOO_LONG_ID = "a".repeat(300);
+
+  it("ci_create_instinct rejects a 300-character id, names the limit and writes nothing", async () => {
+    const { created, response } = await createdBy(() =>
+      call("ci_create_instinct", { id: TOO_LONG_ID, trigger: "when naming", body: "keep it short" }),
+    );
+    assert.deepEqual(created, [], "an over-long id must not create a file");
+    assert.ok(response.result.isError, "an over-long id must return a tool error");
+    assert.match(response.result.content[0].text, /Invalid instinct id/);
+    assert.match(response.result.content[0].text, /at most 160 characters/);
+  });
+
+  it("ci_create_instinct accepts an id of exactly 160 characters", async () => {
+    const id = `b${"c".repeat(159)}`;
+    const { created, response } = await createdBy(() =>
+      call("ci_create_instinct", { id, trigger: "when naming", body: "the limit itself is allowed" }),
+    );
+    assert.ok(!response.result.isError, response.result.content[0].text);
+    assert.deepEqual(created, [`${projectRel}/${id}.yaml`]);
+  });
+
+  it("ci_import imports the valid entries around a 300-character id and reports the rejected one", async () => {
+    const payload = JSON.stringify([
+      { id: "long-import-before", trigger: "when importing", body: "first" },
+      { id: TOO_LONG_ID, trigger: "when importing", body: "too long" },
+      { id: "long-import-after", trigger: "when importing", body: "last" },
+    ]);
+    const { created, response } = await createdBy(() => call("ci_import", { instincts_json: payload }));
+    assert.deepEqual(created, [`${projectRel}/long-import-after.yaml`, `${projectRel}/long-import-before.yaml`]);
+    const text = response.result.content[0].text;
+    assert.ok(response.result.isError, "a rejected entry must flag the result as an error");
+    assert.match(text, /Imported 2 instincts \(0 skipped as duplicates\)/);
+    assert.match(text, /Rejected 1/);
+    assert.ok(text.includes(TOO_LONG_ID), "the rejected entry must be named in the report");
+    assert.match(text, /at most 160 characters/);
+  });
+
+  it("ci_reinforce refuses an on-disk instinct whose id line is 300 characters", async () => {
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(
+      join(projectDir, "planted-long.yaml"),
+      [`id: ${TOO_LONG_ID}`, 'trigger: "when naming"', "confidence: 0.5", "scope: project", "---", "too long", ""].join("\n"),
+    );
+    const { created, response } = await createdBy(() =>
+      call("ci_reinforce", { instinct_id: TOO_LONG_ID, accepted: true }),
+    );
+    assert.deepEqual(created, []);
+    assert.ok(response.result.isError, "the refused update must return a tool error");
+    assert.match(response.result.content[0].text, /at most 160 characters/);
+  });
+
+  it("ci_distill_promote refuses a draft whose id line is 300 characters and keeps the draft", async () => {
+    const draftsDir = join(projectDir, "drafts");
+    mkdirSync(draftsDir, { recursive: true });
+    const draftPath = join(draftsDir, "draft-long-id-line.yaml");
+    writeFileSync(
+      draftPath,
+      [`id: ${TOO_LONG_ID}`, 'trigger: "when naming"', "confidence: 0.3", "---", "too long", ""].join("\n"),
+    );
+    const { created, response } = await createdBy(() => call("ci_distill_promote", { id: "draft-long-id-line" }));
+    assert.deepEqual(created, []);
+    assert.ok(response.result.isError, "the refused promotion must return a tool error");
+    assert.match(response.result.content[0].text, /at most 160 characters/);
+    assert.ok(existsSync(draftPath), "a refused promotion must not consume the draft");
+  });
+
+  for (const tool of ["ci_distill_propose", "ci_distill_promote"]) {
+    it(`${tool} rejects a 300-character draft id and names the limit`, async () => {
+      const { created, response } = await createdBy(() => call(tool, { id: `draft-${TOO_LONG_ID}` }));
+      assert.deepEqual(created, []);
+      assert.ok(response.result.isError, "an over-long draft id must return a tool error");
+      assert.match(response.result.content[0].text, /Invalid draft id/);
+      assert.match(response.result.content[0].text, /at most 160 characters/);
+    });
+  }
+});
+
+// A handler that threw used to be caught by the line reader's "incomplete JSON"
+// catch, so the request got no response at all and the client waited until its
+// own timeout. A directory where the server expects to write a file makes the
+// write throw without needing an over-long id.
+describe("MCP server — a failing request is answered, not dropped (expert)", () => {
+  let client: McpTestClient;
+  let tempHome = "";
+  let tempWorkspace = "";
+  let projectDir = "";
+  let nextId = 400;
+
+  const call = (name: string, args: Record<string, unknown>, id: number | string = nextId++): Promise<JsonRpcResponse> =>
+    client.send({ jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: args } });
+
+  before(async () => {
+    tempHome = mkdtempSync(join(tmpdir(), "ci-mcp-throw-"));
+    mkdirSync(join(tempHome, ".claude", "instincts", "global"), { recursive: true });
+    tempWorkspace = join(tempHome, "workspace");
+    mkdirSync(tempWorkspace, { recursive: true });
+    projectDir = join(tempHome, ".claude", "instincts", hashProjectRoot(tempWorkspace));
+
+    const env: NodeJS.ProcessEnv = { ...process.env, HOME: tempHome, USERPROFILE: tempHome, CLAUDE_PROJECT_DIR: tempWorkspace };
+    delete env.CI_GATEGUARD_EXCLUDE;
+    const proc = spawn("node", [MCP_SERVER, "--mode", "expert"], {
+      env,
+      cwd: tempWorkspace,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    client = new McpTestClient(proc);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  });
+
+  after(async () => {
+    client.destroy();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    try {
+      rmSync(tempHome, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    } catch {
+      // Windows can briefly keep stdio handles open after the child exits.
+    }
+  });
+
+  it("a tool handler that throws gets a JSON-RPC error with the request id, and the server keeps serving", async () => {
+    // ci_plan_init with force overwrites task_plan.md; a directory in its place
+    // makes writeFileSync throw inside the handler.
+    mkdirSync(join(tempWorkspace, "task_plan.md"), { recursive: true });
+    const response = await call("ci_plan_init", { goal: "Answer every request", force: true }, "throwing-call");
+    assert.equal(response.id, "throwing-call", "the error must carry the id of the request that failed");
+    assert.equal(response.result, undefined);
+    assert.equal(response.error?.code, -32603);
+    assert.match(response.error?.message ?? "", /ci_plan_init failed/);
+
+    const next = await call("ci_status", {});
+    assert.ok(!next.error, "the next request must still be answered");
+    assert.match(next.result.content[0].text, /continuous-improvement Status/);
+  });
+
+  it("a line that is not valid JSON on its own is still buffered until the message is complete", async () => {
+    const response = await client.sendRaw(
+      '{"jsonrpc": "2.0", "id": "split-line",\n"method": "tools/list", "params": {}}\n',
+      "a message split across two lines",
+    );
+    assert.equal(response.id, "split-line");
+    assert.ok(Array.isArray(response.result.tools));
+  });
+
+  it("ci_create_instinct returns a tool error when the instinct file cannot be written", async () => {
+    mkdirSync(join(projectDir, "taken-by-a-directory.yaml"), { recursive: true });
+    const response = await call("ci_create_instinct", { id: "taken-by-a-directory", trigger: "when writing", body: "blocked" });
+    assert.ok(response.result?.isError, "a failed write must return a tool error");
+    assert.match(response.result.content[0].text, /Could not write instinct "taken-by-a-directory"/);
+  });
+
+  it("ci_import keeps going past an entry whose file cannot be written and reports it", async () => {
+    mkdirSync(join(projectDir, "import-blocked.yaml"), { recursive: true });
+    const payload = JSON.stringify([
+      { id: "import-unblocked-one", trigger: "when importing", body: "first" },
+      { id: "import-blocked", trigger: "when importing", body: "blocked" },
+      { id: "import-unblocked-two", trigger: "when importing", body: "last" },
+    ]);
+    const response = await call("ci_import", { instincts_json: payload });
+    assert.ok(response.result?.isError, "a failed entry must flag the result as an error");
+    const text = response.result.content[0].text;
+    assert.match(text, /Imported 2 instincts \(0 skipped as duplicates\)/);
+    assert.match(text, /Could not write instinct "import-blocked"/);
+    assert.ok(existsSync(join(projectDir, "import-unblocked-one.yaml")));
+    assert.ok(existsSync(join(projectDir, "import-unblocked-two.yaml")));
+  });
+
+  // Windows and default macOS volumes resolve <id>.yaml case-insensitively, so
+  // an id that differs only in case overwrote the existing instinct's file.
+  it("ci_import skips an id that differs from an existing one only in case", async () => {
+    const created = await call("ci_create_instinct", { id: "prefer-grep-case", trigger: "original trigger", body: "original body", confidence: 0.8 });
+    assert.ok(!created.result.isError, created.result.content[0].text);
+    const payload = JSON.stringify([{ id: "Prefer-Grep-Case", trigger: "other", body: "other body", confidence: 0.1 }]);
+    const response = await call("ci_import", { instincts_json: payload });
+    assert.ok(!response.result.isError, response.result.content[0].text);
+    assert.match(response.result.content[0].text, /Imported 0 instincts \(1 skipped as duplicates\)/);
+    const files = listFilesUnder(projectDir).filter((file) => file.toLowerCase() === "prefer-grep-case.yaml");
+    assert.deepEqual(files, ["prefer-grep-case.yaml"]);
+    const content = readFileSync(join(projectDir, "prefer-grep-case.yaml"), "utf8");
+    assert.match(content, /^id: prefer-grep-case$/m);
+    assert.match(content, /original trigger/);
+  });
+
+  it("ci_load_pack skips a pack id that differs from an existing instinct only in case", async () => {
+    const created = await call("ci_create_instinct", {
+      id: "Parallelize-Independent-Tool-Calls",
+      trigger: "my own trigger",
+      body: "my own body",
+    });
+    assert.ok(!created.result.isError, created.result.content[0].text);
+    const response = await call("ci_load_pack", { pack: "meta" });
+    assert.ok(!response.result.isError, response.result.content[0].text);
+    const files = listFilesUnder(projectDir).filter(
+      (file) => file.toLowerCase() === "parallelize-independent-tool-calls.yaml",
+    );
+    assert.equal(files.length, 1);
+    const content = readFileSync(join(projectDir, files[0]), "utf8");
+    assert.match(content, /^id: Parallelize-Independent-Tool-Calls$/m);
+    assert.match(content, /my own trigger/);
   });
 });
 

@@ -11,6 +11,8 @@
 // volumes (well under 100k rows) the rebuild is sub-50ms; a node:sqlite FTS5
 // migration is a follow-up if volumes grow.
 
+import { HEX_KEPT_PREFIX, redactSecrets } from "./redact-secrets.mjs";
+
 const STOPWORDS = new Set<string>([
   "the", "and", "for", "with", "that", "this", "from", "into", "your", "are",
   "was", "were", "but", "not", "all", "any", "can", "its", "out", "has", "had",
@@ -21,6 +23,10 @@ const BM25_K1 = 1.5;
 const BM25_B = 0.75;
 const DEFAULT_K = 5;
 const SNIPPET_RADIUS = 60;
+// The observer writes a run of 32 or more hex characters (a commit id, a
+// checksum) as <hex-redacted:XXXXXXXX>, keeping its first characters. A query
+// for the whole value also searches for that prefix, so it reaches the row.
+const LONG_HEX_TERM_RE = /^[a-f0-9]{32,}$/;
 
 export interface RecallObservation {
   ts?: string;
@@ -72,23 +78,9 @@ export function tokenize(text: string): string[] {
   return out;
 }
 
-/**
- * Redact common secret shapes from a snippet before it is surfaced. Conservative
- * by design: matches AWS access keys, JWT-shaped triplets, bearer tokens,
- * KEY/SECRET/TOKEN/PASSWORD assignments, and long hex strings. Applied to every
- * snippet returned by query().
- */
-export function redactSecrets(text: string): string {
-  return text
-    .replace(/AKIA[0-9A-Z]{16}/g, "AKIA<redacted>")
-    .replace(/Bearer\s+[A-Za-z0-9._~+/-]{20,}=*/gi, "Bearer <redacted>")
-    .replace(
-      /\b([A-Za-z][A-Za-z0-9_]*(?:KEY|SECRET|TOKEN|PASSWORD|PASSWD|PWD))(\s*[:=]\s*)(\S+)/gi,
-      "$1$2<redacted>",
-    )
-    .replace(/\b[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, "<jwt-redacted>")
-    .replace(/\b[a-f0-9]{32,}\b/gi, "<hex-redacted>");
-}
+// Applied to every snippet returned by query(). New rows are already redacted
+// when the observer writes them; this still covers rows written before that.
+export { redactSecrets };
 
 function docText(obs: RecallObservation): string {
   return [obs.tool ?? "", obs.input_summary ?? "", obs.output_summary ?? ""]
@@ -180,7 +172,13 @@ function makeSnippet(text: string, queryTerms: string[]): string {
  * older than an ISO timestamp or relative window. Snippets are redacted.
  */
 export function query(index: RecallIndex, queryString: string, opts: RecallOpts = {}): RecallHit[] {
-  const queryTerms = [...new Set(tokenize(queryString))];
+  const queryTerms = [
+    ...new Set(
+      tokenize(queryString).flatMap((term) =>
+        LONG_HEX_TERM_RE.test(term) ? [term, term.slice(0, HEX_KEPT_PREFIX)] : [term],
+      ),
+    ),
+  ];
   if (queryTerms.length === 0) return [];
 
   const k = opts.k && opts.k > 0 ? opts.k : DEFAULT_K;

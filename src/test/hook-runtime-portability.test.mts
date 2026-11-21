@@ -59,6 +59,45 @@ describe("plugin-managed hook runtime portability", () => {
     }
   });
 
+  // Claude Code on Windows exposes a first-class PowerShell tool with the same
+  // { command } input as Bash. A matcher that names only Bash never spawns the
+  // guard for a PowerShell call, so the shell guards must name both.
+  it("registers the shell-command guards for the PowerShell tool as well as Bash", () => {
+    const preToolUse = getPluginHooksConfig().hooks.PreToolUse ?? [];
+    const matcherFor = (script: string): string | undefined => {
+      const entry = preToolUse.find((candidate) =>
+        candidate.hooks.some((hook) => hook.command.includes(`/hooks/${script}"`)),
+      );
+      assert.ok(entry, `${script} must be registered on PreToolUse`);
+      return entry.matcher;
+    };
+
+    assert.equal(matcherFor("hook-pack.mjs"), "Bash|PowerShell|Monitor");
+    assert.equal(matcherFor("config-guard.mjs"), "Bash|PowerShell|Monitor|Edit|MultiEdit|Write|NotebookEdit");
+
+    // No matcher means every tool call. Any entry that does scope itself must
+    // not see one shell tool without the others; gateguard is included.
+    // Monitor's { command } runs in the same shell as Bash.
+    const gateguardMatcher = matcherFor("gateguard.mjs");
+    for (const shellTool of ["PowerShell", "Monitor"]) {
+      assert.ok(
+        gateguardMatcher === undefined || gateguardMatcher.split("|").includes(shellTool),
+        `gateguard must see ${shellTool} calls, matcher: ${gateguardMatcher}`,
+      );
+    }
+    for (const entry of preToolUse) {
+      if (entry.matcher === undefined) continue;
+      const tools = entry.matcher.split("|");
+      for (const shellTool of ["PowerShell", "Monitor"]) {
+        assert.equal(
+          tools.includes(shellTool),
+          tools.includes("Bash"),
+          `matcher "${entry.matcher}" names one shell tool without the others`,
+        );
+      }
+    }
+  });
+
   it("gives hooks enough time to start on a loaded Windows host", () => {
     for (const [event, entries] of Object.entries(getPluginHooksConfig().hooks)) {
       for (const entry of entries) {

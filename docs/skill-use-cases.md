@@ -33,10 +33,10 @@ The marketplace ships **5 plugins**: 1 native + 4 vendored, pinned-SHA snapshots
 | Plugin | Verdict | Install it when… |
 |---|---|---|
 | **`continuous-improvement`** (native) | **MUST** | Always. This is the framework — the 9-skill spine, the hooks, the MCP tools, the GitHub Action |
-| **`superpowers`** (obra, v5.1.0) | **Strongly recommended** | You want dedicated specialists behind the `/superpowers` router (TDD, debugging, writing-plans, git-worktrees, parallel agents) instead of the inline fallbacks. The router works without it — just at fallback quality |
+| **`superpowers`** (obra, v6.3.0) | **Strongly recommended** | You want dedicated specialists behind the `/superpowers` router (TDD, debugging, writing-plans, git-worktrees, parallel agents) instead of the inline fallbacks. The router works without it — just at fallback quality |
 | `agent-skills` (Addy Osmani, v1.0.0) | Situational | You want the 21-skill SDLC set: spec-driven-development, performance-optimization, security-and-hardening, frontend-ui-engineering, browser-testing, CI/CD, migrations |
 | `ruflo-swarm` (ruvnet, v0.2.0) | Situational | You need multi-agent **swarm** coordination — `swarm_*`/`agent_*` MCP tools, Monitor streams, worktree isolation, `/swarm` + `/watch` |
-| `oh-my-claudecode` (Yeachan-Heo, v4.13.6) | Situational | You want heavy multi-agent orchestration (ultrawork, ultraqa, team, trace). **Overlaps** `ralph`/`superpowers` — pick per task, do not run all three at once |
+| `oh-my-claudecode` (Yeachan-Heo, v5.3.0) | Situational | You want heavy multi-agent orchestration (ultragoal, autopilot, team, trace). **Overlaps** `ralph`/`superpowers` — pick per task, do not run all three at once |
 
 **Beginner install** = `continuous-improvement` + (recommended) `superpowers`. That covers ~90% of users. Add a vendored companion only when its specialty (swarm / SDLC depth / multi-agent ops) is the actual task.
 

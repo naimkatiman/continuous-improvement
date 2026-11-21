@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { after, before, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -453,7 +453,7 @@ describe("installer - expert mode", () => {
   });
 
   it("installs session.mjs", () => {
-    const sessionPath = join(tempHome, ".claude", "instincts", "session.mjs");
+    const sessionPath = join(tempHome, ".claude", "instincts", "hooks", "session.mjs");
     assert.ok(existsSync(sessionPath), "session.mjs should ship in expert mode");
   });
 
@@ -487,6 +487,363 @@ describe("installer - expert mode", () => {
   });
 });
 
+// Regression: the installer copied bin/observe.mjs and hooks/session.mjs into
+// ~/.claude without the ../lib modules they import. Both died at module load
+// with ERR_MODULE_NOT_FOUND on every invocation, so an npm install recorded
+// zero observations while the installer reported "Full plugin active". These
+// tests run the real installer and then start what it installed, from where it
+// installed it.
+describe("installer - installed entrypoints start from the installed tree", () => {
+  const RELATIVE_IMPORT_RE = /(?:\bfrom\s*|\bimport\s*\(?\s*)["'](\.{1,2}\/[^"']+)["']/g;
+  let root = "";
+  let home = "";
+  let projectRoot = "";
+  let env: NodeJS.ProcessEnv = {};
+
+  function findFiles(dir: string, suffix: string): string[] {
+    if (!existsSync(dir)) return [];
+    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) return findFiles(full, suffix);
+      return entry.name.endsWith(suffix) ? [full] : [];
+    });
+  }
+
+  function readSettings(): TestSettings {
+    return JSON.parse(
+      readFileSync(join(home, ".claude", "settings.json"), "utf8"),
+    ) as TestSettings;
+  }
+
+  // The script behind each `node "<path>"` hook command the installer wired.
+  function hookScripts(entries: HookEntry[] | undefined): string[] {
+    return (entries ?? [])
+      .flatMap((entry) => entry?.hooks ?? [])
+      .map((hook) => /^node "(.+)"$/.exec(hook.command ?? "")?.[1])
+      .filter((script): script is string => Boolean(script))
+      .map((script) => resolve(script));
+  }
+
+  function wiredScripts(): string[] {
+    const settings = readSettings();
+    const fromHooks = Object.values(settings.hooks ?? {}).flatMap((entries) => hookScripts(entries));
+    const fromMcp = Object.values(settings.mcpServers ?? {})
+      .filter((server) => server.command === "node")
+      .map((server) => resolve(server.args[0]));
+    return [...fromHooks, ...fromMcp];
+  }
+
+  function runHook(script: string, payload: Record<string, unknown>) {
+    const result = spawnSync(process.execPath, [script], {
+      input: JSON.stringify(payload),
+      cwd: projectRoot,
+      env,
+      encoding: "utf8",
+      timeout: 30_000,
+    });
+    if (result.error) throw result.error;
+    return result;
+  }
+
+  before(() => {
+    root = join(tmpdir(), `ci-test-entrypoints-${process.pid}-${Date.now()}`);
+    home = join(root, "home");
+    projectRoot = join(root, "project");
+    mkdirSync(join(home, ".claude"), { recursive: true });
+    mkdirSync(projectRoot, { recursive: true });
+    env = {
+      ...process.env,
+      HOME: home,
+      USERPROFILE: home,
+      CLAUDE_PROJECT_DIR: projectRoot,
+      CLAUDE_CI_UPDATE_CHECK: "off",
+    };
+    const result = spawnSync(process.execPath, [INSTALL_SCRIPT, "install", "--mode", "expert"], {
+      cwd: root,
+      env,
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, `${result.stdout ?? ""}${result.stderr ?? ""}`);
+  });
+
+  after(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it("resolves every relative import of every script the installer wired or copied", () => {
+    const wired = wiredScripts();
+    const copied = findFiles(join(home, ".claude"), ".mjs");
+    assert.ok(wired.length > 0, "expert install should wire at least one script");
+    assert.ok(copied.length > 0, "expert install should copy at least one script");
+
+    const missing: string[] = [];
+    const seen = new Set<string>();
+    const queue = [...wired, ...copied];
+    while (queue.length > 0) {
+      const file = queue.pop() as string;
+      if (seen.has(file)) continue;
+      seen.add(file);
+      assert.ok(existsSync(file), `installer wired or copied a script that is not on disk: ${file}`);
+      for (const match of readFileSync(file, "utf8").matchAll(RELATIVE_IMPORT_RE)) {
+        const target = resolve(dirname(file), match[1]);
+        if (!existsSync(target)) {
+          missing.push(`${file} imports ${match[1]}`);
+        } else if (target.endsWith(".mjs")) {
+          queue.push(target);
+        }
+      }
+    }
+
+    assert.deepEqual(missing.sort(), [], "every relative import must exist in the installed layout");
+  });
+
+  it("the wired observer exits 0 and records one observation row", () => {
+    const [observer] = hookScripts(readSettings().hooks?.PostToolUse);
+    assert.ok(observer, "PostToolUse should be wired to a node script");
+
+    const result = runHook(observer, {
+      session_id: "installed-entrypoint",
+      hook_event_name: "PostToolUse",
+      tool_name: "Bash",
+      tool_input: { command: "echo hi" },
+      tool_response: { stdout: "hi" },
+    });
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+
+    const observationFiles = findFiles(join(home, ".claude", "instincts"), "observations.jsonl");
+    assert.equal(observationFiles.length, 1, "one observations.jsonl should exist under the temp HOME");
+    const rows = readFileSync(observationFiles[0], "utf8")
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    assert.equal(rows.length, 1, "exactly one observation row should have landed");
+    assert.equal(rows[0].tool, "Bash");
+    assert.equal(rows[0].event, "tool_complete");
+    assert.equal(rows[0].session, "installed-entrypoint");
+  });
+
+  it("the wired session hook exits 0 and reports the level", () => {
+    const [session] = hookScripts(readSettings().hooks?.SessionStart);
+    assert.ok(session, "SessionStart should be wired to a node script");
+
+    const result = runHook(session, {
+      session_id: "installed-entrypoint",
+      hook_event_name: "SessionStart",
+    });
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(
+      result.stderr,
+      /\[continuous-improvement\] Level: \S+ \| Observations: \d+ \| Instincts: \d+/,
+    );
+  });
+
+  it("uninstall removes every script the installer copied", () => {
+    const result = spawnSync(process.execPath, [INSTALL_SCRIPT, "--uninstall"], {
+      cwd: root,
+      env,
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, `${result.stdout ?? ""}${result.stderr ?? ""}`);
+    assert.deepEqual(
+      findFiles(join(home, ".claude"), ".mjs"),
+      [],
+      "no installer-copied script should survive --uninstall",
+    );
+  });
+});
+
+// Regression: the session hook was installed at instincts/session.mjs with its
+// libs in ~/.claude/lib. Node resolves ../lib from the REAL path of the entry
+// module, so when ~/.claude/instincts is a symlink or junction (synced folder,
+// dotfiles manager, instincts moved to a data drive) ../lib pointed beside the
+// link target, where nothing was copied, and every SessionStart and SessionEnd
+// died at module load while the installer reported success.
+describe("installer - session hook starts when ~/.claude/instincts is a link", () => {
+  let root = "";
+  let home = "";
+  let linkTarget = "";
+  let projectRoot = "";
+  let env: NodeJS.ProcessEnv = {};
+
+  function wiredScript(hookType: "PostToolUse" | "SessionStart" | "SessionEnd"): string {
+    const settings = JSON.parse(
+      readFileSync(join(home, ".claude", "settings.json"), "utf8"),
+    ) as TestSettings;
+    const script = (settings.hooks?.[hookType] ?? [])
+      .flatMap((entry) => entry?.hooks ?? [])
+      .map((hook) => /^node "(.+)"$/.exec(hook.command ?? "")?.[1])
+      .find((candidate): candidate is string => Boolean(candidate));
+    assert.ok(script, `${hookType} should be wired to a node script`);
+    return resolve(script);
+  }
+
+  function runHook(script: string, payload: Record<string, unknown>) {
+    const result = spawnSync(process.execPath, [script], {
+      input: JSON.stringify(payload),
+      cwd: projectRoot,
+      env,
+      encoding: "utf8",
+      timeout: 30_000,
+    });
+    if (result.error) throw result.error;
+    return result;
+  }
+
+  before(() => {
+    root = join(tmpdir(), `ci-test-linked-instincts-${process.pid}-${Date.now()}`);
+    home = join(root, "home");
+    linkTarget = join(root, "elsewhere", "instincts-data");
+    projectRoot = join(root, "project");
+    mkdirSync(join(home, ".claude"), { recursive: true });
+    mkdirSync(linkTarget, { recursive: true });
+    mkdirSync(projectRoot, { recursive: true });
+    symlinkSync(
+      linkTarget,
+      join(home, ".claude", "instincts"),
+      process.platform === "win32" ? "junction" : "dir",
+    );
+    env = {
+      ...process.env,
+      HOME: home,
+      USERPROFILE: home,
+      CLAUDE_PROJECT_DIR: projectRoot,
+      CLAUDE_CI_UPDATE_CHECK: "off",
+    };
+    const result = spawnSync(process.execPath, [INSTALL_SCRIPT, "install", "--mode", "expert"], {
+      cwd: root,
+      env,
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, `${result.stdout ?? ""}${result.stderr ?? ""}`);
+  });
+
+  after(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it("the wired SessionStart hook exits 0 and reports the level", () => {
+    const result = runHook(wiredScript("SessionStart"), {
+      session_id: "linked-instincts",
+      hook_event_name: "SessionStart",
+    });
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    assert.match(
+      result.stderr,
+      /\[continuous-improvement\] Level: \S+ \| Observations: \d+ \| Instincts: \d+/,
+    );
+  });
+
+  it("the wired SessionEnd hook exits 0", () => {
+    const result = runHook(wiredScript("SessionEnd"), {
+      session_id: "linked-instincts",
+      hook_event_name: "SessionEnd",
+    });
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+
+  it("the wired observer still exits 0 in the same layout", () => {
+    const result = runHook(wiredScript("PostToolUse"), {
+      session_id: "linked-instincts",
+      hook_event_name: "PostToolUse",
+      tool_name: "Bash",
+      tool_input: { command: "echo hi" },
+      tool_response: { stdout: "hi" },
+    });
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  });
+
+  it("keeps every installed lib inside the instincts tree", () => {
+    assert.equal(
+      existsSync(join(home, ".claude", "lib")),
+      false,
+      "the installer must not write into the shared ~/.claude/lib",
+    );
+    assert.equal(
+      existsSync(join(root, "elsewhere", "lib")),
+      false,
+      "nothing may be resolved from beside the link target",
+    );
+    for (const libFile of ["gateguard-state.mjs", "resolve-home-dir.mjs"]) {
+      assert.ok(
+        existsSync(join(linkTarget, "lib", libFile)),
+        `${libFile} should sit in instincts/lib, which moves with the link`,
+      );
+    }
+  });
+});
+
+// The session hook used to be wired as node ".../instincts/session.mjs". An
+// install over that layout must move the row to the new location (not leave
+// two session hooks), and an uninstall must still recognise the old row.
+describe("installer - migrates the pre-move session hook location", () => {
+  function seedOldLayout(tempHome: string): { oldCommand: string; oldFile: string; settingsPath: string } {
+    const settingsPath = join(tempHome, ".claude", "settings.json");
+    const oldFile = join(tempHome, ".claude", "instincts", "session.mjs");
+    const oldCommand = `node "${oldFile.replace(/\\/g, "/")}"`;
+    mkdirSync(join(tempHome, ".claude", "instincts"), { recursive: true });
+    writeFileSync(oldFile, "// pre-move session hook\n");
+    writeFileSync(
+      settingsPath,
+      JSON.stringify({
+        hooks: {
+          SessionStart: [{ matcher: "", hooks: [{ type: "command", command: oldCommand }] }],
+          SessionEnd: [{ matcher: "", hooks: [{ type: "command", command: oldCommand }] }],
+        },
+      }, null, 2) + "\n",
+    );
+    return { oldCommand, oldFile, settingsPath };
+  }
+
+  function sessionCommands(settingsPath: string, hookType: "SessionStart" | "SessionEnd"): string[] {
+    const settings = JSON.parse(readFileSync(settingsPath, "utf8")) as TestSettings;
+    return (settings.hooks?.[hookType] || [])
+      .flatMap((entry) => entry.hooks || [])
+      .map((hook) => hook.command ?? "");
+  }
+
+  it("install replaces the old row with the new location and removes the old file", () => {
+    const tempHome = join(tmpdir(), `ci-test-session-move-${process.pid}-${Date.now()}`);
+    try {
+      const { oldCommand, oldFile, settingsPath } = seedOldLayout(tempHome);
+      const newFile = join(tempHome, ".claude", "instincts", "hooks", "session.mjs");
+      const newCommand = `node "${newFile.replace(/\\/g, "/")}"`;
+
+      for (let run = 0; run < 2; run += 1) {
+        execFileSync("node", [INSTALL_SCRIPT, "install", "--mode", "expert"], {
+          env: { ...process.env, HOME: tempHome, USERPROFILE: tempHome, CLAUDE_CI_UPDATE_CHECK: "off" },
+          encoding: "utf8",
+        });
+        for (const hookType of ["SessionStart", "SessionEnd"] as const) {
+          const commands = sessionCommands(settingsPath, hookType);
+          assert.equal(commands.filter((command) => command === newCommand).length, 1, `${hookType} run ${run}`);
+          assert.equal(commands.includes(oldCommand), false, `${hookType} must drop the old row`);
+        }
+        assert.ok(existsSync(newFile), "session.mjs should be installed at instincts/hooks");
+        assert.equal(existsSync(oldFile), false, "the old instincts/session.mjs should be removed");
+      }
+    } finally {
+      rmSync(tempHome, { recursive: true, force: true });
+    }
+  });
+
+  it("uninstall removes an old-location row and file without a reinstall first", () => {
+    const tempHome = join(tmpdir(), `ci-test-session-move-uninstall-${process.pid}-${Date.now()}`);
+    try {
+      const { oldFile, settingsPath } = seedOldLayout(tempHome);
+      execFileSync("node", [INSTALL_SCRIPT, "--uninstall"], {
+        env: { ...process.env, HOME: tempHome, USERPROFILE: tempHome, CLAUDE_CI_UPDATE_CHECK: "off" },
+        encoding: "utf8",
+      });
+      for (const hookType of ["SessionStart", "SessionEnd"] as const) {
+        assert.deepEqual(sessionCommands(settingsPath, hookType), []);
+      }
+      assert.equal(existsSync(oldFile), false);
+    } finally {
+      rmSync(tempHome, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("installer - lifecycle mode transitions", () => {
   it("migrates legacy expert hooks through beginner reinstalls and uninstalls cleanly", () => {
     const tempHome = join(tmpdir(), `ci-test-lifecycle-transition-${Date.now()}`);
@@ -511,7 +868,7 @@ describe("installer - lifecycle mode transitions", () => {
           encoding: "utf8",
         });
         const settings = JSON.parse(readFileSync(settingsPath, "utf8")) as TestSettings;
-        const expected = `node "${join(tempHome, ".claude", "instincts", "session.mjs").replace(/\\/g, "/")}"`;
+        const expected = `node "${join(tempHome, ".claude", "instincts", "hooks", "session.mjs").replace(/\\/g, "/")}"`;
         for (const hookType of ["SessionStart", "SessionEnd"] as const) {
           const commands = (settings.hooks?.[hookType] || [])
             .flatMap((entry) => entry.hooks || [])
@@ -519,7 +876,7 @@ describe("installer - lifecycle mode transitions", () => {
           assert.equal(commands.filter((command) => command === expected).length, 1);
           assert.ok(commands.every((command) => !command?.includes("session.sh")));
         }
-        assert.ok(existsSync(join(tempHome, ".claude", "instincts", "session.mjs")));
+        assert.ok(existsSync(join(tempHome, ".claude", "instincts", "hooks", "session.mjs")));
       }
 
       execFileSync("node", [INSTALL_SCRIPT, "--uninstall"], {
@@ -533,7 +890,7 @@ describe("installer - lifecycle mode transitions", () => {
           .map((hook) => hook.command ?? "");
         assert.ok(commands.every((command) => !/(?:session\.sh|session\.mjs)/.test(command)));
       }
-      assert.equal(existsSync(join(tempHome, ".claude", "instincts", "session.mjs")), false);
+      assert.equal(existsSync(join(tempHome, ".claude", "instincts", "hooks", "session.mjs")), false);
     } finally {
       rmSync(tempHome, { recursive: true, force: true });
     }
@@ -657,7 +1014,7 @@ describe("installer - exact hook matching", () => {
     const settingsPath = join(tempHome, ".claude", "settings.json");
     const settings = JSON.parse(readFileSync(settingsPath, "utf8")) as TestSettings;
     const observeCommand = `node "${join(tempHome, ".claude", "instincts", "bin", "observe.mjs").replace(/\\/g, "/")}"`;
-    const sessionCommand = `node "${join(tempHome, ".claude", "instincts", "session.mjs").replace(/\\/g, "/")}"`;
+    const sessionCommand = `node "${join(tempHome, ".claude", "instincts", "hooks", "session.mjs").replace(/\\/g, "/")}"`;
 
     const preToolCommands = (settings.hooks?.PreToolUse || [])
       .flatMap((entry) => entry.hooks || [])
