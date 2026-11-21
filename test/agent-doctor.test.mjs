@@ -345,3 +345,71 @@ describe("ci doctor (spawned)", () => {
         assert.match(out.stdout, /doctor --agent <agent>/);
     });
 });
+// PR 19 (docs/plans/2026-11-21-all-agents.md): probe defects 6 and 7 and critic gap 10.
+describe("runDoctor: what a listing says about our server and hooks", () => {
+    const longRuntime = `C:/Users/someone/AppData/Local/Temp/${"x".repeat(200)}/.claude/instincts/runtime/3.27.0`;
+    function scripted(root, name, body) {
+        const { bin } = fakeCli(root, name);
+        writeFileSync(join(bin, `${name}-fake.cjs`), body);
+        return bin;
+    }
+    const doctor = async (agent, bin, root, extra = {}) => {
+        const out = [];
+        const ok = await runDoctor(agent, { env: fakeEnv(bin, extra), platform: process.platform, cwd: root, timeoutMs: 20_000, write: (line) => out.push(line) });
+        return { ok, text: out.join("\n") };
+    };
+    it("fails a Gemini mcp list that shows our server Disconnected, names the trust step, and keeps the state at the end of a long line", async () => {
+        const root = tempRoot();
+        const bin = scripted(root, "gemini", [
+            "const a = process.argv.slice(2);",
+            `if (a[0] === "mcp") process.stdout.write("Configured MCP servers:\\n\\n✗ continuous-improvement: node ${longRuntime}/bin/mcp-server.mjs --mode expert (stdio) - Disconnected\\n");`,
+            "else process.stdout.write(\"listed\\n\");",
+            "",
+        ].join("\n"));
+        const { ok, text } = await doctor("gemini", bin, root);
+        assert.equal(ok, false, text);
+        assert.match(text, /\(stdio\) - Disconnected\n/);
+        assert.match(text, /continuous-improvement is listed but not connected/);
+        assert.match(text, /untrusted folder/);
+        assert.match(text, /2 of 3 probes ok/);
+        // The note describes the shipped settings.json merge, not an extension.
+        assert.doesNotMatch(text, /extension that carries/);
+        assert.match(text, /settings\.json/);
+    });
+    it("strips ANSI codes and passes a Qwen mcp list that shows our server Connected", async () => {
+        const root = tempRoot();
+        const bin = scripted(root, "qwen", [
+            "const a = process.argv.slice(2);",
+            `if (a[0] === "mcp") process.stdout.write("\\x1b[32m✓\\x1b[0m continuous-improvement: node ${longRuntime}/bin/mcp-server.mjs --mode expert (stdio) - Connected\\n");`,
+            "else process.stdout.write(\"listed\\n\");",
+            "",
+        ].join("\n"));
+        const { ok, text } = await doctor("qwen", bin, root);
+        assert.equal(ok, true, text);
+        assert.match(text, /✓ continuous-improvement: node .*\(stdio\) - Connected/);
+        assert.ok(!text.includes("\x1b"), JSON.stringify(text));
+    });
+    it("counts our hooks in grok inspect --json instead of printing the JSON, and says when the folder is not trusted", async () => {
+        const root = tempRoot();
+        const bin = scripted(root, "grok", [
+            "const a = process.argv.slice(2);",
+            "if (a[0] === \"inspect\") process.stdout.write(process.env.FAKE_INSPECT);",
+            "else process.stdout.write(\"listed\\n\");",
+            "",
+        ].join("\n"));
+        // The shape `grok inspect --json` printed on Grok 1.0.85 (scratchpad e2e-grok/inspect-home.json).
+        const hook = (event, path) => ({ event, hookType: "command", target: `node "${longRuntime}/${path}.mjs" --agent grok`, source: { type: "user" } });
+        const foreign = { event: "pre_tool_use", hookType: "command", target: "node other.js", source: { type: "user" } };
+        const trusted = JSON.stringify({ projectTrusted: true, hooks: [hook("pre_tool_use", "hooks/gateguard"), hook("post_tool_use", "bin/observe"), foreign] }, null, 2);
+        const listed = await doctor("grok", bin, root, { FAKE_INSPECT: trusted });
+        assert.equal(listed.ok, true, listed.text);
+        assert.match(listed.text, /\$ grok inspect --json\n  2 continuous-improvement hooks of 3 listed\n  -> ok/);
+        assert.doesNotMatch(listed.text, /"projectTrusted"|"event"/);
+        const untrusted = await doctor("grok", bin, root, { FAKE_INSPECT: JSON.stringify({ projectTrusted: false, hooks: [] }) });
+        assert.equal(untrusted.ok, true, untrusted.text);
+        assert.match(untrusted.text, /no hooks listed: this folder is not trusted, and Grok lists hooks only in a trusted folder/);
+        const garbage = await doctor("grok", bin, root, { FAKE_INSPECT: "not json" });
+        assert.equal(garbage.ok, false, garbage.text);
+        assert.match(garbage.text, /could not read the grok inspect --json output\n  -> unreadable output/);
+    });
+});

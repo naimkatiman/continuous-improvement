@@ -10,14 +10,17 @@
 // only after an install succeeds and no ledger entry points at it.
 // <instincts root>/global/install-ledger.json records every file and vendor
 // command an install touched, so `--uninstall --target <id>` removes exactly
-// that. What to write is planned in agent-install-plans.mjs (pure); this module
-// does the I/O.
+// that. A vendor registration the uninstall did not undo keeps its entry
+// (pending) and its runtime until it is undone (PR 19). What to write is
+// planned in agent-install-plans.mjs (pure); this module does the I/O.
 
 import { type SpawnSyncOptionsWithStringEncoding, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import {
+  type ConfigWrite,
   type HookArgs,
   type InstallPlan,
   type Ledger,
@@ -28,10 +31,11 @@ import {
   planAgentInstall,
   recordInstall,
   removeOwnedConfig,
+  resolveHookAgent,
   runtimesInUse,
   toLedgerFile,
 } from "./agent-install-plans.mjs";
-import { planTargetWrites } from "./install-targets.mjs";
+import { MANAGED_BEGIN, planTargetWrites } from "./install-targets.mjs";
 import { type SkillCatalog, readSkillCatalog } from "./skill-export.mjs";
 
 /**
@@ -82,12 +86,13 @@ export function installRuntime(packageRoot: string, instinctsRoot: string, versi
 
 /**
  * Removes each runtime version dir the ledger has recorded (`ledger.runtimes`)
- * that no entry uses and that is not `current`. A dir the ledger never
- * recorded stays: a config written outside the ledger may still point at it.
- * Only direct children of <instincts root>/runtime/ are candidates, whatever
- * the ledger says. Best effort: one in use stays.
+ * that no entry uses and that is not `current`, and returns the ledger with
+ * every recorded runtime that is gone dropped from `runtimes`. A dir the
+ * ledger never recorded stays: a config written outside the ledger may still
+ * point at it. Only direct children of <instincts root>/runtime/ are
+ * candidates, whatever the ledger says. Best effort: one in use stays.
  */
-export function pruneRuntimes(instinctsRoot: string, ledger: Ledger, current: string | null): void {
+export function pruneRuntimes(instinctsRoot: string, ledger: Ledger, current: string | null): Ledger {
   const base = join(instinctsRoot, "runtime");
   const recorded = new Set(ledger.runtimes.map(slash));
   const keep = runtimesInUse(ledger);
@@ -100,6 +105,8 @@ export function pruneRuntimes(instinctsRoot: string, ledger: Ledger, current: st
       // a runtime an agent still holds open is left for the next install
     }
   }
+  const runtimes = ledger.runtimes.filter((dir) => keep.has(dir) || slash(dir) === current || existsSync(dir));
+  return { ...ledger, runtimes };
 }
 
 function readText(path: string): string | null {
@@ -123,6 +130,8 @@ function listDir(path: string): string[] {
 export interface HookRunIo {
   home: string;
   projectRoot: string;
+  /** False when no project directory was found (not in a git repo, or the home): no rules file is written then. */
+  inProject?: boolean;
   packageRoot: string;
   version: string;
   platform: string;
@@ -151,6 +160,12 @@ function runVendor(argv: readonly string[], platform: string, cwd: string | null
   if (result.error) return result.error.message;
   return result.status === 0 ? null : `exit ${result.status}: ${(result.stderr || result.stdout || "").trim().split(/\r?\n/)[0] ?? ""}`;
 }
+
+// An undo whose server is already gone counts as done. Grok 1.0.85 `grok mcp
+// remove <name> --scope user` for a server it does not have exits 1 with
+// "No MCP server named '<name>' in user config" (PR 19 probe); codex-cli
+// 0.171.0 prints "No MCP server named '<name>' found." and exits 0.
+const ALREADY_GONE = /\bNo MCP server named\b/;
 
 // The Documents folder the way Windows resolves it, which follows a OneDrive
 // Known Folder Move; Cline's VS Code extension finds its global hooks dir the
@@ -243,6 +258,46 @@ function skillDirs(plan: InstallPlan): Map<string, number> {
   return dirs;
 }
 
+const sha256 = (text: string): string => createHash("sha256").update(text).digest("hex");
+
+/**
+ * The rules files (AGENTS.md, GEMINI.md, ...) a --hooks install of these
+ * targets writes, as ledger-recorded writes of the hook agent each belongs to:
+ * a managed block is ours to take out again, a whole file only when we created
+ * it (or the entry it replaces recorded that). A whole file that was there
+ * before is still written, as without --hooks, but not recorded.
+ */
+function rulesWrites(args: ParsedArgs, io: HookRunIo, ledger: Ledger): { recorded: Map<string, ConfigWrite[]>; unrecorded: Array<{ target: string; path: string; content: string }>; skipped: string[] } {
+  const recorded = new Map<string, ConfigWrite[]>();
+  const unrecorded: Array<{ target: string; path: string; content: string }> = [];
+  const skipped: string[] = [];
+  if (args.rulesTargets.length === 0) return { recorded, unrecorded, skipped };
+  const skillMd = io.skillMd();
+  const project = args.scope === "project" ? slash(io.projectRoot) : null;
+  for (const target of args.rulesTargets) {
+    const agent = resolveHookAgent(target) ?? target;
+    const plan = planTargetWrites(target, skillMd, (rel) => readText(join(io.projectRoot, rel)));
+    for (const write of plan.writes) {
+      // A rules file belongs to one project. Outside one, the cwd fallback is often the home, where
+      // no agent reads AGENTS.md or GEMINI.md as yours (probe defect 9).
+      if (io.inProject === false) {
+        skipped.push(`${write.relPath} (${target} rules) is not written: no project directory here (${slash(io.projectRoot)}), and a rules file belongs to one project. Run the install inside the project to write it.`);
+        continue;
+      }
+      const path = slash(join(io.projectRoot, write.relPath));
+      const before = ledger.entries.find((entry) => entry.target === agent && entry.scope === args.scope && entry.project === project);
+      const created = readText(path) === null || (before?.files.some((file) => slash(file.path) === path && file.created) ?? false);
+      const base = { path, content: write.content, created, hooksAt: null, hookCommands: [], mcpAt: null, mcp: null };
+      let entryWrite: ConfigWrite | null = null;
+      if (write.content.includes(MANAGED_BEGIN)) entryWrite = { ...base, managedBlock: true };
+      else if (created) entryWrite = { ...base, script: { sha256: sha256(write.content) } };
+      if (entryWrite === null) unrecorded.push({ target, path, content: write.content });
+      else recorded.set(agent, [...(recorded.get(agent) ?? []), entryWrite]);
+    }
+  }
+  return { recorded, unrecorded, skipped };
+}
+
 function printPlanText(io: HookRunIo, plan: InstallPlan): void {
   for (const step of plan.printed) io.out(`  ▸ ${step.replace(/\n/g, "\n    ")}`);
   for (const note of plan.notes) io.out(`  ℹ ${note}`);
@@ -262,25 +317,27 @@ export function runHookInstall(args: ParsedArgs, io: HookRunIo): number {
     io.err("Nothing was written.");
     return 1;
   }
-  const plans = args.agents.map((agent) => planAgentInstall(agent, {
+  const planned = args.agents.map((agent) => planAgentInstall(agent, {
     scope: args.scope, runtimeDir: rt, projectRoot: io.projectRoot, home: io.home, platform: io.platform, env: io.env,
     failClosed: args.failClosed, read: readText, listDir, documentsDir, catalog,
   }));
-  const failed = plans.filter((plan) => plan.error !== undefined);
+  const failed = planned.filter((plan) => plan.error !== undefined);
   if (failed.length > 0) {
     for (const plan of failed) io.err(`  ✗ ${plan.agent}: ${plan.error}`);
     io.err("Nothing was written.");
     return 1;
   }
-  // codex and windsurf also keep their rules file, written as without --hooks. Its
-  // plan's "hooks are Claude Code-only" note is not printed: here they get hooks.
-  const skillMd = args.rulesTargets.length > 0 ? io.skillMd() : "";
-  const rules = args.rulesTargets.map((target) => ({ target, plan: planTargetWrites(target, skillMd, (rel) => readText(join(io.projectRoot, rel))) }));
+  // codex, gemini, cursor, copilot and windsurf also keep their rules file, recorded with
+  // the agent's entry (PR 19). Its plan's "hooks are Claude Code-only" note is not
+  // printed: here they get hooks.
+  const rules = rulesWrites(args, io, ledger);
+  const plans = planned.map((plan) => ({ ...plan, writes: [...plan.writes, ...(rules.recorded.get(plan.agent) ?? [])] }));
 
   io.out(`\ncontinuous-improvement agent install (scope: ${args.scope}${args.dryRun ? ", dry run" : ""})\n`);
+  for (const line of rules.skipped) io.out(`  ℹ ${line}`);
   if (args.dryRun) {
     io.out(`  · would copy the runtime → ${rt}`);
-    for (const { target, plan } of rules) for (const write of plan.writes) io.out(`  · would write ${write.relPath} (${target} rules)`);
+    for (const { target, path } of rules.unrecorded) io.out(`  · would write ${path} (${target} rules, there before, so the uninstall keeps it)`);
     for (const plan of plans) {
       for (const write of plan.writes) if (write.skill === undefined) io.out(`  · would ${write.created ? "create" : "update"} ${write.path} (${plan.agent})`);
       for (const [dir, count] of skillDirs(plan)) io.out(`  · would write ${count} skills to ${dir} (${plan.agent})`);
@@ -299,11 +356,9 @@ export function runHookInstall(args: ParsedArgs, io: HookRunIo): number {
   try {
     installRuntime(io.packageRoot, io.instinctsRoot, io.version);
     io.out(`  ✓ runtime → ${rt}`);
-    for (const { target, plan } of rules) {
-      for (const write of plan.writes) {
-        writeFile(join(io.projectRoot, write.relPath), write.content);
-        io.out(`  ✓ ${target} → ${write.relPath}`);
-      }
+    for (const { target, path, content } of rules.unrecorded) {
+      writeFile(path, content);
+      io.out(`  ✓ ${target} → ${path} (there before, so the uninstall keeps it)`);
     }
     for (const plan of plans) {
       const entry: LedgerEntry = {
@@ -344,7 +399,7 @@ export function runHookInstall(args: ParsedArgs, io: HookRunIo): number {
     if (recorded.length > 0) io.err(`  ℹ ${recorded.join(", ")} installed and recorded before the failure; \`--uninstall --target ${recorded.join(",")}\` removes them.`);
     return 1;
   }
-  pruneRuntimes(io.instinctsRoot, next, rt);
+  saveLedger(io, pruneRuntimes(io.instinctsRoot, next, rt));
   io.out(`  ✓ ledger → ${slash(ledgerFile(io))}\n\n${status === 0 ? "Done." : "Done with errors."}\n`);
   return status;
 }
@@ -357,20 +412,30 @@ export function runHookUninstall(args: ParsedArgs, io: HookRunIo): number {
     args.agents.includes(entry.target) && entry.scope === args.scope && (args.scope === "user" || entry.project === project);
   const entries = ledger.entries.filter(mine);
   io.out(`\ncontinuous-improvement agent uninstall (scope: ${args.scope}${args.dryRun ? ", dry run" : ""})\n`);
+  if (entries.length === 0) io.out(`  Nothing recorded for ${args.agents.join(", ")} (scope: ${args.scope}) in ${slash(ledgerFile(io))}.`);
+  // An agent with nothing at this scope may be recorded at the other one (probe defect 8).
+  for (const agent of args.agents.filter((id) => !entries.some((entry) => entry.target === id))) {
+    for (const other of ledger.entries.filter((entry) => entry.target === agent && entry.scope !== args.scope)) {
+      io.out(other.scope === "user"
+        ? `  ℹ ${agent} is recorded at scope user: \`--uninstall --target ${agent} --scope user\` removes it.`
+        : `  ℹ ${agent} is recorded at scope project in ${other.project}: run \`--uninstall --target ${agent}\` there.`);
+    }
+  }
   if (entries.length === 0) {
-    io.out(`  Nothing recorded for ${args.agents.join(", ")} (scope: ${args.scope}) in ${slash(ledgerFile(io))}.\n`);
+    io.out("");
     return 0;
   }
-  // A whole file we own that another install also recorded (a skill copy two
-  // agents share, such as ~/.agents/skills) stays until the last one goes.
-  const shared = new Set(ledger.entries.filter((entry) => !mine(entry)).flatMap((entry) => entry.files.filter((file) => file.script).map((file) => slash(file.path))));
+  // A whole file or rules block we own that another install also recorded (a skill copy
+  // two agents share, such as ~/.agents/skills) stays until the last one goes.
+  const owned = (file: LedgerEntry["files"][number]): boolean => file.script !== undefined || file.managedBlock === true;
+  const shared = new Set(ledger.entries.filter((entry) => !mine(entry)).flatMap((entry) => entry.files.filter(owned).map((file) => slash(file.path))));
   let actions: Array<{ path: string; skill: boolean; result: RemoveResult }>;
   let kept = 0;
   // Agents that share a whole file and go together (`--target codex,devin`) remove it once.
   const seen = new Set<string>();
   try {
     actions = entries.flatMap((entry) => entry.files.flatMap((file) => {
-      if (file.script) {
+      if (owned(file)) {
         if (seen.has(slash(file.path))) return [];
         seen.add(slash(file.path));
         if (shared.has(slash(file.path))) {
@@ -414,27 +479,52 @@ Nothing was removed.`);
     }
   }
   if (skills > 0) io.out(`  ✓ deleted ${skills} skill copies`);
-  for (const run of entries.flatMap((entry) => entry.runs)) {
-    if (run.undo === null) io.out(`  ▸ ${display(run.argv)} has no undo command; remove what it added by hand.`);
-    else if (args.dryRun) io.out(`  · would ${args.run ? "run" : "print"}: ${display(run.undo)}`);
-    else if (!run.ran) io.out(`  ▸ if you ran ${display(run.argv)}, undo it: ${display(run.undo)}`);
-    else if (!args.run) io.out(`  ▸ run yourself: ${display(run.undo)}`);
-    else {
-      const failure = runVendor(run.undo, io.platform, run.cwd);
-      if (failure === null) io.out(`  ✓ ran: ${display(run.undo)}`);
-      else {
-        io.err(`  ✗ ${display(run.undo)} failed (${failure}); run it yourself.`);
-        status = 1;
+  // A vendor registration that ran and is not undone (no --run, a failed undo, or a
+  // command with none) still points at the entry's runtime, so the entry stays,
+  // pending, with only those runs, and the runtime stays with it (probe defect 1).
+  const pending = new Map<LedgerEntry, LedgerEntry>();
+  for (const entry of entries) {
+    const left: LedgerEntry["runs"] = [];
+    for (const run of entry.runs) {
+      if (!run.ran) {
+        io.out(run.undo === null ? `  ▸ if you ran ${display(run.argv)}, remove what it added by hand.` : `  ▸ if you ran ${display(run.argv)}, undo it: ${display(run.undo)}`);
+      } else if (run.undo === null) {
+        // Nothing can undo it: the uninstall after the one that said so takes it as removed by hand.
+        if (entry.pending) io.out(`  ℹ ${display(run.argv)}: taken as removed by hand`);
+        else {
+          io.out(`  ▸ ${display(run.argv)} has no undo command; remove what it added by hand, then run this uninstall again.`);
+          left.push(run);
+        }
+      } else if (args.dryRun) {
+        io.out(`  · would ${args.run ? "run" : "print"}: ${display(run.undo)}`);
+      } else if (!args.run) {
+        io.out(`  ▸ run yourself: ${display(run.undo)}`);
+        left.push(run);
+      } else {
+        const failure = runVendor(run.undo, io.platform, run.cwd);
+        if (failure === null) io.out(`  ✓ ran: ${display(run.undo)}`);
+        else if (ALREADY_GONE.test(failure)) io.out(`  ✓ ${display(run.undo)}: already removed (${failure})`);
+        else {
+          io.err(`  ✗ ${display(run.undo)} failed (${failure}); run it yourself.`);
+          status = 1;
+          left.push(run);
+        }
       }
     }
+    if (left.length === 0 || args.dryRun) continue;
+    pending.set(entry, { ...entry, files: [], runs: left, pending: true });
+    const scopeFlag = entry.scope === "user" ? " --scope user" : "";
+    const finish = left.some((run) => run.undo !== null)
+      ? `\`--uninstall --target ${entry.target}${scopeFlag} --run\` runs that undo and finishes the uninstall`
+      : `\`--uninstall --target ${entry.target}${scopeFlag}\` then finishes the uninstall`;
+    io.out(`  ℹ ${entry.target} stays in the ledger as pending, and so does its runtime ${entry.runtime}, while that registration points at it: ${finish}.`);
   }
   if (args.dryRun) {
     io.out("\nDry run: nothing was removed.\n");
     return 0;
   }
-  const next: Ledger = { version: 1, entries: ledger.entries.filter((entry) => !mine(entry)), runtimes: ledger.runtimes };
-  saveLedger(io, next);
-  pruneRuntimes(io.instinctsRoot, next, null);
+  const remaining = ledger.entries.flatMap((entry) => (!mine(entry) ? [entry] : pending.has(entry) ? [pending.get(entry)!] : []));
+  saveLedger(io, pruneRuntimes(io.instinctsRoot, { version: 1, entries: remaining, runtimes: ledger.runtimes }, null));
   io.out(`\n${status === 0 ? "Done." : "Done with errors."}\n`);
   return status;
 }

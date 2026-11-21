@@ -728,9 +728,10 @@ Options for 'install':
   --fail-closed     With --hooks: set the agent's fail-closed hook option where
                     it has one (the default keeps the agent's own behaviour)
   --uninstall --target <ids>
-                    Remove the hook configs and MCP entries --hooks recorded for
-                    those agents; a rules file (AGENTS.md) and a printed snippet
-                    you pasted stay
+                    Remove the hook configs, MCP entries and rules-file blocks
+                    --hooks recorded for those agents; a printed snippet you
+                    pasted stays. A vendor mcp add it did not undo (no --run)
+                    keeps the agent recorded until --run undoes it
   --help            Show this help
 
 Options for 'backfill':
@@ -822,6 +823,7 @@ if (hookArgs.mode !== "none") {
     const hookIo = {
         home: getHomeDir(),
         projectRoot: projectRoot ?? (project.root === "global" ? process.cwd() : project.root),
+        inProject: projectRoot !== null,
         packageRoot: REPO_ROOT,
         version: VERSION,
         platform: process.platform,

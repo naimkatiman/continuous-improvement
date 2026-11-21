@@ -159,7 +159,7 @@ export const AGENT_SUPPORT: readonly AgentSupport[] = [
     evidence: "local",
     install: [`${NPX} --target grok --hooks`],
     then: `Run the printed \`grok mcp add\` step. ${LESSONS("grok")}`,
-    cannot: "No session or prompt context, so lessons need the rules file. No `mcp remove`, so the MCP undo is a config edit.",
+    cannot: "No session or prompt context, so lessons need the rules file.",
     source: "Research Grok Build 1.0.85 hook_pre_tool (skeptic: confirmed, fail-open on unknown tool names reproduced and fixed), systemMessage-only session output, Stop reason end_turn; matrix row Grok 1.0.85.",
   },
   {
