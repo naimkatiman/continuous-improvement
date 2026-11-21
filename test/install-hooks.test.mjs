@@ -416,7 +416,10 @@ describe("install --hooks for the PR 13 agents (gemini, cursor, copilot, kiro, a
         ];
         const rules = planTargetWrites("gemini", readFileSync(join(REPO_ROOT, "SKILL.md"), "utf8"), () => null).writes.map((write) => write.relPath)
             .concat([".cursor/rules/continuous-improvement.mdc", ".github/copilot-instructions.md"]);
-        assert.deepEqual(tree(b.project), [...written, ...rules].sort());
+        // PR 15: each agent also gets the skill copies in its skills dir (src/test/skill-export.test.mts pins them).
+        const skillCopy = (file) => /^\.[\w-]+\/skills\/[a-z0-9-]+\/SKILL\.md$/.test(file);
+        assert.deepEqual(tree(b.project).filter((file) => !skillCopy(file)), [...written, ...rules].sort());
+        assert.deepEqual([...new Set(tree(b.project).filter(skillCopy).map((file) => file.split("/")[0]))].sort(), [".agents", ".augment", ".cline", ".cursor", ".gemini", ".github", ".junie", ".kiro"]);
         const cursor = JSON.parse(readFileSync(join(b.project, ".cursor", "hooks.json"), "utf8"));
         assert.equal(cursor.hooks.preToolUse[0].command, `node "${slash(runtime(b))}/hooks/gateguard.mjs" --agent cursor`);
         assert.deepEqual(cursor.hooks.afterFileEdit, [{ command: "./mine.sh" }]);

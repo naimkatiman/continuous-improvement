@@ -102,6 +102,7 @@ import { TARGET_IDS } from "./install-targets.mjs";
 import { PACKAGE_NAME, getPluginHooksConfig } from "./plugin-metadata.mjs";
 import { renderAmpPlugin } from "./plugin-shim-amp.mjs";
 import { renderOpenCodePlugin } from "./plugin-shim-opencode.mjs";
+import { type SkillCatalog, planSkillExport } from "./skill-export.mjs";
 
 export const HOOK_AGENT_IDS: readonly string[] = [
   "codex", "qwen", "grok", "devin", "droid", "gemini", "cursor", "copilot", "kiro", "auggie", "junie", "goose", "cline",
@@ -132,6 +133,11 @@ export interface PlanContext {
    * win32, for Cline's user-scope hooks dir.
    */
   documentsDir: () => string | null;
+  /**
+   * PR 15: the package's skills and commands (readSkillCatalog). Given, each
+   * agent also gets them as SKILL.md copies in its skills dir (skill-export.mjs).
+   */
+  catalog?: SkillCatalog;
 }
 
 export interface McpEntry {
@@ -160,6 +166,8 @@ export interface LedgerFile {
   layout?: HookLayout;
   /** A hook script or plugin file we own whole (Cline, OpenCode, Amp): removed only while it still hashes to this. */
   script?: { sha256: string };
+  /** An exported SKILL.md (always with `script`): the skill's name. Its dir goes with it on uninstall. */
+  skill?: string;
 }
 
 export interface ConfigWrite extends LedgerFile {
@@ -777,8 +785,8 @@ function planScripts(ctx: PlanContext, agent: string, dir: string, hooks: HooksM
 
 /** The ledger record of a planned write: what the uninstall needs, without the content. */
 export function toLedgerFile(file: ConfigWrite): LedgerFile {
-  const { path, created, hooksAt, hookCommands, mcpAt, mcp, layout, script } = file;
-  return { path, created, hooksAt, hookCommands, mcpAt, mcp, ...(layout ? { layout } : {}), ...(script ? { script } : {}) };
+  const { path, created, hooksAt, hookCommands, mcpAt, mcp, layout, script, skill } = file;
+  return { path, created, hooksAt, hookCommands, mcpAt, mcp, ...(layout ? { layout } : {}), ...(script ? { script } : {}), ...(skill === undefined ? {} : { skill }) };
 }
 
 // A hook command of ours in a Claude settings file this agent also loads.
@@ -808,6 +816,20 @@ function claudeImportWarnings(spec: AgentSpec, ctx: PlanContext): string[] {
     if (hit) warnings.push(`${spec.label} also loads the continuous-improvement Claude Code plugin from ${plugins}, so each hook would fire twice. Keep one of the two installs.`);
   }
   return warnings;
+}
+
+// PR 15: the agent's SKILL.md copies, each a whole file we own (removed only while unchanged).
+function addSkills(plan: InstallPlan, agent: string, ctx: PlanContext): void {
+  if (ctx.catalog === undefined) return;
+  const skills = planSkillExport(agent, ctx, ctx.catalog);
+  for (const file of skills.files) {
+    plan.writes.push({
+      path: file.path, content: file.content, created: file.created, hooksAt: null, hookCommands: [], mcpAt: null, mcp: null,
+      script: { sha256: sha256(file.content) }, skill: file.name,
+    });
+  }
+  plan.notes.push(...skills.notes);
+  plan.warnings.push(...skills.warnings);
 }
 
 interface PluginSpec {
@@ -864,6 +886,11 @@ function planPluginInstall(agent: string, spec: PluginSpec, ctx: PlanContext): I
   }
   const content = spec.render(ctx.runtimeDir, ctx.failClosed);
   plan.writes.push({ path, content, created: existing === null, hooksAt: null, hookCommands: [], mcpAt: null, mcp: null, script: { sha256: sha256(content) } });
+  try {
+    addSkills(plan, agent, ctx);
+  } catch (error) {
+    return { ...plan, writes: [], error: error instanceof Error ? error.message : String(error) };
+  }
   const mcp: McpEntry = { command: "node", args: [`${slash(ctx.runtimeDir)}/bin/mcp-server.mjs`, "--mode", "expert"] };
   const run = spec.mcpRun?.(ctx, mcp) ?? null;
   if (run) {
@@ -890,6 +917,7 @@ export function planAgentInstall(agent: string, ctx: PlanContext): InstallPlan {
     if (spec.script) plan.writes.push(...planScripts(ctx, agent, hooksFile.path, hooks));
     else plan.writes.push(planFile(ctx, spec, agent, hooksFile.path, hooksFile.hooksAt, hooks, sameFile ? mcpFile.mcpAt : null, sameFile ? mcp : null));
     if (mcpFile !== null && !sameFile) plan.writes.push(planFile(ctx, spec, agent, mcpFile.path, null, null, mcpFile.mcpAt, mcp));
+    addSkills(plan, agent, ctx);
   } catch (error) {
     return { ...plan, writes: [], error: error instanceof Error ? error.message : String(error) };
   }
@@ -979,7 +1007,8 @@ function isEntry(value: unknown): value is LedgerEntry {
     && Array.isArray(value.files) && value.files.every((file) => isObject(file) && typeof file.path === "string" && typeof file.created === "boolean"
       && (file.hooksAt === null || isStrings(file.hooksAt)) && isStrings(file.hookCommands) && (file.mcpAt === null || isStrings(file.mcpAt))
       && (file.layout === undefined || file.layout === "flat" || file.layout === "kiro")
-      && (file.script === undefined || (isObject(file.script) && typeof file.script.sha256 === "string")))
+      && (file.script === undefined || (isObject(file.script) && typeof file.script.sha256 === "string"))
+      && (file.skill === undefined || typeof file.skill === "string"))
     && Array.isArray(value.runs) && value.runs.every((run) => isObject(run) && isStrings(run.argv) && (run.undo === null || isStrings(run.undo)) && typeof run.ran === "boolean"
       && (run.cwd === undefined || run.cwd === null || typeof run.cwd === "string"));
 }
