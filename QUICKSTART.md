@@ -1,4 +1,4 @@
-# Quickstart: five minutes
+# Quickstart
 
 Install the plugin, watch one guard refuse a command, look at what it logged, check the wiring, then undo all of it. [README.md](README.md) has the full list of what turns on and what it costs.
 
@@ -15,6 +15,8 @@ Inside Claude Code:
 
 The doubled name is `<plugin>@<marketplace>`. Restart Claude Code once so the commands load.
 
+If you installed this plugin before, run `claude plugin uninstall continuous-improvement@continuous-improvement` first: Claude Code keeps a cached copy until the version number changes, and the cached 3.26.0 has no MCP server and no lesson load, so steps 3 and 5 would fail.
+
 What is on after this step:
 
 - a guard hook that refuses destructive shell commands ([`hooks/gateguard.mjs`](hooks/gateguard.mjs); `gateguard` is its code name)
@@ -22,7 +24,7 @@ What is on after this step:
 - a local log of tool calls ([`bin/observe.mjs`](bin/observe.mjs))
 - a session-start hook that prints recorded lessons and stays silent until one exists ([`hooks/session.mjs`](hooks/session.mjs))
 - an MCP server. Its MCP tools (19 of them, all named `ci_*`) back `/recall` and the lesson commands
-- two hooks that by default only write local state and never reach the model: one appends a row to `companion-preference.jsonl` when a `Skill` call names one of four skills, and the goal-drift check rewrites `goal-drift-state.json` at every turn end
+- two hooks that by default only write local state and never reach the model: one appends a row to `companion-preference.jsonl` when a `Skill` call names one of four skills by its bare name or with a `ci:` prefix (a plugin-namespaced name is not matched), and the goal-drift check rewrites `goal-drift-state.json` at every turn end
 
 Every other hook waits for a switch. The full table is in the [README](README.md#what-turns-on-what-it-costs-how-to-turn-it-off).
 

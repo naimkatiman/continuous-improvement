@@ -9,9 +9,9 @@ A Claude Code plugin: hooks that refuse destructive shell commands and blind edi
 [![GitHub Action](https://img.shields.io/badge/GitHub%20Action-marketplace-blue)](https://github.com/marketplace/actions/ai-agent-discipline-linter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Claude Code ships the mechanisms: hooks, permission rules, memory and transcripts. What a hook should refuse, and what a session should keep about its tool calls, is left to you. This plugin is one set of answers. It makes no model calls and no network calls, and one command disables all of it.
+Claude Code ships the mechanisms: hooks, permission rules, memory and transcripts. What a hook should refuse, and what a session should keep about its tool calls, is left to you. This plugin is one set of answers. Its hooks, logger and MCP server make no model calls and no network calls, and one command disables all of it.
 
-Five-minute walkthrough: [QUICKSTART.md](QUICKSTART.md). Site: [continuous-improvement.dev](https://continuous-improvement.dev). Changes: [CHANGELOG.md](CHANGELOG.md).
+Walkthrough: [QUICKSTART.md](QUICKSTART.md). Site: [continuous-improvement.dev](https://continuous-improvement.dev). Changes: [CHANGELOG.md](CHANGELOG.md).
 
 ## What this adds that Claude Code does not do by itself
 
@@ -66,7 +66,7 @@ Skip it if you:
 - do not want 41 more names in the listing Claude Code carries on every turn (28 skills and 29 commands, 16 of which share a name)
 - expect it to make the model smarter. The skills are text and the lessons are notes
 
-## Try it in five minutes
+## Try it
 
 You need `node` 18 or newer on your `PATH`. The hooks are Node scripts and need nothing else.
 
@@ -120,7 +120,7 @@ A failed check prints `✗` with its fix, such as `gateguard: ✗ (hooks/gategua
 
 ## What turns on, what it costs, how to turn it off
 
-The plugin registers 13 hook scripts and one MCP server. On after install: the destructive-command deny (with the `@{u}` quoting rule below the table), the blind-edit gate, the log, the lesson load (silent until a lesson at 0.5 or higher exists) and the MCP server with 19 tools. Two more hooks run without reaching the model: one appends a row to `companion-preference.jsonl` when a `Skill` call names one of four skills, and the goal-drift check rewrites `goal-drift-state.json` at every turn end. Every other hook waits for a switch, which is an environment variable set where Claude Code starts. "Debug log only" means a stderr line from a hook that exits 0, which [Claude never sees](https://code.claude.com/docs/en/hooks).
+The plugin registers 13 hook scripts and one MCP server. On after install: the destructive-command deny (with the `@{u}` quoting rule below the table), the blind-edit gate, the log, the lesson load (silent until a lesson at 0.5 or higher exists) and the MCP server with 19 tools. Two more hooks run without reaching the model: one appends a row to `companion-preference.jsonl` when a `Skill` call names one of four skills by its bare name or with a `ci:` prefix (a plugin-namespaced name is not matched), and the goal-drift check rewrites `goal-drift-state.json` at every turn end. Every other hook waits for a switch, which is an environment variable set where Claude Code starts. "Debug log only" means a stderr line from a hook that exits 0, which [Claude never sees](https://code.claude.com/docs/en/hooks).
 
 | What it does | File, event | Default | Switch | What reaches the model |
 |---|---|---|---|---|
@@ -128,8 +128,8 @@ The plugin registers 13 hook scripts and one MCP server. On after install: the d
 | Denies an `Edit`, `Write` or `MultiEdit` of an existing file that this session's log does not show it looked at: no Read or edit of that path, and no Bash, PowerShell, Grep or Glob call naming the file. New files always pass | `hooks/gateguard.mjs`, `PreToolUse` | **On** | `CI_GATEGUARD_FILE_GATE=off`. `CI_GATEGUARD_EXCLUDE=<path fragments>` skips matching paths | A two-line reason, only on a blind edit |
 | Denies a file-tool write whose absolute path is outside the session's repository | `hooks/gateguard.mjs`, `PreToolUse` | Off | `CI_GATEGUARD_TARGET_LOCK=block` | A deny reason |
 | Flags a push to `main`, `master` or `release/*`, and a commit staging more than 15 files | `hooks/hook-pack.mjs`, `PreToolUse` | Debug log only | `CLAUDE_CI_HOOKPACK_GATE=block` or `off` | In `block`, a one-line deny reason |
-| Flags a change to guardrail wiring: `.claude/settings.json`, `.mcp.json`, `hooks.json`, `claude plugin` and `claude mcp` commands | `hooks/config-guard.mjs`, `PreToolUse` | Debug log only | `CI_CONFIG_GUARD=block` or `off`. `CI_CONFIG_GUARD_ALLOW=true` lets one call through | In `block`, a deny reason |
-| Logs a row when a `Skill` call names `tdd-workflow`, `verification-loop`, `context-budget` or `ralph`, each of which has a counterpart in an optional companion plugin (listed under [Reference](#reference)) | `hooks/companion-preference.mjs`, `PreToolUse` | On, allows the call | The key `continuous_improvement.companion_preference` in `~/.claude/settings.json`. `strict-companions` makes it deny | Nothing by default |
+| Flags a change to guardrail wiring: `.claude/settings.json`, `.mcp.json`, `hooks.json`, `claude plugin` and `claude mcp` commands | `hooks/config-guard.mjs`, `PreToolUse` | Debug log only | `CI_CONFIG_GUARD=block` or `off`. `CI_CONFIG_GUARD_ALLOW=true` allows every match for the session it is set in, with a stderr line | In `block`, a deny reason |
+| Logs a row when a `Skill` call names `tdd-workflow`, `verification-loop`, `context-budget` or `ralph` by its bare name or with a `ci:` prefix; each has a counterpart in an optional companion plugin (listed under [Reference](#reference)), and this plugin ships no `context-budget` skill. A plugin-namespaced name such as `continuous-improvement:tdd-workflow` is not matched, so on a plugin install this hook usually writes nothing and `strict-companions` denies nothing | `hooks/companion-preference.mjs`, `PreToolUse` | On, allows the call | The key `continuous_improvement.companion_preference` in `~/.claude/settings.json`. `strict-companions` makes it deny | Nothing by default |
 | Appends one redacted row per tool call to the local log | `bin/observe.mjs`, `PostToolUse` | **On** | None. Disable the plugin | Nothing |
 | Suggests a skill when a prompt matches one of 5 patterns | `hooks/route-prompt.mjs`, `UserPromptSubmit` | Off | `CI_ROUTE_PROMPT=1` | A reminder of about 160 characters on a match |
 | Injects the top 3 log hits on the first prompt of a session | `hooks/recall-briefing.mjs`, `UserPromptSubmit` | Off | `CLAUDE_RECALL_BRIEFING=1` | One reminder per session |
@@ -145,11 +145,11 @@ The guard hook also denies an unquoted git `@{u}`-style ref and prints the quote
 
 **Process starts.** Each registration is one Node process: 14 registrations across the 13 scripts. That is 1 start for a Read, Grep, Glob or MCP tool call (the logger), 2 for a Skill call, 3 for an Edit or Write, 4 for a Bash, PowerShell or Monitor command, 2 for each prompt, 5 for each turn end, and 1 each for session start and end. A hook that is switched off still starts, reads its switch and exits.
 
-**Context.** The hooks add text only when one acts: a deny reason, or the lesson lines at session start. The standing cost is the listing. The 28 skills and 29 commands (41 names, 16 shared) carry about 16,000 characters of names and descriptions, the 3 bundled agent definitions another 574, and the MCP server adds 19 tool definitions (8,279 characters as the server serializes them). At 4 characters per token, with no tokenizer run, that is about 2,380 to 4,000 tokens for the listing, depending on how Claude Code lists the 16 shared names, and about 2,070 for the MCP tools. Claude Code applies its own listing budget and can load MCP tools on demand, so your number can be lower: `claude plugin details continuous-improvement@continuous-improvement` prints the projected token cost for your client.
+**Context.** The hooks add text only when one acts: a deny reason, or the lesson lines at session start. The standing cost is the listing. The 28 skills and 29 commands (41 names, 16 shared) carry about 16,000 characters of names and descriptions, the 3 bundled agent definitions another 574, and the MCP server adds 19 tool definitions (8,279 characters as the server serializes them, about 2,070 tokens at 4 characters per token). `claude plugin details continuous-improvement@continuous-improvement` projects the always-on listing at about 4,500 tokens on Claude Code v2.1.325, MCP tools not counted. It counts `agents/README.md` as a fourth agent. Claude Code can load MCP tools on demand, so that part of the cost can be lower. Run the same command to see the projection for your client.
 
 **Model calls and network.** None, from any hook, the logger or the MCP server. The package has no runtime dependencies.
 
-**Disk.** State goes under `~/.claude/instincts/<project-hash>/`, and the three-heading check writes `~/.claude/hook-telemetry/`. The log rotates at 10,000 rows and keeps the 10 newest archives. No hook writes inside your repository. Commands you run can: `/planning-with-files` and the `ci_plan_init` tool write `task_plan.md`, `findings.md` and `progress.md`, and `/grill-with-docs` updates `CONTEXT.md` and ADRs.
+**Disk.** State goes under `~/.claude/instincts/<project-hash>/`, and the three-heading check, when switched on, writes `~/.claude/hook-telemetry/`. The log rotates at 10,000 rows and keeps the 10 newest archives. No hook writes inside your repository. Commands you run can: `/planning-with-files` and the `ci_plan_init` tool write `task_plan.md`, `findings.md` and `progress.md`, and `/grill-with-docs` updates `CONTEXT.md` and ADRs.
 
 **One switch for everything:**
 
@@ -166,19 +166,19 @@ claude plugin enable continuous-improvement@continuous-improvement    # back on
 - **Warn modes reach nobody.** The push gate, the config guard and the goal-drift check default to a debug-log line. Treat them as off until you set `block`.
 - **The opt-in rules match text too.** In `block` mode the config guard passes `python -c "open('.claude/settings.json','w').write('{}')"`, because it scans command text for known write forms. The commit gate counts staged files only.
 - **The wrong-repository lock covers the file tools and absolute paths only.** Relative paths and shell commands pass.
-- **The typecheck gate is TypeScript only.** It needs `tsconfig.json` at the project root, allows after a 25-second timeout, and in `block` mode blocks again at every turn end while the error stands.
+- **The typecheck gate is TypeScript only.** It needs `tsconfig.json` at the project root and either a `typecheck` script in `package.json` or TypeScript in the project's `node_modules`; without them it allows silently. It allows after a 25-second timeout, and in `block` mode blocks again at every turn end while the error stands.
 - **Redaction is pattern-based.** A secret in a shape the patterns do not know is stored as typed: `mysql -u admin -pFAKEpass99` kept its password in our test. Rows written by earlier versions are not rewritten.
 - **The log is partial.** Only tool calls that reach `PostToolUse` are logged, so denied and failed calls are absent. Prompts are never logged. Search reads the current log file, not the rotated archives, and it is lexical.
 - **Lessons are notes.** At most 10 lines and 1,500 characters load, lessons under 0.5 confidence are not shown, and nothing enforces them.
-- **Goal drift needs a goal file.** It does not score until `task_plan.md` has a `## Goal` section (or a `goal.md` sits in the repository's state directory). It still rewrites `goal-drift-state.json` at each turn end unless `CLAUDE_GOAL_DRIFT_GATE=off`. It scores keyword overlap, and it reads the repository's recent calls from any session.
+- **Goal drift needs a goal file.** It does not score until `task_plan.md` has a `## Goal` section, or, when there is no `task_plan.md`, a `goal.md` sits in the repository's state directory. It still rewrites `goal-drift-state.json` at each turn end unless `CLAUDE_GOAL_DRIFT_GATE=off`. It scores keyword overlap, and it reads the repository's recent calls from any session.
 - **Hooks need `node` on `PATH`.** Without it no hook runs and nothing is denied. CI runs Linux on Node 18, 20 and 22, the captures in this README were taken on Windows 11, and macOS has no CI job.
-- **Two commands need a clone of this repository.** `/harvest` and `/companion-preference` call scripts that neither install path ships.
+- **Two commands need a clone of this repository.** `/harvest` and `/companion-preference` run `node bin/<script>.mjs` from the current directory, which only a clone of this repository has.
 
 ## Memory
 
 Three separate things. None of them is a model that learns.
 
-**1. A log.** [`bin/observe.mjs`](bin/observe.mjs) appends one row per tool call to `~/.claude/instincts/<project-hash>/observations.jsonl`: time, session id, tool, the first 500 characters of the input and the first 200 of the output. Known secret shapes are redacted before the row is written: private key blocks, AWS access key ids, bearer tokens, a password in a URL, `curl -u` credentials, `NAME=value` assignments whose name ends in KEY, SECRET, TOKEN or PASSWORD, provider-prefixed tokens and JWT-shaped strings. A hex run of 32 or more characters keeps its first 8: `<hex-redacted:4f1c2a9e>`.
+**1. A log.** [`bin/observe.mjs`](bin/observe.mjs) appends one row per tool call to `~/.claude/instincts/<project-hash>/observations.jsonl`: time, session id, tool, the first 500 characters of the input and the first 200 of the output. Known secret shapes are redacted before the row is written: private key blocks, AWS access key ids, an `Authorization` header with any scheme, a password in a URL, `curl -u` credentials, a `NAME=value`, `name: value` or JSON `"name":"value"` pair whose name ends in KEY, SECRET, TOKEN, PASSWORD, PASSWD or PWD, provider-prefixed tokens and JWT-shaped strings. A hex run of 32 or more characters keeps its first 8: `<hex-redacted:4f1c2a9e>`.
 
 **2. Search over the log.** `/recall <words>` calls the `ci_recall` MCP tool: BM25 over the current log file for the repository, 5 results by default, with an optional window such as `7d` or `24h`. It is lexical. A query that shares no word with any row returns nothing. `CLAUDE_RECALL_BRIEFING=1` also injects the top 3 hits once per session, on the first prompt of 12 or more characters.
 
@@ -212,7 +212,9 @@ The plugin and the npm installer install different things, with little overlap. 
 | MCP server | Registered, 19 tools | `--mode expert` writes an `mcpServers` entry to `~/.claude/settings.json`. Not verified: that current Claude Code loads a server from that file (its docs name `~/.claude.json`) |
 | Starter lesson packs | Bundled. Load react, python, go or meta with the `ci_load_pack` tool | `--pack react`, `python`, `go` (8 lessons each) or `meta` (2) |
 | Rules files for other agents | No | `--target gemini,codex,cursor,windsurf,zed,aider,copilot` |
-| Where it lives | Claude Code's plugin cache | `~/.claude/skills`, `~/.claude/commands`, `~/.claude/instincts`, `~/.claude/settings.json` |
+| Where it lives | Claude Code's plugin cache | `~/.claude/skills`, `~/.claude/commands`, `~/.claude/instincts`, `~/.claude/settings.json`, and `~/.claude/claude_desktop_config.json` if that file already exists (`--mode expert`) |
+
+The npm package and the `v3` Action tag are still at 3.26.0, which predates the changes under Unreleased in [CHANGELOG.md](CHANGELOG.md): its npm observer exits with `ERR_MODULE_NOT_FOUND` and records nothing, and its linter reads a Claude Code transcript as zero tool calls. Use the npm installer, `ci-lint-transcript` and the Action after the next release.
 
 **Update.** Plugin: `claude plugin marketplace update continuous-improvement`, then `claude plugin update continuous-improvement@continuous-improvement`. The new version loads in your next session, or after `/reload-plugins`. Claude Code keeps a cached plugin until its version number changes, so an install made before the changes listed under Unreleased in [CHANGELOG.md](CHANGELOG.md) (among them the MCP server registration, the blind-edit gate and the lesson load) gets them with the first release that raises the version. npm: run the same `npx` command again. With `--mode expert`, run `npx continuous-improvement install --uninstall` first, because a re-run keeps the existing MCP server entry and its old path.
 
@@ -256,7 +258,7 @@ src/price.ts(2,9): error TS2322: Type 'string' is not assignable to type 'number
     strict: true
 ```
 
-It reads a Claude Code transcript (`~/.claude/projects/<project>/<session>.jsonl`), this plugin's `observations.jsonl` (input `observations-path`) or flat tool events. It reports an edit with no earlier lookup, more than 5 consecutive edits, code changes with no test or build run, and more than 8 distinct files edited. Outputs are `violations`, `score` (0 to 100) and `report` (Markdown). `strict: true` fails the step on any violation, HIGH or MEDIUM: a run whose only finding is more than 8 distinct files edited fails it. Run it locally with `npx -p continuous-improvement ci-lint-transcript <file.jsonl> --strict`.
+It reads a Claude Code transcript (`~/.claude/projects/<project>/<session>.jsonl`), this plugin's `observations.jsonl` (input `observations-path`) or flat tool events. It reports an edit with no earlier lookup, more than 5 consecutive edits, code changes with no test or build run, and more than 8 distinct files edited. Outputs are `violations`, `score` (0 to 100) and `report` (Markdown). `strict: true` fails the step on any violation, HIGH or MEDIUM: a run whose only finding is more than 8 distinct files edited fails it. Run it locally with `npx -p continuous-improvement ci-lint-transcript <file.jsonl> --strict`. The `v3` tag and the npm package are still at 3.26.0, whose linter reads a Claude Code transcript as zero tool calls and passes it, so wait for the next release before you rely on this step.
 
 ## Slash commands
 
@@ -317,7 +319,7 @@ The npm installer writes 14 of them: continuous-improvement, dashboard, discipli
 <details>
 <summary><b>Skills: all 28, by tier, with the code behind each</b></summary>
 
-The plugin ships **28 skills**: 1 core + 1 featured + 7 tier-1 + 16 tier-2 + 3 always-bundled. The tier is a catalogue label from each skill's frontmatter: every skill ships in the plugin bundle regardless of tier, and the tier does not change what is loaded. A skill is a Markdown file the model reads when it is invoked. "Prose" in the last column means no code backs it. U marks a skill only you can invoke, M one only the model can.
+The plugin ships **28 skills**: 1 core + 1 featured + 7 tier-1 + 16 tier-2 + 3 always-bundled companions (frontmatter `tier: companion`). The tier is a catalogue label from each skill's frontmatter: every skill ships in the plugin bundle regardless of tier, and the tier does not change what is loaded. A skill is a Markdown file the model reads when it is invoked. "Prose" in the last column means no code backs it. U marks a skill only you can invoke, M one only the model can.
 
 | Tier | Skill | What it describes | Backed by |
 |---|---|---|---|
@@ -346,9 +348,9 @@ The plugin ships **28 skills**: 1 core + 1 featured + 7 tier-1 + 16 tier-2 + 3 a
 | 2 | `token-budget-advisor` | Offer a response-depth choice before answering | prose |
 | 2 | `wild-risa-balance` (M) | Shape recommendation lists | prose |
 | 2 | `worktree-safety` (M) | Validate the worktree root before writing | prose |
-| always-bundled | `ralph` (U) | Autonomous PRD loop | prose |
-| always-bundled | `superpowers` | Dispatcher across this plugin and four companion plugins | `hooks/companion-preference.mjs` |
-| always-bundled | `workspace-surface-audit` | Audit the workspace, recommend skills | prose |
+| companion | `ralph` (U) | Autonomous PRD loop | prose |
+| companion | `superpowers` | Dispatcher across this plugin and four companion plugins | `hooks/companion-preference.mjs` |
+| companion | `workspace-surface-audit` | Audit the workspace, recommend skills | prose |
 
 Source files are in [`skills/`](skills/), plus [SKILL.md](SKILL.md) for the core skill. Adding a 29th skill: [the recipe in CONTRIBUTING.md](CONTRIBUTING.md#evolution--adding-a-new-skill).
 
@@ -367,7 +369,7 @@ Set a switch in the environment Claude Code starts from. An unrecognized value f
 | `GATEGUARD_MAX_CLEARED_FILES` | positive integer | 1000 | Per-session cap on cleared files for the file gate |
 | `CLAUDE_CI_HOOKPACK_GATE` | `warn`, `block`, `off` | `warn` | Push and commit-size gate (`hooks/hook-pack.mjs`) |
 | `CI_CONFIG_GUARD` | `warn`, `block`, `off` | `warn` | Guardrail-config guard (`hooks/config-guard.mjs`) |
-| `CI_CONFIG_GUARD_ALLOW` | `true` | unset | Lets the call through and prints a stderr line |
+| `CI_CONFIG_GUARD_ALLOW` | `true` | unset | Allows every config-guard match in the session it is set in and prints a stderr line for each. Set it for one session, not in your shell profile |
 | `CLAUDE_TYPECHECK_GATE` | `off`, `warn`, `block` | `off` | Typecheck at turn end (`hooks/typecheck-stop.mjs`) |
 | `CLAUDE_GOAL_DRIFT_GATE` | `warn`, `block`, `off` | `warn` | Goal-drift check at turn end (`hooks/goal-drift-stop.mjs`) |
 | `CLAUDE_THREE_SECTION_CLOSE` | `1`, `on`, `true`, `yes` | off | Turns the three-heading reply check on (`hooks/three-section-close.mjs`). It never sends back a turn that a Stop hook already continued (`stop_hook_active`), so it cannot loop |
@@ -427,7 +429,7 @@ An expert tool called in beginner mode returns an error such as `ci_recall requi
 | `ci-plan-pack <plan.md>` | Writes `<plan>.review.md`, a review packet |
 | `ci-audit-actions` | Static scan of `.github/workflows` for permission, pinning, timeout, concurrency and injection findings |
 | `ci-portfolio-health` | Scores the repositories in a `portfolio/repos.json` registry from local signals |
-| `ci` | `ci generate <repository-path>` analyzes a repository and writes a command-line wrapper for it, using the bundled CLI-Anything library ([`lib/cli-anything.mjs`](lib/cli-anything.mjs)) |
+| `ci` | `ci generate <repository-path>` analyzes a repository and writes a command-line wrapper for it, using the bundled CLI-Anything library ([`lib/cli-anything.mjs`](lib/cli-anything.mjs)). Known issue: it prints nothing on Windows (its entry-point check never matches a Windows path), tracked for the next release |
 
 **Troubleshooting install.**
 
