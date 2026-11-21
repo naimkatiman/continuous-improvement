@@ -21,17 +21,23 @@
  *   per-session scoping that boundary is now real, not just asserted.
  * - Self-heal: loadState treats a file older than STATE_TTL_MS (or one with an
  *   unparseable created_at) as empty, so a stale gate never needs a manual rm.
- * - Concurrency: two parallel hook invocations can race the read+write.
- *   Acceptable trade-off vs OS-specific atomic-rename complexity on Windows.
+ * - Concurrency: saveState writes a temp file in the same directory and renames
+ *   it over the target (writeFileAtomic), so a reader sees the old state or the
+ *   new one, never a truncated or interleaved file. Copilot runs preToolUse
+ *   hooks for parallel tool calls concurrently (Copilot cli-hooks-reference, per
+ *   the 2026-11-21 all-agents research), which is what makes this matter. Two
+ *   parallel load+save pairs can still lose one update (last rename wins); a
+ *   lost clearance only re-asks for facts, and a lost evidence entry only
+ *   re-reads the log.
  * - Cap: MAX_CLEARED_FILES caps the distinct files ONE session can clear,
  *   bounding stuck-loop / rogue-agent damage without affecting other sessions.
  */
 
-import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { createHash, randomBytes } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { homedir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 const DEFAULT_MAX_CLEARED_FILES = 1000;
 
@@ -147,10 +153,46 @@ export function loadState(sessionDir: string): GateguardState {
 
 export function saveState(sessionDir: string, state: GateguardState): void {
   if (!existsSync(sessionDir)) mkdirSync(sessionDir, { recursive: true });
-  writeFileSync(
-    join(sessionDir, "gateguard-session.json"),
-    `${JSON.stringify(state, null, 2)}\n`,
-  );
+  writeFileAtomic(join(sessionDir, "gateguard-session.json"), `${JSON.stringify(state, null, 2)}\n`);
+}
+
+// Windows refuses to replace a file another process has open (a parallel hook
+// reading the state) with EPERM or EBUSY. The holder usually closes within a
+// few milliseconds, so one short wait and one retry clears most of them.
+const RENAME_RETRY_CODES = new Set(["EPERM", "EBUSY"]);
+const RENAME_RETRY_DELAY_MS = 25;
+
+function isRetryableRenameError(err: unknown): boolean {
+  return RENAME_RETRY_CODES.has((err as NodeJS.ErrnoException | null)?.code ?? "");
+}
+
+/**
+ * Write `data` to `target` through a temp file in the same directory, then
+ * rename it over the target. A rename within one directory replaces the file in
+ * one step, so a concurrent reader never sees a half-written file. A rename that
+ * fails with EPERM or EBUSY is retried once after a short wait. Any other error,
+ * or a second failure, removes the temp file and is thrown, and the old target
+ * stays as it was. `rename` is a seam for tests.
+ */
+export function writeFileAtomic(
+  target: string,
+  data: string,
+  rename: (from: string, to: string) => void = renameSync,
+): void {
+  const temp = join(dirname(target), `.${basename(target)}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`);
+  writeFileSync(temp, data);
+  try {
+    try {
+      rename(temp, target);
+    } catch (err) {
+      if (!isRetryableRenameError(err)) throw err;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, RENAME_RETRY_DELAY_MS);
+      rename(temp, target);
+    }
+  } catch (err) {
+    rmSync(temp, { force: true });
+    throw err;
+  }
 }
 
 export function isCapReached(state: GateguardState): boolean {

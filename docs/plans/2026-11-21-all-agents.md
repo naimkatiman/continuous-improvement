@@ -302,8 +302,11 @@ lets tests import only `../lib/*.mjs` and `../bin/*.mjs`. Every new bundled
     reject-and-continue, an `agent.start` hidden first-turn message, an
     `agent.end` continue and a `tool.result` observer.
 14. **Atomic state.** gateguard-state writes go to a temp file and are then
-    renamed, with one retry on Windows EPERM. That closes the Copilot
-    parallel-preToolUse race.
+    renamed, with one retry on Windows EPERM or EBUSY (PR 3). A parallel
+    Copilot preToolUse read can no longer see a torn or interleaved file.
+    Two parallel load-and-save pairs can still lose one update (the last
+    rename wins), and a second rename failure throws as a write error did
+    before.
 15. **config-guard.** Protected paths gain each agent's guardrail files:
     `.codex/hooks.json`, `.codex/config.toml`, `.gemini/settings.json`,
     `.gemini/extensions/`, `.cursor/hooks.json`, `.cursor/mcp.json`,
