@@ -30,6 +30,7 @@ import {
   canonicalizeProjectRoot,
   hashProjectRoot,
   resolveInstinctsRoot as stateInstinctsRoot,
+  resolveSessionDir,
   resolveProjectRoot as stateProjectRoot,
 } from "../lib/gateguard-state.mjs";
 
@@ -97,10 +98,22 @@ describe("resolveInstinctsRoot", () => {
     });
   });
 
-  it("CI_INSTINCTS_HOME is trimmed and made absolute", () => {
-    withEnv({ HOME: "/h/home", CI_INSTINCTS_HOME: "  rel/store  " }, () => {
-      assert.equal(resolveInstinctsRoot(), resolve("rel/store"));
+  it("CI_INSTINCTS_HOME is trimmed", () => {
+    const override = resolve(tmpdir(), "ci-store");
+    withEnv({ HOME: "/h/home", CI_INSTINCTS_HOME: `  ${override}\t` }, () => {
+      assert.equal(resolveInstinctsRoot(), override);
     });
+  });
+
+  // A relative store would resolve against each process's own cwd, so a hook,
+  // the observer and the MCP server spawned in different directories would use
+  // different stores. Payload dirs are refused for the same reason.
+  it("ignores a relative CI_INSTINCTS_HOME and keeps the default root", () => {
+    for (const value of ["rel/store", "  rel/store  ", ".", "./store", "..\\store"]) {
+      withEnv({ HOME: "/h/home", CI_INSTINCTS_HOME: value }, () => {
+        assert.equal(resolveInstinctsRoot(), join("/h/home", ".claude", "instincts"), JSON.stringify(value));
+      });
+    }
   });
 
   it("ignores an empty or blank CI_INSTINCTS_HOME", () => {
@@ -174,18 +187,23 @@ describe("resolveProjectRoot: env vars", () => {
 describe("resolveProjectRoot: payload and git", () => {
   let base = "";
   let repo = "";
+  let repo2 = "";
   let plain = "";
   let outside = "";
 
   before(() => {
     base = mkdtempSync(join(tmpdir(), "ci-agent-paths-"));
     repo = join(base, "repo");
+    repo2 = join(base, "repo2");
     plain = join(base, "plain");
     outside = join(base, "outside");
     mkdirSync(join(repo, "packages", "app"), { recursive: true });
+    mkdirSync(repo2, { recursive: true });
     mkdirSync(plain, { recursive: true });
     mkdirSync(outside, { recursive: true });
-    execFileSync("git", ["init", "-q", repo], { env: { ...process.env, GIT_CEILING_DIRECTORIES: base } });
+    for (const dir of [repo, repo2]) {
+      execFileSync("git", ["init", "-q", dir], { env: { ...process.env, GIT_CEILING_DIRECTORIES: base } });
+    }
     writeFileSync(join(plain, "file.txt"), "x");
   });
 
@@ -226,8 +244,28 @@ describe("resolveProjectRoot: payload and git", () => {
     });
   });
 
-  it("payload cwd outside any repo is that directory", () => {
-    inOutside(() => same(resolveProjectRoot({ cwd: plain }), plain));
+  // A reader with no payload (workflow-distill, typecheck-stop, the MCP
+  // server) resolves from the process cwd. A non-git payload dir must land in
+  // the same bucket, or the observer writes where those readers never look.
+  it("payload cwd outside any repo falls through to the process cwd: global outside a repo", () => {
+    inOutside(() => {
+      assert.equal(resolveProjectRoot({ cwd: plain }), GLOBAL_PROJECT_ROOT);
+      assert.equal(resolveProjectRoot({ cwd: plain }), resolveProjectRoot());
+    });
+  });
+
+  it("payload cwd outside any repo falls through to the process cwd: its toplevel inside a repo", () => {
+    const previous = process.cwd();
+    process.chdir(repo2);
+    try {
+      withEnv({ GIT_CEILING_DIRECTORIES: base }, () => same(resolveProjectRoot({ cwd: plain }), gitToplevel(repo2)));
+    } finally {
+      process.chdir(previous);
+    }
+  });
+
+  it("a non-git payload dir and no payload give the gateguard hook and the MCP fallback one session dir", () => {
+    inOutside(() => assert.equal(resolveSessionDir("s1", { cwd: plain }), resolveSessionDir("s1")));
   });
 
   it("reads working_dir (Goose) and workspace_roots[0] (Cursor, Auggie)", () => {
@@ -239,8 +277,9 @@ describe("resolveProjectRoot: payload and git", () => {
 
   it("prefers cwd, then working_dir, then workspace_roots[0]", () => {
     inOutside(() => {
-      same(resolveProjectRoot({ cwd: plain, working_dir: repo, workspace_roots: [repo] }), plain);
-      same(resolveProjectRoot({ working_dir: plain, workspace_roots: [repo] }), plain);
+      same(resolveProjectRoot({ cwd: repo2, working_dir: repo, workspace_roots: [repo] }), gitToplevel(repo2));
+      same(resolveProjectRoot({ working_dir: repo2, workspace_roots: [repo] }), gitToplevel(repo2));
+      same(resolveProjectRoot({ cwd: plain, working_dir: repo2, workspace_roots: [repo] }), gitToplevel(repo2));
     });
   });
 
@@ -278,7 +317,7 @@ describe("resolveProjectRoot: payload and git", () => {
   });
 
   it("falls through a rejected cwd to the next payload key", () => {
-    inOutside(() => same(resolveProjectRoot({ cwd: join(base, "missing"), working_dir: plain }), plain));
+    inOutside(() => same(resolveProjectRoot({ cwd: join(base, "missing"), working_dir: repo }), gitToplevel(repo)));
   });
 
   it("ignores a payload that is not a plain object", () => {
@@ -302,6 +341,7 @@ describe("hooks and observer use the shared root", () => {
   let store = "";
   let repo = "";
   let outside = "";
+  let plain = "";
 
   before(() => {
     base = mkdtempSync(join(tmpdir(), "ci-agent-paths-hooks-"));
@@ -309,7 +349,8 @@ describe("hooks and observer use the shared root", () => {
     store = join(base, "store");
     repo = join(base, "repo");
     outside = join(base, "outside");
-    for (const dir of [home, store, repo, outside]) mkdirSync(dir, { recursive: true });
+    plain = join(base, "plain");
+    for (const dir of [home, store, repo, outside, plain]) mkdirSync(dir, { recursive: true });
     execFileSync("git", ["init", "-q", repo], { env: { ...process.env, GIT_CEILING_DIRECTORIES: base } });
   });
 
@@ -384,6 +425,35 @@ describe("hooks and observer use the shared root", () => {
       assert.equal(existsSync(join(home, ".claude", "instincts")), false, "the default root was written");
     });
   }
+
+  // Codex, say, sets no project env var. In a directory that is not a repo the
+  // observer must write the bucket that workflow-distill (no payload) reads.
+  it("workflow-distill nudges on a run the observer recorded from a non-git payload cwd", () => {
+    reset();
+    const observed = run("bin/observe.mjs", toolPayload(plain), {});
+    assert.equal(observed.status, 0, observed.stderr);
+    const files = observationFiles(join(home, ".claude", "instincts"));
+    assert.equal(files.length, 1, "expected one observations.jsonl");
+    assert.equal(dirname(files[0]!), join(home, ".claude", "instincts", hashProjectRoot(GLOBAL_PROJECT_ROOT)));
+    const script =
+      "export const meta = { name: 'agent-paths-flow', description: 'd', phases: [{ title: 'Read' }] }\nawait parallel([])";
+    const rows = [
+      {
+        ts: "2026-11-21T12:00:00Z",
+        session: "s",
+        tool: "Workflow",
+        input_summary: JSON.stringify({ script }),
+        output_summary: JSON.stringify({ status: "async_launched", runId: "wf_x" }),
+      },
+      { ts: "2026-11-21T12:01:00Z", session: "s", tool: "Bash", input_summary: "npm run verify:all", output_summary: "OK" },
+    ];
+    writeFileSync(files[0]!, rows.map((row) => JSON.stringify(row)).join("\n") + "\n");
+    const result = run("hooks/workflow-distill.mjs", { hook_event_name: "Stop", session_id: "s", cwd: plain }, {
+      CLAUDE_WORKFLOW_DISTILL_NUDGE: "on",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stderr, /workflow-distill: verified workflow run "agent-paths-flow"/);
+  });
 
   it("session.mjs loads a global lesson from CI_INSTINCTS_HOME", () => {
     reset();

@@ -45,8 +45,12 @@ function resolveMode(): "on" | "off" {
   return (readKnob("CLAUDE_WORKFLOW_DISTILL_NUDGE") ?? "off").trim().toLowerCase() === "on" ? "on" : "off";
 }
 
-// The observer resolves the same root (lib/agent-paths), so the hash here
-// names the observations.jsonl it writes.
+// The observer resolves its root through lib/agent-paths too. It also reads the
+// payload dir, but only a dir inside a repository counts, so the two agree when
+// a project env var is set, when the payload dir is outside any repository
+// (both fall back to this process cwd), and when the hook runs inside the
+// payload's repository. They differ only for an agent that sets no project env
+// var and spawns its hooks outside the repository its payload names.
 function projectHash(root: string): string {
   return hashProjectRoot(root);
 }
@@ -109,7 +113,8 @@ function main(): void {
 
   const home = resolveHomeDir();
   if (!home) return;
-  // This hook never reads stdin, so the root comes from the env and git only.
+  // This hook never reads stdin, so the root comes from the env and the git
+  // toplevel of the process cwd (see projectHash above).
   const projectRoot = resolveProjectRoot();
   const instinctsProjectDir = join(resolveInstinctsRoot(home), projectHash(projectRoot));
 
