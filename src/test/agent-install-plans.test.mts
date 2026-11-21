@@ -322,6 +322,38 @@ describe("planAgentInstall: merging into a config that exists", () => {
     const qwen = planAgentInstall("qwen", ctx({}, { [`${ROOT}/.qwen/settings.json`]: JSON.stringify({ mcpServers: [] }) }));
     assert.match(qwen.error ?? "", /mcpServers/);
   });
+
+  it("refuses to overwrite a continuous-improvement MCP entry it did not write, and replaces one of its own from an earlier runtime", () => {
+    const files = { qwen: `${ROOT}/.qwen/settings.json`, droid: `${ROOT}/.factory/mcp.json` };
+    const foreignEntries: unknown[] = [
+      { command: "npx", args: ["continuous-improvement", "mcp"] },
+      { command: "node", args: [`${RT}/bin/mcp-server.mjs`, "--mode", "expert"], env: { X: "1" } },
+      { command: "node", args: ["/elsewhere/bin/mcp-server.mjs", "--mode", "expert"] },
+      "not an object",
+      null,
+    ];
+    for (const [agent, path] of Object.entries(files)) {
+      for (const foreign of foreignEntries) {
+        const plan = planAgentInstall(agent, ctx({}, { [path]: JSON.stringify({ mcpServers: { "continuous-improvement": foreign } }) }));
+        assert.match(plan.error ?? "", /mcpServers\.continuous-improvement/, `${agent} ${JSON.stringify(foreign)}`);
+        assert.deepEqual(plan.writes, []);
+      }
+      const earlier = { command: "node", args: [`${HOME}/.claude/instincts/runtime/1.0.0/bin/mcp-server.mjs`, "--mode", "expert"] };
+      const plan = planAgentInstall(agent, ctx({}, { [path]: JSON.stringify({ mcpServers: { "continuous-improvement": earlier } }) }));
+      assert.equal(plan.error, undefined, agent);
+      const write = plan.writes.find((entry) => entry.path === path)!;
+      assert.deepEqual((JSON.parse(write.content) as { mcpServers: Record<string, unknown> }).mcpServers["continuous-improvement"], { command: "node", args: [`${RT}/bin/mcp-server.mjs`, "--mode", "expert"] });
+    }
+  });
+
+  it("notes, for every vendor `mcp add`, that it may replace a server of the same name", () => {
+    for (const [agent, scope] of [["codex", "user"], ["grok", "project"], ["devin", "project"]] as const) {
+      const plan = planAgentInstall(agent, ctx({ scope }));
+      assert.equal(plan.runs.length, 1, agent);
+      assert.ok(plan.notes.some((line) => line.includes(`${agent} mcp list`) && /replace/.test(line)), agent);
+    }
+    assert.ok(!planAgentInstall("qwen", ctx()).notes.some((line) => /mcp list/.test(line)));
+  });
 });
 
 describe("the install ledger", () => {
@@ -329,7 +361,7 @@ describe("the install ledger", () => {
     return {
       target: plan.agent, scope: plan.scope, project: ROOT, version: "9.9.9", runtime: RT, installedAt: "2026-11-22T00:00:00.000Z",
       files: plan.writes.map(({ path, created, hooksAt, hookCommands, mcpAt, mcp }) => ({ path, created, hooksAt, hookCommands, mcpAt, mcp })),
-      runs: plan.runs.map((run) => ({ ...run, ran: false })),
+      runs: plan.runs.map((run) => ({ ...run, ran: false, cwd: null })),
       ...over,
     };
   }
@@ -350,6 +382,18 @@ describe("the install ledger", () => {
     assert.equal(ledger.entries.length, 3);
     assert.deepEqual([...runtimesInUse(ledger)].sort(), ["/rt/2", "/rt/3", "/rt/4"]);
     assert.deepEqual(parseLedger(JSON.stringify(ledger)), ledger);
+  });
+
+  it("remembers every runtime it ever recorded, so pruning touches only those", () => {
+    const codex = entry(planAgentInstall("codex", ctx()));
+    let ledger = recordInstall(emptyLedger(), codex);
+    ledger = recordInstall(ledger, { ...codex, runtime: "/rt/2" });
+    assert.deepEqual(ledger.entries.map((e) => e.runtime), ["/rt/2"]);
+    assert.deepEqual(ledger.runtimes, [RT, "/rt/2"]);
+    assert.deepEqual(recordInstall(ledger, { ...codex, runtime: "/rt/2" }).runtimes, [RT, "/rt/2"], "no duplicates");
+    // A ledger with no history yet takes its entries' runtimes as recorded.
+    assert.deepEqual(parseLedger(JSON.stringify({ version: 1, entries: [codex] }))!.runtimes, [RT]);
+    for (const bad of [{ version: 1, entries: [], runtimes: {} }, { version: 1, entries: [], runtimes: [1] }]) assert.equal(parseLedger(JSON.stringify(bad)), null);
   });
 
   it("uninstall removes exactly what was written: our commands and our MCP entry, nothing foreign", () => {

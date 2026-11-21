@@ -118,12 +118,18 @@ export interface LedgerEntry {
   runtime: string;
   installedAt: string;
   files: LedgerFile[];
-  runs: Array<PlannedRun & { ran: boolean }>;
+  /** `cwd`: where the command ran (the project root at project scope), and so where its undo runs. */
+  runs: Array<PlannedRun & { ran: boolean; cwd: string | null }>;
 }
 
 export interface Ledger {
   version: 1;
   entries: LedgerEntry[];
+  /**
+   * Every runtime dir an entry has recorded. Pruning removes only these, so a
+   * runtime this ledger never knew about (a moved or lost ledger) is kept.
+   */
+  runtimes: string[];
 }
 
 type Handler = Record<string, unknown> & { command: string };
@@ -316,6 +322,13 @@ function objectAt(root: Json, path: readonly string[], file: string): Json {
   return node;
 }
 
+/** Our MCP entry from any runtime version: exactly the {command, args} planAgentInstall renders. */
+function isOurMcp(value: unknown): boolean {
+  if (!isObject(value) || Object.keys(value).sort().join(",") !== "args,command" || value.command !== "node") return false;
+  const args = value.args;
+  return isStrings(args) && args.length === 3 && /\/runtime\/[^"/]+\/bin\/mcp-server\.mjs$/.test(args[0]!) && args[1] === "--mode" && args[2] === "expert";
+}
+
 /** One of our commands for this agent, from any runtime version. */
 function isOurCommand(agent: string, command: unknown): boolean {
   return typeof command === "string" && new RegExp(`^node "[^"]*/runtime/[^"/]+/(?:hooks|bin)/[\\w-]+\\.mjs" --agent ${agent}$`).test(command);
@@ -367,7 +380,14 @@ function planFile(
       map[event] = [...((map[event] as unknown[] | undefined) ?? []), ...groups];
     }
   }
-  if (mcpAt && mcp) objectAt(root, mcpAt, path)[MCP_NAME] = mcp;
+  if (mcpAt && mcp) {
+    const servers = objectAt(root, mcpAt, path);
+    // A same-name entry we did not write is the user's: overwriting it would lose it, and the uninstall would then delete it.
+    if (servers[MCP_NAME] !== undefined && !isOurMcp(servers[MCP_NAME])) {
+      throw new Error(`${path}: \`${[...mcpAt, MCP_NAME].join(".")}\` is already set and this installer did not write it; rename or remove it and rerun.`);
+    }
+    servers[MCP_NAME] = mcp;
+  }
   const hookCommands = hooks ? Object.values(hooks).flatMap((groups) => groups.flatMap((group) => group.hooks.map((hook) => hook.command))) : [];
   return { path, content: write(root), created: existing === null, hooksAt, hookCommands, mcpAt, mcp };
 }
@@ -416,7 +436,10 @@ export function planAgentInstall(agent: string, ctx: PlanContext): InstallPlan {
     return { ...plan, writes: [], error: error instanceof Error ? error.message : String(error) };
   }
   const run = spec.mcpRun?.(ctx, mcp) ?? null;
-  if (run) plan.runs.push(run);
+  if (run) {
+    plan.runs.push(run);
+    plan.notes.push(`\`${run.argv.slice(0, 3).join(" ")}\` may replace an MCP server already named ${MCP_NAME}, which the uninstall would then remove: check \`${run.argv[0]} mcp list\` first.`);
+  }
   const printed = spec.mcpPrinted?.(ctx, mcp) ?? null;
   if (printed) plan.printed.push(printed);
   if (ctx.failClosed && spec.failClosed === null) {
@@ -468,7 +491,7 @@ function dropAt(root: Json, path: readonly string[]): void {
 }
 
 export function emptyLedger(): Ledger {
-  return { version: 1, entries: [] };
+  return { version: 1, entries: [], runtimes: [] };
 }
 
 const isStrings = (value: unknown): value is string[] => Array.isArray(value) && value.every((item) => typeof item === "string");
@@ -479,7 +502,8 @@ function isEntry(value: unknown): value is LedgerEntry {
     && typeof value.version === "string" && typeof value.runtime === "string" && typeof value.installedAt === "string"
     && Array.isArray(value.files) && value.files.every((file) => isObject(file) && typeof file.path === "string" && typeof file.created === "boolean"
       && (file.hooksAt === null || isStrings(file.hooksAt)) && isStrings(file.hookCommands) && (file.mcpAt === null || isStrings(file.mcpAt)))
-    && Array.isArray(value.runs) && value.runs.every((run) => isObject(run) && isStrings(run.argv) && (run.undo === null || isStrings(run.undo)) && typeof run.ran === "boolean");
+    && Array.isArray(value.runs) && value.runs.every((run) => isObject(run) && isStrings(run.argv) && (run.undo === null || isStrings(run.undo)) && typeof run.ran === "boolean"
+      && (run.cwd === undefined || run.cwd === null || typeof run.cwd === "string"));
 }
 
 /** The ledger, an empty one when there is no file, or null when it is corrupt (nothing is then changed). */
@@ -487,13 +511,21 @@ export function parseLedger(text: string | null): Ledger | null {
   if (text === null) return emptyLedger();
   const root = parseObject(text);
   if (!isObject(root) || root.version !== 1 || !Array.isArray(root.entries) || !root.entries.every(isEntry)) return null;
-  return { version: 1, entries: root.entries };
+  if (root.runtimes !== undefined && !isStrings(root.runtimes)) return null;
+  const entries = root.entries.map((entry) => ({ ...entry, runs: entry.runs.map((run) => ({ ...run, cwd: run.cwd ?? null })) }));
+  // A ledger written before the history existed: its entries' runtimes are the recorded ones.
+  const runtimes = (root.runtimes as string[] | undefined) ?? [...new Set(entries.map((entry) => entry.runtime))];
+  return { version: 1, entries, runtimes };
 }
 
 const sameSlot = (a: LedgerEntry, b: LedgerEntry): boolean => a.target === b.target && a.scope === b.scope && a.project === b.project;
 
 export function recordInstall(ledger: Ledger, entry: LedgerEntry): Ledger {
-  return { version: 1, entries: [...ledger.entries.filter((other) => !sameSlot(other, entry)), entry] };
+  return {
+    version: 1,
+    entries: [...ledger.entries.filter((other) => !sameSlot(other, entry)), entry],
+    runtimes: ledger.runtimes.includes(entry.runtime) ? ledger.runtimes : [...ledger.runtimes, entry.runtime],
+  };
 }
 
 export function runtimesInUse(ledger: Ledger): Set<string> {

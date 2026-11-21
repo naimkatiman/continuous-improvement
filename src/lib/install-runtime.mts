@@ -13,7 +13,7 @@
 // that. What to write is planned in agent-install-plans.mjs (pure); this module
 // does the I/O.
 
-import { spawnSync } from "node:child_process";
+import { type SpawnSyncOptionsWithStringEncoding, spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
@@ -74,12 +74,20 @@ export function installRuntime(packageRoot: string, instinctsRoot: string, versi
   }
 }
 
-/** Removes every runtime version dir not in `keep` (slash paths). Best effort: one in use stays. */
-export function pruneRuntimes(instinctsRoot: string, keep: ReadonlySet<string>): void {
+/**
+ * Removes each runtime version dir the ledger has recorded (`ledger.runtimes`)
+ * that no entry uses and that is not `current`. A dir the ledger never
+ * recorded stays: a config written outside the ledger may still point at it.
+ * Only direct children of <instincts root>/runtime/ are candidates, whatever
+ * the ledger says. Best effort: one in use stays.
+ */
+export function pruneRuntimes(instinctsRoot: string, ledger: Ledger, current: string | null): void {
   const base = join(instinctsRoot, "runtime");
+  const recorded = new Set(ledger.runtimes.map(slash));
+  const keep = runtimesInUse(ledger);
   for (const name of listDir(base)) {
     const dir = join(base, name);
-    if (name.startsWith(".") || keep.has(slash(dir))) continue;
+    if (name.startsWith(".") || !recorded.has(slash(dir)) || keep.has(slash(dir)) || slash(dir) === current) continue;
     try {
       if (statSync(dir).isDirectory()) rmSync(dir, { recursive: true, force: true });
     } catch {
@@ -125,10 +133,13 @@ const SAFE_ARG = /^[\w\-./:=@\\]+$/;
 const display = (argv: readonly string[]): string => argv.map((arg) => (SAFE_ARG.test(arg) ? arg : JSON.stringify(arg))).join(" ");
 
 // A vendor CLI is usually a .cmd shim on Windows, which only cmd.exe starts.
-function runVendor(argv: readonly string[], platform: string): string | null {
+// `cwd` is the project root for a project-scope command: `grok mcp add --scope
+// project` and `devin mcp add -s project` write relative to their cwd.
+function runVendor(argv: readonly string[], platform: string, cwd: string | null): string | null {
+  const options: SpawnSyncOptionsWithStringEncoding = { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], ...(cwd === null ? {} : { cwd }) };
   const result = platform === "win32"
-    ? spawnSync(argv.map((arg) => (SAFE_ARG.test(arg) ? arg : `"${arg.replace(/"/g, '""')}"`)).join(" "), { shell: true, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })
-    : spawnSync(argv[0]!, argv.slice(1), { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    ? spawnSync(argv.map((arg) => (SAFE_ARG.test(arg) ? arg : `"${arg.replace(/"/g, '""')}"`)).join(" "), { ...options, shell: true })
+    : spawnSync(argv[0]!, argv.slice(1), options);
   if (result.error) return result.error.message;
   return result.status === 0 ? null : `exit ${result.status}: ${(result.stderr || result.stdout || "").trim().split(/\r?\n/)[0] ?? ""}`;
 }
@@ -151,6 +162,36 @@ function saveLedger(io: HookRunIo, ledger: Ledger): void {
 function writeFile(path: string, content: string): void {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, content);
+}
+
+/**
+ * Writes one agent's config files, then saves `ledger` (which records them),
+ * and returns it. If a write or the save fails, every file already written is
+ * put back as it was (a created one is deleted) before the error is rethrown.
+ */
+function writeRecorded(io: HookRunIo, plan: InstallPlan, ledger: Ledger): Ledger {
+  const written: Array<{ path: string; previous: string | null }> = [];
+  try {
+    for (const write of plan.writes) {
+      const previous = readText(write.path);
+      writeFile(write.path, write.content);
+      written.push({ path: write.path, previous });
+      io.out(`  ✓ ${plan.agent} → ${write.path}`);
+    }
+    saveLedger(io, ledger);
+    return ledger;
+  } catch (error) {
+    for (const { path, previous } of written.reverse()) {
+      try {
+        if (previous === null) rmSync(path, { force: true });
+        else writeFileSync(path, previous);
+        io.err(`  ↺ ${plan.agent}: put back ${path}`);
+      } catch {
+        io.err(`  ✗ ${plan.agent}: could not put back ${path}; remove the continuous-improvement entries from it by hand.`);
+      }
+    }
+    throw error;
+  }
 }
 
 function printPlanText(io: HookRunIo, plan: InstallPlan): void {
@@ -193,6 +234,9 @@ export function runHookInstall(args: ParsedArgs, io: HookRunIo): number {
 
   let status = 0;
   let next = ledger;
+  const recorded: string[] = [];
+  // A project-scope vendor command runs in the project root, where it writes its project config.
+  const runCwd = args.scope === "project" ? slash(io.projectRoot) : null;
   try {
     installRuntime(io.packageRoot, io.instinctsRoot, io.version);
     io.out(`  ✓ runtime → ${rt}`);
@@ -203,16 +247,26 @@ export function runHookInstall(args: ParsedArgs, io: HookRunIo): number {
       }
     }
     for (const plan of plans) {
-      for (const write of plan.writes) {
-        writeFile(write.path, write.content);
-        io.out(`  ✓ ${plan.agent} → ${write.path}`);
+      const entry: LedgerEntry = {
+        target: plan.agent, scope: args.scope, project: args.scope === "project" ? slash(io.projectRoot) : null, version: io.version, runtime: rt,
+        installedAt: new Date().toISOString(),
+        files: plan.writes.map(({ path, created, hooksAt, hookCommands, mcpAt, mcp }) => ({ path, created, hooksAt, hookCommands, mcpAt, mcp })),
+        runs: plan.runs.map((run: PlannedRun) => ({ ...run, ran: false, cwd: runCwd })),
+      };
+      // The agent's files and its ledger entry land together: a failure puts its
+      // files back as they were, so no config is on disk that the ledger lacks.
+      next = writeRecorded(io, plan, recordInstall(next, entry));
+      recorded.push(plan.agent);
+      if (plan.runs.length === 0) {
+        printPlanText(io, plan);
+        continue;
       }
-      const runs = plan.runs.map((run: PlannedRun) => {
+      const runs = entry.runs.map((run) => {
         if (!args.run) {
           io.out(`  ▸ run yourself: ${display(run.argv)}`);
-          return { ...run, ran: false };
+          return run;
         }
-        const failure = runVendor(run.argv, io.platform);
+        const failure = runVendor(run.argv, io.platform, run.cwd);
         if (failure === null) io.out(`  ✓ ran: ${display(run.argv)}`);
         else {
           io.err(`  ✗ ${display(run.argv)} failed (${failure}); run it yourself.`);
@@ -221,20 +275,17 @@ export function runHookInstall(args: ParsedArgs, io: HookRunIo): number {
         return { ...run, ran: failure === null };
       });
       printPlanText(io, plan);
-      const entry: LedgerEntry = {
-        target: plan.agent, scope: args.scope, project: args.scope === "project" ? slash(io.projectRoot) : null, version: io.version, runtime: rt,
-        installedAt: new Date().toISOString(),
-        files: plan.writes.map(({ path, created, hooksAt, hookCommands, mcpAt, mcp }) => ({ path, created, hooksAt, hookCommands, mcpAt, mcp })),
-        runs,
-      };
-      next = recordInstall(next, entry);
+      if (runs.some((run) => run.ran)) {
+        next = recordInstall(next, { ...entry, runs });
+        saveLedger(io, next);
+      }
     }
-    saveLedger(io, next);
   } catch (error) {
     io.err(`  ✗ Install failed: ${error instanceof Error ? error.message : String(error)}`);
+    if (recorded.length > 0) io.err(`  ℹ ${recorded.join(", ")} installed and recorded before the failure; \`--uninstall --target ${recorded.join(",")}\` removes them.`);
     return 1;
   }
-  pruneRuntimes(io.instinctsRoot, new Set([...runtimesInUse(next), rt]));
+  pruneRuntimes(io.instinctsRoot, next, rt);
   io.out(`  ✓ ledger → ${slash(ledgerFile(io))}\n\n${status === 0 ? "Done." : "Done with errors."}\n`);
   return status;
 }
@@ -283,7 +334,7 @@ Nothing was removed.`);
     else if (!run.ran) io.out(`  ▸ if you ran ${display(run.argv)}, undo it: ${display(run.undo)}`);
     else if (!args.run) io.out(`  ▸ run yourself: ${display(run.undo)}`);
     else {
-      const failure = runVendor(run.undo, io.platform);
+      const failure = runVendor(run.undo, io.platform, run.cwd);
       if (failure === null) io.out(`  ✓ ran: ${display(run.undo)}`);
       else {
         io.err(`  ✗ ${display(run.undo)} failed (${failure}); run it yourself.`);
@@ -295,9 +346,9 @@ Nothing was removed.`);
     io.out("\nDry run: nothing was removed.\n");
     return 0;
   }
-  const next: Ledger = { version: 1, entries: ledger.entries.filter((entry) => !mine(entry)) };
+  const next: Ledger = { version: 1, entries: ledger.entries.filter((entry) => !mine(entry)), runtimes: ledger.runtimes };
   saveLedger(io, next);
-  pruneRuntimes(io.instinctsRoot, runtimesInUse(next));
+  pruneRuntimes(io.instinctsRoot, next, null);
   io.out(`\n${status === 0 ? "Done." : "Done with errors."}\n`);
   return status;
 }

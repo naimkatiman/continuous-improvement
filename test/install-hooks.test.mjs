@@ -10,9 +10,9 @@
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { delimiter, join, relative } from "node:path";
+import { delimiter, dirname, join, relative } from "node:path";
 import { after, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { planTargetWrites } from "../lib/install-targets.mjs";
@@ -36,16 +36,22 @@ function box() {
     mkdirSync(fakeBin, { recursive: true });
     return { home, project, root, fakeBin };
 }
-// A stand-in vendor CLI that records its argv, one JSON line per call.
+// A stand-in vendor CLI that records its argv, one JSON line per call, and the
+// cwd it ran in, one line per call in <name>-cwd.jsonl.
 function fakeCli(b, name) {
     const log = join(b.root, `${name}-calls.jsonl`);
+    const cwdLog = join(b.root, `${name}-cwd.jsonl`);
     const script = join(b.fakeBin, `${name}-record.cjs`);
-    writeFileSync(script, `require("node:fs").appendFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2)) + "\\n");\n`);
+    writeFileSync(script, [
+        `require("node:fs").appendFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2)) + "\\n");`,
+        `require("node:fs").appendFileSync(${JSON.stringify(cwdLog)}, JSON.stringify(process.cwd()) + "\\n");`,
+        "",
+    ].join("\n"));
     writeFileSync(join(b.fakeBin, `${name}.cmd`), `@node "%~dp0${name}-record.cjs" %*\r\n`);
     writeFileSync(join(b.fakeBin, name), `#!/bin/sh\nexec node "$(dirname "$0")/${name}-record.cjs" "$@"\n`, { mode: 0o755 });
     return log;
 }
-function run(b, args, extraEnv = {}) {
+function run(b, args, extraEnv = {}, cwd = b.project) {
     const env = {};
     for (const [key, value] of Object.entries(process.env)) {
         if (INHERITED_ENV.has(key.toLowerCase()) && value !== undefined)
@@ -62,7 +68,10 @@ function run(b, args, extraEnv = {}) {
         [pathKey]: `${b.fakeBin}${delimiter}${env[pathKey] ?? ""}`,
         ...extraEnv,
     });
-    const result = spawnSync(process.execPath, [INSTALL, ...args], { cwd: b.project, env, encoding: "utf8", timeout: 60_000 });
+    for (const key of Object.keys(env))
+        if (env[key] === undefined)
+            delete env[key];
+    const result = spawnSync(process.execPath, [INSTALL, ...args], { cwd, env, encoding: "utf8", timeout: 60_000 });
     return { status: result.status, stdout: result.stdout, stderr: result.stderr };
 }
 function tree(dir, base = dir) {
@@ -164,18 +173,91 @@ describe("install --hooks", () => {
         });
         assert.match(hook.stdout, /"permissionDecision":"deny"/, hook.stderr);
     });
-    it("prunes an unreferenced older runtime after the install succeeds, and keeps one the ledger still uses", () => {
+    it("prunes an older runtime the ledger recorded once no install uses it, and keeps one the ledger still uses", () => {
         const b = box();
         mkdirSync(join(runtime(b, "0.0.1"), "hooks"), { recursive: true });
         writeFileSync(join(runtime(b, "0.0.1"), "hooks", "marker"), "old");
+        mkdirSync(dirname(ledgerPath(b)), { recursive: true });
+        writeFileSync(ledgerPath(b), JSON.stringify({ version: 1, entries: [], runtimes: [slash(runtime(b, "0.0.1"))] }));
         assert.equal(run(b, ["install", "--target", "grok", "--hooks"]).status, 0);
-        assert.ok(!existsSync(runtime(b, "0.0.1")), "unreferenced runtime pruned");
+        assert.ok(!existsSync(runtime(b, "0.0.1")), "a recorded runtime nothing uses is pruned");
         mkdirSync(runtime(b, "0.0.2"), { recursive: true });
         const ledger = JSON.parse(readFileSync(ledgerPath(b), "utf8"));
         ledger.entries.push({ ...ledger.entries[0], target: "droid", runtime: slash(runtime(b, "0.0.2")), files: [], runs: [] });
         writeFileSync(ledgerPath(b), JSON.stringify(ledger));
         assert.equal(run(b, ["install", "--target", "grok", "--hooks"]).status, 0);
         assert.ok(existsSync(runtime(b, "0.0.2")), "a runtime another install still points at is kept");
+    });
+    it("never prunes a runtime the ledger has no record of (a moved ledger, or an install that failed before recording)", () => {
+        const b = box();
+        mkdirSync(join(runtime(b, "0.0.3"), "hooks"), { recursive: true });
+        writeFileSync(join(runtime(b, "0.0.3"), "hooks", "marker"), "live config may point here");
+        assert.equal(run(b, ["install", "--target", "grok", "--hooks"]).status, 0);
+        assert.ok(existsSync(join(runtime(b, "0.0.3"), "hooks", "marker")));
+        const ledger = JSON.parse(readFileSync(ledgerPath(b), "utf8"));
+        assert.deepEqual(ledger.runtimes, [slash(runtime(b))]);
+    });
+    it("refuses a project-scope install outside a project, so a home directory's user-level configs are never written as the project's", () => {
+        const b = box();
+        // cwd is the home, which is not inside a git repo, and no project-dir env var is set.
+        const outside = run(b, ["install", "--target", "codex,qwen,grok,droid", "--hooks"], { CLAUDE_PROJECT_DIR: undefined }, b.home);
+        assert.equal(outside.status, 1, outside.stdout);
+        assert.match(outside.stderr, /--scope user/);
+        assert.deepEqual(tree(b.home), []);
+        // A project root that is the home directory itself is refused the same way, the dry run too.
+        for (const extra of [[], ["--dry-run"]]) {
+            const atHome = run(b, ["install", "--target", "codex", "--hooks", ...extra], { CLAUDE_PROJECT_DIR: b.home }, b.home);
+            assert.equal(atHome.status, 1, atHome.stdout);
+            assert.match(atHome.stderr, /--scope user/);
+            assert.deepEqual(tree(b.home), [], extra.join(" "));
+        }
+        // An explicit --scope user from the home still installs the user-level files.
+        const user = run(b, ["install", "--target", "qwen", "--hooks", "--scope", "user"], { CLAUDE_PROJECT_DIR: undefined }, b.home);
+        assert.equal(user.status, 0, user.stderr);
+        assert.ok(existsSync(join(b.home, ".qwen", "settings.json")));
+    });
+    it("records each agent as soon as its files are written, so a later agent's failure still leaves an exact uninstall", () => {
+        const b = box();
+        // .factory is a file, so droid's write fails after codex's has landed.
+        writeFileSync(join(b.project, ".factory"), "not a dir\n");
+        const out = run(b, ["install", "--target", "codex,droid", "--hooks"]);
+        assert.equal(out.status, 1, out.stdout);
+        assert.ok(existsSync(join(b.project, ".codex", "hooks.json")));
+        const ledger = JSON.parse(readFileSync(ledgerPath(b), "utf8"));
+        assert.deepEqual(ledger.entries.map((entry) => entry.target), ["codex"]);
+        const uninstall = run(b, ["--uninstall", "--target", "codex"]);
+        assert.equal(uninstall.status, 0, uninstall.stderr);
+        assert.ok(!existsSync(join(b.project, ".codex", "hooks.json")), "the recorded codex config is removed");
+    });
+    it("rolls back an agent's earlier files when one of its later writes fails", { skip: process.getuid?.() === 0 }, () => {
+        const b = box();
+        mkdirSync(join(b.project, ".factory"));
+        const mcp = join(b.project, ".factory", "mcp.json");
+        writeFileSync(mcp, "{}\n");
+        chmodSync(mcp, 0o444); // readable when planned, refused when written (hooks.json is written first)
+        try {
+            const out = run(b, ["install", "--target", "droid", "--hooks"]);
+            assert.equal(out.status, 1, out.stdout);
+            assert.ok(!existsSync(join(b.project, ".factory", "hooks.json")), "the hooks file written before the failure is rolled back");
+            assert.equal(readFileSync(mcp, "utf8"), "{}\n");
+            const entries = existsSync(ledgerPath(b)) ? JSON.parse(readFileSync(ledgerPath(b), "utf8")).entries : [];
+            assert.deepEqual(entries, []);
+        }
+        finally {
+            chmodSync(mcp, 0o644);
+        }
+    });
+    it("refuses to replace a continuous-improvement MCP entry it did not write, and leaves the file as it was", () => {
+        const b = box();
+        mkdirSync(join(b.project, ".qwen"), { recursive: true });
+        const settings = join(b.project, ".qwen", "settings.json");
+        const before = `${JSON.stringify({ mcpServers: { "continuous-improvement": { command: "npx", args: ["continuous-improvement", "mcp"] } } })}\n`;
+        writeFileSync(settings, before);
+        const out = run(b, ["install", "--target", "qwen", "--hooks"]);
+        assert.equal(out.status, 1, out.stdout);
+        assert.match(out.stderr, /mcpServers\.continuous-improvement/);
+        assert.equal(readFileSync(settings, "utf8"), before);
+        assert.ok(!existsSync(ledgerPath(b)));
     });
     it("keeps the previous runtime and writes nothing when the install fails", () => {
         const b = box();
@@ -279,6 +361,22 @@ describe("install --uninstall --target", () => {
         assert.equal(run(b, ["--uninstall", "--target", "devin", "--run"]).status, 0);
         const argvs = readFileSync(calls, "utf8").trim().split("\n").map((line) => JSON.parse(line));
         assert.deepEqual(argvs.map((argv) => argv.slice(0, 2)), [["mcp", "add"], ["mcp", "remove"]]);
+    });
+    it("runs a project-scope vendor command in the project root, also from a subdirectory, and its undo there too", () => {
+        const b = box();
+        fakeCli(b, "grok");
+        fakeCli(b, "devin");
+        const sub = join(b.project, "packages", "app");
+        mkdirSync(sub, { recursive: true });
+        const cwds = (name) => readFileSync(join(b.root, `${name}-cwd.jsonl`), "utf8").trim().split("\n").map((line) => realpathSync(JSON.parse(line)));
+        const out = run(b, ["install", "--target", "grok,devin", "--hooks", "--run"], {}, sub);
+        assert.equal(out.status, 0, out.stderr);
+        assert.deepEqual(cwds("grok"), [b.project], "grok mcp add --scope project writes relative to its cwd");
+        assert.deepEqual(cwds("devin"), [b.project], "devin mcp add -s project writes relative to its cwd");
+        const ledger = JSON.parse(readFileSync(ledgerPath(b), "utf8"));
+        assert.deepEqual(ledger.entries.map((entry) => [entry.target, entry.runs.map((r) => r.cwd)]), [["grok", [slash(b.project)]], ["devin", [slash(b.project)]]]);
+        assert.equal(run(b, ["--uninstall", "--target", "devin", "--run"], {}, b.home).status, 0);
+        assert.deepEqual(cwds("devin"), [b.project, b.project], "the undo runs where the add ran");
     });
     it("reports nothing to do when the ledger has no install for the target, and --dry-run removes nothing", () => {
         const b = box();

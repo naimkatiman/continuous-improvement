@@ -12,7 +12,7 @@
  */
 import { chmodSync, copyFileSync, existsSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, readdirSync, renameSync, rmSync, statSync, writeFileSync, } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, isAbsolute, join, relative, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PACKAGE_NAME, VERSION, getToolNames } from "../lib/plugin-metadata.mjs";
 import { hashProjectRoot, resolveProjectRoot } from "../lib/gateguard-state.mjs";
@@ -723,7 +723,9 @@ Options for 'install':
   --fail-closed     With --hooks: set the agent's fail-closed hook option where
                     it has one (the default keeps the agent's own behaviour)
   --uninstall --target <ids>
-                    Remove exactly what --hooks installed for those agents
+                    Remove the hook configs and MCP entries --hooks recorded for
+                    those agents; a rules file (AGENTS.md) and a printed snippet
+                    you pasted stay
   --help            Show this help
 
 Options for 'backfill':
@@ -739,6 +741,29 @@ Examples:
   npx continuous-improvement backfill               # tag rows in place
   npx continuous-improvement install --uninstall    # remove everything
 `);
+}
+// The root a project-scope hook install writes in: an absolute, existing
+// directory that is not the home directory (whose agent configs are the
+// user-level ones). Same rule as `ci lessons` (projectDir in unified-cli.mts).
+function hookProjectRoot(root) {
+    if (root === "global" || !isAbsolute(root))
+        return null;
+    const canonical = (path) => {
+        let real = resolve(path);
+        try {
+            real = realpathSync.native(path);
+        }
+        catch { }
+        return process.platform === "win32" ? real.toLowerCase() : real;
+    };
+    try {
+        if (!statSync(root).isDirectory())
+            return null;
+        return canonical(root) === canonical(getHomeDir()) ? null : root;
+    }
+    catch {
+        return null;
+    }
 }
 function getProjectHashSync() {
     const root = resolveProjectRoot();
@@ -781,9 +806,17 @@ if (hookArgs.mode === "error") {
 }
 if (hookArgs.mode !== "none") {
     const project = getProjectHashSync();
+    const projectRoot = hookProjectRoot(project.root);
+    // Outside a project the cwd fallback is often the home directory, where the
+    // "project" configs are the user-level ~/.codex, ~/.qwen, ~/.grok and
+    // ~/.factory files: those are written only with an explicit --scope user.
+    if (hookArgs.mode === "install" && hookArgs.scope === "project" && projectRoot === null) {
+        console.error(`No project directory (${project.root === "global" ? "not inside a git repository" : project.root}): run this inside the project, or pass --scope user to write the user-level agent config. Nothing was written.`);
+        process.exit(1);
+    }
     const hookIo = {
         home: getHomeDir(),
-        projectRoot: project.root === "global" ? process.cwd() : project.root,
+        projectRoot: projectRoot ?? (project.root === "global" ? process.cwd() : project.root),
         packageRoot: REPO_ROOT,
         version: VERSION,
         platform: process.platform,
