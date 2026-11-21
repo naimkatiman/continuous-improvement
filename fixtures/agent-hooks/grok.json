@@ -229,6 +229,59 @@
           "expect": { "decision": "deny", "stdoutIncludes": ".mcp.json" }
         }
       ]
+    },
+    {
+      "id": "grok/run-terminal-command-grok-plugin-disable-config-guard-block",
+      "note": "grok plugin disable is a mutating verb (research Grok plugin_or_extension_packaging; skeptic: `grok plugin --help` lists it).",
+      "steps": [
+        {
+          "hook": "hooks/config-guard.mjs",
+          "env": {
+            "CI_CONFIG_GUARD": "block"
+          },
+          "stdin": {
+            "hook_event_name": "PreToolUse",
+            "session_id": "grok-session",
+            "cwd": "<PROJECT>",
+            "tool_name": "run_terminal_command",
+            "tool_input": {
+              "command": "grok plugin disable continuous-improvement"
+            },
+            "tool_use_id": "grok-call-20"
+          },
+          "expect": {
+            "decision": "deny",
+            "stdoutIncludes": "`grok plugin disable`"
+          }
+        }
+      ]
+    },
+    {
+      "id": "grok/write-grok-hooks-config-guard-block",
+      "note": "Grok loads hook files from <project>/.grok/hooks/*.json (research Grok hook_pre_tool).",
+      "steps": [
+        {
+          "hook": "hooks/config-guard.mjs",
+          "env": {
+            "CI_CONFIG_GUARD": "block"
+          },
+          "stdin": {
+            "hook_event_name": "PreToolUse",
+            "session_id": "grok-session",
+            "cwd": "<PROJECT>",
+            "tool_name": "write",
+            "tool_input": {
+              "file_path": "<PROJECT>/.grok/hooks/off.json",
+              "content": "{}"
+            },
+            "tool_use_id": "grok-call-21"
+          },
+          "expect": {
+            "decision": "deny",
+            "stdoutIncludes": ".grok/hooks/"
+          }
+        }
+      ]
     }
   ]
 }

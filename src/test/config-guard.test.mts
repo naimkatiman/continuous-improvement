@@ -19,7 +19,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { classifyMutation, decide, matchProtectedPath, parseMode } from "../lib/config-guard-gate.mjs";
+import { classifyMutation, decide, matchProtectedPath, parseMode, PROTECTED_PATTERNS } from "../lib/config-guard-gate.mjs";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const REPO_ROOT = join(__dirname, "..");
@@ -793,5 +793,276 @@ describe("hooks/config-guard.mjs (runtime PreToolUse hook)", () => {
     });
     assert.equal(result.status, 0);
     assert.equal(result.stdout.trim(), "");
+  });
+});
+
+// All-agents PR 10 (docs/plans/2026-11-21-all-agents.md, Architecture item
+// 15): the files that wire the other agents' hooks, MCP servers, extensions
+// and plugins, and the CLI verbs of codex, gemini, qwen, grok, copilot and
+// devin that rewrite them. Every path and verb comes from the verified
+// research (result.json research[] plus the skeptic verify[] verdicts, checked
+// 2026-11-21); lib/config-guard-gate.mjs cites the entry for each.
+describe("config-guard-gate: other agents' guardrail files", () => {
+  it("keeps the Claude Code patterns first and in their order", () => {
+    assert.deepEqual(PROTECTED_PATTERNS.slice(0, 7), [
+      ".claude/settings.json",
+      ".claude/settings.local.json",
+      ".mcp.json",
+      "hooks.json",
+      ".claude/hooks/",
+      ".claude/plugins/",
+      ".claude-plugin/",
+    ]);
+  });
+
+  const guarded: Array<[string, string]> = [
+    ["C:\\Users\\me\\.codex\\hooks.json", "hooks.json"],
+    [".codex/config.toml", ".codex/config.toml"],
+    ["/home/me/.codex/config.toml", ".codex/config.toml"],
+    [".gemini/settings.json", ".gemini/settings.json"],
+    ["~/.gemini/extensions/continuous-improvement/gemini-extension.json", ".gemini/extensions/"],
+    [".cursor/hooks.json", "hooks.json"],
+    [".cursor/mcp.json", ".cursor/mcp.json"],
+    [".github/hooks/continuous-improvement.json", ".github/hooks/"],
+    [".github/copilot/settings.json", ".github/copilot/settings.json"],
+    [".github/copilot/settings.local.json", ".github/copilot/settings.local.json"],
+    ["C:/Users/me/.copilot/hooks/continuous-improvement.json", ".copilot/hooks/"],
+    ["~/.copilot/settings.json", ".copilot/settings.json"],
+    [".devin/hooks.v1.json", ".devin/hooks.v1.json"],
+    [".devin/config.json", ".devin/config.json"],
+    [".devin/config.local.json", ".devin/config.local.json"],
+    ["C:\\Users\\me\\AppData\\Roaming\\devin\\config.json", "AppData/Roaming/devin/config.json"],
+    [".kiro/hooks/continuous-improvement.json", ".kiro/hooks/"],
+    ["~/.qwen/settings.json", ".qwen/settings.json"],
+    ["~/.qwen/extensions/continuous-improvement/hooks/hooks.json", "hooks.json"],
+    ["~/.qwen/extensions/continuous-improvement/qwen-extension.json", ".qwen/extensions/"],
+    [".grok/hooks/guard.json", ".grok/hooks/"],
+    ["~/.grok/config.toml", ".grok/config.toml"],
+    ["C:/Users/me/.grok-tui/hooks/guard.json", ".grok-tui/hooks/"],
+    ["C:/Users/me/.grok-tui/config.toml", ".grok-tui/config.toml"],
+    [".clinerules/hooks/PreToolUse.ps1", ".clinerules/hooks/"],
+    ["~/.cline/hooks/PreToolUse", ".cline/hooks/"],
+    ["C:\\Users\\me\\Documents\\Cline\\Hooks\\PreToolUse.ps1", "Documents/Cline/Hooks/"],
+    [".factory/hooks.json", "hooks.json"],
+    ["~/.factory/settings.json", ".factory/settings.json"],
+    ["~/.augment/settings.json", ".augment/settings.json"],
+    [".augment/settings.local.json", ".augment/settings.local.json"],
+    ["~/.junie/config.json", ".junie/config.json"],
+    [".opencode/plugins/continuous-improvement.js", ".opencode/plugins/"],
+    ["~/.config/opencode/plugins/continuous-improvement.js", ".config/opencode/plugins/"],
+    [".amp/plugins/continuous-improvement.ts", ".amp/plugins/"],
+    ["~/.config/amp/plugins/continuous-improvement.ts", ".config/amp/plugins/"],
+    ["~/.agents/plugins/continuous-improvement/plugin.json", ".agents/plugins/"],
+    // A protected directory named itself goes with every file in it.
+    [".kiro/hooks", ".kiro/hooks/"],
+    ["C:\\Users\\me\\.gemini\\extensions", ".gemini/extensions/"],
+  ];
+  for (const [path, pattern] of guarded) {
+    it(`protects ${path} as ${pattern}`, () => {
+      assert.equal(matchProtectedPath(path), pattern);
+    });
+  }
+
+  const open = [
+    ".codex/config.toml.bak",
+    "docs/codex/config.toml",
+    "config.toml",
+    "settings.json",
+    ".gemini/GEMINI.md",
+    ".github/workflows/ci.yml",
+    ".github/copilot-instructions.md",
+    ".github/hooks-notes.md",
+    ".devin/hooks.v2.json",
+    ".kiro/steering/lessons.md",
+    ".qwen/QWEN.md",
+    ".grok/rules/lessons.md",
+    ".clinerules/lessons.md",
+    "src/plugins/index.ts",
+    ".agents/skills/gateguard/SKILL.md",
+    "Documents/Cline/Rules/lessons.md",
+  ];
+  for (const path of open) {
+    it(`leaves ${path} alone`, () => {
+      assert.equal(matchProtectedPath(path), null);
+    });
+  }
+
+  it("flags another agent's file tool on one of these paths", () => {
+    assert.equal(classifyMutation("write_file", { file_path: ".gemini/settings.json", content: "{}" })?.pattern, ".gemini/settings.json");
+    assert.equal(classifyMutation("replace", { file_path: "/home/me/.qwen/settings.json" })?.via, "file");
+    assert.equal(classifyMutation("Write", { file_path: ".cursor/mcp.json", content: "{}" })?.pattern, ".cursor/mcp.json");
+    const patch = "*** Begin Patch\n*** Update File: .codex/config.toml\n@@\n-[features]\n+[features]\n*** End Patch";
+    assert.equal(classifyMutation("apply_patch", { command: patch })?.pattern, ".codex/config.toml");
+  });
+
+  it("flags a shell write, delete or one-liner on one of these paths, and leaves reads alone", () => {
+    const hits = [
+      "rm -r .kiro/hooks",
+      "Remove-Item -Recurse C:\\Users\\me\\.copilot\\hooks",
+      "echo '{}' > .devin/hooks.v1.json",
+      "Set-Content (Join-Path $HOME '.codex\\config.toml') 'x'",
+      "node -e \"require('fs').writeFileSync('.gemini/settings.json','{}')\"",
+      "node -e writeFileSync(.qwen/settings.json,x)",
+      "[IO.File]::WriteAllText('.junie/config.json', '{}')",
+    ];
+    for (const command of hits) assert.notEqual(classifyMutation("Bash", { command }), null, command);
+    for (const command of ["cat .codex/config.toml", "ls .kiro/hooks", "mkdir -p .github/hooks", "Get-Content ~/.gemini/settings.json"]) {
+      assert.equal(classifyMutation("Bash", { command }), null, command);
+    }
+  });
+});
+
+describe("config-guard-gate: other agents' CLI verbs that rewrite their configuration", () => {
+  const hits: Array<[string, string]> = [
+    ["codex mcp add continuous-improvement -- node bin/mcp-server.mjs", "codex mcp add"],
+    ["codex mcp remove continuous-improvement", "codex mcp remove"],
+    ["codex plugin add continuous-improvement@ci", "codex plugin add"],
+    ["codex plugin remove continuous-improvement@ci", "codex plugin remove"],
+    ["codex plugin marketplace add ./mkt", "codex plugin marketplace add"],
+    ["codex plugin marketplace upgrade ci", "codex plugin marketplace upgrade"],
+    ["codex plugin marketplace remove ci", "codex plugin marketplace remove"],
+    ["gemini extensions install https://github.com/o/r --consent", "gemini extensions install"],
+    ["gemini extensions link ./ext", "gemini extensions link"],
+    ["gemini mcp add ci node bin/mcp-server.mjs", "gemini mcp add"],
+    ["gemini hooks migrate --from-claude", "gemini hooks migrate"],
+    ["qwen extensions install ./ext --consent", "qwen extensions install"],
+    ["qwen extensions link ./ext", "qwen extensions link"],
+    ["qwen mcp add ci node bin/mcp-server.mjs", "qwen mcp add"],
+    ["qwen mcp remove ci", "qwen mcp remove"],
+    ["qwen mcp approve ci", "qwen mcp approve"],
+    ["qwen mcp reject ci", "qwen mcp reject"],
+    ["grok plugin install o/continuous-improvement --trust", "grok plugin install"],
+    ["grok plugin uninstall continuous-improvement", "grok plugin uninstall"],
+    ["grok plugin update continuous-improvement", "grok plugin update"],
+    ["grok plugin enable continuous-improvement", "grok plugin enable"],
+    ["grok plugin disable continuous-improvement", "grok plugin disable"],
+    ["grok plugin marketplace add o/r", "grok plugin marketplace add"],
+    ["grok mcp add ci -- node bin/mcp-server.mjs", "grok mcp add"],
+    ["grok mcp enable ci", "grok mcp enable"],
+    ["grok mcp disable ci", "grok mcp disable"],
+    ["copilot plugin install ci@mkt", "copilot plugin install"],
+    ["copilot plugin add ci@mkt", "copilot plugin add"],
+    ["copilot plugin uninstall ci", "copilot plugin uninstall"],
+    ["copilot plugin update --all", "copilot plugin update"],
+    ["copilot plugin enable ci", "copilot plugin enable"],
+    ["copilot plugin disable ci", "copilot plugin disable"],
+    ["copilot plugin marketplace add o/r", "copilot plugin marketplace add"],
+    ["copilot plugin marketplace update mkt", "copilot plugin marketplace update"],
+    ["copilot plugin marketplace remove mkt", "copilot plugin marketplace remove"],
+    ["copilot mcp add ci -- node bin/mcp-server.mjs", "copilot mcp add"],
+    ["copilot mcp remove ci", "copilot mcp remove"],
+    ["copilot mcp enable ci", "copilot mcp enable"],
+    ["copilot mcp disable ci", "copilot mcp disable"],
+    ["devin plugins install o/r#plugins/continuous-improvement -y", "devin plugins install"],
+    ["devin mcp add ci -s user -- node bin/mcp-server.mjs", "devin mcp add"],
+    ["devin mcp remove ci", "devin mcp remove"],
+    ["devin mcp enable ci", "devin mcp enable"],
+    ["devin mcp disable ci", "devin mcp disable"],
+    ["devin migrate hooks", "devin migrate hooks"],
+  ];
+  for (const [command, target] of hits) {
+    it(`flags ${command}`, () => {
+      const cli = target.split(" ")[0]!;
+      assert.deepEqual(classifyMutation("Bash", { command }), { target, pattern: `${cli}-cli`, via: "agent-cli" });
+    });
+  }
+
+  it("flags the same verb through each agent's own shell tool, in a chain, and behind a launcher path", () => {
+    assert.equal(classifyMutation("run_shell_command", { command: "gemini extensions install ./ext" })?.target, "gemini extensions install");
+    assert.equal(classifyMutation("run_terminal_command", { command: "grok plugin disable continuous-improvement" })?.target, "grok plugin disable");
+    assert.equal(classifyMutation("exec", { command: "devin mcp remove ci" })?.target, "devin mcp remove");
+    assert.equal(classifyMutation("powershell", { command: "copilot mcp remove ci" })?.target, "copilot mcp remove");
+    assert.equal(classifyMutation("Bash", { command: "git status && codex mcp remove ci" })?.target, "codex mcp remove");
+    assert.equal(classifyMutation("Bash", { command: "C:\\Users\\me\\.grok\\bin\\grok.exe plugin uninstall ci" })?.target, "grok plugin uninstall");
+    assert.equal(classifyMutation("Bash", { command: "/usr/local/bin/qwen mcp add ci node x.mjs" })?.target, "qwen mcp add");
+    assert.equal(classifyMutation("PowerShell", { command: "gemini.cmd mcp add ci node x.mjs" })?.target, "gemini mcp add");
+    assert.equal(classifyMutation("Bash", { command: "sudo env FOO=1 CODEX MCP ADD ci" })?.target, "codex mcp add");
+  });
+
+  it("leaves the listing, inspecting and validating forms alone", () => {
+    const reads = [
+      "codex mcp list --json",
+      "codex mcp get ci",
+      "codex plugin list --json",
+      "codex plugin marketplace list",
+      "gemini extensions list",
+      "gemini extensions validate ./ext",
+      "gemini mcp list",
+      "qwen extensions list",
+      "qwen mcp list",
+      "qwen mcp reconnect ci",
+      "grok plugin list --json",
+      "grok plugin details continuous-improvement",
+      "grok plugin validate plugins/continuous-improvement",
+      "grok mcp list --json",
+      "grok mcp doctor continuous-improvement",
+      "copilot plugin list --json",
+      "copilot plugin marketplace list",
+      "copilot plugin marketplace browse",
+      "copilot mcp list",
+      "copilot mcp get ci",
+      "devin plugins list",
+      "devin plugins info ci",
+      "devin mcp list",
+      "devin mcp get ci",
+    ];
+    for (const command of reads) assert.equal(classifyMutation("Bash", { command }), null, command);
+  });
+
+  it("an incomplete, unknown or lookalike form is not a mutation", () => {
+    const open = [
+      "codex",
+      "codex mcp",
+      "codex plugin marketplace",
+      "codex exec 'fix the bug'",
+      "codex constructor add",
+      "codex __proto__ add",
+      "gemini mcp toString",
+      "codexx mcp add ci",
+      "my-codex mcp add ci",
+      "echo codex mcp add ci",
+      "grep -n 'qwen mcp add' README.md",
+      "kiro-cli mcp add ci",
+    ];
+    for (const command of open) assert.equal(classifyMutation("Bash", { command }), null, command);
+  });
+
+  it("still sees a redirect into a protected file behind an agent CLI that reads", () => {
+    assert.equal(classifyMutation("Bash", { command: "codex mcp list --json > .codex/config.toml" })?.pattern, ".codex/config.toml");
+  });
+
+  it("leaves the claude CLI classification as it was", () => {
+    assert.deepEqual(classifyMutation("Bash", { command: "claude mcp remove context7" }), {
+      target: "claude mcp remove",
+      pattern: "claude-cli",
+      via: "claude-cli",
+    });
+    assert.equal(classifyMutation("Bash", { command: "claude plugin list" }), null);
+  });
+});
+
+describe("hooks/config-guard.mjs: other agents' files and CLI verbs", () => {
+  it("warns by default on another agent's CLI verb, and never blocks", () => {
+    const r = runHook("Bash", { command: "codex mcp remove continuous-improvement" }, {});
+    assert.equal(r.decision, "allow");
+    assert.match(r.stderr, /config-guard: `codex mcp remove` edits the plugin \/ MCP \/ settings configuration/);
+  });
+
+  it("denies another agent's CLI verb in block mode", () => {
+    const r = runHook("run_shell_command", { command: "gemini extensions install ./ext --consent" }, { CI_CONFIG_GUARD: "block" });
+    assert.equal(r.decision, "block");
+    assert.match(r.reason ?? "", /`gemini extensions install` edits the plugin \/ MCP \/ settings configuration/);
+  });
+
+  it("denies a write to another agent's hook file in block mode, naming the pattern", () => {
+    const r = runHook("write_file", { file_path: ".gemini/settings.json", content: "{}" }, { CI_CONFIG_GUARD: "block" });
+    assert.equal(r.decision, "block");
+    assert.match(r.reason ?? "", /matches "\.gemini\/settings\.json"/);
+  });
+
+  it("CI_CONFIG_GUARD_ALLOW=true lets one agent CLI call through block mode", () => {
+    const r = runHook("Bash", { command: "devin mcp remove ci" }, { CI_CONFIG_GUARD: "block", CI_CONFIG_GUARD_ALLOW: "true" });
+    assert.equal(r.decision, "allow");
+    assert.match(r.stderr, /CI_CONFIG_GUARD_ALLOW=true let Bash touch devin mcp remove/);
   });
 });
