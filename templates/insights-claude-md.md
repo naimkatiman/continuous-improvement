@@ -85,7 +85,7 @@ Each block has a corresponding skill that enforces the rule when an agent is in 
 |---|---|
 | Verification Discipline | `verification-loop` (per-project ladder via `.claude/verify-ladder.json`) |
 | Environment Notes | `workspace-surface-audit` (records environment grain at session start) |
-| Think Before Acting | `gateguard` (blocks Edit/Write/Bash before grounding) |
+| Think Before Acting | `gateguard` (denies an edit of an existing file the session has not read and destructive Bash; `CI_GATEGUARD_FILE_GATE=strict` asks for grounding first) |
 | Git & Deploy Workflow | `deploy-receipt` (verifies deployed SHA + healthcheck before declaring done) |
 
 If you want both layers (CLAUDE.md text + skill enforcement), paste the block AND keep the skill installed. If you only want one, the skill is the higher-fidelity surface — it runs at the tool boundary and cannot be skipped by an agent that didn't read the markdown.

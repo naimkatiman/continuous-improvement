@@ -13,8 +13,13 @@
  *          OR empty when there is no match.
  * Exit   : 0 always — routing decisions live in stdout, never in exit code.
  *
- * Opt-out: CI_ROUTE_PROMPT_DISABLE=1 (or `true`) emits nothing and writes no
- * telemetry. Set it in a project's `.claude/settings.json` `env` block when
+ * Opt-in: the hook emits nothing and writes no telemetry unless
+ * CI_ROUTE_PROMPT is 1, on, true or yes (case-insensitive). Default off,
+ * because the table matches single common words and a frontier model picks
+ * skills without the hint.
+ *
+ * Opt-out: CI_ROUTE_PROMPT_DISABLE=1 (or `true`) still forces it off, even
+ * when enabled. Set it in a project's `.claude/settings.json` `env` block when
  * that project routes plan / test / review prompts to its own skills.
  *
  * Fail-open: any unexpected error reading stdin / parsing the route table /
@@ -47,6 +52,11 @@ function readStdin() {
     catch {
         return "";
     }
+}
+const ENABLED_VALUES = new Set(["1", "on", "true", "yes"]);
+function isRouterEnabled() {
+    const value = (process.env.CI_ROUTE_PROMPT ?? "").trim().toLowerCase();
+    return ENABLED_VALUES.has(value);
 }
 function isRouterDisabled() {
     const value = (process.env.CI_ROUTE_PROMPT_DISABLE ?? "").trim().toLowerCase();
@@ -137,7 +147,7 @@ function emit(output) {
     process.exit(0);
 }
 function main() {
-    if (isRouterDisabled()) {
+    if (!isRouterEnabled() || isRouterDisabled()) {
         emit(null);
         return;
     }

@@ -41,7 +41,7 @@ Snippets are passed through a secret redactor before they are surfaced. AWS acce
 
 ## How to Invoke
 
-Exposed as the `ci_recall` MCP tool (expert mode) and the `/recall` slash command. `query` is required; `k` (default 5) and `since` (ISO timestamp or `7d`/`24h`/`30m`) are optional.
+Exposed as the `ci_recall` MCP tool (expert mode; the plugin install registers the server in that mode) and the `/recall` slash command. `query` is required; `k` (default 5) and `since` (ISO timestamp or `7d`/`24h`/`30m`) are optional.
 
 ## Pairs With
 

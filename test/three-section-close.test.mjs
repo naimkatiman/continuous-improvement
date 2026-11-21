@@ -39,13 +39,16 @@ function buildIsolatedEnv(home) {
     // Windows resolves homedir from USERPROFILE; set it too so platform code
     // paths agree regardless of which is consulted first.
     env.USERPROFILE = home;
-    // Strip the operator opt-out flag from the test environment so existing
-    // enforcement tests aren't silently disabled when the developer happens to
-    // have CLAUDE_THREE_SECTION_CLOSE_DISABLED=1 in their shell. Tests that
-    // exercise the opt-out set this var explicitly after calling this helper.
+    // The hook is opt-in: enable it so these cases exercise the rule. Strip the
+    // operator opt-out flag so enforcement tests aren't silently disabled when
+    // the developer happens to have CLAUDE_THREE_SECTION_CLOSE_DISABLED=1 in
+    // their shell. Tests that exercise either switch override it after calling
+    // this helper.
+    env.CLAUDE_THREE_SECTION_CLOSE = "1";
     delete env.CLAUDE_THREE_SECTION_CLOSE_DISABLED;
     return env;
 }
+const LONG_BODY_WITHOUT_SECTIONS = "Long technical narrative without the required close. ".repeat(20);
 function runHook(payload, env) {
     const result = spawnSync(process.execPath, [HOOK_PATH], {
         input: payload,
@@ -151,10 +154,54 @@ describe("three-section-close.mjs telemetry", () => {
         assert.deepEqual(entry.missing, REQUIRED_HEADINGS, "missing lists every absent heading");
         assert.ok(entry.textLength >= 600);
     });
-    it("short-circuits when CLAUDE_THREE_SECTION_CLOSE_DISABLED=1 (no block, no telemetry)", () => {
+    it("does nothing by default when CLAUDE_THREE_SECTION_CLOSE is unset (no block, no telemetry)", () => {
+        const transcript = join(transcriptDir, "default-off.jsonl");
+        writeAssistantTranscript(transcript, LONG_BODY_WITHOUT_SECTIONS);
+        const env = buildIsolatedEnv(home);
+        delete env.CLAUDE_THREE_SECTION_CLOSE;
+        const result = runHook(JSON.stringify({ transcript_path: transcript }), env);
+        assert.equal(result.status, 0);
+        assert.equal(result.stdout, "", "a long reply with no headings passes by default");
+        assert.equal(result.stderr, "");
+        assert.equal(readTelemetryLines(home, transcript).length, 0, "no telemetry when off");
+    });
+    for (const value of ["0", "off", "false", "no", "enabled", ""]) {
+        it(`stays off when CLAUDE_THREE_SECTION_CLOSE=${JSON.stringify(value)}`, () => {
+            const transcript = join(transcriptDir, "not-enabled.jsonl");
+            writeAssistantTranscript(transcript, LONG_BODY_WITHOUT_SECTIONS);
+            const env = buildIsolatedEnv(home);
+            env.CLAUDE_THREE_SECTION_CLOSE = value;
+            const result = runHook(JSON.stringify({ transcript_path: transcript }), env);
+            assert.equal(result.status, 0);
+            assert.equal(result.stdout, "", `value ${JSON.stringify(value)} must not enable the hook`);
+            assert.equal(readTelemetryLines(home, transcript).length, 0);
+        });
+    }
+    for (const value of ["1", "on", "ON", "true", "True", "yes", " Yes "]) {
+        it(`blocks when enabled with CLAUDE_THREE_SECTION_CLOSE=${JSON.stringify(value)}`, () => {
+            const transcript = join(transcriptDir, "enabled.jsonl");
+            writeAssistantTranscript(transcript, LONG_BODY_WITHOUT_SECTIONS);
+            const env = buildIsolatedEnv(home);
+            env.CLAUDE_THREE_SECTION_CLOSE = value;
+            const result = runHook(JSON.stringify({ transcript_path: transcript }), env);
+            assert.equal(result.status, 0);
+            const parsed = JSON.parse(result.stdout);
+            assert.equal(parsed.decision, "block");
+        });
+    }
+    it("allows the Stop when stop_hook_active is true, so it can never loop", () => {
+        const transcript = join(transcriptDir, "reentry.jsonl");
+        writeAssistantTranscript(transcript, LONG_BODY_WITHOUT_SECTIONS);
+        const env = buildIsolatedEnv(home);
+        const result = runHook(JSON.stringify({ transcript_path: transcript, stop_hook_active: true }), env);
+        assert.equal(result.status, 0);
+        assert.equal(result.stdout, "", "no block on a Stop that a Stop hook already continued");
+        assert.equal(result.stderr, "");
+    });
+    it("CLAUDE_THREE_SECTION_CLOSE_DISABLED=1 wins over CLAUDE_THREE_SECTION_CLOSE=1 (no block, no telemetry)", () => {
         // Per-operator opt-out path. Hook must return immediately before stdin
         // read, telemetry write, or compliance check. Long body without sections
-        // would normally block; with the flag set, hook is invisible.
+        // would block with the hook enabled; with the opt-out set, hook is invisible.
         const transcript = join(transcriptDir, "opt-out.jsonl");
         const body = "Long body without any required sections. ".repeat(20);
         writeAssistantTranscript(transcript, body);
@@ -222,6 +269,7 @@ describe("three-section-close.mjs telemetry", () => {
         const env = { ...process.env };
         env.HOME = "";
         env.USERPROFILE = "";
+        env.CLAUDE_THREE_SECTION_CLOSE = "1";
         delete env.CLAUDE_THREE_SECTION_CLOSE_DISABLED;
         const realBefore = snapshotRealTelemetryDir();
         const result = runHook(JSON.stringify({ transcript_path: transcript }), env);
@@ -247,6 +295,7 @@ describe("three-section-close.mjs telemetry", () => {
         const env = { ...process.env };
         env.HOME = "";
         env.USERPROFILE = home;
+        env.CLAUDE_THREE_SECTION_CLOSE = "1";
         delete env.CLAUDE_THREE_SECTION_CLOSE_DISABLED;
         const realBefore = snapshotRealTelemetryDir();
         const result = runHook(JSON.stringify({ transcript_path: transcript }), env);
@@ -264,6 +313,7 @@ describe("three-section-close.mjs telemetry", () => {
         const env = { ...process.env };
         env.HOME = home;
         env.USERPROFILE = "";
+        env.CLAUDE_THREE_SECTION_CLOSE = "1";
         delete env.CLAUDE_THREE_SECTION_CLOSE_DISABLED;
         const realBefore = snapshotRealTelemetryDir();
         const result = runHook(JSON.stringify({ transcript_path: transcript }), env);

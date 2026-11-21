@@ -32,6 +32,7 @@ import {
   parseGoalFromPlan,
   scoreObservations,
 } from "../lib/goal-state.mjs";
+import { flatten, parseYamlInstinct, type Instinct } from "../lib/instinct-yaml.mjs";
 import {
   buildIndex,
   formatRecallHits,
@@ -54,33 +55,19 @@ import {
   canonicalizeFileKey,
   clearFiles,
   hashProjectRoot,
+  projectYamlFiles,
   resolveInstinctsRoot,
   resolveProjectRoot,
   resolveSessionDir,
 } from "../lib/gateguard-state.mjs";
 
 type Level = "AUTO-APPLY" | "SUGGEST" | "ANALYZE" | "CAPTURE";
-type InstinctScope = "project" | "global";
 type JsonRpcId = number | string | null;
 
 interface ProjectInfo {
   hash: string;
   name: string;
   root: string;
-}
-
-interface Instinct {
-  body: string;
-  confidence: number;
-  created?: string;
-  domain?: string;
-  id: string;
-  last_seen?: string;
-  observation_count?: number;
-  project_id?: string;
-  scope?: InstinctScope;
-  source?: string;
-  trigger: string;
 }
 
 interface Observation {
@@ -196,9 +183,7 @@ function toInstinct(value: unknown): Instinct | null {
     return null;
   }
 
-  let confidence = getNumber(record.confidence, 0.6);
-  // Validate confidence bounds (0.0 - 0.9)
-  confidence = Math.max(0, Math.min(0.9, confidence));
+  const confidence = clampConfidence(getNumber(record.confidence, 0.6));
   const scopeValue = getString(record.scope);
   const scope = scopeValue === "global" || scopeValue === "project"
     ? scopeValue
@@ -235,89 +220,47 @@ const modeIndex = args.indexOf("--mode");
 const requestedMode = args[modeIndex + 1];
 const MODE: Mode = isPluginMode(requestedMode) ? requestedMode : "beginner";
 
+const GLOBAL_PROJECT: ProjectInfo = { root: "global", hash: "global", name: "global" };
+
 function getProjectHash(): ProjectInfo {
   const root = resolveProjectRoot();
-  if (root === "global") return { root: "global", hash: "global", name: "global" };
+  if (root === "global") return GLOBAL_PROJECT;
   return { root, hash: hashProjectRoot(root), name: basename(root) };
 }
 
-function readInstincts(projectHash: string): Instinct[] {
-  const instincts: Instinct[] = [];
-  const dirs = [GLOBAL_DIR];
-  if (projectHash !== "global") {
-    dirs.push(join(INSTINCTS_DIR, projectHash));
+// A missing directory holds no instincts; one that exists and cannot be read
+// throws, and the request handler answers with that error.
+function instinctFilesIn(dir: string): string[] {
+  if (!existsSync(dir)) {
+    return [];
+  }
+  return readdirSync(dir)
+    .filter((file) => file.endsWith(".yaml"))
+    .sort()
+    .map((file) => join(dir, file));
+}
+
+// global/ and then the project's files as the SessionStart hook lists them
+// (projectYamlFiles), so a lesson the hook prints is one these tools can find.
+function readInstincts(project: ProjectInfo): Instinct[] {
+  const files = instinctFilesIn(GLOBAL_DIR);
+  if (project.hash !== "global") {
+    files.push(...projectYamlFiles(INSTINCTS_DIR, project.root, project.hash, instinctFilesIn));
   }
 
-  for (const dir of dirs) {
-    if (!existsSync(dir)) {
-      continue;
-    }
-
-    for (const file of readdirSync(dir)) {
-      if (!file.endsWith(".yaml")) {
-        continue;
+  const instincts: Instinct[] = [];
+  for (const file of files) {
+    try {
+      const parsed = parseYamlInstinct(readFileSync(file, "utf8"));
+      if (parsed) {
+        instincts.push(parsed);
       }
-
-      try {
-        const parsed = parseYamlInstinct(readFileSync(join(dir, file), "utf8"));
-        if (parsed) {
-          instincts.push(parsed);
-        }
-      } catch {
-        // skip malformed files
-      }
+    } catch {
+      // skip unreadable files
     }
   }
 
   return instincts;
-}
-
-function parseYamlInstinct(content: string): Instinct | null {
-  const lines = content.split("\n");
-  const meta: Partial<Instinct> = {};
-  let body = "";
-  let inBody = false;
-
-  for (const line of lines) {
-    if (line.trim() === "---" && Object.keys(meta).length > 0) {
-      inBody = true;
-      continue;
-    }
-
-    if (inBody) {
-      body += `${line}\n`;
-      continue;
-    }
-
-    const match = line.match(/^(\w[\w_-]*):\s*(.+)/);
-    if (!match) {
-      continue;
-    }
-
-    const rawValue = match[2].trim().replace(/^["']|["']$/g, "");
-    const value = rawValue !== "" && !Number.isNaN(Number(rawValue))
-      ? Number(rawValue)
-      : rawValue;
-    (meta as Record<string, string | number | undefined>)[match[1]] = value;
-  }
-
-  if (typeof meta.id !== "string" || typeof meta.trigger !== "string") {
-    return null;
-  }
-
-  return {
-    id: meta.id,
-    trigger: meta.trigger,
-    body: body.trim(),
-    confidence: typeof meta.confidence === "number" ? meta.confidence : 0.6,
-    domain: typeof meta.domain === "string" ? meta.domain : undefined,
-    source: typeof meta.source === "string" ? meta.source : undefined,
-    scope: meta.scope === "global" || meta.scope === "project" ? meta.scope : undefined,
-    project_id: typeof meta.project_id === "string" ? meta.project_id : undefined,
-    created: typeof meta.created === "string" ? meta.created : undefined,
-    last_seen: typeof meta.last_seen === "string" ? meta.last_seen : undefined,
-    observation_count: typeof meta.observation_count === "number" ? meta.observation_count : undefined,
-  };
 }
 
 function countObservations(projectHash: string): number {
@@ -353,7 +296,9 @@ function getRecentObservations(projectHash: string, limit = 50): Observation[] {
 
     return lines.slice(-cappedLimit).flatMap((line) => {
       try {
-        return [JSON.parse(line) as Observation];
+        // A row that parses to null, a number or an array is not an observation.
+        const row = asRecord(JSON.parse(line));
+        return row ? [row as Observation] : [];
       } catch {
         return [];
       }
@@ -375,9 +320,9 @@ function readDistillObservations(projectHash: string): DistillObservation[] {
   }));
 }
 
-function detectLevel(projectHash: string): Level {
-  const observationCount = countObservations(projectHash);
-  const instincts = readInstincts(projectHash);
+function detectLevel(project: ProjectInfo): Level {
+  const observationCount = countObservations(project.hash);
+  const instincts = readInstincts(project);
   const hasHighConfidence = instincts.some((instinct) => instinct.confidence >= 0.7);
   const hasMidConfidence = instincts.some((instinct) => instinct.confidence >= 0.5 && instinct.confidence < 0.7);
 
@@ -402,6 +347,17 @@ function writeFailed(id: string, reason: string): string {
   return `Could not write instinct ${JSON.stringify(id)}: ${reason}`;
 }
 
+// Every writer stores a confidence in 0 to 0.9, the documented range.
+function clampConfidence(value: number): number {
+  return Number.isNaN(value) ? 0.6 : Math.max(0, Math.min(0.9, value));
+}
+
+// The parser reads one `key: value` per line and the last one wins, so a line
+// break inside a header value would add or override a key. Each becomes a space.
+function headerValue(value: string): string {
+  return value.replace(/[\r\n\v\f\x85\p{Zl}\p{Zp}]+/gu, " ");
+}
+
 // The one place an instinct id becomes a filesystem path.
 function writeInstinct(projectHash: string, instinct: Instinct): WriteOutcome {
   const scope = instinct.scope === "global" ? "global" : "project";
@@ -415,14 +371,14 @@ function writeInstinct(projectHash: string, instinct: Instinct): WriteOutcome {
   const today = new Date().toISOString().split("T")[0];
   const yaml = [
     `id: ${instinct.id}`,
-    `trigger: "${instinct.trigger}"`,
-    `confidence: ${instinct.confidence}`,
-    `domain: ${instinct.domain || "workflow"}`,
-    `source: ${instinct.source || "manual"}`,
+    `trigger: "${headerValue(instinct.trigger)}"`,
+    `confidence: ${clampConfidence(instinct.confidence)}`,
+    `domain: ${headerValue(instinct.domain || "workflow")}`,
+    `source: ${headerValue(instinct.source || "manual")}`,
     `scope: ${scope}`,
-    `project_id: ${projectHash}`,
-    `created: "${instinct.created || today}"`,
-    `last_seen: "${instinct.last_seen || today}"`,
+    `project_id: ${headerValue(projectHash)}`,
+    `created: "${headerValue(instinct.created || today)}"`,
+    `last_seen: "${headerValue(instinct.last_seen || today)}"`,
     `observation_count: ${instinct.observation_count || 1}`,
     "---",
     instinct.body,
@@ -439,11 +395,11 @@ function writeInstinct(projectHash: string, instinct: Instinct): WriteOutcome {
 
 // null when no instinct has that id; otherwise what writeInstinct did with it.
 function updateInstinctConfidence(
-  projectHash: string,
+  project: ProjectInfo,
   instinctId: string,
   delta: number,
 ): { instinct: Instinct; outcome: WriteOutcome } | null {
-  const instincts = readInstincts(projectHash);
+  const instincts = readInstincts(project);
   const instinct = instincts.find((candidate) => candidate.id === instinctId);
   if (!instinct) {
     return null;
@@ -452,7 +408,7 @@ function updateInstinctConfidence(
   const newConfidence = Math.max(0, Math.min(0.9, instinct.confidence + delta));
   instinct.confidence = Math.round(newConfidence * 100) / 100;
   instinct.last_seen = new Date().toISOString().split("T")[0];
-  return { instinct, outcome: writeInstinct(projectHash, instinct) };
+  return { instinct, outcome: writeInstinct(project.hash, instinct) };
 }
 
 function getWorkspaceRoot(): string {
@@ -671,9 +627,9 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
 
   switch (name) {
     case "ci_status": {
-      const level = detectLevel(project.hash);
+      const level = detectLevel(project);
       const observationCount = countObservations(project.hash);
-      const instincts = readInstincts(project.hash);
+      const instincts = readInstincts(project);
       const byConfidence = {
         silent: instincts.filter((instinct) => instinct.confidence < 0.5).length,
         suggest: instincts.filter((instinct) => instinct.confidence >= 0.5 && instinct.confidence < 0.7).length,
@@ -698,7 +654,7 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
 
     case "ci_instincts": {
       const minConfidence = getNumber(params.min_confidence, 0);
-      const instincts = readInstincts(project.hash).filter((instinct) => instinct.confidence >= minConfidence);
+      const instincts = readInstincts(project).filter((instinct) => instinct.confidence >= minConfidence);
 
       if (instincts.length === 0) {
         return text("No instincts found. Keep working — the system learns from your sessions.");
@@ -712,7 +668,8 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
             : instinct.confidence >= 0.5
               ? "SUGGEST"
               : "silent";
-          return `- **${instinct.id}** (${instinct.confidence}) [${behavior}]\n  Trigger: ${instinct.trigger}\n  ${instinct.body}`;
+          // Stored text is data; flatten keeps each field on one line with no raw "<".
+          return `- **${flatten(instinct.id, Infinity)}** (${instinct.confidence}) [${behavior}]\n  Trigger: ${flatten(instinct.trigger, Infinity)}\n  ${flatten(instinct.body, Infinity)}`;
         });
 
       return text(`## Instincts for ${project.name}\n\n${lines.join("\n\n")}`);
@@ -761,17 +718,20 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
       // resolve at write time, so without a bound this is an arbitrary-write
       // primitive. Resolve + canonicalize, then require containment within the
       // instincts root (the only tree the hook ever prints a state_path inside).
+      // The check is on the directory that will be written, so a state_path
+      // equal to the root (whose dirname is ~/.claude) is refused.
       const rawStatePath = getString(params.state_path).trim();
       let sessionDir: string;
       if (rawStatePath) {
-        const resolvedKey = canonicalizeFileKey(resolve(rawStatePath));
+        const candidateDir = dirname(resolve(rawStatePath));
+        const dirKey = canonicalizeFileKey(candidateDir);
         const rootKey = canonicalizeFileKey(resolveInstinctsRoot());
-        if (resolvedKey !== rootKey && !resolvedKey.startsWith(`${rootKey}/`)) {
+        if (dirKey !== rootKey && !dirKey.startsWith(`${rootKey}/`)) {
           return error(
             "state_path must resolve inside ~/.claude/instincts/. Pass it verbatim from the GateGuard block reason.",
           );
         }
-        sessionDir = dirname(resolve(rawStatePath));
+        sessionDir = candidateDir;
       } else {
         sessionDir = resolveSessionDir();
       }
@@ -798,7 +758,7 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
       }
       const instinctId = getString(params.instinct_id);
       const delta = getBoolean(params.accepted) ? 0.15 : -0.1;
-      const update = updateInstinctConfidence(project.hash, instinctId, delta);
+      const update = updateInstinctConfidence(project, instinctId, delta);
       if (!update) {
         return error(`Instinct "${instinctId}" not found`);
       }
@@ -822,7 +782,7 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
         id: getString(params.id),
         trigger: getString(params.trigger),
         body: getString(params.body),
-        confidence: getNumber(params.confidence, 0.6),
+        confidence: clampConfidence(getNumber(params.confidence, 0.6)),
         domain: getString(params.domain, "workflow"),
         source: "manual",
         scope,
@@ -856,7 +816,7 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
         return error("ci_export requires expert mode");
       }
       const scope = getString(params.scope, "all");
-      let instincts = readInstincts(project.hash);
+      let instincts = readInstincts(project);
       if (scope === "project") {
         instincts = instincts.filter((instinct) => instinct.scope === "project");
       }
@@ -883,7 +843,7 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
       }
 
       const scope = getString(params.scope, "project") === "global" ? "global" : "project";
-      const existing = readInstincts(project.hash);
+      const existing = readInstincts(project);
       const existingIds = new Set(existing.map((instinct) => instinct.id.toLowerCase()));
       const rejected: string[] = [];
       const failed: string[] = [];
@@ -1287,9 +1247,9 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
         return error("ci_dashboard requires expert mode");
       }
 
-      const level = detectLevel(project.hash);
+      const level = detectLevel(project);
       const observationCount = countObservations(project.hash);
-      const instincts = readInstincts(project.hash);
+      const instincts = readInstincts(project);
       const byConfidence = {
         auto: instincts.filter((instinct) => instinct.confidence >= 0.7),
         suggest: instincts.filter((instinct) => instinct.confidence >= 0.5 && instinct.confidence < 0.7),
@@ -1309,10 +1269,12 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
       const autoBar = "█".repeat(Math.min(10, byConfidence.auto.length)) + "░".repeat(Math.max(0, 10 - byConfidence.auto.length));
       const suggestBar = "█".repeat(Math.min(10, byConfidence.suggest.length)) + "░".repeat(Math.max(0, 10 - byConfidence.suggest.length));
       const silentBar = "█".repeat(Math.min(10, byConfidence.silent.length)) + "░".repeat(Math.max(0, 10 - byConfidence.silent.length));
+      // A hand-edited file can hold any confidence; the bar stays 0 to 10 cells.
+      const barCells = (confidence: number): number => Math.max(0, Math.min(10, Math.round(confidence * 10)));
       const top5 = instincts
         .sort((left, right) => right.confidence - left.confidence)
         .slice(0, 5)
-        .map((instinct) => `  ${"█".repeat(Math.round(instinct.confidence * 10)) + "░".repeat(10 - Math.round(instinct.confidence * 10))} ${instinct.confidence.toFixed(2)} ${instinct.id}`)
+        .map((instinct) => `  ${"█".repeat(barCells(instinct.confidence)) + "░".repeat(10 - barCells(instinct.confidence))} ${instinct.confidence.toFixed(2)} ${instinct.id}`)
         .join("\n");
 
       let packInfo = "";
@@ -1365,19 +1327,22 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
         return error("ci_load_pack requires expert mode");
       }
 
+      // The pack name is a model-controlled argument that becomes a path, so it
+      // has to be the name of a file in the packs directory. Joining it unchecked
+      // let `../` reach any .json file on the drive.
       const packName = getString(params.pack);
-      const packPath = join(PACKS_DIR, `${packName}.json`);
-      if (!existsSync(packPath)) {
-        const available = existsSync(PACKS_DIR)
-          ? readdirSync(PACKS_DIR)
-              .filter((file) => file.endsWith(".json"))
-              .map((file) => file.replace(".json", ""))
-          : [];
+      const available = existsSync(PACKS_DIR)
+        ? readdirSync(PACKS_DIR)
+            .filter((file) => file.endsWith(".json"))
+            .map((file) => file.replace(".json", ""))
+        : [];
+      if (!available.includes(packName)) {
         return error(`Unknown pack: ${packName}. Available: ${available.join(", ")}`);
       }
 
+      const packPath = join(PACKS_DIR, `${packName}.json`);
       const packInstincts = JSON.parse(readFileSync(packPath, "utf8")) as unknown[];
-      const existing = readInstincts(project.hash);
+      const existing = readInstincts(project);
       const existingIds = new Set(existing.map((instinct) => instinct.id.toLowerCase()));
       const rejected: string[] = [];
       const failed: string[] = [];
@@ -1430,15 +1395,14 @@ rl.on("line", (line: string) => {
   if (!message) {
     return;
   }
-  // A handler that throws (a filesystem error, a malformed file on disk) is
-  // answered with a JSON-RPC error so the client is not left waiting, and the
-  // server goes on reading.
+  // A method handler that throws (a filesystem error, a malformed file on disk)
+  // is answered with a JSON-RPC error so the client is not left waiting, and the
+  // server goes on reading. tools/call answers its own failures in handleMessage.
   try {
     handleMessage(message);
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
-    const params = asRecord(message.params);
-    const label = message.method === "tools/call" && params ? getString(params.name, "tools/call") : getString(message.method, "request");
+    const label = getString(message.method, "request");
     console.error(`${PACKAGE_NAME} MCP server: ${label} failed: ${reason}`);
     if (message.id !== undefined) {
       send({ jsonrpc: "2.0", id: message.id, error: { code: -32603, message: `${label} failed: ${reason}` } });
@@ -1492,7 +1456,16 @@ function handleMessage(message: JsonRpcMessage): void {
     case "tools/call": {
       const toolName = getString(params.name);
       const toolArgs = asRecord(params.arguments) ?? {};
-      const result = handleTool(toolName, toolArgs);
+      // A tool that throws is answered as a failed tool call (isError), so the
+      // model reads the reason; other methods that throw get -32603 below.
+      let result: ToolResult;
+      try {
+        result = handleTool(toolName, toolArgs);
+      } catch (err) {
+        const reason = `${toolName || "tools/call"} failed: ${err instanceof Error ? err.message : String(err)}`;
+        console.error(`${PACKAGE_NAME} MCP server: ${reason}`);
+        result = error(reason);
+      }
       send({ jsonrpc: "2.0", id, result });
       break;
     }
@@ -1526,8 +1499,8 @@ function handleMessage(message: JsonRpcMessage): void {
       const uri = getString(params.uri);
       const project = getProjectHash();
       const instincts = uri === "instincts://global"
-        ? readInstincts("global").filter((instinct) => instinct.scope === "global")
-        : readInstincts(project.hash);
+        ? readInstincts(GLOBAL_PROJECT).filter((instinct) => instinct.scope === "global")
+        : readInstincts(project);
 
       send({
         jsonrpc: "2.0",

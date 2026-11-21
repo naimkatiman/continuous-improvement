@@ -2,11 +2,14 @@
 /**
  * gateguard-clear — record GateGuard clearance for files from the Bash route.
  *
- * The GateGuard PreToolUse hook blocks the first Edit/Write per file and prints
- * the session-state path in its block reason. After presenting the required
- * facts, run this to clear the gate so the retry is allowed. Bash is not gated
- * (unless the command is destructive), so this surface always works — including
- * where the ci_gateguard_clear MCP tool is not connected.
+ * The GateGuard PreToolUse hook prints the session-state path in its block
+ * reason. In the default file gate mode that reason is for a file the session
+ * has not read, and this is the fallback when the file was read and the
+ * observation log cannot show it. Under CI_GATEGUARD_FILE_GATE=strict the hook
+ * blocks the first Edit/Write per file, and this is run after presenting the
+ * required facts. Either way it clears the gate so the retry is allowed. Bash
+ * is not gated (unless the command is destructive), so this surface always
+ * works — including where the ci_gateguard_clear MCP tool is not connected.
  *
  * Usage:
  *   node bin/gateguard-clear.mjs <file_path> [<file_path>...] [--state <path>]

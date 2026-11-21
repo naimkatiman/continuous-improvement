@@ -152,10 +152,11 @@ function runThreeSectionClose(payload, extraEnv = {}) {
     // the developer's real ~/.claude/hook-telemetry/ during every `npm test` run.
     // None of the cases in this file assert on telemetry presence; they only
     // check stdout/status. Callers can still override via extraEnv if needed.
+    // The hook is opt-in, so CLAUDE_THREE_SECTION_CLOSE=1 enables it here.
     // CLAUDE_THREE_SECTION_CLOSE_DISABLED is also stripped: when an operator
     // sets the opt-out flag in their shell, the hook returns immediately and
     // emits no JSON, which would break every block-path assertion in this file.
-    const baseEnv = { ...process.env };
+    const baseEnv = { ...process.env, CLAUDE_THREE_SECTION_CLOSE: "1" };
     delete baseEnv.CLAUDE_THREE_SECTION_CLOSE_DISABLED;
     const result = spawnSync(process.execPath, ["./three-section-close.mjs"], {
         input: payload,

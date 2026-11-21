@@ -58,16 +58,20 @@ Stacked, one concern each, merged in order. Each PR runs `npm run build`,
 ## Design decisions
 
 - **Evidence over attestation.** The file gate reads this session's rows in the
-  local observation log. A Read of the target clears it silently. A new file is
-  allowed. A blind edit of an existing file is denied with a one-line reason.
+  local observation log. A completed Read, Edit or Write of the target clears
+  it silently, and so does a shell or search call that names the file. A new
+  file is allowed, and so is every edit in a project with no observation log.
+  A blind edit of an existing file is denied with a two-line reason: read the
+  file and retry, then the manual clear command as the fallback.
   `CI_GATEGUARD_FILE_GATE=strict` restores the fact-list gate, `off` disables
-  the file gate. Destructive-command and target-lock checks are unchanged.
+  the file gate, and any other value is read as `evidence` with a stderr note.
+  Destructive-command and target-lock checks are unchanged.
 - **Opt-in means default off, old switches still honoured.**
   `CLAUDE_THREE_SECTION_CLOSE=on` and `CI_ROUTE_PROMPT=on` enable the two hooks;
   `CLAUDE_THREE_SECTION_CLOSE_DISABLED=1` and `CI_ROUTE_PROMPT_DISABLE=1` keep
   working.
 - **One loader, existing store.** The instinct YAML store stays. The loader is
-  capped (ten instincts, about 1.5 KB) and prints one line when there are none.
+  capped (ten instincts, about 1.5 KB) and prints nothing when there are none.
 - **Docs describe the shipped default, with the hook file named beside every
   runtime claim** (the `verify:doc-runtime-claims` rule).
 

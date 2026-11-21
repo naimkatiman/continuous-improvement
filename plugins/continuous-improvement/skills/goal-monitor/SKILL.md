@@ -55,7 +55,7 @@ When `## Goal Keywords` is absent, keywords are auto-extracted from the goal pro
 
 ## How to Invoke
 
-The check is exposed as the `ci_goal_check` MCP tool (expert mode) and the `/goal-check` slash command:
+The check is exposed as the `ci_goal_check` MCP tool (expert mode; the plugin install registers the server in that mode) and the `/goal-check` slash command:
 
 ```
 ci_goal_check                      # score the last 30 observations against task_plan.md

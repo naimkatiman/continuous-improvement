@@ -14,12 +14,12 @@ This directory holds the **source-of-truth** for the companion skills bundled wi
 
 ## Tier 1 — recommended pairing for **beginner** mode
 
-These add concrete enforcement to the 7 Laws. Tier-1 skills are the always-on minimum for any user running `npx continuous-improvement install` (default beginner mode).
+These add concrete enforcement to the 7 Laws. The plugin install bundles every skill on this page, and each one loads when its description matches the task. `npx continuous-improvement install` copies only the core `continuous-improvement` skill and `ship`, in either mode.
 
 | Skill | What it does | Pairs with which Law |
 |-------|--------------|----------------------|
 | `deploy-receipt` | Deploy verification receipt — SHA-match + healthcheck proof that what merged is what's live, closing the merged-but-not-deployed gap | Law 4 (Verify Before Reporting) |
-| `gateguard` | PreToolUse fact-forcing gate that blocks Edit/Write/destructive Bash until concrete investigation is presented | Law 1 (Research) |
+| `gateguard` | PreToolUse gate that denies an Edit/Write of an existing file the session has not read and every destructive Bash; `CI_GATEGUARD_FILE_GATE=strict` blocks the first edit of each file until concrete investigation is presented | Law 1 (Research) |
 | `model-forward` | Standing stance: go with Claude Code and the model, not against it — skills are scaffolding that merges into the model; the durable core is goal-driven execution + guardrails | All 7 Laws (stance) |
 | `recall` | BM25 search over the observation log so "have I hit this before?" is answerable before re-deriving a fix | Law 1 (Research) |
 | `ship` | Single-defect delivery path that preserves unrelated dirty work in an owner-locked worktree, verifies through TDD, opens one PR, and safely returns eligible clean checkouts to `main` or `master` | Laws 1, 3, and 4 |
@@ -28,7 +28,7 @@ These add concrete enforcement to the 7 Laws. Tier-1 skills are the always-on mi
 
 ## Tier 2 — additional skills for **expert** mode
 
-Tier-2 skills layer on top of tier-1 for users running `npx continuous-improvement install --mode expert`. They cover response-depth control and context-window discipline that matter once an agent runs longer or more aggressively. Autonomous-mode write safety lives in tier-1 `gateguard` (`CI_GATEGUARD_TARGET_LOCK=block`), which replaced the retired `safety-guard` skill on 2026-08-07.
+Tier-2 skills layer on top of tier-1. They cover response-depth control and context-window discipline that matter once an agent runs longer or more aggressively. Autonomous-mode write safety lives in tier-1 `gateguard` (`CI_GATEGUARD_TARGET_LOCK=block`), which replaced the retired `safety-guard` skill on 2026-08-07.
 
 | Skill | What it does | When it pays off |
 |-------|--------------|------------------|
@@ -36,7 +36,7 @@ Tier-2 skills layer on top of tier-1 for users running `npx continuous-improveme
 | `strategic-compact` | Manual phase-boundary checklist for deciding when to run `/compact` (research→plan, plan→implement, debug→next) instead of relying on arbitrary auto-compaction | Multi-phase tasks that approach context limits |
 | `wild-risa-balance` | Decision-framing lens that pairs WILD (Wild/Imaginative/Limitless/Disruptive) generation with RISA (Realistic/Important/Specific/Agreeable) execution, used to split recommendation lists into bold pilots above a safe baseline | Multi-item recommendation blocks where bold options keep losing to safe ones in a flat list |
 
-The `/learn-eval` slash command also ships as part of the expert install: extract a session pattern, run a checklist quality gate, and decide global-vs-project save location before writing any skill file.
+The `/learn-eval` slash command ships with the plugin, and `npx continuous-improvement install` copies it in either mode: extract a session pattern, run a checklist quality gate, and decide global-vs-project save location before writing any skill file.
 
 ## Other always-bundled companion skills
 

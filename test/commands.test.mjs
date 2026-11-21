@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { before, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -222,5 +224,119 @@ describe("commands/verify-install.md", () => {
     it("requires a single pass/fail summary line", () => {
         assert.match(content, /✓ wired/);
         assert.match(content, /✗ /);
+    });
+    // The default file gate allows a new file, so a Write probe passes on a
+    // correct install and leaves the probe file behind. Check 2 must name a
+    // shell command the hook denies on a default install, and that deny must
+    // be the one the hook really emits.
+    it("probes the gateguard with a command a default install denies, and writes no file", () => {
+        const check2 = content.split("## Check 2")[1]?.split("## Check 3")[0] ?? "";
+        assert.ok(check2, "Check 2 section should exist");
+        assert.doesNotMatch(check2, /\.ci-verify-install-probe\.txt/);
+        assert.doesNotMatch(check2, /attempt to `Write`/);
+        const command = check2.match(/run `([^`]+)` through/)?.[1];
+        const reasonPrefix = check2.match(/the reason starts `([^`]+)`/)?.[1];
+        assert.ok(command, "Check 2 should name the probe command");
+        assert.ok(reasonPrefix, "Check 2 should name the deny reason it counts as the pass");
+        const tempHome = mkdtempSync(join(tmpdir(), "ci-verify-install-"));
+        try {
+            const env = { ...process.env, HOME: tempHome, USERPROFILE: tempHome };
+            delete env.CI_GATEGUARD_EXCLUDE;
+            delete env.CI_GATEGUARD_FILE_GATE;
+            for (const tool of ["Bash", "PowerShell"]) {
+                const payload = JSON.stringify({
+                    session_id: "verify-install-probe",
+                    hook_event_name: "PreToolUse",
+                    tool_name: tool,
+                    tool_input: { command },
+                });
+                const result = spawnSync(process.execPath, [join(__dirname, "..", "hooks", "gateguard.mjs")], {
+                    input: payload,
+                    encoding: "utf8",
+                    env,
+                });
+                assert.equal(result.status, 0, result.stderr);
+                const output = JSON.parse(result.stdout);
+                assert.equal(output.hookSpecificOutput.permissionDecision, "deny", `${tool} probe should be denied`);
+                assert.ok(output.hookSpecificOutput.permissionDecisionReason.startsWith(reasonPrefix), `${tool} deny reason should start with ${reasonPrefix}`);
+            }
+        }
+        finally {
+            rmSync(tempHome, { recursive: true, force: true });
+        }
+    });
+    it("tells an unwired install what to check and points at a README heading that exists", () => {
+        const check2 = content.split("## Check 2")[1]?.split("## Check 3")[0] ?? "";
+        assert.match(check2, /node.*PATH/);
+        assert.match(check2, /restart Claude Code/i);
+        const heading = check2.match(/see README → ([^)`;]+)/)?.[1]?.trim();
+        assert.ok(heading, "Check 2 should point the reader at a README heading");
+        const readme = readFileSync(join(__dirname, "..", "README.md"), "utf8");
+        const headings = readme.split(/\r?\n/).filter((line) => /^#{2,6} /.test(line)).map((line) => line.replace(/^#+ /, "").trim());
+        assert.ok(headings.includes(heading), `README.md should have a heading "${heading}"`);
+    });
+});
+// No npm package is named ci-reconcile: it is a bin of the package
+// continuous-improvement, so `npx ci-reconcile` 404s on a plugin-only install.
+// Claude Code substitutes ${CLAUDE_PLUGIN_ROOT} in command and skill bodies,
+// and the plugin bundle carries bin/reconcile.mjs.
+describe("reconcile runner invocation", () => {
+    const docs = [
+        ["commands/reconcile.md", join(COMMANDS_DIR, "reconcile.md")],
+        ["skills/reconcile.md", join(SKILLS_DIR, "reconcile.md")],
+    ];
+    for (const [label, path] of docs) {
+        it(`${label} runs the bundled script and names the npm fallback`, () => {
+            const body = readFileSync(path, "utf8");
+            assert.doesNotMatch(body, /npx ci-reconcile/);
+            assert.match(body, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/reconcile\.mjs"/);
+            assert.match(body, /npx -p continuous-improvement ci-reconcile/);
+        });
+    }
+    it("no command or skill tells the reader to run npx ci-reconcile", () => {
+        for (const dir of [COMMANDS_DIR, SKILLS_DIR]) {
+            for (const file of readdirSync(dir).filter((name) => name.endsWith(".md"))) {
+                const body = readFileSync(join(dir, file), "utf8");
+                assert.doesNotMatch(body, /npx ci-reconcile/, `${file} still says npx ci-reconcile`);
+            }
+        }
+    });
+    it("the plugin bundle carries the script the docs name", () => {
+        assert.ok(existsSync(join(__dirname, "..", "plugins", "continuous-improvement", "bin", "reconcile.mjs")));
+    });
+});
+// gateguard's file gate defaults to CI_GATEGUARD_FILE_GATE=evidence: a new file
+// and a file the session has read are allowed, and only a blind edit of an
+// existing file is denied. The fact list on the first edit of every file is
+// the strict mode. A line outside the gateguard skill that describes the fact
+// list must say it belongs to strict.
+describe("docs describe the gateguard file gate default", () => {
+    const ROOT = join(__dirname, "..");
+    const OLD_GATE = /fact[- ]list|fact-forcing|first (edit|mutation) (per|of each|of every) file|first (edit|mutation) until|until (the agent provides|you present|grounding is presented|fact-list investigation|concrete investigation|the investigation is presented)|without facts|before grounding/i;
+    function scanned() {
+        const files = [];
+        for (const dir of ["commands", "skills"]) {
+            for (const name of readdirSync(join(ROOT, dir))) {
+                if (name.endsWith(".md") && name !== "gateguard.md")
+                    files.push(join(dir, name));
+            }
+        }
+        files.push("llms.txt", "templates/insights-claude-md.md");
+        for (const name of ["philosophy.md", "skill-use-cases.md", "skills.md", "using-this-plugin.md"]) {
+            files.push(join("docs", name));
+        }
+        return files;
+    }
+    it("names CI_GATEGUARD_FILE_GATE=strict wherever it describes the fact-list gate", () => {
+        const stale = [];
+        for (const rel of scanned()) {
+            const lines = readFileSync(join(ROOT, rel), "utf8").split(/\r?\n/);
+            lines.forEach((line, index) => {
+                if (/gateguard/.test(line) && OLD_GATE.test(line) && !line.includes("CI_GATEGUARD_FILE_GATE=strict")) {
+                    stale.push(`${rel}:${index + 1}`);
+                }
+            });
+        }
+        assert.deepEqual(stale, []);
     });
 });

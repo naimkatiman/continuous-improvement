@@ -8,13 +8,13 @@ The plugin ships **28 skills** (1 core + 1 featured + 7 tier-1 + 16 tier-2 + 3 a
 
 ## 1. The must-use set (the spine)
 
-These **9 skills are the always-on minimum** — the repo's tier-1 + the featured orchestrator + the core spec. They ship and load by default in **Beginner** install; you do not pick them per task, they are simply *on*. If you adopt nothing else, adopt these.
+These **9 skills are the minimum set**: the repo's tier-1, the featured orchestrator and the core spec. The plugin install bundles all of them, and each one loads when its description matches the task. `npx continuous-improvement install` copies only the core `continuous-improvement` skill and `ship`, in either mode. If you adopt nothing else, adopt these.
 
 | Skill | Tier | Law | The one job it does | You reach for it when… |
 |---|---|---|---|---|
-| `continuous-improvement` (core) | core | all 7 | The 7 Laws operating system — research → plan → execute → verify → reflect → learn → iterate | Always loaded. It is the frame the other 28 plug into. |
+| `continuous-improvement` (core) | core | all 7 | The 7 Laws operating system — research → plan → execute → verify → reflect → learn → iterate | Loads when a task matches its description. It is the frame the other 28 plug into. |
 | `proceed-with-the-recommendation` ⭐ | featured | all 7 | Execution arm — walks any numbered recommendation list top-to-bottom, one concern at a time, verifying per item | Any agent (or you) emits a list of next steps and you want them *done*, not just listed |
-| `gateguard` | 1 | 1 | Runtime gate that blocks `Edit`/`Write`/destructive `Bash` until you present investigation facts | **Automatic** — it fires the instant you try to mutate a file. You answer it, you do not invoke it |
+| `gateguard` | 1 | 1 | Runtime gate that blocks an `Edit`/`Write` of an existing file the session has not read, and every destructive `Bash` (`CI_GATEGUARD_FILE_GATE=strict` asks for investigation facts first) | **Automatic** — it fires the instant you try to mutate a file. You answer it, you do not invoke it |
 | `recall` | 1 | 1 | BM25 search over past sessions — "have I hit this before?" | The start of a task that smells familiar, *before* re-deriving a fix or repeating a mistake |
 | `tdd-workflow` | 1 | 3 + 4 | RED → GREEN → REFACTOR with 80%+ coverage | Writing a new feature, fixing a bug, or refactoring — anything that changes behavior |
 | `verification-loop` | 1 | 4 | Six-phase gate: build, types, lint, tests, security, diff → PASS/FAIL | You are about to say "done." This is the proof |
@@ -110,7 +110,7 @@ Bounded blast radius is not a separate skill: set `CI_GATEGUARD_TARGET_LOCK=bloc
 | `proceed-with-the-recommendation` | You hold a **list** of next steps and want it executed, verified, one concern at a time | Picking *which skill* fits a single task (use `superpowers`) |
 | `superpowers` | You hold a **task** and want it routed to the right Law-aligned specialist automatically | Executing an existing list (use `proceed-with-the-recommendation`) |
 
-### Stance — always on (Law 1–7)
+### Stance — background posture (Law 1–7)
 
 | Skill | Reach for it when… | Not for… |
 |---|---|---|
@@ -128,7 +128,7 @@ The skills that get confused, separated by the one word that distinguishes them.
 
 | Skill | Guards… | Fires… |
 |---|---|---|
-| `gateguard` | your **understanding** — no edit without facts | automatically, on every first mutation per file |
+| `gateguard` | your **understanding** — no edit of a file you have not read | automatically, on every edit of an existing file (the fact list on the first edit per file only under `CI_GATEGUARD_FILE_GATE=strict`) |
 | `reconcile` | **git truth** — right branch, push actually landed | when you ask, before a mutation |
 | `worktree-safety` | the **worktree** — valid root, no stale lease, no foreign owner | before a write inside a multi-worktree setup |
 | `state-reconciliation` | the **work-queue** — DB/disk/memory agree before dispatch | before re-dispatching a unit of work |

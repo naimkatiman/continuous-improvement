@@ -20,12 +20,12 @@ Law 1 says research before executing. The most expensive skipped research is the
 
 ## Establish Ground Truth First
 
-Read before you write. One command runs the whole pass and prints the resolved-state block:
+Read before you write. One command runs the whole pass and prints the resolved-state block. Claude Code replaces `${CLAUDE_PLUGIN_ROOT}` with the plugin's install path when it loads this file. On an npm install, where nothing replaces it, run `npx -p continuous-improvement ci-reconcile` with the same flags.
 
 ```
-npx ci-reconcile              # resolved-state block; exit 1 if anything blocks a mutation
-npx ci-reconcile --json       # the same state, machine-readable
-npx ci-reconcile --explain    # print the probe set and why each probe runs
+node "${CLAUDE_PLUGIN_ROOT}/bin/reconcile.mjs"              # resolved-state block; exit 1 if anything blocks a mutation
+node "${CLAUDE_PLUGIN_ROOT}/bin/reconcile.mjs" --json       # the same state, machine-readable
+node "${CLAUDE_PLUGIN_ROOT}/bin/reconcile.mjs" --explain    # print the probe set and why each probe runs
 ```
 
 Exit codes: `0` nothing blocks, `1` at least one blocker, `2` not a git repository. The probe set is defined once in `src/lib/git-state.mts`, and `npm run verify:reconcile-parity` fails if this document drifts from it — the list below is the list the runner executes.
@@ -75,9 +75,9 @@ When another session/loop may be active, do not assume the tree is yours:
 - An in-progress `MERGE_HEAD` / `rebase-merge` you did not start means another actor is mid-operation. Do not "help" by editing conflicted files — wait, or hand off. The runner reports this as a blocker; the retired `.git/`-relative probe could not see it inside a worktree at all.
 - **Re-read HEAD and the branch immediately before every mutation, not once per session.** Capture a baseline, then compare right before you commit, push, or rebase:
   ```
-  npx ci-reconcile --snapshot > .git/reconcile-baseline.json   # or any scratch path
+  node "${CLAUDE_PLUGIN_ROOT}/bin/reconcile.mjs" --snapshot > .git/reconcile-baseline.json   # or any scratch path
   # ... do work ...
-  npx ci-reconcile --snapshot                                   # compare head + branch against the baseline
+  node "${CLAUDE_PLUGIN_ROOT}/bin/reconcile.mjs" --snapshot                                   # compare head + branch against the baseline
   ```
   If either field moved, another writer got there first — re-survey from the top instead of committing onto an unexpected base. A missing or unparseable field counts as *shifted*; "we could not tell" is never "nothing moved". Both calls exit 1 if the tree is blocked, so capture the baseline without `set -e` (or guard it) when a blocker is expected.
 - More than one entry in `git worktree list --porcelain` means a sibling checkout exists that another session may be writing to. The runner flags this.
@@ -142,7 +142,7 @@ Once ground truth is known and the halt gates are clear, carry the work to an op
 A push that printed no error is still a claim. Confirm:
 
 ```
-npx ci-reconcile --verify-push <branch>      # exit 0 only when the remote tip equals local HEAD
+node "${CLAUDE_PLUGIN_ROOT}/bin/reconcile.mjs" --verify-push <branch>      # exit 0 only when the remote tip equals local HEAD
 ```
 
 or by hand:
