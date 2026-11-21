@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
-import { closeSync, openSync, readFileSync, readSync, readdirSync } from "node:fs";
-import { basename, join } from "node:path";
-import { canonicalizeProjectRoot, hashProjectRoot } from "../lib/gateguard-state.mjs";
+import { closeSync, openSync, readFileSync, readSync } from "node:fs";
+import { join } from "node:path";
+import { hashProjectRoot, projectYamlFiles, yamlFiles } from "../lib/gateguard-state.mjs";
 import { flatten, parseYamlInstinct } from "../lib/instinct-yaml.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 // Claude Code adds a SessionStart hook's plain-text stdout to the model's
@@ -81,49 +80,6 @@ function projectRoot() {
     catch {
         return "global";
     }
-}
-function yamlFiles(dir) {
-    try {
-        return readdirSync(dir)
-            .filter((name) => name.endsWith(".yaml"))
-            .sort()
-            .map((name) => join(dir, name));
-    }
-    catch {
-        return [];
-    }
-}
-// One Windows directory has several spellings: `D:/repo`, `d:\repo`, `D:\repo`.
-// hashProjectRoot folds them into one bucket (lower-case drive, forward
-// slashes). A lesson written before that rule existed, or by a model that hashed
-// the path the way git prints it, sits under the hash of another spelling of the
-// same root. These are those hashes. A POSIX root has one spelling, so the list
-// is empty there and nothing extra is read.
-function otherSpellingHashes(root, canonicalHash) {
-    const canonical = canonicalizeProjectRoot(root);
-    const spellings = [root];
-    if (/^[a-z]:/.test(canonical)) {
-        const upperDrive = canonical.charAt(0).toUpperCase() + canonical.slice(1);
-        spellings.push(upperDrive, canonical.replace(/\//g, "\\"), upperDrive.replace(/\//g, "\\"));
-    }
-    const hashes = spellings.map((spelling) => createHash("sha256").update(spelling).digest("hex").slice(0, 12));
-    return [...new Set(hashes)].filter((hash) => hash !== canonicalHash);
-}
-// The project's instinct files: the canonical bucket first, then the buckets of
-// the root's other spellings. A file name already listed is skipped, so a lesson
-// copied between buckets is read once and the canonical copy is the one read.
-function projectYamlFiles(instinctsRoot, root, canonicalHash) {
-    const files = yamlFiles(join(instinctsRoot, canonicalHash));
-    const names = new Set(files.map((file) => basename(file)));
-    for (const hash of otherSpellingHashes(root, canonicalHash)) {
-        for (const file of yamlFiles(join(instinctsRoot, hash))) {
-            if (names.has(basename(file)))
-                continue;
-            names.add(basename(file));
-            files.push(file);
-        }
-    }
-    return files;
 }
 // Each trigger and body goes through flatten (src/lib/instinct-yaml.mts), so a
 // lesson cannot close the reminder or start a line of its own, which keeps the

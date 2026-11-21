@@ -28,10 +28,10 @@
  */
 
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 const DEFAULT_MAX_CLEARED_FILES = 1000;
 
@@ -197,6 +197,64 @@ export function canonicalizeFileKey(p: string): string {
 /** SHA-256[:12] of the canonical project root. C:/x, c:/x, and C:\\x share a bucket. */
 export function hashProjectRoot(projectRoot: string): string {
   return createHash("sha256").update(canonicalizeProjectRoot(projectRoot)).digest("hex").slice(0, 12);
+}
+
+/** The .yaml files directly in `dir`, in name order; empty when it cannot be read (the session hook's policy). */
+export function yamlFiles(dir: string): string[] {
+  try {
+    return readdirSync(dir)
+      .filter((name) => name.endsWith(".yaml"))
+      .sort()
+      .map((name) => join(dir, name));
+  } catch {
+    return [];
+  }
+}
+
+// One Windows directory has several spellings: `D:/repo`, `d:\repo`, `D:\repo`.
+// hashProjectRoot folds them into one bucket (lower-case drive, forward
+// slashes). A lesson written before that rule existed, or by a model that hashed
+// the path the way git prints it, sits under the hash of another spelling of the
+// same root. These are those hashes. A POSIX root has one spelling, so the list
+// is empty there and nothing extra is read.
+function otherSpellingHashes(root: string, canonicalHash: string): string[] {
+  const canonical = canonicalizeProjectRoot(root);
+  const spellings = [root];
+  if (/^[a-z]:/.test(canonical)) {
+    const upperDrive = canonical.charAt(0).toUpperCase() + canonical.slice(1);
+    spellings.push(upperDrive, canonical.replace(/\//g, "\\"), upperDrive.replace(/\//g, "\\"));
+  }
+  const hashes = spellings.map((spelling) =>
+    createHash("sha256").update(spelling).digest("hex").slice(0, 12),
+  );
+  return [...new Set(hashes)].filter((hash) => hash !== canonicalHash);
+}
+
+/**
+ * A project's instinct files: the canonical bucket first, then the buckets of
+ * the root's other spellings. A file name already listed is skipped, so a lesson
+ * copied between buckets is read once and the canonical copy is the one read.
+ * The SessionStart hook and the MCP server both list a project's instincts
+ * through this, so a lesson the hook prints is one ci_instincts lists. `list`
+ * reads one directory: the server passes one that throws on an unreadable
+ * directory, so the failure reaches the caller as an error.
+ */
+export function projectYamlFiles(
+  instinctsRoot: string,
+  root: string,
+  canonicalHash: string,
+  list: (dir: string) => string[] = yamlFiles,
+): string[] {
+  const files = list(join(instinctsRoot, canonicalHash));
+  const names = new Set(files.map((file) => basename(file)));
+  for (const hash of otherSpellingHashes(root, canonicalHash)) {
+    for (const file of list(join(instinctsRoot, hash))) {
+      if (names.has(basename(file))) continue;
+      names.add(basename(file));
+      files.push(file);
+    }
+  }
+  return files;
 }
 
 export function isFileCleared(state: GateguardState, filePath: string): boolean {

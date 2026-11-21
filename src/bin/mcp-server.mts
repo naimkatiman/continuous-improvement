@@ -55,6 +55,7 @@ import {
   canonicalizeFileKey,
   clearFiles,
   hashProjectRoot,
+  projectYamlFiles,
   resolveInstinctsRoot,
   resolveProjectRoot,
   resolveSessionDir,
@@ -219,37 +220,43 @@ const modeIndex = args.indexOf("--mode");
 const requestedMode = args[modeIndex + 1];
 const MODE: Mode = isPluginMode(requestedMode) ? requestedMode : "beginner";
 
+const GLOBAL_PROJECT: ProjectInfo = { root: "global", hash: "global", name: "global" };
+
 function getProjectHash(): ProjectInfo {
   const root = resolveProjectRoot();
-  if (root === "global") return { root: "global", hash: "global", name: "global" };
+  if (root === "global") return GLOBAL_PROJECT;
   return { root, hash: hashProjectRoot(root), name: basename(root) };
 }
 
-function readInstincts(projectHash: string): Instinct[] {
-  const instincts: Instinct[] = [];
-  const dirs = [GLOBAL_DIR];
-  if (projectHash !== "global") {
-    dirs.push(join(INSTINCTS_DIR, projectHash));
+// A missing directory holds no instincts; one that exists and cannot be read
+// throws, and the request handler answers with that error.
+function instinctFilesIn(dir: string): string[] {
+  if (!existsSync(dir)) {
+    return [];
+  }
+  return readdirSync(dir)
+    .filter((file) => file.endsWith(".yaml"))
+    .sort()
+    .map((file) => join(dir, file));
+}
+
+// global/ and then the project's files as the SessionStart hook lists them
+// (projectYamlFiles), so a lesson the hook prints is one these tools can find.
+function readInstincts(project: ProjectInfo): Instinct[] {
+  const files = instinctFilesIn(GLOBAL_DIR);
+  if (project.hash !== "global") {
+    files.push(...projectYamlFiles(INSTINCTS_DIR, project.root, project.hash, instinctFilesIn));
   }
 
-  for (const dir of dirs) {
-    if (!existsSync(dir)) {
-      continue;
-    }
-
-    for (const file of readdirSync(dir)) {
-      if (!file.endsWith(".yaml")) {
-        continue;
+  const instincts: Instinct[] = [];
+  for (const file of files) {
+    try {
+      const parsed = parseYamlInstinct(readFileSync(file, "utf8"));
+      if (parsed) {
+        instincts.push(parsed);
       }
-
-      try {
-        const parsed = parseYamlInstinct(readFileSync(join(dir, file), "utf8"));
-        if (parsed) {
-          instincts.push(parsed);
-        }
-      } catch {
-        // skip malformed files
-      }
+    } catch {
+      // skip unreadable files
     }
   }
 
@@ -313,9 +320,9 @@ function readDistillObservations(projectHash: string): DistillObservation[] {
   }));
 }
 
-function detectLevel(projectHash: string): Level {
-  const observationCount = countObservations(projectHash);
-  const instincts = readInstincts(projectHash);
+function detectLevel(project: ProjectInfo): Level {
+  const observationCount = countObservations(project.hash);
+  const instincts = readInstincts(project);
   const hasHighConfidence = instincts.some((instinct) => instinct.confidence >= 0.7);
   const hasMidConfidence = instincts.some((instinct) => instinct.confidence >= 0.5 && instinct.confidence < 0.7);
 
@@ -388,11 +395,11 @@ function writeInstinct(projectHash: string, instinct: Instinct): WriteOutcome {
 
 // null when no instinct has that id; otherwise what writeInstinct did with it.
 function updateInstinctConfidence(
-  projectHash: string,
+  project: ProjectInfo,
   instinctId: string,
   delta: number,
 ): { instinct: Instinct; outcome: WriteOutcome } | null {
-  const instincts = readInstincts(projectHash);
+  const instincts = readInstincts(project);
   const instinct = instincts.find((candidate) => candidate.id === instinctId);
   if (!instinct) {
     return null;
@@ -401,7 +408,7 @@ function updateInstinctConfidence(
   const newConfidence = Math.max(0, Math.min(0.9, instinct.confidence + delta));
   instinct.confidence = Math.round(newConfidence * 100) / 100;
   instinct.last_seen = new Date().toISOString().split("T")[0];
-  return { instinct, outcome: writeInstinct(projectHash, instinct) };
+  return { instinct, outcome: writeInstinct(project.hash, instinct) };
 }
 
 function getWorkspaceRoot(): string {
@@ -620,9 +627,9 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
 
   switch (name) {
     case "ci_status": {
-      const level = detectLevel(project.hash);
+      const level = detectLevel(project);
       const observationCount = countObservations(project.hash);
-      const instincts = readInstincts(project.hash);
+      const instincts = readInstincts(project);
       const byConfidence = {
         silent: instincts.filter((instinct) => instinct.confidence < 0.5).length,
         suggest: instincts.filter((instinct) => instinct.confidence >= 0.5 && instinct.confidence < 0.7).length,
@@ -647,7 +654,7 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
 
     case "ci_instincts": {
       const minConfidence = getNumber(params.min_confidence, 0);
-      const instincts = readInstincts(project.hash).filter((instinct) => instinct.confidence >= minConfidence);
+      const instincts = readInstincts(project).filter((instinct) => instinct.confidence >= minConfidence);
 
       if (instincts.length === 0) {
         return text("No instincts found. Keep working — the system learns from your sessions.");
@@ -751,7 +758,7 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
       }
       const instinctId = getString(params.instinct_id);
       const delta = getBoolean(params.accepted) ? 0.15 : -0.1;
-      const update = updateInstinctConfidence(project.hash, instinctId, delta);
+      const update = updateInstinctConfidence(project, instinctId, delta);
       if (!update) {
         return error(`Instinct "${instinctId}" not found`);
       }
@@ -809,7 +816,7 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
         return error("ci_export requires expert mode");
       }
       const scope = getString(params.scope, "all");
-      let instincts = readInstincts(project.hash);
+      let instincts = readInstincts(project);
       if (scope === "project") {
         instincts = instincts.filter((instinct) => instinct.scope === "project");
       }
@@ -836,7 +843,7 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
       }
 
       const scope = getString(params.scope, "project") === "global" ? "global" : "project";
-      const existing = readInstincts(project.hash);
+      const existing = readInstincts(project);
       const existingIds = new Set(existing.map((instinct) => instinct.id.toLowerCase()));
       const rejected: string[] = [];
       const failed: string[] = [];
@@ -1240,9 +1247,9 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
         return error("ci_dashboard requires expert mode");
       }
 
-      const level = detectLevel(project.hash);
+      const level = detectLevel(project);
       const observationCount = countObservations(project.hash);
-      const instincts = readInstincts(project.hash);
+      const instincts = readInstincts(project);
       const byConfidence = {
         auto: instincts.filter((instinct) => instinct.confidence >= 0.7),
         suggest: instincts.filter((instinct) => instinct.confidence >= 0.5 && instinct.confidence < 0.7),
@@ -1335,7 +1342,7 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
 
       const packPath = join(PACKS_DIR, `${packName}.json`);
       const packInstincts = JSON.parse(readFileSync(packPath, "utf8")) as unknown[];
-      const existing = readInstincts(project.hash);
+      const existing = readInstincts(project);
       const existingIds = new Set(existing.map((instinct) => instinct.id.toLowerCase()));
       const rejected: string[] = [];
       const failed: string[] = [];
@@ -1492,8 +1499,8 @@ function handleMessage(message: JsonRpcMessage): void {
       const uri = getString(params.uri);
       const project = getProjectHash();
       const instincts = uri === "instincts://global"
-        ? readInstincts("global").filter((instinct) => instinct.scope === "global")
-        : readInstincts(project.hash);
+        ? readInstincts(GLOBAL_PROJECT).filter((instinct) => instinct.scope === "global")
+        : readInstincts(project);
 
       send({
         jsonrpc: "2.0",

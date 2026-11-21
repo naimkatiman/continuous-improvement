@@ -21,7 +21,7 @@ import { formatDriftReport, parseGoalFromPlan, scoreObservations, } from "../lib
 import { flatten, parseYamlInstinct } from "../lib/instinct-yaml.mjs";
 import { buildIndex, formatRecallHits, parseSince, query as queryRecall, } from "../lib/recall-index.mjs";
 import { draftFromCandidate, draftFromWorkflowRun, extractTrajectories, findCandidates, formatCandidates, serializeDraft, workflowRunFromObservations, } from "../lib/skill-distill.mjs";
-import { MAX_CLEARED_FILES, canonicalizeFileKey, clearFiles, hashProjectRoot, resolveInstinctsRoot, resolveProjectRoot, resolveSessionDir, } from "../lib/gateguard-state.mjs";
+import { MAX_CLEARED_FILES, canonicalizeFileKey, clearFiles, hashProjectRoot, projectYamlFiles, resolveInstinctsRoot, resolveProjectRoot, resolveSessionDir, } from "../lib/gateguard-state.mjs";
 function getHomeDir() {
     return process.env.HOME || process.env.USERPROFILE || homedir();
 }
@@ -123,35 +123,41 @@ const args = process.argv.slice(2);
 const modeIndex = args.indexOf("--mode");
 const requestedMode = args[modeIndex + 1];
 const MODE = isPluginMode(requestedMode) ? requestedMode : "beginner";
+const GLOBAL_PROJECT = { root: "global", hash: "global", name: "global" };
 function getProjectHash() {
     const root = resolveProjectRoot();
     if (root === "global")
-        return { root: "global", hash: "global", name: "global" };
+        return GLOBAL_PROJECT;
     return { root, hash: hashProjectRoot(root), name: basename(root) };
 }
-function readInstincts(projectHash) {
-    const instincts = [];
-    const dirs = [GLOBAL_DIR];
-    if (projectHash !== "global") {
-        dirs.push(join(INSTINCTS_DIR, projectHash));
+// A missing directory holds no instincts; one that exists and cannot be read
+// throws, and the request handler answers with that error.
+function instinctFilesIn(dir) {
+    if (!existsSync(dir)) {
+        return [];
     }
-    for (const dir of dirs) {
-        if (!existsSync(dir)) {
-            continue;
+    return readdirSync(dir)
+        .filter((file) => file.endsWith(".yaml"))
+        .sort()
+        .map((file) => join(dir, file));
+}
+// global/ and then the project's files as the SessionStart hook lists them
+// (projectYamlFiles), so a lesson the hook prints is one these tools can find.
+function readInstincts(project) {
+    const files = instinctFilesIn(GLOBAL_DIR);
+    if (project.hash !== "global") {
+        files.push(...projectYamlFiles(INSTINCTS_DIR, project.root, project.hash, instinctFilesIn));
+    }
+    const instincts = [];
+    for (const file of files) {
+        try {
+            const parsed = parseYamlInstinct(readFileSync(file, "utf8"));
+            if (parsed) {
+                instincts.push(parsed);
+            }
         }
-        for (const file of readdirSync(dir)) {
-            if (!file.endsWith(".yaml")) {
-                continue;
-            }
-            try {
-                const parsed = parseYamlInstinct(readFileSync(join(dir, file), "utf8"));
-                if (parsed) {
-                    instincts.push(parsed);
-                }
-            }
-            catch {
-                // skip malformed files
-            }
+        catch {
+            // skip unreadable files
         }
     }
     return instincts;
@@ -210,9 +216,9 @@ function readDistillObservations(projectHash) {
         event: getString(observation.event),
     }));
 }
-function detectLevel(projectHash) {
-    const observationCount = countObservations(projectHash);
-    const instincts = readInstincts(projectHash);
+function detectLevel(project) {
+    const observationCount = countObservations(project.hash);
+    const instincts = readInstincts(project);
     const hasHighConfidence = instincts.some((instinct) => instinct.confidence >= 0.7);
     const hasMidConfidence = instincts.some((instinct) => instinct.confidence >= 0.5 && instinct.confidence < 0.7);
     if (hasHighConfidence) {
@@ -272,8 +278,8 @@ function writeInstinct(projectHash, instinct) {
     return "written";
 }
 // null when no instinct has that id; otherwise what writeInstinct did with it.
-function updateInstinctConfidence(projectHash, instinctId, delta) {
-    const instincts = readInstincts(projectHash);
+function updateInstinctConfidence(project, instinctId, delta) {
+    const instincts = readInstincts(project);
     const instinct = instincts.find((candidate) => candidate.id === instinctId);
     if (!instinct) {
         return null;
@@ -281,7 +287,7 @@ function updateInstinctConfidence(projectHash, instinctId, delta) {
     const newConfidence = Math.max(0, Math.min(0.9, instinct.confidence + delta));
     instinct.confidence = Math.round(newConfidence * 100) / 100;
     instinct.last_seen = new Date().toISOString().split("T")[0];
-    return { instinct, outcome: writeInstinct(projectHash, instinct) };
+    return { instinct, outcome: writeInstinct(project.hash, instinct) };
 }
 function getWorkspaceRoot() {
     try {
@@ -468,9 +474,9 @@ function handleTool(name, params) {
     const project = getProjectHash();
     switch (name) {
         case "ci_status": {
-            const level = detectLevel(project.hash);
+            const level = detectLevel(project);
             const observationCount = countObservations(project.hash);
-            const instincts = readInstincts(project.hash);
+            const instincts = readInstincts(project);
             const byConfidence = {
                 silent: instincts.filter((instinct) => instinct.confidence < 0.5).length,
                 suggest: instincts.filter((instinct) => instinct.confidence >= 0.5 && instinct.confidence < 0.7).length,
@@ -493,7 +499,7 @@ function handleTool(name, params) {
         }
         case "ci_instincts": {
             const minConfidence = getNumber(params.min_confidence, 0);
-            const instincts = readInstincts(project.hash).filter((instinct) => instinct.confidence >= minConfidence);
+            const instincts = readInstincts(project).filter((instinct) => instinct.confidence >= minConfidence);
             if (instincts.length === 0) {
                 return text("No instincts found. Keep working — the system learns from your sessions.");
             }
@@ -584,7 +590,7 @@ function handleTool(name, params) {
             }
             const instinctId = getString(params.instinct_id);
             const delta = getBoolean(params.accepted) ? 0.15 : -0.1;
-            const update = updateInstinctConfidence(project.hash, instinctId, delta);
+            const update = updateInstinctConfidence(project, instinctId, delta);
             if (!update) {
                 return error(`Instinct "${instinctId}" not found`);
             }
@@ -638,7 +644,7 @@ function handleTool(name, params) {
                 return error("ci_export requires expert mode");
             }
             const scope = getString(params.scope, "all");
-            let instincts = readInstincts(project.hash);
+            let instincts = readInstincts(project);
             if (scope === "project") {
                 instincts = instincts.filter((instinct) => instinct.scope === "project");
             }
@@ -663,7 +669,7 @@ function handleTool(name, params) {
                 return error("Expected a JSON array");
             }
             const scope = getString(params.scope, "project") === "global" ? "global" : "project";
-            const existing = readInstincts(project.hash);
+            const existing = readInstincts(project);
             const existingIds = new Set(existing.map((instinct) => instinct.id.toLowerCase()));
             const rejected = [];
             const failed = [];
@@ -996,9 +1002,9 @@ function handleTool(name, params) {
             if (MODE !== "expert") {
                 return error("ci_dashboard requires expert mode");
             }
-            const level = detectLevel(project.hash);
+            const level = detectLevel(project);
             const observationCount = countObservations(project.hash);
-            const instincts = readInstincts(project.hash);
+            const instincts = readInstincts(project);
             const byConfidence = {
                 auto: instincts.filter((instinct) => instinct.confidence >= 0.7),
                 suggest: instincts.filter((instinct) => instinct.confidence >= 0.5 && instinct.confidence < 0.7),
@@ -1085,7 +1091,7 @@ function handleTool(name, params) {
             }
             const packPath = join(PACKS_DIR, `${packName}.json`);
             const packInstincts = JSON.parse(readFileSync(packPath, "utf8"));
-            const existing = readInstincts(project.hash);
+            const existing = readInstincts(project);
             const existingIds = new Set(existing.map((instinct) => instinct.id.toLowerCase()));
             const rejected = [];
             const failed = [];
@@ -1231,8 +1237,8 @@ function handleMessage(message) {
             const uri = getString(params.uri);
             const project = getProjectHash();
             const instincts = uri === "instincts://global"
-                ? readInstincts("global").filter((instinct) => instinct.scope === "global")
-                : readInstincts(project.hash);
+                ? readInstincts(GLOBAL_PROJECT).filter((instinct) => instinct.scope === "global")
+                : readInstincts(project);
             send({
                 jsonrpc: "2.0",
                 id,

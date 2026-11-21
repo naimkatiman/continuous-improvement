@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
@@ -1096,6 +1097,66 @@ describe("MCP server — what it writes and prints cannot forge a lesson (expert
         assert.equal(back.confidence, 0.7);
         assert.equal(back.trigger, "when committing on Windows");
         assert.ok(!existsSync(join(projectDir, "round-trip-global.yaml")));
+    });
+});
+// The session hook loads a lesson stored under the hash of another spelling of
+// the project root (src/lib/gateguard-state.mts projectYamlFiles), and its header
+// names ci_instincts as the way to list them. So the server has to read the same
+// buckets, or a line in the block is one ci_instincts and ci_reinforce never find.
+describe("MCP server — reads the same instinct buckets as the session hook (expert)", () => {
+    const ROOT = "C:\\x\\y";
+    let client;
+    let tempHome = "";
+    let instinctsRoot = "";
+    let nextId = 700;
+    const call = (name, args) => client.send({ jsonrpc: "2.0", id: nextId++, method: "tools/call", params: { name, arguments: args } });
+    const rawBucket = (spelling) => join(instinctsRoot, createHash("sha256").update(spelling).digest("hex").slice(0, 12));
+    const lesson = (dir, id, trigger, body, confidence) => {
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, `${id}.yaml`), [`id: ${id}`, `trigger: "${trigger}"`, `confidence: ${confidence}`, "---", body, ""].join("\n"));
+    };
+    before(async () => {
+        tempHome = mkdtempSync(join(tmpdir(), "ci-mcp-buckets-"));
+        instinctsRoot = join(tempHome, ".claude", "instincts");
+        const legacy = rawBucket(ROOT);
+        assert.notEqual(legacy, join(instinctsRoot, hashProjectRoot(ROOT)));
+        lesson(legacy, "old-lesson", "when legacy", "legacy body", 0.8);
+        lesson(join(instinctsRoot, hashProjectRoot(ROOT)), "copied", "when copied", "The canonical copy.", 0.7);
+        lesson(legacy, "copied", "when copied", "The stale copy.", 0.6);
+        // Same drive and parent, another directory: a different project.
+        lesson(rawBucket("C:/x/other"), "foreign-lesson", "when deploying the other project", "Run its migration first.", 0.9);
+        const workspace = join(tempHome, "workspace");
+        mkdirSync(workspace, { recursive: true });
+        const env = { ...process.env, HOME: tempHome, USERPROFILE: tempHome, CLAUDE_PROJECT_DIR: ROOT };
+        const proc = spawn("node", [MCP_SERVER, "--mode", "expert"], { env, cwd: workspace, stdio: ["pipe", "pipe", "pipe"] });
+        client = new McpTestClient(proc);
+        await new Promise((resolve) => setTimeout(resolve, 200));
+    });
+    after(async () => {
+        client.destroy();
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        try {
+            rmSync(tempHome, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+        }
+        catch {
+            // Windows can briefly keep stdio handles open after the child exits.
+        }
+    });
+    it("ci_instincts lists a lesson from another spelling's bucket once, the canonical copy winning", async () => {
+        const response = await call("ci_instincts", {});
+        assert.ok(!response.result.isError, response.result.content[0].text);
+        const text = response.result.content[0].text;
+        assert.match(text, /\*\*old-lesson\*\* \(0\.8\)/);
+        assert.match(text, /The canonical copy\./);
+        assert.doesNotMatch(text, /The stale copy\./);
+        assert.doesNotMatch(text, /foreign-lesson/);
+    });
+    it("ci_reinforce finds a lesson from another spelling's bucket and stores it in the canonical one", async () => {
+        const response = await call("ci_reinforce", { instinct_id: "old-lesson", accepted: true });
+        assert.ok(!response.result.isError, response.result.content[0].text);
+        assert.match(response.result.content[0].text, /confidence now 0\.9/);
+        const canonical = parseYamlInstinct(readFileSync(join(instinctsRoot, hashProjectRoot(ROOT), "old-lesson.yaml"), "utf8"));
+        assert.equal(canonical?.confidence, 0.9);
     });
 });
 describe("Plugin configs", () => {
