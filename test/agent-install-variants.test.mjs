@@ -14,12 +14,13 @@
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { HOOK_AGENT_IDS, parseHookArgs, parseLedger, planAgentInstall, removeOwnedConfig, toLedgerFile, } from "../lib/agent-install-plans.mjs";
+import { resolveDocumentsDir } from "../lib/install-runtime.mjs";
 const RT = "/home/u/.claude/instincts/runtime/9.9.9";
 const HOME = "/home/u";
 const ROOT = "/work/repo";
@@ -42,6 +43,7 @@ function ctx(over = {}, files = {}, dirs = {}) {
         failClosed: false,
         read: (path) => (Object.hasOwn(files, path) ? files[path] : null),
         listDir: (path) => dirs[path] ?? [],
+        documentsDir: () => null,
         ...over,
     };
 }
@@ -325,6 +327,62 @@ describe("cline", () => {
         for (const bad of [{ ...file, script: { sha256: 1 } }, { ...file, script: "x" }, { ...file, layout: "tree" }]) {
             assert.equal(parseLedger(JSON.stringify({ ...ledger, entries: [{ ...ledger.entries[0], files: [bad] }] })), null, JSON.stringify(bad));
         }
+    });
+});
+// The VS Code extension's global hooks dir is join(getDocumentsPath(), "Cline",
+// "Hooks"), and on Windows getDocumentsPath() follows OneDrive Known Folder
+// Move, so %USERPROFILE%\Documents is not where it looks; the SDK's hooks
+// lookup (resolveHooksConfigSearchPaths: Documents/Cline/Hooks and
+// ~/.cline/hooks) has no OneDrive candidate (skeptic verdict, hook_pre_tool).
+describe("cline user scope: the Documents folder", () => {
+    const WIN_HOME = "C:/Users/u";
+    const winUser = (documentsDir) => planAgentInstall("cline", ctx({ scope: "user", platform: "win32", home: WIN_HOME, documentsDir }));
+    it("on win32 writes into the Documents folder Windows reports, a OneDrive-redirected one included, and says the CLI may miss it", () => {
+        const plan = ok(winUser(() => "C:\\Users\\u\\OneDrive\\Documents"));
+        assert.deepEqual(plan.writes.map((write) => write.path), ["C:/Users/u/OneDrive/Documents/Cline/Hooks/PreToolUse.ps1"]);
+        const note = plan.notes.find((line) => line.includes("OneDrive")) ?? "";
+        assert.ok(note.includes("C:/Users/u/OneDrive/Documents"), note);
+        assert.match(note, /--scope project/);
+    });
+    it("on win32 an unredirected Documents folder (other slashes and case) gets no redirect note", () => {
+        const plan = ok(winUser(() => "c:\\users\\u\\Documents\\"));
+        assert.deepEqual(plan.writes.map((write) => write.path), ["c:/users/u/Documents/Cline/Hooks/PreToolUse.ps1"]);
+        assert.ok(!plan.notes.some((line) => /OneDrive|redirect|by hand/i.test(line)), plan.notes.join("\n"));
+    });
+    it("on win32 an unresolved, empty, relative or multi-line Documents path falls back to ~/Documents and says to copy the script by hand", () => {
+        for (const value of [null, "", "   ", "Documents", "C:\\Users\\u\\Documents\nC:\\Other", "\\\\?\\"]) {
+            const plan = ok(winUser(() => value));
+            assert.deepEqual(plan.writes.map((write) => write.path), [`${WIN_HOME}/Documents/Cline/Hooks/PreToolUse.ps1`], JSON.stringify(value));
+            assert.ok(plan.notes.some((line) => /by hand/.test(line) && line.includes("PreToolUse.ps1")), `${JSON.stringify(value)}: ${plan.notes.join("\n")}`);
+        }
+    });
+    it("asks for the Documents folder only on win32 at user scope", () => {
+        const never = () => {
+            throw new Error("documentsDir must not be called");
+        };
+        assert.equal(ok(planAgentInstall("cline", ctx({ scope: "user", documentsDir: never }))).writes[0].path, `${HOME}/Documents/Cline/Hooks/PreToolUse`);
+        assert.equal(ok(planAgentInstall("cline", ctx({ platform: "win32", documentsDir: never }))).writes[0].path, `${ROOT}/.clinerules/hooks/PreToolUse.ps1`);
+        assert.equal(ok(planAgentInstall("codex", ctx({ scope: "user", platform: "win32", documentsDir: never }))).error, undefined);
+    });
+    it("the user-scope note says the extension and the CLI both read Documents/Cline/Hooks, and only the CLI reads ~/.cline/hooks", () => {
+        for (const plan of [ok(planAgentInstall("cline", ctx({ scope: "user" }))), ok(winUser(() => "C:\\Users\\u\\Documents"))]) {
+            const notes = plan.notes.join("\n");
+            assert.doesNotMatch(notes, /not ~\/Documents/);
+            assert.match(notes, /VS Code extension and the Cline CLI both read user hooks from .*Documents\/Cline\/Hooks/);
+            assert.match(notes, /only the CLI also reads ~\/\.cline\/hooks/);
+        }
+        assert.ok(!ok(planAgentInstall("cline", ctx())).notes.some((line) => line.includes("~/.cline/hooks")));
+    });
+});
+describe("resolveDocumentsDir", () => {
+    it("returns null off Windows without starting a process", () => {
+        for (const platform of ["linux", "darwin", "freebsd"])
+            assert.equal(resolveDocumentsDir(platform), null);
+    });
+    it("on Windows returns the absolute Documents folder Windows reports", { skip: process.platform !== "win32" }, () => {
+        const dir = resolveDocumentsDir("win32");
+        assert.ok(dir !== null && /^[A-Za-z]:[\\/]/.test(dir) && !/[\r\n]/.test(dir), String(dir));
+        assert.equal(statSync(dir).isDirectory(), true);
     });
 });
 // The script Cline would run, run the way Cline runs it on this platform.

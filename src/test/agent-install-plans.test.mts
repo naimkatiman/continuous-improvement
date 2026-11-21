@@ -44,6 +44,7 @@ function ctx(over: Partial<PlanContext> = {}, files: Record<string, string> = {}
     failClosed: false,
     read: (path) => (Object.hasOwn(files, path) ? files[path]! : null),
     listDir: (path) => dirs[path] ?? [],
+    documentsDir: () => null,
     ...over,
   };
 }

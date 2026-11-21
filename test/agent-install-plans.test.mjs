@@ -25,6 +25,7 @@ function ctx(over = {}, files = {}, dirs = {}) {
         failClosed: false,
         read: (path) => (Object.hasOwn(files, path) ? files[path] : null),
         listDir: (path) => dirs[path] ?? [],
+        documentsDir: () => null,
         ...over,
     };
 }

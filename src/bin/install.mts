@@ -37,7 +37,7 @@ import { resolveInstinctsRoot } from "../lib/agent-paths.mjs";
 import { readKnob } from "../lib/agent-env.mjs";
 import { TARGET_IDS, planTargetWrites, resolveTargets } from "../lib/install-targets.mjs";
 import { parseHookArgs } from "../lib/agent-install-plans.mjs";
-import { runHookInstall, runHookUninstall } from "../lib/install-runtime.mjs";
+import { resolveDocumentsDir, runHookInstall, runHookUninstall } from "../lib/install-runtime.mjs";
 import {
   type UpdateCache,
   evaluateUpdateCheck,
@@ -965,6 +965,7 @@ if (hookArgs.mode !== "none") {
     platform: process.platform,
     env: process.env,
     instinctsRoot: resolveInstinctsRoot(getHomeDir()),
+    documentsDir: () => resolveDocumentsDir(process.platform),
     skillMd: () => readFileSync(SKILL_SOURCE, "utf8"),
     out: (line: string) => console.log(line),
     err: (line: string) => console.error(line),

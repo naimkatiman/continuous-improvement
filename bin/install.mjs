@@ -20,7 +20,7 @@ import { resolveInstinctsRoot } from "../lib/agent-paths.mjs";
 import { readKnob } from "../lib/agent-env.mjs";
 import { TARGET_IDS, planTargetWrites, resolveTargets } from "../lib/install-targets.mjs";
 import { parseHookArgs } from "../lib/agent-install-plans.mjs";
-import { runHookInstall, runHookUninstall } from "../lib/install-runtime.mjs";
+import { resolveDocumentsDir, runHookInstall, runHookUninstall } from "../lib/install-runtime.mjs";
 import { evaluateUpdateCheck, fetchLatestNpmVersion, isThrottled, pendingNotice, } from "../lib/version-check.mjs";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -823,6 +823,7 @@ if (hookArgs.mode !== "none") {
         platform: process.platform,
         env: process.env,
         instinctsRoot: resolveInstinctsRoot(getHomeDir()),
+        documentsDir: () => resolveDocumentsDir(process.platform),
         skillMd: () => readFileSync(SKILL_SOURCE, "utf8"),
         out: (line) => console.log(line),
         err: (line) => console.error(line),

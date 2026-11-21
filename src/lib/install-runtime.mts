@@ -123,6 +123,8 @@ export interface HookRunIo {
   platform: string;
   env: Readonly<Record<string, string | undefined>>;
   instinctsRoot: string;
+  /** resolveDocumentsDir(platform), or a stand-in; asked at most once per install. */
+  documentsDir: () => string | null;
   skillMd: () => string;
   out: (line: string) => void;
   err: (line: string) => void;
@@ -143,6 +145,33 @@ function runVendor(argv: readonly string[], platform: string, cwd: string | null
     : spawnSync(argv[0]!, argv.slice(1), options);
   if (result.error) return result.error.message;
   return result.status === 0 ? null : `exit ${result.status}: ${(result.stderr || result.stdout || "").trim().split(/\r?\n/)[0] ?? ""}`;
+}
+
+// The Documents folder the way Windows resolves it, which follows a OneDrive
+// Known Folder Move; Cline's VS Code extension finds its global hooks dir the
+// same way (getDocumentsPath()). Off Windows, or when PowerShell fails or
+// reports nothing usable, null: the planner then falls back to ~/Documents and
+// says so. Stdout is forced to UTF-8 so a non-ASCII user name survives.
+export function resolveDocumentsDir(platform: string): string | null {
+  if (platform !== "win32") return null;
+  const result = spawnSync("powershell.exe", [
+    "-NoProfile", "-NonInteractive", "-Command",
+    "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; [Environment]::GetFolderPath('MyDocuments')",
+  ], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 15_000, windowsHide: true });
+  const dir = result.status === 0 ? (result.stdout ?? "").replace(/^﻿/, "").trim() : "";
+  return /^[A-Za-z]:[\\/]/.test(dir) && !/[\r\n]/.test(dir) ? dir : null;
+}
+
+function once<T>(fn: () => T): () => T {
+  let done = false;
+  let value: T;
+  return () => {
+    if (!done) {
+      value = fn();
+      done = true;
+    }
+    return value;
+  };
 }
 
 function ledgerFile(io: HookRunIo): string {
@@ -207,9 +236,10 @@ export function runHookInstall(args: ParsedArgs, io: HookRunIo): number {
   const rt = slash(runtimeDir(io.instinctsRoot, io.version));
   const ledger = loadLedger(io);
   if (ledger === null) return 1;
+  const documentsDir = once(io.documentsDir);
   const plans = args.agents.map((agent) => planAgentInstall(agent, {
     scope: args.scope, runtimeDir: rt, projectRoot: io.projectRoot, home: io.home, platform: io.platform, env: io.env,
-    failClosed: args.failClosed, read: readText, listDir,
+    failClosed: args.failClosed, read: readText, listDir, documentsDir,
   }));
   const failed = plans.filter((plan) => plan.error !== undefined);
   if (failed.length > 0) {
