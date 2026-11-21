@@ -2,7 +2,7 @@
   "agent": "claude",
   "recorded_against": "continuous-improvement v3.27.0 (cb46c89), hooks/*.mjs and bin/observe.mjs as built from src/",
   "checked": "2026-11-21",
-  "about": "Golden stdout, stderr and exit code for every hook entry point over Claude Code payloads. Read by src/test/agent-claude-golden.test.mts. Placeholders: <HOME> and <PROJECT> are the per-case temp home and project, <ROOT> their parent, <REPO> the repository root, <PROJECT_HASH> hashProjectRoot(<PROJECT>). Setup file keys and string values are substituted; an array value is written as JSON lines, an object as JSON. A step env value of null unsets that variable.",
+  "about": "Golden stdout, stderr and exit code for every hook entry point over Claude Code payloads. Read by src/test/agent-claude-golden.test.mts. Placeholders: <HOME> and <PROJECT> are the per-case temp home and project, <ROOT> their parent, <REPO> the repository root, <PROJECT_HASH> hashProjectRoot(<PROJECT>). Setup file keys and string values are substituted; an array value is written as JSON lines, an object as JSON. A step env value of null unsets that variable. A Node crash report (an uncaught exception, exit 1) keeps the error and the repository frames: <REPO_URL> is the repository file URL, <LINE>:<COL> and <NODE_VERSION> replace what the runtime decides, and frames outside the repository, the source excerpt and CRLF line ends are dropped.",
   "sources": {
     "wiring": "Events, matchers and scripts: plugins/continuous-improvement/hooks/hooks.json, generated from src/lib/plugin-metadata.mts:724-760 (inventory: Plugin packaging).",
     "payload_keys": "Claude Code snake_case keys session_id, transcript_path, permission_mode, tool_name, tool_input, tool_response, tool_use_id (verified research, Grok entry, which mirrors them as the Claude aliases), plus hook_event_name (session.mts:62-63), cwd (gateguard.mts:78-83), prompt (route-prompt.mts, recall-briefing.mts:155-158) and stop_hook_active (three-section-close.mts:73).",
@@ -424,6 +424,52 @@
             "exitCode": 0
           }
         }
+      ],
+      "note": "No observation log, so this is the no-log allow path. The blind NotebookEdit with a log present is gateguard/evidence-blind-notebook-edit-allow."
+    },
+    {
+      "id": "gateguard/evidence-blind-notebook-edit-allow",
+      "note": "Pins a known v3.27.0 defect: gateguard takes edit targets only from tool_input.file_path and edits[].file_path and ignores NotebookEdit's notebook_path (src/hooks/gateguard.mts). The fix is logged in docs/deferred.md and lands as its own PR that re-records exactly the NotebookEdit goldens. Here the observation log is present and holds no read of the notebook, so evidence mode should deny as it does for gateguard/evidence-blind-edit-deny; v3.27.0 allows it (fail-open).",
+      "setup": {
+        "files": {
+          "<PROJECT>/analysis.ipynb": "{}\n",
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            {
+              "ts": "2026-11-21T00:00:00Z",
+              "event": "tool_complete",
+              "session": "golden-session",
+              "tool": "Bash",
+              "input_summary": "git status",
+              "output_summary": "On branch main",
+              "project_id": "<PROJECT_HASH>",
+              "project_name": "project"
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "NotebookEdit",
+            "tool_input": {
+              "notebook_path": "<PROJECT>/analysis.ipynb",
+              "new_source": "print(1)"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
       ]
     },
     {
@@ -613,7 +659,8 @@
             "exitCode": 0
           }
         }
-      ]
+      ],
+      "note": "Pins a known v3.27.0 defect: gateguard takes edit targets only from tool_input.file_path and edits[].file_path and ignores NotebookEdit's notebook_path (src/hooks/gateguard.mts). The fix is logged in docs/deferred.md and lands as its own PR that re-records exactly the NotebookEdit goldens. In strict mode the deny names the target <unknown> and tells the agent to clear <unknown>."
     },
     {
       "id": "gateguard/strict-clearance-cap-deny",
@@ -863,6 +910,72 @@
       ]
     },
     {
+      "id": "gateguard/null-stdin",
+      "note": "v3.27.0 crashes on JSON null stdin: exit 1 and a TypeError stack on stderr (normalized by normalizeNodeCrash). Pinned so a hook-io change to exit 0 has to be declared as an intended Claude change. Setup and env copied from gateguard/evidence-blind-edit-deny, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<PROJECT>/src/app.ts": "export const answer = 42;\n",
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            {
+              "ts": "2026-11-21T00:00:00Z",
+              "event": "tool_complete",
+              "session": "golden-session",
+              "tool": "Bash",
+              "input_summary": "git status",
+              "output_summary": "On branch main",
+              "project_id": "<PROJECT_HASH>",
+              "project_name": "project"
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "stdinRaw": "null",
+          "expect": {
+            "stdout": "",
+            "stderr": "TypeError: Cannot read properties of null (reading 'tool_name')\n    at main (<REPO_URL>/hooks/gateguard.mjs:<LINE>:<COL>)\n    at <REPO_URL>/hooks/gateguard.mjs:<LINE>:<COL>\n\nNode.js <NODE_VERSION>\n",
+            "exitCode": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "gateguard/array-stdin",
+      "note": "Setup and env copied from gateguard/evidence-blind-edit-deny, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<PROJECT>/src/app.ts": "export const answer = 42;\n",
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            {
+              "ts": "2026-11-21T00:00:00Z",
+              "event": "tool_complete",
+              "session": "golden-session",
+              "tool": "Bash",
+              "input_summary": "git status",
+              "output_summary": "On branch main",
+              "project_id": "<PROJECT_HASH>",
+              "project_name": "project"
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "stdinRaw": "[]",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
       "id": "companion-preference/ci-first-mapped-skill-allow",
       "steps": [
         {
@@ -1038,6 +1151,62 @@
           "hook": "hooks/companion-preference.mjs",
           "event": "PreToolUse",
           "stdinRaw": "{not json",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "companion-preference/null-stdin",
+      "note": "v3.27.0 crashes on JSON null stdin: exit 1 and a TypeError stack on stderr (normalized by normalizeNodeCrash). Pinned so a hook-io change to exit 0 has to be declared as an intended Claude change. Setup and env copied from companion-preference/strict-companions-installed-deny, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "dirs": [
+          "<HOME>/.claude/plugins/superpowers"
+        ],
+        "files": {
+          "<HOME>/.claude/settings.json": {
+            "continuous_improvement": {
+              "companion_preference": "strict-companions"
+            }
+          }
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/companion-preference.mjs",
+          "event": "PreToolUse",
+          "stdinRaw": "null",
+          "expect": {
+            "stdout": "",
+            "stderr": "TypeError: Cannot read properties of null (reading 'tool_name')\n    at main (<REPO_URL>/hooks/companion-preference.mjs:<LINE>:<COL>)\n    at <REPO_URL>/hooks/companion-preference.mjs:<LINE>:<COL>\n\nNode.js <NODE_VERSION>\n",
+            "exitCode": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "companion-preference/array-stdin",
+      "note": "Setup and env copied from companion-preference/strict-companions-installed-deny, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "dirs": [
+          "<HOME>/.claude/plugins/superpowers"
+        ],
+        "files": {
+          "<HOME>/.claude/settings.json": {
+            "continuous_improvement": {
+              "companion_preference": "strict-companions"
+            }
+          }
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/companion-preference.mjs",
+          "event": "PreToolUse",
+          "stdinRaw": "[]",
           "expect": {
             "stdout": "",
             "stderr": "",
@@ -1396,6 +1565,44 @@
       ]
     },
     {
+      "id": "hook-pack/null-stdin",
+      "note": "Setup and env copied from hook-pack/push-main-block, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "steps": [
+        {
+          "hook": "hooks/hook-pack.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CLAUDE_CI_HOOKPACK_GATE": "block"
+          },
+          "stdinRaw": "null",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "hook-pack/array-stdin",
+      "note": "Setup and env copied from hook-pack/push-main-block, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "steps": [
+        {
+          "hook": "hooks/hook-pack.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CLAUDE_CI_HOOKPACK_GATE": "block"
+          },
+          "stdinRaw": "[]",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
       "id": "config-guard/edit-settings-warn-default",
       "steps": [
         {
@@ -1626,6 +1833,44 @@
       ]
     },
     {
+      "id": "config-guard/null-stdin",
+      "note": "Setup and env copied from config-guard/write-mcp-json-block, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "steps": [
+        {
+          "hook": "hooks/config-guard.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CI_CONFIG_GUARD": "block"
+          },
+          "stdinRaw": "null",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "config-guard/array-stdin",
+      "note": "Setup and env copied from config-guard/write-mcp-json-block, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "steps": [
+        {
+          "hook": "hooks/config-guard.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CI_CONFIG_GUARD": "block"
+          },
+          "stdinRaw": "[]",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
       "id": "observe/post-tool-use-bash",
       "steps": [
         {
@@ -1692,6 +1937,38 @@
           "hook": "bin/observe.mjs",
           "event": "PostToolUse",
           "stdinRaw": "{not json",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "observe/null-stdin",
+      "note": "Setup and env copied from observe/post-tool-use-bash, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "steps": [
+        {
+          "hook": "bin/observe.mjs",
+          "event": "PostToolUse",
+          "stdinRaw": "null",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "observe/array-stdin",
+      "note": "Setup and env copied from observe/post-tool-use-bash, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "steps": [
+        {
+          "hook": "bin/observe.mjs",
+          "event": "PostToolUse",
+          "stdinRaw": "[]",
           "expect": {
             "stdout": "",
             "stderr": "",
@@ -1808,6 +2085,44 @@
             "CI_ROUTE_PROMPT": "1"
           },
           "stdinRaw": "{not json",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "route-prompt/null-stdin",
+      "note": "With CI_ROUTE_PROMPT=1, v3.27.0 crashes on JSON null stdin: exit 1 and a TypeError stack on stderr (normalized by normalizeNodeCrash). Pinned so a hook-io change to exit 0 has to be declared as an intended Claude change. Setup and env copied from route-prompt/enabled-match-context, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "steps": [
+        {
+          "hook": "hooks/route-prompt.mjs",
+          "event": "UserPromptSubmit",
+          "env": {
+            "CI_ROUTE_PROMPT": "1"
+          },
+          "stdinRaw": "null",
+          "expect": {
+            "stdout": "",
+            "stderr": "TypeError: Cannot read properties of null (reading 'prompt')\n    at main (<REPO_URL>/hooks/route-prompt.mjs:<LINE>:<COL>)\n    at <REPO_URL>/hooks/route-prompt.mjs:<LINE>:<COL>\n\nNode.js <NODE_VERSION>\n",
+            "exitCode": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "route-prompt/array-stdin",
+      "note": "Setup and env copied from route-prompt/enabled-match-context, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "steps": [
+        {
+          "hook": "hooks/route-prompt.mjs",
+          "event": "UserPromptSubmit",
+          "env": {
+            "CI_ROUTE_PROMPT": "1"
+          },
+          "stdinRaw": "[]",
           "expect": {
             "stdout": "",
             "stderr": "",
@@ -1935,6 +2250,186 @@
       ]
     },
     {
+      "id": "recall-briefing/enabled-malformed-stdin",
+      "note": "Setup and env copied from recall-briefing/enabled-briefs-once-per-session, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            {
+              "ts": "2026-11-20T09:00:00Z",
+              "event": "tool_complete",
+              "session": "earlier-session",
+              "tool": "Edit",
+              "input_summary": "src/auth/oauth-token-refresh.ts",
+              "output_summary": "fixed oauth token refresh race by locking the refresh call",
+              "project_id": "<PROJECT_HASH>",
+              "project_name": "project"
+            },
+            {
+              "ts": "2026-11-20T09:05:00Z",
+              "event": "tool_complete",
+              "session": "earlier-session",
+              "tool": "Bash",
+              "input_summary": "npm test -- oauth",
+              "output_summary": "oauth token refresh tests pass",
+              "project_id": "<PROJECT_HASH>",
+              "project_name": "project"
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/recall-briefing.mjs",
+          "event": "UserPromptSubmit",
+          "env": {
+            "CLAUDE_RECALL_BRIEFING": "1"
+          },
+          "stdinRaw": "{not json",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "recall-briefing/enabled-empty-stdin",
+      "note": "Setup and env copied from recall-briefing/enabled-briefs-once-per-session, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            {
+              "ts": "2026-11-20T09:00:00Z",
+              "event": "tool_complete",
+              "session": "earlier-session",
+              "tool": "Edit",
+              "input_summary": "src/auth/oauth-token-refresh.ts",
+              "output_summary": "fixed oauth token refresh race by locking the refresh call",
+              "project_id": "<PROJECT_HASH>",
+              "project_name": "project"
+            },
+            {
+              "ts": "2026-11-20T09:05:00Z",
+              "event": "tool_complete",
+              "session": "earlier-session",
+              "tool": "Bash",
+              "input_summary": "npm test -- oauth",
+              "output_summary": "oauth token refresh tests pass",
+              "project_id": "<PROJECT_HASH>",
+              "project_name": "project"
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/recall-briefing.mjs",
+          "event": "UserPromptSubmit",
+          "env": {
+            "CLAUDE_RECALL_BRIEFING": "1"
+          },
+          "stdinRaw": "",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "recall-briefing/enabled-null-stdin",
+      "note": "Setup and env copied from recall-briefing/enabled-briefs-once-per-session, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            {
+              "ts": "2026-11-20T09:00:00Z",
+              "event": "tool_complete",
+              "session": "earlier-session",
+              "tool": "Edit",
+              "input_summary": "src/auth/oauth-token-refresh.ts",
+              "output_summary": "fixed oauth token refresh race by locking the refresh call",
+              "project_id": "<PROJECT_HASH>",
+              "project_name": "project"
+            },
+            {
+              "ts": "2026-11-20T09:05:00Z",
+              "event": "tool_complete",
+              "session": "earlier-session",
+              "tool": "Bash",
+              "input_summary": "npm test -- oauth",
+              "output_summary": "oauth token refresh tests pass",
+              "project_id": "<PROJECT_HASH>",
+              "project_name": "project"
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/recall-briefing.mjs",
+          "event": "UserPromptSubmit",
+          "env": {
+            "CLAUDE_RECALL_BRIEFING": "1"
+          },
+          "stdinRaw": "null",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "recall-briefing/enabled-array-stdin",
+      "note": "Setup and env copied from recall-briefing/enabled-briefs-once-per-session, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            {
+              "ts": "2026-11-20T09:00:00Z",
+              "event": "tool_complete",
+              "session": "earlier-session",
+              "tool": "Edit",
+              "input_summary": "src/auth/oauth-token-refresh.ts",
+              "output_summary": "fixed oauth token refresh race by locking the refresh call",
+              "project_id": "<PROJECT_HASH>",
+              "project_name": "project"
+            },
+            {
+              "ts": "2026-11-20T09:05:00Z",
+              "event": "tool_complete",
+              "session": "earlier-session",
+              "tool": "Bash",
+              "input_summary": "npm test -- oauth",
+              "output_summary": "oauth token refresh tests pass",
+              "project_id": "<PROJECT_HASH>",
+              "project_name": "project"
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/recall-briefing.mjs",
+          "event": "UserPromptSubmit",
+          "env": {
+            "CLAUDE_RECALL_BRIEFING": "1"
+          },
+          "stdinRaw": "[]",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
       "id": "session/start-no-instincts",
       "steps": [
         {
@@ -2040,6 +2535,52 @@
           "hook": "hooks/session.mjs",
           "event": "SessionStart",
           "stdinRaw": "",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "session/null-stdin",
+      "note": "Setup and env copied from session/start-loads-lessons, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/build-before-stage.yaml": "id: build-before-stage\ntrigger: \"when staging generated files\"\nconfidence: 0.8\ndomain: workflow\nsource: manual\nscope: project\nproject_id: 0123456789ab\ncreated: \"2026-11-20\"\nlast_seen: \"2026-11-20\"\nobservation_count: 1\n---\nRun npm run build first.\n",
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/too-weak.yaml": "id: too-weak\ntrigger: \"when naming a branch\"\nconfidence: 0.3\ndomain: workflow\nsource: manual\nscope: project\nproject_id: 0123456789ab\ncreated: \"2026-11-20\"\nlast_seen: \"2026-11-20\"\nobservation_count: 1\n---\nPrefix it with the ticket number.\n",
+          "<HOME>/.claude/instincts/global/grep-before-edit.yaml": "id: grep-before-edit\ntrigger: \"when modifying code\"\nconfidence: 0.6\ndomain: workflow\nsource: manual\nscope: global\nproject_id: global\ncreated: \"2026-11-20\"\nlast_seen: \"2026-11-20\"\nobservation_count: 1\n---\nSearch with Grep to confirm the location before using Edit.\n"
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/session.mjs",
+          "event": "SessionStart",
+          "stdinRaw": "null",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "session/array-stdin",
+      "note": "Setup and env copied from session/start-loads-lessons, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/build-before-stage.yaml": "id: build-before-stage\ntrigger: \"when staging generated files\"\nconfidence: 0.8\ndomain: workflow\nsource: manual\nscope: project\nproject_id: 0123456789ab\ncreated: \"2026-11-20\"\nlast_seen: \"2026-11-20\"\nobservation_count: 1\n---\nRun npm run build first.\n",
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/too-weak.yaml": "id: too-weak\ntrigger: \"when naming a branch\"\nconfidence: 0.3\ndomain: workflow\nsource: manual\nscope: project\nproject_id: 0123456789ab\ncreated: \"2026-11-20\"\nlast_seen: \"2026-11-20\"\nobservation_count: 1\n---\nPrefix it with the ticket number.\n",
+          "<HOME>/.claude/instincts/global/grep-before-edit.yaml": "id: grep-before-edit\ntrigger: \"when modifying code\"\nconfidence: 0.6\ndomain: workflow\nsource: manual\nscope: global\nproject_id: global\ncreated: \"2026-11-20\"\nlast_seen: \"2026-11-20\"\nobservation_count: 1\n---\nSearch with Grep to confirm the location before using Edit.\n"
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/session.mjs",
+          "event": "SessionStart",
+          "stdinRaw": "[]",
           "expect": {
             "stdout": "",
             "stderr": "",
@@ -2284,6 +2825,182 @@
             "hook_event_name": "Stop",
             "stop_hook_active": false
           },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "three-section-close/enabled-malformed-stdin",
+      "note": "Setup and env copied from three-section-close/enabled-missing-sections-block, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<HOME>/transcript.jsonl": [
+            {
+              "type": "user",
+              "message": {
+                "role": "user",
+                "content": "summarise the goldens"
+              }
+            },
+            {
+              "type": "assistant",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "## What has been done\nThe hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point."
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/three-section-close.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_THREE_SECTION_CLOSE": "1"
+          },
+          "stdinRaw": "{not json",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "three-section-close/enabled-empty-stdin",
+      "note": "Setup and env copied from three-section-close/enabled-missing-sections-block, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<HOME>/transcript.jsonl": [
+            {
+              "type": "user",
+              "message": {
+                "role": "user",
+                "content": "summarise the goldens"
+              }
+            },
+            {
+              "type": "assistant",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "## What has been done\nThe hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point."
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/three-section-close.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_THREE_SECTION_CLOSE": "1"
+          },
+          "stdinRaw": "",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "three-section-close/enabled-null-stdin",
+      "note": "Setup and env copied from three-section-close/enabled-missing-sections-block, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<HOME>/transcript.jsonl": [
+            {
+              "type": "user",
+              "message": {
+                "role": "user",
+                "content": "summarise the goldens"
+              }
+            },
+            {
+              "type": "assistant",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "## What has been done\nThe hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point."
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/three-section-close.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_THREE_SECTION_CLOSE": "1"
+          },
+          "stdinRaw": "null",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "three-section-close/enabled-array-stdin",
+      "note": "Setup and env copied from three-section-close/enabled-missing-sections-block, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<HOME>/transcript.jsonl": [
+            {
+              "type": "user",
+              "message": {
+                "role": "user",
+                "content": "summarise the goldens"
+              }
+            },
+            {
+              "type": "assistant",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "## What has been done\nThe hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point."
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/three-section-close.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_THREE_SECTION_CLOSE": "1"
+          },
+          "stdinRaw": "[]",
           "expect": {
             "stdout": "",
             "stderr": "",
@@ -2618,6 +3335,238 @@
       ]
     },
     {
+      "id": "goal-drift-stop/enabled-malformed-stdin",
+      "note": "Setup and env copied from goal-drift-stop/drift-block, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<PROJECT>/task_plan.md": "# Task Plan\n\n## Goal\nImplement OAuth login with JWT session tokens for the auth service.\n\n## Goal Keywords\noauth, jwt, login, session\n",
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            {
+              "ts": "2026-11-21T00:00:00Z",
+              "tool": "Edit",
+              "input_summary": "src/marketing/banner.ts",
+              "output_summary": ""
+            },
+            {
+              "ts": "2026-11-21T00:01:00Z",
+              "tool": "Edit",
+              "input_summary": "src/dashboard/widget.ts",
+              "output_summary": ""
+            },
+            {
+              "ts": "2026-11-21T00:02:00Z",
+              "tool": "Edit",
+              "input_summary": "docs/roadmap.md",
+              "output_summary": ""
+            }
+          ],
+          "<HOME>/transcript.jsonl": [
+            {
+              "type": "assistant",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point."
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/goal-drift-stop.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_GOAL_DRIFT_GATE": "block"
+          },
+          "stdinRaw": "{not json",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "goal-drift-stop/enabled-empty-stdin",
+      "note": "Setup and env copied from goal-drift-stop/drift-block, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<PROJECT>/task_plan.md": "# Task Plan\n\n## Goal\nImplement OAuth login with JWT session tokens for the auth service.\n\n## Goal Keywords\noauth, jwt, login, session\n",
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            {
+              "ts": "2026-11-21T00:00:00Z",
+              "tool": "Edit",
+              "input_summary": "src/marketing/banner.ts",
+              "output_summary": ""
+            },
+            {
+              "ts": "2026-11-21T00:01:00Z",
+              "tool": "Edit",
+              "input_summary": "src/dashboard/widget.ts",
+              "output_summary": ""
+            },
+            {
+              "ts": "2026-11-21T00:02:00Z",
+              "tool": "Edit",
+              "input_summary": "docs/roadmap.md",
+              "output_summary": ""
+            }
+          ],
+          "<HOME>/transcript.jsonl": [
+            {
+              "type": "assistant",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point."
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/goal-drift-stop.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_GOAL_DRIFT_GATE": "block"
+          },
+          "stdinRaw": "",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "goal-drift-stop/enabled-null-stdin",
+      "note": "Setup and env copied from goal-drift-stop/drift-block, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<PROJECT>/task_plan.md": "# Task Plan\n\n## Goal\nImplement OAuth login with JWT session tokens for the auth service.\n\n## Goal Keywords\noauth, jwt, login, session\n",
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            {
+              "ts": "2026-11-21T00:00:00Z",
+              "tool": "Edit",
+              "input_summary": "src/marketing/banner.ts",
+              "output_summary": ""
+            },
+            {
+              "ts": "2026-11-21T00:01:00Z",
+              "tool": "Edit",
+              "input_summary": "src/dashboard/widget.ts",
+              "output_summary": ""
+            },
+            {
+              "ts": "2026-11-21T00:02:00Z",
+              "tool": "Edit",
+              "input_summary": "docs/roadmap.md",
+              "output_summary": ""
+            }
+          ],
+          "<HOME>/transcript.jsonl": [
+            {
+              "type": "assistant",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point."
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/goal-drift-stop.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_GOAL_DRIFT_GATE": "block"
+          },
+          "stdinRaw": "null",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "goal-drift-stop/enabled-array-stdin",
+      "note": "Setup and env copied from goal-drift-stop/drift-block, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<PROJECT>/task_plan.md": "# Task Plan\n\n## Goal\nImplement OAuth login with JWT session tokens for the auth service.\n\n## Goal Keywords\noauth, jwt, login, session\n",
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            {
+              "ts": "2026-11-21T00:00:00Z",
+              "tool": "Edit",
+              "input_summary": "src/marketing/banner.ts",
+              "output_summary": ""
+            },
+            {
+              "ts": "2026-11-21T00:01:00Z",
+              "tool": "Edit",
+              "input_summary": "src/dashboard/widget.ts",
+              "output_summary": ""
+            },
+            {
+              "ts": "2026-11-21T00:02:00Z",
+              "tool": "Edit",
+              "input_summary": "docs/roadmap.md",
+              "output_summary": ""
+            }
+          ],
+          "<HOME>/transcript.jsonl": [
+            {
+              "type": "assistant",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point."
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/goal-drift-stop.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_GOAL_DRIFT_GATE": "block"
+          },
+          "stdinRaw": "[]",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
       "id": "workflow-distill/off-by-default",
       "setup": {
         "files": {
@@ -2757,6 +3706,162 @@
           "expect": {
             "stdout": "",
             "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "workflow-distill/enabled-malformed-stdin",
+      "note": "Setup and env copied from workflow-distill/on-verified-run-nudges-once, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            {
+              "ts": "2026-11-21T12:00:00Z",
+              "session": "golden-session",
+              "tool": "Workflow",
+              "input_summary": "{\"script\":\"export const meta = { name: 'demo-flow', description: 'fan out three readers', phases: [{ title: 'Read' }, { title: 'Synthesize' }] }\\nawait parallel([])\"}",
+              "output_summary": "{\"status\":\"async_launched\",\"runId\":\"wf_demo\",\"summary\":\"demo\"}"
+            },
+            {
+              "ts": "2026-11-21T12:01:00Z",
+              "session": "golden-session",
+              "tool": "Bash",
+              "input_summary": "npm run verify:all",
+              "output_summary": "OK, all checks passed"
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/workflow-distill.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_WORKFLOW_DISTILL_NUDGE": "on"
+          },
+          "stdinRaw": "{not json",
+          "expect": {
+            "stdout": "",
+            "stderr": "[continuous-improvement] workflow-distill: verified workflow run \"demo-flow\" detected — run the ci_distill_from_workflow MCP tool to persist it as a Mulahazah draft instinct.\n",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "workflow-distill/enabled-empty-stdin",
+      "note": "Setup and env copied from workflow-distill/on-verified-run-nudges-once, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            {
+              "ts": "2026-11-21T12:00:00Z",
+              "session": "golden-session",
+              "tool": "Workflow",
+              "input_summary": "{\"script\":\"export const meta = { name: 'demo-flow', description: 'fan out three readers', phases: [{ title: 'Read' }, { title: 'Synthesize' }] }\\nawait parallel([])\"}",
+              "output_summary": "{\"status\":\"async_launched\",\"runId\":\"wf_demo\",\"summary\":\"demo\"}"
+            },
+            {
+              "ts": "2026-11-21T12:01:00Z",
+              "session": "golden-session",
+              "tool": "Bash",
+              "input_summary": "npm run verify:all",
+              "output_summary": "OK, all checks passed"
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/workflow-distill.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_WORKFLOW_DISTILL_NUDGE": "on"
+          },
+          "stdinRaw": "",
+          "expect": {
+            "stdout": "",
+            "stderr": "[continuous-improvement] workflow-distill: verified workflow run \"demo-flow\" detected — run the ci_distill_from_workflow MCP tool to persist it as a Mulahazah draft instinct.\n",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "workflow-distill/enabled-null-stdin",
+      "note": "Setup and env copied from workflow-distill/on-verified-run-nudges-once, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            {
+              "ts": "2026-11-21T12:00:00Z",
+              "session": "golden-session",
+              "tool": "Workflow",
+              "input_summary": "{\"script\":\"export const meta = { name: 'demo-flow', description: 'fan out three readers', phases: [{ title: 'Read' }, { title: 'Synthesize' }] }\\nawait parallel([])\"}",
+              "output_summary": "{\"status\":\"async_launched\",\"runId\":\"wf_demo\",\"summary\":\"demo\"}"
+            },
+            {
+              "ts": "2026-11-21T12:01:00Z",
+              "session": "golden-session",
+              "tool": "Bash",
+              "input_summary": "npm run verify:all",
+              "output_summary": "OK, all checks passed"
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/workflow-distill.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_WORKFLOW_DISTILL_NUDGE": "on"
+          },
+          "stdinRaw": "null",
+          "expect": {
+            "stdout": "",
+            "stderr": "[continuous-improvement] workflow-distill: verified workflow run \"demo-flow\" detected — run the ci_distill_from_workflow MCP tool to persist it as a Mulahazah draft instinct.\n",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "workflow-distill/enabled-array-stdin",
+      "note": "Setup and env copied from workflow-distill/on-verified-run-nudges-once, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            {
+              "ts": "2026-11-21T12:00:00Z",
+              "session": "golden-session",
+              "tool": "Workflow",
+              "input_summary": "{\"script\":\"export const meta = { name: 'demo-flow', description: 'fan out three readers', phases: [{ title: 'Read' }, { title: 'Synthesize' }] }\\nawait parallel([])\"}",
+              "output_summary": "{\"status\":\"async_launched\",\"runId\":\"wf_demo\",\"summary\":\"demo\"}"
+            },
+            {
+              "ts": "2026-11-21T12:01:00Z",
+              "session": "golden-session",
+              "tool": "Bash",
+              "input_summary": "npm run verify:all",
+              "output_summary": "OK, all checks passed"
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/workflow-distill.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_WORKFLOW_DISTILL_NUDGE": "on"
+          },
+          "stdinRaw": "[]",
+          "expect": {
+            "stdout": "",
+            "stderr": "[continuous-improvement] workflow-distill: verified workflow run \"demo-flow\" detected — run the ci_distill_from_workflow MCP tool to persist it as a Mulahazah draft instinct.\n",
             "exitCode": 0
           }
         }
@@ -3018,6 +4123,158 @@
       ]
     },
     {
+      "id": "typecheck-stop/enabled-malformed-stdin",
+      "note": "Setup and env copied from typecheck-stop/block-on-failing-tsc, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<PROJECT>/tsconfig.json": {
+            "compilerOptions": {
+              "strict": true
+            }
+          },
+          "<PROJECT>/src/index.ts": "export const total: number = \"oops\";\n",
+          "<PROJECT>/node_modules/typescript/bin/tsc": "console.log(\"src/index.ts(1,14): error TS2322: Type 'string' is not assignable to type 'number'.\");\nprocess.exit(2);\n"
+        },
+        "git": [
+          [
+            "init",
+            "-q",
+            "-b",
+            "main"
+          ]
+        ]
+      },
+      "steps": [
+        {
+          "hook": "hooks/typecheck-stop.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_TYPECHECK_GATE": "block"
+          },
+          "stdinRaw": "{not json",
+          "expect": {
+            "stdout": "{\"decision\":\"block\",\"reason\":\"Typecheck FAILED on changed TS files — fix before ending the turn:\\nsrc/index.ts(1,14): error TS2322: Type 'string' is not assignable to type 'number'.\"}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "typecheck-stop/enabled-empty-stdin",
+      "note": "Setup and env copied from typecheck-stop/block-on-failing-tsc, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<PROJECT>/tsconfig.json": {
+            "compilerOptions": {
+              "strict": true
+            }
+          },
+          "<PROJECT>/src/index.ts": "export const total: number = \"oops\";\n",
+          "<PROJECT>/node_modules/typescript/bin/tsc": "console.log(\"src/index.ts(1,14): error TS2322: Type 'string' is not assignable to type 'number'.\");\nprocess.exit(2);\n"
+        },
+        "git": [
+          [
+            "init",
+            "-q",
+            "-b",
+            "main"
+          ]
+        ]
+      },
+      "steps": [
+        {
+          "hook": "hooks/typecheck-stop.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_TYPECHECK_GATE": "block"
+          },
+          "stdinRaw": "",
+          "expect": {
+            "stdout": "{\"decision\":\"block\",\"reason\":\"Typecheck FAILED on changed TS files — fix before ending the turn:\\nsrc/index.ts(1,14): error TS2322: Type 'string' is not assignable to type 'number'.\"}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "typecheck-stop/enabled-null-stdin",
+      "note": "Setup and env copied from typecheck-stop/block-on-failing-tsc, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<PROJECT>/tsconfig.json": {
+            "compilerOptions": {
+              "strict": true
+            }
+          },
+          "<PROJECT>/src/index.ts": "export const total: number = \"oops\";\n",
+          "<PROJECT>/node_modules/typescript/bin/tsc": "console.log(\"src/index.ts(1,14): error TS2322: Type 'string' is not assignable to type 'number'.\");\nprocess.exit(2);\n"
+        },
+        "git": [
+          [
+            "init",
+            "-q",
+            "-b",
+            "main"
+          ]
+        ]
+      },
+      "steps": [
+        {
+          "hook": "hooks/typecheck-stop.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_TYPECHECK_GATE": "block"
+          },
+          "stdinRaw": "null",
+          "expect": {
+            "stdout": "{\"decision\":\"block\",\"reason\":\"Typecheck FAILED on changed TS files — fix before ending the turn:\\nsrc/index.ts(1,14): error TS2322: Type 'string' is not assignable to type 'number'.\"}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "typecheck-stop/enabled-array-stdin",
+      "note": "Setup and env copied from typecheck-stop/block-on-failing-tsc, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<PROJECT>/tsconfig.json": {
+            "compilerOptions": {
+              "strict": true
+            }
+          },
+          "<PROJECT>/src/index.ts": "export const total: number = \"oops\";\n",
+          "<PROJECT>/node_modules/typescript/bin/tsc": "console.log(\"src/index.ts(1,14): error TS2322: Type 'string' is not assignable to type 'number'.\");\nprocess.exit(2);\n"
+        },
+        "git": [
+          [
+            "init",
+            "-q",
+            "-b",
+            "main"
+          ]
+        ]
+      },
+      "steps": [
+        {
+          "hook": "hooks/typecheck-stop.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_TYPECHECK_GATE": "block"
+          },
+          "stdinRaw": "[]",
+          "expect": {
+            "stdout": "{\"decision\":\"block\",\"reason\":\"Typecheck FAILED on changed TS files — fix before ending the turn:\\nsrc/index.ts(1,14): error TS2322: Type 'string' is not assignable to type 'number'.\"}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
       "id": "query-cost-nudge/off-by-default",
       "setup": {
         "files": {
@@ -3174,6 +4431,134 @@
           },
           "expect": {
             "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "query-cost-nudge/enabled-malformed-stdin",
+      "note": "Setup and env copied from query-cost-nudge/on-query-change-nudges-once, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<PROJECT>/migrations/001_init.sql": "CREATE TABLE t (id INTEGER PRIMARY KEY);\n"
+        },
+        "git": [
+          [
+            "init",
+            "-q",
+            "-b",
+            "main"
+          ]
+        ]
+      },
+      "steps": [
+        {
+          "hook": "hooks/query-cost-nudge.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_QUERY_COST_NUDGE": "on"
+          },
+          "stdinRaw": "{not json",
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"Stop\",\"additionalContext\":\"<system-reminder>\\nQuery-cost check: you changed DB/query file(s) this session (migrations/001_init.sql).\\nBefore finishing, audit cost — dispatch the database-reviewer agent, or check directly:\\n  - EXPLAIN QUERY PLAN each new/changed query; no full table SCAN on a hot path.\\n  - Every WHERE / JOIN / ORDER BY column is index-covered; no N+1 loops.\\n  - D1: rows_read is billed per row SCANNED (not returned) — add covering indexes and cache hot reads (KV) instead of re-querying.\\n  - No unbounded query — add LIMIT / pagination.\\nOne-time per-session reminder (CLAUDE_QUERY_COST_NUDGE).\\n</system-reminder>\"}}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "query-cost-nudge/enabled-empty-stdin",
+      "note": "Setup and env copied from query-cost-nudge/on-query-change-nudges-once, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<PROJECT>/migrations/001_init.sql": "CREATE TABLE t (id INTEGER PRIMARY KEY);\n"
+        },
+        "git": [
+          [
+            "init",
+            "-q",
+            "-b",
+            "main"
+          ]
+        ]
+      },
+      "steps": [
+        {
+          "hook": "hooks/query-cost-nudge.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_QUERY_COST_NUDGE": "on"
+          },
+          "stdinRaw": "",
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"Stop\",\"additionalContext\":\"<system-reminder>\\nQuery-cost check: you changed DB/query file(s) this session (migrations/001_init.sql).\\nBefore finishing, audit cost — dispatch the database-reviewer agent, or check directly:\\n  - EXPLAIN QUERY PLAN each new/changed query; no full table SCAN on a hot path.\\n  - Every WHERE / JOIN / ORDER BY column is index-covered; no N+1 loops.\\n  - D1: rows_read is billed per row SCANNED (not returned) — add covering indexes and cache hot reads (KV) instead of re-querying.\\n  - No unbounded query — add LIMIT / pagination.\\nOne-time per-session reminder (CLAUDE_QUERY_COST_NUDGE).\\n</system-reminder>\"}}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "query-cost-nudge/enabled-null-stdin",
+      "note": "Setup and env copied from query-cost-nudge/on-query-change-nudges-once, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<PROJECT>/migrations/001_init.sql": "CREATE TABLE t (id INTEGER PRIMARY KEY);\n"
+        },
+        "git": [
+          [
+            "init",
+            "-q",
+            "-b",
+            "main"
+          ]
+        ]
+      },
+      "steps": [
+        {
+          "hook": "hooks/query-cost-nudge.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_QUERY_COST_NUDGE": "on"
+          },
+          "stdinRaw": "null",
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"Stop\",\"additionalContext\":\"<system-reminder>\\nQuery-cost check: you changed DB/query file(s) this session (migrations/001_init.sql).\\nBefore finishing, audit cost — dispatch the database-reviewer agent, or check directly:\\n  - EXPLAIN QUERY PLAN each new/changed query; no full table SCAN on a hot path.\\n  - Every WHERE / JOIN / ORDER BY column is index-covered; no N+1 loops.\\n  - D1: rows_read is billed per row SCANNED (not returned) — add covering indexes and cache hot reads (KV) instead of re-querying.\\n  - No unbounded query — add LIMIT / pagination.\\nOne-time per-session reminder (CLAUDE_QUERY_COST_NUDGE).\\n</system-reminder>\"}}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "query-cost-nudge/enabled-array-stdin",
+      "note": "Setup and env copied from query-cost-nudge/on-query-change-nudges-once, which acts on valid stdin, so the golden shows whether this stdin fails open or still acts on the project.",
+      "setup": {
+        "files": {
+          "<PROJECT>/migrations/001_init.sql": "CREATE TABLE t (id INTEGER PRIMARY KEY);\n"
+        },
+        "git": [
+          [
+            "init",
+            "-q",
+            "-b",
+            "main"
+          ]
+        ]
+      },
+      "steps": [
+        {
+          "hook": "hooks/query-cost-nudge.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_QUERY_COST_NUDGE": "on"
+          },
+          "stdinRaw": "[]",
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"Stop\",\"additionalContext\":\"<system-reminder>\\nQuery-cost check: you changed DB/query file(s) this session (migrations/001_init.sql).\\nBefore finishing, audit cost — dispatch the database-reviewer agent, or check directly:\\n  - EXPLAIN QUERY PLAN each new/changed query; no full table SCAN on a hot path.\\n  - Every WHERE / JOIN / ORDER BY column is index-covered; no N+1 loops.\\n  - D1: rows_read is billed per row SCANNED (not returned) — add covering indexes and cache hot reads (KV) instead of re-querying.\\n  - No unbounded query — add LIMIT / pagination.\\nOne-time per-session reminder (CLAUDE_QUERY_COST_NUDGE).\\n</system-reminder>\"}}\n",
             "stderr": "",
             "exitCode": 0
           }

@@ -19,7 +19,9 @@
  * the fixture, and no compared output carries the wall clock. Before
  * comparing, the temp paths, the repo root and the project hash are replaced by
  * <HOME>, <PROJECT>, <ROOT>, <REPO> and <PROJECT_HASH> in every spelling a hook
- * prints (native, forward-slash, JSON-escaped).
+ * prints (native, forward-slash, JSON-escaped). A Node crash report keeps its
+ * error and repository frames and loses what the runtime decides (see
+ * normalizeNodeCrash), so it compares the same on every Node and OS in CI.
  *
  * Re-recording is for an intended Claude behaviour change only, stated in the
  * PR that makes it:
@@ -79,6 +81,36 @@ function pathForms(path) {
     const forms = [path, forward, path.replace(/\\/g, "\\\\")];
     return [...new Set(forms)].sort((left, right) => right.length - left.length);
 }
+// The file URL spellings of a directory in a Node stack trace: forward slashes
+// behind file:/// on Windows or file:// on POSIX, raw or percent-encoded.
+function fileUrlForms(path) {
+    const forward = path.replace(/\\/g, "/").replace(/\/+$/, "");
+    const url = `file://${forward.startsWith("/") ? "" : "/"}${forward}`;
+    return [...new Set([url, encodeURI(url)])].sort((left, right) => right.length - left.length);
+}
+// An uncaught exception makes Node print the throwing source line, the stack
+// and a "Node.js v<version>" trailer. The golden keeps what the hook decides
+// (the error, the repository frames, exit code 1) and drops what the runtime
+// decides: the version, frames outside the repository, CRLF line ends on Windows, and
+// line and column numbers that move with any edit to the generated .mjs. The
+// same crash on Node 18 to 24, Windows or Linux, normalizes to the same text.
+function normalizeNodeCrash(text, repoRoot) {
+    if (!/\r?\nNode\.js v\d+\.\d+\.\d+\r?\n?$/.test(text))
+        return text;
+    const trailer = /\nNode\.js v\d+\.\d+\.\d+\n?$/;
+    let out = text.replace(/\r\n/g, "\n");
+    for (const form of fileUrlForms(repoRoot)) {
+        out = out.replace(new RegExp(escapeRegExp(form), IGNORE_CASE ? "gi" : "g"), "<REPO_URL>");
+    }
+    const lines = out
+        .replace(/^<REPO_URL>\S*:\d+\n.*\n[ \t]*\^+[ \t]*\n\n/, "")
+        .replace(trailer, "\nNode.js <NODE_VERSION>\n")
+        .split("\n");
+    return lines
+        .filter((line) => !/^\s+at /.test(line) || line.includes("<REPO_URL>"))
+        .map((line) => line.replace(/(<REPO_URL>[^\s:()]*):\d+:\d+/g, "$1:<LINE>:<COL>"))
+        .join("\n");
+}
 function normalize(text, dirs) {
     const replacements = [
         ["<HOME>", dirs.home],
@@ -86,7 +118,7 @@ function normalize(text, dirs) {
         ["<ROOT>", dirs.root],
         ["<REPO>", REPO_ROOT.replace(/[\\/]+$/, "")],
     ];
-    let out = text;
+    let out = normalizeNodeCrash(text, REPO_ROOT);
     for (const [placeholder, path] of replacements) {
         for (const form of pathForms(path)) {
             out = out.replace(new RegExp(escapeRegExp(form), IGNORE_CASE ? "gi" : "g"), placeholder);
@@ -216,30 +248,140 @@ describe("Claude Code hook goldens (fixtures/agent-hooks/claude.json)", { concur
         });
     }
 });
+const NON_OBJECT_STDIN = ["null", "[]"];
+const BAD_STDIN = ["{not json", ""];
+// The env that switches each opt-in Stop and prompt hook on.
+const ENABLED_MODE = {
+    "hooks/recall-briefing.mjs": { CLAUDE_RECALL_BRIEFING: "1" },
+    "hooks/three-section-close.mjs": { CLAUDE_THREE_SECTION_CLOSE: "1" },
+    "hooks/goal-drift-stop.mjs": { CLAUDE_GOAL_DRIFT_GATE: "block" },
+    "hooks/workflow-distill.mjs": { CLAUDE_WORKFLOW_DISTILL_NUDGE: "on" },
+    "hooks/typecheck-stop.mjs": { CLAUDE_TYPECHECK_GATE: "block" },
+    "hooks/query-cost-nudge.mjs": { CLAUDE_QUERY_COST_NUDGE: "on" },
+};
+function wiredHooks() {
+    const wiring = JSON.parse(readFileSync(PLUGIN_HOOKS_JSON, "utf8"));
+    const wired = [];
+    for (const [event, groups] of Object.entries(wiring.hooks)) {
+        for (const group of groups) {
+            for (const hook of group.hooks) {
+                const script = /\$\{CLAUDE_PLUGIN_ROOT\}\/([^"]+)"/.exec(hook.command)?.[1];
+                assert.ok(script, `unrecognised hook command in hooks.json: ${hook.command}`);
+                wired.push({ script, event });
+            }
+        }
+    }
+    return wired;
+}
+function hookEntryPoints() {
+    return readdirSync(join(REPO_ROOT, "hooks"))
+        .filter((file) => file.endsWith(".mjs"))
+        .map((file) => `hooks/${file}`);
+}
+describe("Node crash normalization", () => {
+    const crash = (root, version, internal) => {
+        const url = fileUrlForms(root)[0];
+        return [
+            `${url}/hooks/gateguard.mjs:401`,
+            '    const toolName = typeof payload.tool_name === "string" ? payload.tool_name : "";',
+            "                                    ^",
+            "",
+            "TypeError: Cannot read properties of null (reading 'tool_name')",
+            `    at main (${url}/hooks/gateguard.mjs:401:37)`,
+            `    at ${url}/hooks/gateguard.mjs:514:7`,
+            ...internal,
+            "",
+            `Node.js ${version}`,
+            "",
+        ].join("\n");
+    };
+    const expected = [
+        "TypeError: Cannot read properties of null (reading 'tool_name')",
+        "    at main (<REPO_URL>/hooks/gateguard.mjs:<LINE>:<COL>)",
+        "    at <REPO_URL>/hooks/gateguard.mjs:<LINE>:<COL>",
+        "",
+        "Node.js <NODE_VERSION>",
+        "",
+    ].join("\n");
+    // Node on Windows ends the lines of an uncaught-exception report with CRLF.
+    it("gives a Windows Node 24 crash and a Linux Node 18 crash the same text", () => {
+        const windows = crash("D:\\a\\ci\\ci", "v24.12.0", [
+            "    at ModuleJob.run (node:internal/modules/esm/module_job:413:25)",
+            "    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:660:26)",
+        ]).replace(/\n/g, "\r\n");
+        const linux = crash("/home/runner/work/ci/ci", "v18.20.8", [
+            "    at ModuleJob.run (node:internal/modules/esm/module_job:194:25)",
+            "    at async Promise.all (index 0)",
+        ]);
+        assert.equal(normalizeNodeCrash(windows, "D:\\a\\ci\\ci"), expected);
+        assert.equal(normalizeNodeCrash(linux, "/home/runner/work/ci/ci"), expected);
+    });
+    it("matches a percent-encoded repository URL", () => {
+        const root = "/home/runner/my repo";
+        assert.equal(normalizeNodeCrash(crash(root, "v20.19.0", []), root), expected);
+        assert.match(fileUrlForms(root)[0], /my%20repo/);
+    });
+    it("leaves stderr without a crash trailer unchanged", () => {
+        const warning = "[gateguard] unknown CI_GATEGUARD_FILE_GATE value; using evidence\n    at the default\n";
+        assert.equal(normalizeNodeCrash(warning, "/home/runner/work/ci/ci"), warning);
+        assert.equal(normalizeNodeCrash("", "/home/runner/work/ci/ci"), "");
+    });
+});
 describe("Claude golden fixture coverage", () => {
     const steps = fixture.cases.flatMap((goldenCase) => goldenCase.steps);
     const covered = new Set(steps.map((step) => `${step.hook} ${step.event}`));
     it("has a case for every hook and event the plugin wires", () => {
-        const wiring = JSON.parse(readFileSync(PLUGIN_HOOKS_JSON, "utf8"));
-        const wired = [];
-        for (const [event, groups] of Object.entries(wiring.hooks)) {
-            for (const group of groups) {
-                for (const hook of group.hooks) {
-                    const script = /\$\{CLAUDE_PLUGIN_ROOT\}\/([^"]+)"/.exec(hook.command)?.[1];
-                    assert.ok(script, `unrecognised hook command in hooks.json: ${hook.command}`);
-                    wired.push(`${script} ${event}`);
-                }
-            }
-        }
+        const wired = wiredHooks();
         assert.ok(wired.length > 0, "hooks.json wires no hooks");
-        assert.deepEqual(wired.filter((key) => !covered.has(key)), []);
+        assert.deepEqual(wired.map(({ script, event }) => `${script} ${event}`).filter((key) => !covered.has(key)), []);
     });
     it("has a case for every hook entry point under hooks/", () => {
-        const entryPoints = readdirSync(join(REPO_ROOT, "hooks"))
-            .filter((file) => file.endsWith(".mjs"))
-            .map((file) => `hooks/${file}`);
         const hooksInFixture = new Set(steps.map((step) => step.hook));
-        assert.deepEqual(entryPoints.filter((hook) => !hooksInFixture.has(hook)), []);
+        assert.deepEqual(hookEntryPoints().filter((hook) => !hooksInFixture.has(hook)), []);
+    });
+    // JSON that parses but is not an object reaches property reads that a parse
+    // failure never does (v3.27.0 gateguard, companion-preference and an enabled
+    // route-prompt crash on null), so every hook pins both.
+    it("gives every hook a golden for stdin that is JSON but not an object", () => {
+        const hooks = [...new Set([...wiredHooks().map(({ script }) => script), ...hookEntryPoints()])];
+        const missing = [];
+        for (const hook of hooks) {
+            for (const raw of NON_OBJECT_STDIN) {
+                if (!steps.some((step) => step.hook === hook && step.stdinRaw === raw))
+                    missing.push(`${hook} ${raw}`);
+            }
+        }
+        assert.deepEqual(missing, []);
+    });
+    // An opt-in hook that is off returns before it reads stdin, so its
+    // parse-failure path only runs with the hook switched on.
+    it("runs malformed and empty stdin through each opt-in Stop and prompt hook switched on", () => {
+        const missing = [];
+        for (const [hook, enabled] of Object.entries(ENABLED_MODE)) {
+            for (const raw of BAD_STDIN) {
+                const found = steps.some((step) => step.hook === hook &&
+                    step.stdinRaw === raw &&
+                    Object.entries(enabled).every(([key, value]) => step.env?.[key] === value));
+                if (!found)
+                    missing.push(`${hook} ${JSON.stringify(raw)}`);
+            }
+        }
+        assert.deepEqual(missing, []);
+    });
+    it("marks the goldens that pin the v3.27.0 NotebookEdit defect", () => {
+        const byId = new Map(fixture.cases.map((goldenCase) => [goldenCase.id, goldenCase]));
+        const blind = byId.get("gateguard/evidence-blind-notebook-edit-allow");
+        assert.ok(blind, "no golden for a blind NotebookEdit with an observation log present");
+        const logged = Object.keys(blind.setup?.files ?? {}).some((path) => path.endsWith("/observations.jsonl"));
+        assert.ok(logged, "the blind NotebookEdit case has no observation log, so it tests the no-log path");
+        const payload = blind.steps[0]?.stdin;
+        assert.equal(payload?.tool_name, "NotebookEdit");
+        for (const id of ["gateguard/evidence-blind-notebook-edit-allow", "gateguard/strict-notebook-edit-deny"]) {
+            const note = byId.get(id)?.note ?? "";
+            assert.match(note, /notebook_path/, `${id} does not say which key gateguard ignores`);
+            assert.match(note, /v3\.27\.0 defect/, `${id} does not say it pins a known defect`);
+            assert.match(note, /docs\/deferred\.md/, `${id} does not point at the deferred fix`);
+        }
     });
     it("gives every case a unique id and every payload the event its step names", () => {
         const ids = fixture.cases.map((goldenCase) => goldenCase.id);

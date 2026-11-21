@@ -58,7 +58,7 @@ Ask `recall` first — it searches the observation log across all sessions and f
 
 ## Deferred → [docs/deferred.md](docs/deferred.md)
 
-⚠️ Logged, not dropped. Open items: `token-budget-advisor` / `strategic-compact` / `handoff` / `superpowers` retirement decisions, and the `skill-distill` empty-verify-output data-model call.
+⚠️ Logged, not dropped. Open items: `token-budget-advisor` / `strategic-compact` / `handoff` / `superpowers` retirement decisions, the `skill-distill` empty-verify-output data-model call, and two v3.27.0 hook defects the Claude goldens pin (gateguard ignores NotebookEdit's `notebook_path`; three hooks crash on `null` stdin).
 
 ## Companion skills (enforce these rules at the tool boundary)
 
