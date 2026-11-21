@@ -6,10 +6,10 @@
 // Implements Law 4 + Law 5 in-band: verify before reporting, reflect at
 // the end. See SKILL.md for the discipline rationale.
 //
-// Opt-in: runs only when CLAUDE_THREE_SECTION_CLOSE is 1/on/true/yes
+// Opt-in: runs only when CLAUDE_THREE_SECTION_CLOSE (alias CI_THREE_SECTION_CLOSE) is 1/on/true/yes
 // (case-insensitive). Default off, because the close is one reply format and
 // not a rule every install should pay for. CLAUDE_THREE_SECTION_CLOSE_DISABLED=1
-// still forces it off, even when enabled.
+// (alias CI_THREE_SECTION_CLOSE_DISABLED=1) still forces it off, even when enabled.
 //
 // Behavior:
 //   - exit 0 to allow the response to stand
@@ -31,11 +31,12 @@ import { createHash } from "node:crypto";
 import { platform } from "node:os";
 import { dirname, join } from "node:path";
 import { performance } from "node:perf_hooks";
+import { readKnob } from "../lib/agent-env.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 const MIN_LENGTH_TO_GATE = 600;
 const ENABLED_VALUES = new Set(["1", "on", "true", "yes"]);
 function isEnabled() {
-    const flag = (process.env.CLAUDE_THREE_SECTION_CLOSE ?? "").trim().toLowerCase();
+    const flag = (readKnob("CLAUDE_THREE_SECTION_CLOSE") ?? "").trim().toLowerCase();
     return ENABLED_VALUES.has(flag);
 }
 const REQUIRED_SECTIONS = [
@@ -139,7 +140,7 @@ function main() {
     // short-circuits entirely, with no enforcement and no telemetry.
     if (!isEnabled())
         return;
-    if (process.env.CLAUDE_THREE_SECTION_CLOSE_DISABLED === "1")
+    if (readKnob("CLAUDE_THREE_SECTION_CLOSE_DISABLED") === "1")
         return;
     const startedAt = performance.now();
     const stdin = readStdinSync();

@@ -10,12 +10,13 @@
  * UserPromptSubmit / Stop / SubagentStop support additionalContext; PostToolUse
  * could only emit a user-facing systemMessage that never reaches the model.
  *
- * Opt-in via CLAUDE_QUERY_COST_NUDGE=on (default off). Once-per-session dedup
+ * Opt-in via CLAUDE_QUERY_COST_NUDGE=on or CI_QUERY_COST_NUDGE=on (default off). Once-per-session dedup
  * keyed on the Stop stdin session_id (falls back to a per-day key) — without it,
  * additionalContext "keeps the turn going" and would re-fire every turn while
  * the DB files stay dirty. Never blocks; fail-open on any error.
  */
 import { execFileSync } from "node:child_process";
+import { readKnob } from "../lib/agent-env.mjs";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -59,7 +60,7 @@ function markerPath(home, projectRoot, sessionId) {
     return join(resolveInstinctsRoot(home), hash, "query-cost-nudge", `${markerKey(sessionId)}.nudged`);
 }
 function main() {
-    if (resolveQueryCostNudge(process.env.CLAUDE_QUERY_COST_NUDGE) === "off")
+    if (resolveQueryCostNudge(readKnob("CLAUDE_QUERY_COST_NUDGE")) === "off")
         return;
     let sessionId;
     let payload = null;

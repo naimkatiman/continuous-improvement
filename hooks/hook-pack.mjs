@@ -15,7 +15,7 @@
  *   - push-to-main : a direct `git push` to main/master/release-*
  *   - commit-size  : a `git commit` staging more than COMMIT_FILE_LIMIT files
  *
- * Mode via CLAUDE_CI_HOOKPACK_GATE: "warn" (default) | "block" | "off".
+ * Mode via CLAUDE_CI_HOOKPACK_GATE (alias CI_HOOKPACK_GATE): "warn" (default) | "block" | "off".
  *   warn  : print a one-line notice to stderr; never blocks.
  *   block : emit the PreToolUse deny shape.
  *   off   : no-op.
@@ -32,6 +32,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
+import { readKnob } from "../lib/agent-env.mjs";
 import { classifierShells, inboundCommand, resolveInboundTool } from "../lib/agent-profiles.mjs";
 import { COMMIT_FILE_LIMIT, classifyCommand, decide, evaluateCommitSize, evaluatePush, parseMode, } from "../lib/hook-pack-gate.mjs";
 function readStdinSync() {
@@ -111,7 +112,7 @@ const ALLOW = { action: "allow", reason: "" };
 // has no command and is allowed.
 const SHELL_TOOLS = new Set(["Bash", "PowerShell", "Monitor"]);
 function compute() {
-    const mode = parseMode(process.env.CLAUDE_CI_HOOKPACK_GATE);
+    const mode = parseMode(readKnob("CLAUDE_CI_HOOKPACK_GATE"));
     if (mode === "off")
         return ALLOW;
     const payload = safeJsonParse(readStdinSync());

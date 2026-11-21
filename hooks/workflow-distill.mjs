@@ -6,7 +6,7 @@
 // multi-agent run survive the run instead of evaporating when the turn ends — the
 // fast-follow deferred in docs/plans/2026-06-08-workflow-instinct-bridge.md.
 //
-// Mode via CLAUDE_WORKFLOW_DISTILL_NUDGE: "on" | "off" (default).
+// Mode via CLAUDE_WORKFLOW_DISTILL_NUDGE (alias CI_WORKFLOW_DISTILL_NUDGE): "on" | "off" (default).
 //   - off (default): no-op. Operators who do not use native Workflows are never
 //     nagged.
 //   - on: if the session's observation feed shows a verified Workflow run that
@@ -25,6 +25,7 @@
 // construction: any error exits 0 and never blocks. No network. 5s hook budget.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { readKnob } from "../lib/agent-env.mjs";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
@@ -38,7 +39,7 @@ function safeJsonParse(text) {
     }
 }
 function resolveMode() {
-    return (process.env.CLAUDE_WORKFLOW_DISTILL_NUDGE ?? "off").trim().toLowerCase() === "on" ? "on" : "off";
+    return (readKnob("CLAUDE_WORKFLOW_DISTILL_NUDGE") ?? "off").trim().toLowerCase() === "on" ? "on" : "off";
 }
 // The observer resolves the same root (lib/agent-paths), so the hash here
 // names the observations.jsonl it writes.

@@ -9,7 +9,7 @@
  * proactive instead of opt-in-per-query (the ci_recall MCP tool stays available
  * for explicit, deeper searches).
  *
- * Opt-in: runs only when CLAUDE_RECALL_BRIEFING is 1/on/true. Default off, so it
+ * Opt-in: runs only when CLAUDE_RECALL_BRIEFING (alias CI_RECALL_BRIEFING) is 1/on/true. Default off, so it
  * never changes the prompt path for users who have not enabled it.
  *
  * Stdin  : JSON { prompt, session_id?, cwd? }
@@ -28,12 +28,13 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { buildIndex, query } from "../lib/recall-index.mjs";
 import { DEFAULT_MAX_HITS, decideBriefing } from "../lib/recall-briefing.mjs";
+import { readKnob } from "../lib/agent-env.mjs";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 const ENABLED_VALUES = new Set(["1", "on", "true", "yes"]);
 const MAX_BRIEFED_KEYS = 1000;
 function isEnabled() {
-    const flag = (process.env.CLAUDE_RECALL_BRIEFING ?? "").trim().toLowerCase();
+    const flag = (readKnob("CLAUDE_RECALL_BRIEFING") ?? "").trim().toLowerCase();
     return ENABLED_VALUES.has(flag);
 }
 function readStdin() {

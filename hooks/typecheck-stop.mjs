@@ -9,7 +9,7 @@
  * (skip non-TS repos, skip TS repos with no changed TS file, prefer the npm
  * `typecheck` script) and adds the block mechanism of goal-drift-stop.mts.
  *
- * Mode via CLAUDE_TYPECHECK_GATE: "off" (default) | "warn" | "block".
+ * Mode via CLAUDE_TYPECHECK_GATE (alias CI_TYPECHECK_GATE): "off" (default) | "warn" | "block".
  *   off   : no-op (the global script's advisory systemMessage stays the default
  *           layer; this hook is the opt-in enforcement layer — zero regression).
  *   warn  : one-line stderr notice; never blocks.
@@ -23,6 +23,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { readKnob } from "../lib/agent-env.mjs";
 import { GLOBAL_PROJECT_ROOT, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { decideTypecheckAction, formatTypecheckReason, hasChangedTsFile, parseChangedFiles, pickTypecheckKind, resolveTypecheckMode, } from "../lib/typecheck-gate.mjs";
 const SPAWN_TIMEOUT_MS = 25_000;
@@ -86,7 +87,7 @@ function runTypecheck(root) {
     return { ran: true, rc: result.status, output: `${result.stdout ?? ""}${result.stderr ?? ""}` };
 }
 function main() {
-    const mode = resolveTypecheckMode(process.env.CLAUDE_TYPECHECK_GATE);
+    const mode = resolveTypecheckMode(readKnob("CLAUDE_TYPECHECK_GATE"));
     if (mode === "off")
         return;
     const root = projectRoot();

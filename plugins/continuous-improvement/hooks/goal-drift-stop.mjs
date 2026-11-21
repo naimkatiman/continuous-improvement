@@ -5,7 +5,7 @@
 // arm of goal-monitor: it auto-fires the drift check at the Stop phase boundary
 // instead of waiting for someone to run /goal-check.
 //
-// Mode via CLAUDE_GOAL_DRIFT_GATE: "warn" (default) | "block" | "off".
+// Mode via CLAUDE_GOAL_DRIFT_GATE (alias CI_GOAL_DRIFT_GATE): "warn" (default) | "block" | "off".
 //   - warn  : print a one-line drift notice to stderr; never blocks.
 //   - block : emit {"decision":"block","reason":...} to re-prompt.
 //   - off   : no-op.
@@ -18,6 +18,7 @@
 // never blocks. No network. 5s hook budget.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { readKnob } from "../lib/agent-env.mjs";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { evaluateGoalDrift } from "../lib/goal-drift-gate.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
@@ -39,7 +40,7 @@ function safeJsonParse(text) {
     }
 }
 function resolveMode() {
-    const raw = (process.env.CLAUDE_GOAL_DRIFT_GATE ?? "warn").trim().toLowerCase();
+    const raw = (readKnob("CLAUDE_GOAL_DRIFT_GATE") ?? "warn").trim().toLowerCase();
     return raw === "block" || raw === "off" ? raw : "warn";
 }
 // The observer resolves the same root (lib/agent-paths), so the hash here
