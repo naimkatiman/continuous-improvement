@@ -35,9 +35,19 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { execFileSync } from "node:child_process";
-import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
+
+import { resolveInstinctsRoot, resolveProjectRoot } from "./agent-paths.mjs";
+
+// The root that holds every project's gateguard + instinct state, and the
+// project root that picks the <projectHash> bucket under it, now live in
+// agent-paths. They are re-exported for the bins that import them from here.
+// The MCP clearance route uses resolveInstinctsRoot to bound a caller-supplied
+// state_path to this tree so a hostile argument can't turn the clear into an
+// arbitrary-write primitive. resolveProjectRoot returns "global" when no env
+// var, payload dir or git toplevel names a root; the target-lock gate treats
+// that as "no known root, do not guess".
+export { resolveInstinctsRoot, resolveProjectRoot };
 
 const DEFAULT_MAX_CLEARED_FILES = 1000;
 
@@ -65,18 +75,12 @@ export interface GateguardState {
   cleared_files: Record<string, { cleared_at: string }>;
 }
 
-// The root that holds every project's gateguard + instinct state. The MCP
-// clearance route uses this to bound a caller-supplied state_path to this tree
-// so a hostile argument can't turn the clear into an arbitrary-write primitive.
-export function resolveInstinctsRoot(): string {
-  const home = process.env.HOME || process.env.USERPROFILE || homedir();
-  return join(home, ".claude", "instincts");
-}
-
-export function resolveSessionDir(sessionId?: string): string {
+// `payload` is the hook stdin object, for the project root when no agent sets a
+// project-dir env var (see resolveProjectRoot).
+export function resolveSessionDir(sessionId?: string, payload?: unknown): string {
   const fromEnv = process.env.GATEGUARD_SESSION_DIR;
   if (fromEnv) return fromEnv;
-  const projectRoot = resolveProjectRoot();
+  const projectRoot = resolveProjectRoot(payload);
   const projectHash = hashProjectRoot(projectRoot);
   const base = join(resolveInstinctsRoot(), projectHash);
   const scoped = sanitizeSessionId(sessionId);
@@ -90,25 +94,6 @@ export function resolveSessionDir(sessionId?: string): string {
 function sanitizeSessionId(sessionId?: string): string {
   if (!sessionId) return "";
   return sessionId.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 64);
-}
-
-// Exported for the target-lock gate (RISA 2 / G2): the hook compares a mutating
-// call's absolute target against this root to catch wrong-repo / wrong-worktree
-// writes. Returns "global" when no CLAUDE_PROJECT_DIR and no git toplevel — the
-// caller treats that as "no known root, do not guess".
-export function resolveProjectRoot(): string {
-  const fromEnv = process.env.CLAUDE_PROJECT_DIR;
-  if (fromEnv) return fromEnv;
-  try {
-    const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-    if (root) return root;
-  } catch {
-    // not in a git repo
-  }
-  return "global";
 }
 
 function freshState(): GateguardState {

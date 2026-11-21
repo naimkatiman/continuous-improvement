@@ -42,8 +42,8 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 function readStdin() {
     try {
@@ -65,30 +65,13 @@ function isRouterDisabled() {
 function resolveHome() {
     return process.env.HOME ?? process.env.USERPROFILE ?? homedir();
 }
-function resolveProjectRoot() {
-    const fromEnv = process.env.CLAUDE_PROJECT_DIR;
-    if (fromEnv)
-        return fromEnv;
-    try {
-        const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
-            encoding: "utf8",
-            stdio: ["ignore", "pipe", "ignore"],
-        }).trim();
-        if (root)
-            return root;
-    }
-    catch {
-        // not in a git repo
-    }
-    return "global";
+function telemetryPath(home, payload) {
+    const hash = hashProjectRoot(resolveProjectRoot(payload));
+    return join(resolveInstinctsRoot(home), hash, "route-prompt.jsonl");
 }
-function telemetryPath(home) {
-    const hash = hashProjectRoot(resolveProjectRoot());
-    return join(home, ".claude", "instincts", hash, "route-prompt.jsonl");
-}
-function writeTelemetry(home, event) {
+function writeTelemetry(home, payload, event) {
     try {
-        const path = telemetryPath(home);
+        const path = telemetryPath(home, payload);
         const dir = dirname(path);
         if (!existsSync(dir))
             mkdirSync(dir, { recursive: true });
@@ -173,7 +156,7 @@ function main() {
     const match = findMatch(prompt, table);
     const home = resolveHome();
     if (!match) {
-        writeTelemetry(home, {
+        writeTelemetry(home, payload, {
             ts: new Date().toISOString(),
             hook: "route-prompt",
             matched: false,
@@ -181,7 +164,7 @@ function main() {
         emit(null);
         return;
     }
-    writeTelemetry(home, {
+    writeTelemetry(home, payload, {
         ts: new Date().toISOString(),
         hook: "route-prompt",
         matched: true,

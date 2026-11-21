@@ -25,6 +25,8 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { GLOBAL_PROJECT_ROOT, resolveProjectRoot } from "../lib/agent-paths.mjs";
+
 import {
   decideTypecheckAction,
   formatTypecheckReason,
@@ -37,18 +39,12 @@ import {
 
 const SPAWN_TIMEOUT_MS = 25_000;
 
-function resolveProjectRoot(): string | null {
-  const fromEnv = process.env.CLAUDE_PROJECT_DIR;
-  if (fromEnv && fromEnv.trim()) return fromEnv.trim();
-  try {
-    const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-    return root || null;
-  } catch {
-    return null;
-  }
+// This hook never reads stdin, so the root comes from the env and git only.
+// Trimmed, as this hook has always trimmed CLAUDE_PROJECT_DIR; no root at all
+// is null, never the "global" bucket name.
+function projectRoot(): string | null {
+  const root = resolveProjectRoot().trim();
+  return root === GLOBAL_PROJECT_ROOT ? null : root;
 }
 
 function collectChangedFiles(root: string): string[] {
@@ -116,7 +112,7 @@ function main(): void {
   const mode: TypecheckMode = resolveTypecheckMode(process.env.CLAUDE_TYPECHECK_GATE);
   if (mode === "off") return;
 
-  const root = resolveProjectRoot();
+  const root = projectRoot();
   if (!root || !existsSync(join(root, "tsconfig.json"))) return; // not a TS project
 
   if (!hasChangedTsFile(collectChangedFiles(root))) return; // nothing TS changed — near-zero cost

@@ -16,9 +16,9 @@
 // reads the SAME observations.jsonl the observer writes. Fail-open by
 // construction: any error / missing goal / unreadable observations exits 0 and
 // never blocks. No network. 5s hook budget.
-import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { evaluateGoalDrift } from "../lib/goal-drift-gate.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
@@ -42,25 +42,8 @@ function resolveMode() {
     const raw = (process.env.CLAUDE_GOAL_DRIFT_GATE ?? "warn").trim().toLowerCase();
     return raw === "block" || raw === "off" ? raw : "warn";
 }
-// Mirrors bin/observe.mts:resolveProjectRoot — the same basis the observer uses
-// to bucket observations.jsonl, so the hash here resolves to the same file.
-function resolveProjectRoot() {
-    const fromEnv = process.env.CLAUDE_PROJECT_DIR;
-    if (fromEnv)
-        return fromEnv;
-    try {
-        const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
-            encoding: "utf8",
-            stdio: ["ignore", "pipe", "ignore"],
-        }).trim();
-        if (root)
-            return root;
-    }
-    catch {
-        // not a git repo
-    }
-    return "global";
-}
+// The observer resolves the same root (lib/agent-paths), so the hash here
+// names the observations.jsonl it writes.
 function projectHash(root) {
     return hashProjectRoot(root);
 }
@@ -155,8 +138,8 @@ function main() {
     const home = resolveHomeDir();
     if (!home)
         return;
-    const projectRoot = resolveProjectRoot();
-    const instinctsProjectDir = join(home, ".claude", "instincts", projectHash(projectRoot));
+    const projectRoot = resolveProjectRoot(payload);
+    const instinctsProjectDir = join(resolveInstinctsRoot(home), projectHash(projectRoot));
     const goalMarkdown = readGoalMarkdown(projectRoot, instinctsProjectDir);
     const observations = readObservations(instinctsProjectDir);
     const textLength = payload.transcript_path && existsSync(payload.transcript_path)

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import { execFileSync } from "node:child_process";
 import { closeSync, openSync, readFileSync, readSync } from "node:fs";
 import { join } from "node:path";
+import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot, projectYamlFiles, yamlFiles } from "../lib/gateguard-state.mjs";
 import { flatten, parseYamlInstinct } from "../lib/instinct-yaml.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
@@ -53,7 +53,9 @@ function readHead(path) {
         }
     }
 }
-function eventFromStdin() {
+// The payload comes back too: its working directory picks the project root
+// when no agent sets a project-dir env var.
+function readPayload() {
     const raw = read(0);
     if (!raw)
         return null;
@@ -62,23 +64,10 @@ function eventFromStdin() {
         if (!payload || typeof payload !== "object" || Array.isArray(payload))
             return null;
         const event = payload.hook_event_name ?? payload.hook_type ?? payload.event_type;
-        return event === "SessionStart" || event === "SessionEnd" ? event : "unknown";
+        return { event: event === "SessionStart" || event === "SessionEnd" ? event : "unknown", payload };
     }
     catch {
         return null;
-    }
-}
-function projectRoot() {
-    if (process.env.CLAUDE_PROJECT_DIR)
-        return process.env.CLAUDE_PROJECT_DIR;
-    try {
-        return execFileSync("git", ["rev-parse", "--show-toplevel"], {
-            encoding: "utf8",
-            stdio: ["ignore", "pipe", "ignore"],
-        }).trim() || "global";
-    }
-    catch {
-        return "global";
     }
 }
 // Each trigger and body goes through flatten (src/lib/instinct-yaml.mts), so a
@@ -150,9 +139,10 @@ function lessonBlock(contents, projectCount) {
     return `${lessonHeader(lines.length, lessons.length)}\n${lines.join("\n")}\n`;
 }
 function main() {
-    const event = eventFromStdin();
-    if (event === null)
+    const input = readPayload();
+    if (input === null)
         return;
+    const { event, payload } = input;
     if (event === "SessionEnd") {
         process.stderr.write("[continuous-improvement] Session ending. Run /continuous-improvement to reflect and capture learnings.\n");
         return;
@@ -160,8 +150,8 @@ function main() {
     const home = resolveHomeDir();
     if (!home)
         return;
-    const instinctsRoot = join(home, ".claude", "instincts");
-    const root = projectRoot();
+    const instinctsRoot = resolveInstinctsRoot(home);
+    const root = resolveProjectRoot(payload);
     const hash = hashProjectRoot(root);
     const projectDir = join(instinctsRoot, hash);
     const projectFiles = projectYamlFiles(instinctsRoot, root, hash);

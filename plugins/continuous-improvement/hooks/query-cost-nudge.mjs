@@ -16,6 +16,7 @@
  * the DB files stay dirty. Never blocks; fail-open on any error.
  */
 import { execFileSync } from "node:child_process";
+import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -31,23 +32,6 @@ function readStdin() {
 }
 function resolveHome() {
     return process.env.HOME || process.env.USERPROFILE || homedir();
-}
-function resolveProjectRoot() {
-    const fromEnv = process.env.CLAUDE_PROJECT_DIR;
-    if (fromEnv && fromEnv.trim())
-        return fromEnv.trim();
-    try {
-        const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
-            encoding: "utf8",
-            stdio: ["ignore", "pipe", "ignore"],
-        }).trim();
-        if (root)
-            return root;
-    }
-    catch {
-        // not in a git repo
-    }
-    return "global";
 }
 function collectChangedFiles(root) {
     const run = (args) => {
@@ -72,21 +56,23 @@ function markerKey(sessionId) {
 }
 function markerPath(home, projectRoot, sessionId) {
     const hash = hashProjectRoot(projectRoot);
-    return join(home, ".claude", "instincts", hash, "query-cost-nudge", `${markerKey(sessionId)}.nudged`);
+    return join(resolveInstinctsRoot(home), hash, "query-cost-nudge", `${markerKey(sessionId)}.nudged`);
 }
 function main() {
     if (resolveQueryCostNudge(process.env.CLAUDE_QUERY_COST_NUDGE) === "off")
         return;
     let sessionId;
+    let payload = null;
     try {
-        const payload = JSON.parse(readStdin());
+        payload = JSON.parse(readStdin());
         if (typeof payload.session_id === "string")
             sessionId = payload.session_id;
     }
     catch {
         // stdin optional — proceed without a session id (per-day dedup)
     }
-    const root = resolveProjectRoot();
+    // Trimmed: this hook has always trimmed CLAUDE_PROJECT_DIR before using it.
+    const root = resolveProjectRoot(payload).trim();
     if (root === "global")
         return; // no repo → nothing to diff
     const changed = changedQueryPaths(collectChangedFiles(root));

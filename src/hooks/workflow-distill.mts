@@ -24,10 +24,10 @@
 // name + verify command, so a run is nudged at most once. Fail-open by
 // construction: any error exits 0 and never blocks. No network. 5s hook budget.
 
-import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 import { workflowRunFromObservations, type DistillObservation } from "../lib/skill-distill.mjs";
@@ -44,23 +44,8 @@ function resolveMode(): "on" | "off" {
   return (process.env.CLAUDE_WORKFLOW_DISTILL_NUDGE ?? "off").trim().toLowerCase() === "on" ? "on" : "off";
 }
 
-// Mirrors bin/observe.mts:resolveProjectRoot — the same basis the observer uses
-// to bucket observations.jsonl, so the hash here resolves to the same file.
-function resolveProjectRoot(): string {
-  const fromEnv = process.env.CLAUDE_PROJECT_DIR;
-  if (fromEnv) return fromEnv;
-  try {
-    const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-    if (root) return root;
-  } catch {
-    // not a git repo
-  }
-  return "global";
-}
-
+// The observer resolves the same root (lib/agent-paths), so the hash here
+// names the observations.jsonl it writes.
 function projectHash(root: string): string {
   return hashProjectRoot(root);
 }
@@ -123,8 +108,9 @@ function main(): void {
 
   const home = resolveHomeDir();
   if (!home) return;
+  // This hook never reads stdin, so the root comes from the env and git only.
   const projectRoot = resolveProjectRoot();
-  const instinctsProjectDir = join(home, ".claude", "instincts", projectHash(projectRoot));
+  const instinctsProjectDir = join(resolveInstinctsRoot(home), projectHash(projectRoot));
 
   const observations = readObservations(instinctsProjectDir);
   if (observations.length === 0) return;

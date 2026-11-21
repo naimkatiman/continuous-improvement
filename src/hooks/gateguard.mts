@@ -54,6 +54,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { classifierShells, inboundCommand, inboundPaths, resolveInboundTool, type InboundTool } from "../lib/agent-profiles.mjs";
 import { classifyDestructiveBash } from "../lib/destructive-bash.mjs";
 import {
@@ -65,8 +66,6 @@ import {
   isFileCleared,
   loadState,
   markFileCleared,
-  resolveInstinctsRoot,
-  resolveProjectRoot,
   resolveSessionDir,
   saveState,
   type GateguardState,
@@ -265,8 +264,8 @@ function buildUnknownModeNotice(): string {
 
 // The log bin/observe.mjs appends to for this project: same home, same project
 // root, same hash.
-function observationLogPath(): string {
-  return join(resolveInstinctsRoot(), hashProjectRoot(resolveProjectRoot()), "observations.jsonl");
+function observationLogPath(payload: unknown): string {
+  return join(resolveInstinctsRoot(), hashProjectRoot(resolveProjectRoot(payload)), "observations.jsonl");
 }
 
 // Record an evidence allow so the file's later edits skip the log scan. The cap
@@ -534,7 +533,7 @@ async function main(): Promise<void> {
   // bleeds across concurrent same-day sessions. session_id is the standard hook
   // stdin field (see recall-briefing / observe-event); absent → legacy dir.
   const sessionId = typeof payload.session_id === "string" ? payload.session_id : undefined;
-  const sessionDir = resolveSessionDir(sessionId);
+  const sessionDir = resolveSessionDir(sessionId, payload);
   const stateFilePath = join(sessionDir, "gateguard-session.json");
   let state = loadState(sessionDir);
   const allTargetPaths = alias ? inboundPaths(alias, toolInput) : extractFilePaths(toolInput);
@@ -553,7 +552,7 @@ async function main(): Promise<void> {
   // facts or a fresh read. Excluded paths were already filtered out above, so
   // an explicitly-excluded scratch dir outside the root is never target-locked.
   if (TARGET_LOCK_ON) {
-    const projectRoot = resolveProjectRoot();
+    const projectRoot = resolveProjectRoot(payload);
     const stray = filePaths.find((path) => isTargetOutsideRoot(path, projectRoot));
     if (stray) {
       emitDeny(buildTargetLockReason(stray, projectRoot));
@@ -594,7 +593,7 @@ async function main(): Promise<void> {
     // and the scan with the observer's summariser behind it is only needed for
     // the first edit of an existing file.
     const { findEvidence } = await import("../lib/gateguard-evidence.mjs");
-    const seen = findEvidence(observationLogPath(), sessionId ?? "", cwd, pending);
+    const seen = findEvidence(observationLogPath(payload), sessionId ?? "", cwd, pending);
     if (seen === null) {
       // No observation log: the observer is not installed or has never run, so
       // nothing can show a read. The gate cannot judge.
