@@ -16,6 +16,7 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileS
 import { dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { parseDoctorArgs, runDoctor } from "../lib/agent-doctor.mjs";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import CLIAnything from "../lib/cli-anything.mjs";
 import {
@@ -87,6 +88,8 @@ class UnifiedCLI {
         return this.handleConfig(args);
       case "lessons":
         return handleLessons(args);
+      case "doctor":
+        return handleDoctor(args);
       default:
         throw new Error(`Unknown command: ${command}`);
     }
@@ -250,6 +253,25 @@ function handleLessons(args: readonly string[]): void {
   if (note) console.log(note);
 }
 
+// Each probe gets this long; a listing that spawns MCP servers can be slow on
+// a loaded host, and one that hangs must not hang the doctor.
+const DOCTOR_TIMEOUT_MS = 30_000;
+
+// `ci doctor --agent <id>` (docs/plans/2026-11-21-all-agents.md, PR 16): runs
+// the agent's listing commands from lib/agent-doctor.mjs and exits 1 when one
+// is missing or fails. An unknown id throws before anything runs.
+async function handleDoctor(args: readonly string[]): Promise<void> {
+  const { agent } = parseDoctorArgs(args);
+  const ok = await runDoctor(agent, {
+    env: process.env,
+    platform: process.platform,
+    cwd: process.cwd(),
+    timeoutMs: DOCTOR_TIMEOUT_MS,
+    write: (line) => console.log(line),
+  });
+  if (!ok) process.exitCode = 1;
+}
+
 function parseGlobalOptions(args: string[]): ParsedOptions {
   const options: ParsedOptions = {};
 
@@ -298,6 +320,9 @@ Commands:
           [--scope project|user]
                             Where that file lives: the project (default), or the
                             user-level file, written only with --scope user
+  doctor --agent <agent>    Run the agent's own listing commands (version, MCP,
+                            plugins, skills; Codex hook trust) and report what
+                            they print; nothing sends a prompt
 
 Global Options:
   --workspace <dir>         Workspace directory (default: ./ci-workspace)

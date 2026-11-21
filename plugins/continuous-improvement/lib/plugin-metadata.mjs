@@ -160,7 +160,7 @@ const BEGINNER_TOOL_ENTRIES = [
                 },
                 state_path: {
                     type: "string",
-                    description: "State-file path from the GateGuard block reason (the session-scoped gateguard-session.json). Pass it verbatim so the clearance lands in the session the hook is reading; it must resolve inside ~/.claude/instincts/. Omitting it falls back to the unscoped canonical dir — safe only in legacy (no session id) contexts; when the hook is session-scoped, omitting it writes to the wrong dir and the retry will still block.",
+                    description: "State-file path from the GateGuard block reason (the session-scoped gateguard-session.json). Pass it verbatim so the clearance lands in the session the hook is reading; it must resolve inside the instincts root (CI_INSTINCTS_HOME when set, else ~/.claude/instincts; every agent shares it). Omitting it falls back to the unscoped canonical dir — safe only in legacy (no session id) contexts; when the hook is session-scoped, omitting it writes to the wrong dir and the retry will still block.",
                 },
             },
             required: [],
@@ -335,7 +335,7 @@ const EXPERT_TOOL_ENTRIES = [
                 },
                 goal_file: {
                     type: "string",
-                    description: "Path to a goal/plan markdown file. Defaults to task_plan.md in the project root, then ~/.claude/instincts/<hash>/goal.md",
+                    description: "Path to a goal/plan markdown file. Defaults to task_plan.md in the project root, then <hash>/goal.md under the instincts root (CI_INSTINCTS_HOME when set, else ~/.claude/instincts; every agent shares it)",
                 },
             },
             required: [],
@@ -343,7 +343,7 @@ const EXPERT_TOOL_ENTRIES = [
     },
     {
         name: "ci_recall",
-        description: "Search past tool-call observations with BM25 ranking. Answers 'have I seen this before?' against ~/.claude/instincts/<hash>/observations.jsonl and returns the most relevant past activity with redacted snippets. Lexical, not semantic.",
+        description: "Search past tool-call observations with BM25 ranking. Answers 'have I seen this before?' against <hash>/observations.jsonl under the instincts root (CI_INSTINCTS_HOME when set, else ~/.claude/instincts; every agent shares it) and returns the most relevant past activity with redacted snippets. Lexical, not semantic.",
         manifestWhat: "Search past sessions for relevant prior activity (episodic recall)",
         inputSchema: {
             type: "object",
@@ -370,7 +370,7 @@ const EXPERT_TOOL_ENTRIES = [
     },
     {
         name: "ci_distill_propose",
-        description: "Write a DRAFT instinct for a distillation candidate to ~/.claude/instincts/<hash>/drafts/. The draft has a placeholder body for you to edit; it does not affect behavior until promoted.",
+        description: "Write a DRAFT instinct for a distillation candidate to <hash>/drafts/ under the instincts root (CI_INSTINCTS_HOME when set, else ~/.claude/instincts; every agent shares it). The draft has a placeholder body for you to edit; it does not affect behavior until promoted.",
         manifestWhat: "Draft a reusable instinct from a repeated successful pattern",
         inputSchema: {
             type: "object",
