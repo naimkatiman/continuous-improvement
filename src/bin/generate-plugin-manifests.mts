@@ -259,7 +259,16 @@ async function writePluginBundle(): Promise<void> {
       join(REPO_ROOT, "lib", "agent-env.mjs"),
       join(PLUGIN_BUNDLE_DIR, "lib", "agent-env.mjs"),
     ),
-    // Imported by hooks/gateguard.mjs. It imports observe-event.mjs, copied below.
+    // Neutral hook I/O and the gateguard decision, imported by hooks/gateguard.mjs.
+    copyFileTo(
+      join(REPO_ROOT, "lib", "hook-io.mjs"),
+      join(PLUGIN_BUNDLE_DIR, "lib", "hook-io.mjs"),
+    ),
+    copyFileTo(
+      join(REPO_ROOT, "lib", "gateguard-decide.mjs"),
+      join(PLUGIN_BUNDLE_DIR, "lib", "gateguard-decide.mjs"),
+    ),
+    // Imported by lib/gateguard-decide.mjs. It imports observe-event.mjs, copied below.
     copyFileTo(
       join(REPO_ROOT, "lib", "gateguard-evidence.mjs"),
       join(PLUGIN_BUNDLE_DIR, "lib", "gateguard-evidence.mjs"),
