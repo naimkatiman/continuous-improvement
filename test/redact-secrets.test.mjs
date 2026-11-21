@@ -61,6 +61,111 @@ describe("redactSecrets: assignment names", () => {
         });
     }
 });
+// `key`, `keys` and `token` with nothing else in the name are ordinary words far
+// more often than secrets: a React key, a sort key, a keyboard key, a count of
+// keys, a variable called token. They were the most frequent matches on real
+// logs. Such a name marks a secret only when its value is credential-shaped: it
+// holds a run of 16 or more letters, digits, `_`, `-` or `+` with both a letter
+// and a digit in it.
+describe("redactSecrets: the bare names key, keys and token", () => {
+    const untouched = [
+        "<Row key={entry.user_id} />",
+        "sorted(words, key=lambda w: w.lower())",
+        "sorted(rows, key=operator.itemgetter(1))",
+        "keys: 76 clean",
+        "curl https://api.example.com/search?key=value",
+        "const token = params.get('t')",
+        "token = localStorage.getItem('auth_token_v2')",
+        "rotate api key: done",
+        "echo primary key: id",
+        `node -e "const key = 'a'; console.log(key)"`,
+        "token: ${{ secrets.GITHUB_TOKEN }}",
+        "- key: node-role.kubernetes.io/control-plane",
+        "key: /etc/letsencrypt/live/example.com/privkey.pem",
+        '{"key":"Enter"}',
+        '{"namespace":"sessions","key":"user:42:profile"}',
+        '{"keys":["a","b"]}',
+        '{"token":123456,"ok":true}',
+        // A short value is not credential-shaped either.
+        "TOKEN=abc ./run.sh",
+    ];
+    for (const text of untouched) {
+        it(`leaves ${JSON.stringify(text)} alone`, () => {
+            assert.equal(redactSecrets(text), text);
+        });
+    }
+    const SESSION = "550e8400-e29b-41d4-a716-446655440000";
+    const BOT = "1234567890:AAFakeFakeFakeFake0123456789abcdefghi";
+    const redacted = [
+        [`KEY=${SECRET} node x.js`, "KEY=<redacted> node x.js"],
+        [`export TOKEN=${SECRET}`, "export TOKEN=<redacted>"],
+        [`TOKEN=${BOT} ./bot.sh`, "TOKEN=<redacted> ./bot.sh"],
+        [`token: ${SESSION}`, "token: <redacted>"],
+        [`$key = '${SECRET}'`, "$key = '<redacted>'"],
+        ['token = "abc def 1234567890abcdefgh"', 'token = "<redacted>"'],
+        [`{"token":"${SECRET}"}`, '{"token":"<redacted>"}'],
+        // The value runs to the next whitespace, as it does for every other name.
+        [
+            'curl "https://maps.example.test/js?key=AIzaFAKE0123456789abcdefghijklmnopqrstu&callback=init"',
+            'curl "https://maps.example.test/js?key=<redacted>',
+        ],
+        // A value that is not a secret can still hold one under another name.
+        [`curl "https://x.test/login?key=name&password=${SECRET}"`, 'curl "https://x.test/login?key=name&password=<redacted>'],
+        ['key="note PASSWORD=hunter2 end"', 'key="note PASSWORD=<redacted> end"'],
+        // Every other name stays a secret whatever its value looks like.
+        ["api_key=abc x-api-key: abc DEPLOY_TOKEN=abc", "api_key=<redacted> x-api-key: <redacted> DEPLOY_TOKEN=<redacted>"],
+        ["client_secret=abc password=abc --token=abc", "client_secret=<redacted> password=<redacted> --token=<redacted>"],
+        ["KEY_1=abc _authToken=abc", "KEY_1=<redacted> _authToken=<redacted>"],
+        ['{"apiKey":"abc","pin_token":123456}', '{"apiKey":"<redacted>","pin_token":<redacted>}'],
+    ];
+    for (const [text, expected] of redacted) {
+        it(`redacts ${JSON.stringify(text)}`, () => {
+            assert.equal(redactSecrets(text), expected);
+        });
+    }
+    it("is stable when run again over its own output", () => {
+        for (const [, expected] of redacted) {
+            assert.equal(redactSecrets(expected), expected);
+        }
+    });
+});
+// The separator used to let any whitespace, a line break included, sit between
+// the name and the value. `NAME= command` is the shell idiom for running one
+// command with the variable blanked, and a name at the end of a line has no
+// value on it: the next word, or the next line, was redacted in its place.
+describe("redactSecrets: an empty assignment has no value", () => {
+    const untouched = [
+        "OPENAI_API_KEY= pytest -q",
+        "OPENROUTER_API_KEY= npx vitest run",
+        "OPENAI_API_KEY=\nANTHROPIC_API_KEY=\n",
+        "OPENAI_API_KEY=\r\nANTHROPIC_API_KEY=\r\n",
+        "export API_KEY=\n# set the key above, then run: npm test",
+        "Enter password:\nConnection established",
+        '"password":\n  secretKeyRef: db',
+        "API_KEY=",
+        "password: ",
+    ];
+    for (const text of untouched) {
+        it(`leaves ${JSON.stringify(text)} alone`, () => {
+            assert.equal(redactSecrets(text), text);
+        });
+    }
+    // A value on the same line is still one: directly after the `=`, after a
+    // colon, after an `=` that has a blank in front of it, or in quotes.
+    const redacted = [
+        [`API_KEY=${SECRET} pytest -q`, "API_KEY=<redacted> pytest -q"],
+        [`password:${SECRET}`, "password:<redacted>"],
+        [`password = ${SECRET}`, "password = <redacted>"],
+        [`API_KEY\t= ${SECRET}`, "API_KEY\t= <redacted>"],
+        ['API_KEY= "quoted value" pytest -q', 'API_KEY= "<redacted>" pytest -q'],
+        [`OPENAI_API_KEY=\nANTHROPIC_API_KEY=${SECRET}\n`, "OPENAI_API_KEY=\nANTHROPIC_API_KEY=<redacted>\n"],
+    ];
+    for (const [text, expected] of redacted) {
+        it(`redacts ${JSON.stringify(text)}`, () => {
+            assert.equal(redactSecrets(text), expected);
+        });
+    }
+});
 // The value used to end at the first whitespace, so a quoted passphrase lost
 // only its first word and the rest was written at rest.
 describe("redactSecrets: quoted values", () => {
@@ -84,6 +189,31 @@ describe("redactSecrets: quoted values", () => {
     it("is stable when run again over its own output", () => {
         const once = redactSecrets('DB_PASSWORD="correct horse battery staple" TOKEN=abc ./run.sh');
         assert.equal(redactSecrets(once), once);
+    });
+    // When the name is the last thing inside a quoted string (a grep pattern, a
+    // log label, a -S argument) the quote after it closes that string. Reading it
+    // as the opening quote of a value deleted everything up to the next quote, or
+    // to the end of the row.
+    const closingQuote = [
+        'grep -n "apiKey:" src/config.ts | head -5 && npm test',
+        "grep -rn 'password=' config/ ; npm run build",
+        `git log -S 'API_KEY = "' --oneline -5 -- src/config.ts`,
+        `grep -n '"apiKey":' src/config.json | head -5 && npm test`,
+        'grep -c "use --token " docs/cli.md && npm run build',
+        'echo "DB_PASSWORD=" && cat .env.example',
+        'grep -n "apiKey:"',
+        // The same command inside serialised JSON, where the quotes are escaped.
+        '{"command":"grep -n \\"apiKey:\\" src/config.ts && npm test"}',
+        // An empty quoted value has nothing in it to redact.
+        'DB_PASSWORD="" ./run.sh',
+    ];
+    for (const text of closingQuote) {
+        it(`keeps the text after a closing quote in ${JSON.stringify(text)}`, () => {
+            assert.equal(redactSecrets(text), text);
+        });
+    }
+    it("still redacts a quoted value later in the same command", () => {
+        assert.equal(redactSecrets('grep -n "apiKey:" src/config.ts && API_KEY="two words" npm test'), 'grep -n "apiKey:" src/config.ts && API_KEY="<redacted>" npm test');
     });
 });
 // In JSON the name is closed by a quote before the colon, so a rule that wants
@@ -155,6 +285,20 @@ describe("redactSecrets: credential shapes without a secret name", () => {
             `DATABASE_URL=postgres://app:${SECRET}@db.test:5432/app npm run migrate`,
             "DATABASE_URL=postgres://app:<redacted>@db.test:5432/app npm run migrate",
         ],
+        // :password@ with no user in front of it, the standard Redis URL form
+        [
+            `REDIS_URL=redis://:${SECRET}@10.0.0.5:6379/0 node app.js`,
+            "REDIS_URL=redis://:<redacted>@10.0.0.5:6379/0 node app.js",
+        ],
+        [
+            `Connecting to rediss://:${SECRET}@cache.internal:6380 ...`,
+            "Connecting to rediss://:<redacted>@cache.internal:6380 ...",
+        ],
+        [
+            `celery -A proj worker -b redis://:${SECRET}@cache.internal:6379/0`,
+            "celery -A proj worker -b redis://:<redacted>@cache.internal:6379/0",
+        ],
+        [`node -e "new Redis('redis://:${SECRET}@10.0.0.5:6379')"`, `node -e "new Redis('redis://:<redacted>@10.0.0.5:6379')"`],
         // an Authorization header with any scheme, or none
         [
             'curl -H "Authorization: Basic dXNlcjpodW50ZXIyU0VDUkVU" https://x.test',
@@ -170,6 +314,15 @@ describe("redactSecrets: credential shapes without a secret name", () => {
         // curl -u user:password
         [`curl -u admin:${SECRET} https://x.test`, "curl -u admin:<redacted> https://x.test"],
         [`curl --user admin:${SECRET} https://x.test`, "curl --user admin:<redacted> https://x.test"],
+        [`curl -u "admin:${SECRET}" https://x.test`, 'curl -u "admin:<redacted>" https://x.test'],
+        [`curl -u 1000:${SECRET} https://x.test`, "curl -u 1000:<redacted> https://x.test"],
+        ["curl -u admin:123456 https://x.test", "curl -u admin:<redacted> https://x.test"],
+        // a URL after -u is left to the URL rule, which keeps the host
+        [`redis-cli -u redis://:${SECRET}@10.0.0.5:6379/0 ping`, "redis-cli -u redis://:<redacted>@10.0.0.5:6379/0 ping"],
+        [
+            `redis-cli -u redis://default:${SECRET}@10.0.0.5:6379/0 ping`,
+            "redis-cli -u redis://default:<redacted>@10.0.0.5:6379/0 ping",
+        ],
         // a secret flag whose value is the next argument
         [`mysql -u root --password ${SECRET} db`, "mysql -u root --password <redacted> db"],
         [`deploy --api-key ${SECRET} --env staging`, "deploy --api-key <redacted> --env staging"],
@@ -193,6 +346,12 @@ describe("redactSecrets: credential shapes without a secret name", () => {
             "<private-key-redacted>\nnext",
         ],
         ["-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA7", "<private-key-redacted>"],
+        // the PGP armor (`gpg --export-secret-keys --armor`) ends its header in BLOCK
+        [
+            "-----BEGIN PGP PRIVATE KEY BLOCK-----\n\nlQOYBGZ1c2VkMQgAw7JqT9pLx2\n=AbCd\n-----END PGP PRIVATE KEY BLOCK-----\nnext",
+            "<private-key-redacted>\nnext",
+        ],
+        ["-----BEGIN PGP PRIVATE KEY BLOCK-----\n\nlQOYBGZ1c2VkMQgAw7JqT9pLx2", "<private-key-redacted>"],
     ];
     for (const [text, expected] of redacted) {
         it(`redacts ${JSON.stringify(text)}`, () => {
@@ -205,14 +364,30 @@ describe("redactSecrets: credential shapes without a secret name", () => {
         "git clone git@github.com:o/r.git",
         "git clone ssh://git@host.test:22/o/r.git",
         "curl https://user@host.test/x",
+        "open file:///C:/Users/x/a@b.txt",
+        "curl http://localhost:3000/users/@me",
+        "psql postgres://localhost:5432/app",
         "git push -u origin feat/x",
         "sort -u names.txt",
+        // -u is also UTC for date, unbuffered for python, unique for sort and
+        // uid:gid for docker, and --user is a pip switch: none of these is
+        // user:password.
+        "date -u +%Y-%m-%dT%H:%M:%SZ",
+        'date -u "+%Y-%m-%dT%H:%M:%SZ"',
+        "python -u D:/Ai/tools/run.py --fast",
+        'python -u "D:\\Ai\\tools\\run.py" --fast',
+        "sort -u D:/tmp/names.txt",
+        "docker run -u 1000:1000 node:22 npm test",
+        "docker run --user=1000:1000 node:22 npm test",
+        "pip install --user git+https://github.com/psf/requests.git",
+        "redis-cli -u redis://localhost:6379/0 ping",
         'psql --no-password -c "select 1"',
         "docker login --password-stdin registry.test",
         "npm_config_registry=https://registry.npmjs.org",
         "pip install sk-learn",
         "open authorization_endpoint.md",
         "-----BEGIN CERTIFICATE-----",
+        "-----BEGIN PGP PUBLIC KEY BLOCK-----\n\nmQENBGZ1c2Vk\n-----END PGP PUBLIC KEY BLOCK-----",
     ];
     for (const text of untouched) {
         it(`leaves ${JSON.stringify(text)} alone`, () => {
@@ -223,5 +398,92 @@ describe("redactSecrets: credential shapes without a secret name", () => {
         for (const [, expected] of redacted) {
             assert.equal(redactSecrets(expected), expected);
         }
+    });
+});
+// A bare run of 32 or more hex characters is usually a git object id, a
+// checksum or a bundle file name, and sometimes a key. Replacing all of it made
+// half of all redactions on real logs a commit id nobody could search for any
+// more. The placeholder keeps the first 8 characters, so the row is still
+// found by short SHA, and hides the rest (128 bits of a 40-character value).
+describe("redactSecrets: long hex strings", () => {
+    const SHA = "c5810ad91a7dd663c6706c955a7a1b37c92aae1e";
+    const redacted = [
+        [`git cherry-pick ${SHA}`, "git cherry-pick <hex-redacted:c5810ad9>"],
+        [`gh pr merge 12 --match-head-commit ${SHA}`, "gh pr merge 12 --match-head-commit <hex-redacted:c5810ad9>"],
+        ["sha 0123456789abcdef0123456789abcdef done", "sha <hex-redacted:01234567> done"],
+        ["dist/assets/entry-0123456789abcdef0123456789abcdef.js", "dist/assets/entry-<hex-redacted:01234567>.js"],
+        [`${SHA}${SHA.slice(0, 24)}  release.tgz`, "<hex-redacted:c5810ad9>  release.tgz"],
+        ["ABCDEF0123456789ABCDEF0123456789", "<hex-redacted:ABCDEF01>"],
+        // On the value side of a secret name the whole value still goes.
+        [`API_KEY=${SHA} node x.js`, "API_KEY=<redacted> node x.js"],
+        [`{"api_key":"${SHA}"}`, '{"api_key":"<redacted>"}'],
+        [`deploy --token ${SHA}`, "deploy --token <redacted>"],
+    ];
+    for (const [text, expected] of redacted) {
+        it(`redacts ${JSON.stringify(text)}`, () => {
+            assert.equal(redactSecrets(text), expected);
+        });
+    }
+    it("never keeps more than the first 8 characters", () => {
+        for (const [text] of redacted) {
+            const out = redactSecrets(text);
+            assert.ok(!out.includes(SHA.slice(0, 9)), out);
+            assert.ok(!out.toLowerCase().includes("0123456789abcdef".slice(0, 9)), out);
+        }
+    });
+    // A short SHA (git prints 7 to 12 characters) is not long enough to be a key.
+    const untouched = [
+        `git show ${SHA.slice(0, 7)} --stat`,
+        `git diff ${SHA.slice(0, 31)}..HEAD`,
+        "<hex-redacted:c5810ad9>",
+    ];
+    for (const text of untouched) {
+        it(`leaves ${JSON.stringify(text)} alone`, () => {
+            assert.equal(redactSecrets(text), text);
+        });
+    }
+    it("is stable when run again over its own output", () => {
+        for (const [, expected] of redacted) {
+            assert.equal(redactSecrets(expected), expected);
+        }
+    });
+});
+// The JWT rule used to take any three dot-separated runs of 10 or more word
+// characters. On real logs that never matched a JWT, only dotted identifiers:
+// test ids, type names, property chains and file names. A JWT's header is
+// base64 of a JSON object, so it always starts with eyJ.
+describe("redactSecrets: JWTs", () => {
+    const JWT = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpM";
+    const redacted = [
+        [`session ${JWT} issued`, "session <jwt-redacted> issued"],
+        [`curl -H "X-Session: ${JWT}" https://x.test`, 'curl -H "X-Session: <jwt-redacted>" https://x.test'],
+        [`{"note":"issued ${JWT}"}`, '{"note":"issued <jwt-redacted>"}'],
+        [`https://x.test/cb?jwt=${JWT}&state=1`, "https://x.test/cb?jwt=<jwt-redacted>&state=1"],
+    ];
+    for (const [text, expected] of redacted) {
+        it(`redacts ${JSON.stringify(text)}`, () => {
+            assert.equal(redactSecrets(text), expected);
+        });
+    }
+    const untouched = [
+        "FAIL: test_upload_link_unlink (test_server.CrmServerTests.test_upload_link_unlink)",
+        "src/users/user-preferences.controller.integration.spec.ts",
+        "el.parentElement.previousElementSibling.getBoundingClientRect()",
+        "Microsoft.Extensions.DependencyInjection.Abstractions 8.0.0",
+        "continuous-improvement.example-account.workers.dev",
+    ];
+    for (const text of untouched) {
+        it(`leaves ${JSON.stringify(text)} alone`, () => {
+            assert.equal(redactSecrets(text), text);
+        });
+    }
+    it("scans long dash-separated text in linear time", () => {
+        // The old pattern tried a match at every word boundary and walked the rest
+        // of the run each time: 60 KB of this took seconds.
+        const blob = "ab-".repeat(20_000);
+        const started = process.hrtime.bigint();
+        assert.equal(redactSecrets(blob), blob);
+        const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+        assert.ok(elapsedMs < 500, `60 KB took ${elapsedMs.toFixed(0)}ms`);
     });
 });

@@ -21,7 +21,7 @@
  * One-call bypass: CI_CONFIG_GUARD_ALLOW=true allows the call and says so.
  *
  * Registered with a tool matcher
- * (Bash|PowerShell|Edit|MultiEdit|Write|NotebookEdit) so read-only tools never
+ * (Bash|PowerShell|Monitor|Edit|MultiEdit|Write|NotebookEdit) so read-only tools never
  * spawn it. No network. No git. Fail-open.
  */
 

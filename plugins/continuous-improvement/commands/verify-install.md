@@ -23,20 +23,25 @@ stop — the command is not registered. The fix is a Claude Code session restart
 
 ## Check 2 — gateguard runtime hook fires
 
-The runtime gate ships as a PreToolUse hook (`hooks/gateguard.mjs`). Probe it:
-attempt to `Write` a throwaway file at a sandbox path (`./.ci-verify-install-probe.txt`
-with the text `probe`) **without presenting any research first**.
+The runtime gate ships as a PreToolUse hook (`hooks/gateguard.mjs`). Probe it with
+a deny that is the same in every file gate mode: run `git rev-parse @{u}` through
+the shell tool (Bash or PowerShell) with the ref **unquoted**, exactly as written.
 
-- If the hook **blocks** the write with a fact-list reason — the runtime layer is
-  wired. Record `gateguard: ✓`. Do not retry the write; the block is the pass.
-- If the write **goes through** with no pause — either the hook did not load, or
-  `CI_GATEGUARD_EXCLUDE` is set to a fragment that matches the probe path (a
-  catch-all such as `/` or `.` matches every path and switches the file gate off;
-  the hook prints a one-line stderr notice when an exclusion fires). Run
-  `echo "$CI_GATEGUARD_EXCLUDE"` first. If it is empty, record
-  `gateguard: ✗ (hooks/gateguard.mjs not wired — see README → Troubleshooting install)`;
-  if it is set, record `gateguard: ✗ (excluded by CI_GATEGUARD_EXCLUDE=<value>; unset it or
-  narrow the fragment)`. Delete the probe file if it was created.
+- If the hook **blocks** the command and the reason starts `Unquoted git ref @{u}`,
+  the runtime layer is wired. Record `gateguard: ✓`. Do not retry with the
+  quoted ref; the block is the pass.
+- If the command **runs** (it prints the upstream ref, or git reports that there
+  is no upstream), or it is stopped with any other message, the hook did not
+  load. The hook runs as `node hooks/gateguard.mjs`, so check that `node` is on
+  the PATH Claude Code starts with, then restart Claude Code (hooks load on
+  session start). Record
+  `gateguard: ✗ (hooks/gateguard.mjs not wired; check node is on PATH, restart Claude Code, see README → Two install paths)`.
+
+Do not probe with a file write. The file gate defaults to
+`CI_GATEGUARD_FILE_GATE=evidence`, which allows a new file and allows an existing
+file once the session has read it, so a write that goes through proves nothing.
+`CI_GATEGUARD_EXCLUDE` and `CI_GATEGUARD_FILE_GATE=off` switch the file gate off
+without unwiring the hook, and neither changes this probe.
 
 ## Check 3 — observation capture recording
 

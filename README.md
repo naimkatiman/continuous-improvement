@@ -348,7 +348,7 @@ Set a switch in the environment Claude Code starts from. An unrecognized value f
 
 | Variable | Values | Default | Effect |
 |---|---|---|---|
-| `CI_GATEGUARD_FILE_GATE` | `strict`, `off` | evidence | `off` disables the blind-edit gate. `strict` brings back the older gate: the first edit of every file is denied with a fact list until a clear command is run |
+| `CI_GATEGUARD_FILE_GATE` | `strict`, `off` | evidence | `off` disables the blind-edit gate. `strict` brings back the older gate: the first edit of every file is denied with a fact list until a clear command is run. In the default mode a project with no observation log is allowed, because the gate has nothing to judge by |
 | `CI_GATEGUARD_EXCLUDE` | comma-separated path fragments | unset | Skips the blind-edit gate and the wrong-repository lock for matching paths (substring match on the forward-slash path). A fragment of one character, `./` or `..` makes the hook report that the file gate is off, on stderr, which reaches nobody. `/` and `.` do match every path; a single letter skips only the paths that contain it. Destructive commands are never excluded |
 | `CI_GATEGUARD_TARGET_LOCK` | `block` | off | Denies a file-tool write whose absolute path is outside the session's repository |
 | `GATEGUARD_MAX_CLEARED_FILES` | positive integer | 1000 | Per-session cap on cleared files for the file gate |
@@ -357,7 +357,7 @@ Set a switch in the environment Claude Code starts from. An unrecognized value f
 | `CI_CONFIG_GUARD_ALLOW` | `true` | unset | Lets the call through and prints a stderr line |
 | `CLAUDE_TYPECHECK_GATE` | `off`, `warn`, `block` | `off` | Typecheck at turn end (`hooks/typecheck-stop.mjs`) |
 | `CLAUDE_GOAL_DRIFT_GATE` | `warn`, `block`, `off` | `warn` | Goal-drift check at turn end (`hooks/goal-drift-stop.mjs`) |
-| `CLAUDE_THREE_SECTION_CLOSE` | `1`, `on`, `true`, `yes` | off | Turns the three-heading reply check on (`hooks/three-section-close.mjs`) |
+| `CLAUDE_THREE_SECTION_CLOSE` | `1`, `on`, `true`, `yes` | off | Turns the three-heading reply check on (`hooks/three-section-close.mjs`). It never sends back a turn that a Stop hook already continued (`stop_hook_active`), so it cannot loop |
 | `CLAUDE_THREE_SECTION_CLOSE_DISABLED` | `1` | unset | Forces that check off |
 | `CI_ROUTE_PROMPT` | `1`, `on`, `true`, `yes` | off | Turns the prompt router on (`hooks/route-prompt.mjs`) |
 | `CI_ROUTE_PROMPT_DISABLE` | `1`, `true` | unset | Forces the router off |
@@ -376,7 +376,7 @@ Also read: `CLAUDE_PROJECT_DIR` (set by Claude Code; the project root used for t
 <details>
 <summary><b>MCP tools: the server and its tools, by mode</b></summary>
 
-The server is [`bin/mcp-server.mjs`](bin/mcp-server.mjs), stdio. Its `--mode` flag picks the tool set: the plugin starts it with `--mode expert` (19 tools), and with no flag it runs in beginner mode (4 tools, about 2,000 characters of definitions). In `/mcp` it appears as `plugin:continuous-improvement:continuous-improvement`, and its tools are named `mcp__plugin_continuous-improvement_continuous-improvement__<tool>`.
+The server is [`bin/mcp-server.mjs`](bin/mcp-server.mjs), stdio. Its `--mode` flag picks the tool set: the plugin starts it with `--mode expert` (19 tools), and with no flag it runs in beginner mode (4 tools, about 2,000 characters of definitions). In `/mcp` it appears as `plugin:continuous-improvement:continuous-improvement`, and its tools are named `mcp__plugin_continuous-improvement_continuous-improvement__<tool>`. If `/mcp` also lists a second `continuous-improvement` server that you added at user scope from an npm copy, Claude Code runs both because their commands differ; remove that one with `claude mcp remove continuous-improvement`.
 
 Expert mode exposes all the MCP tools (19 of them, including `ci_plan_init` and `ci_plan_status`, which create and summarize the `task_plan.md`, `findings.md` and `progress.md` planning files that `/planning-with-files` also maintains).
 

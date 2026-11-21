@@ -51,7 +51,7 @@ const COMMAND_FILES = [
 // (observe-event.mjs imports redact-secrets.mjs); a hook with a missing import
 // dies at module load.
 const OBSERVER_LIB_FILES = ["observe-event.mjs", "redact-secrets.mjs", "gateguard-state.mjs"];
-const SESSION_LIB_FILES = ["gateguard-state.mjs", "resolve-home-dir.mjs"];
+const SESSION_LIB_FILES = ["gateguard-state.mjs", "instinct-yaml.mjs", "resolve-home-dir.mjs"];
 const INSTALLED_LIB_FILES = Array.from(new Set([...OBSERVER_LIB_FILES, ...SESSION_LIB_FILES]));
 // Where the session hook was installed before it moved to instincts/hooks.
 const LEGACY_SESSION_HOOK_FILE = "session.mjs";

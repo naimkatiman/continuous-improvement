@@ -2,12 +2,18 @@
   "hooks": {
     "PreToolUse": [
       {
+        "matcher": "Bash|PowerShell|Monitor|Edit|MultiEdit|Write|NotebookEdit",
         "hooks": [
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/gateguard.mjs\"",
             "timeout": 30
-          },
+          }
+        ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/companion-preference.mjs\"",
@@ -16,7 +22,7 @@
         ]
       },
       {
-        "matcher": "Bash|PowerShell",
+        "matcher": "Bash|PowerShell|Monitor",
         "hooks": [
           {
             "type": "command",
@@ -26,7 +32,7 @@
         ]
       },
       {
-        "matcher": "Bash|PowerShell|Edit|MultiEdit|Write|NotebookEdit",
+        "matcher": "Bash|PowerShell|Monitor|Edit|MultiEdit|Write|NotebookEdit",
         "hooks": [
           {
             "type": "command",
