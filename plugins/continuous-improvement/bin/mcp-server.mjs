@@ -20,7 +20,7 @@ import { formatDriftReport, parseGoalFromPlan, scoreObservations, } from "../lib
 import { flatten, parseYamlInstinct } from "../lib/instinct-yaml.mjs";
 import { buildIndex, formatRecallHits, parseSince, query as queryRecall, } from "../lib/recall-index.mjs";
 import { draftFromCandidate, draftFromWorkflowRun, extractTrajectories, findCandidates, formatCandidates, serializeDraft, workflowRunFromObservations, } from "../lib/skill-distill.mjs";
-import { mcpRootsPayload, resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
+import { mcpRootsPayload, resolveInstinctsRoot, resolveProjectRoot, resolveWorkspaceDir } from "../lib/agent-paths.mjs";
 import { MAX_CLEARED_FILES, canonicalizeFileKey, clearFiles, hashProjectRoot, projectYamlFiles, resolveSessionDir, } from "../lib/gateguard-state.mjs";
 function getHomeDir() {
     return process.env.HOME || process.env.USERPROFILE || homedir();
@@ -139,10 +139,12 @@ function getProjectHash() {
         return GLOBAL_PROJECT;
     return { root, hash: hashProjectRoot(root), name: basename(root) };
 }
-// The directory the planning tools read and write: the project root, or the
-// server's cwd when there is none (global).
+// The directory the planning tools read and write: the project root when it is
+// an existing absolute directory, else the git toplevel of the server's cwd,
+// else the cwd. A project env var can name a synthetic path: it still picks the
+// bucket, but the files go where the old getWorkspaceRoot put them.
 function workspaceRootOf(project) {
-    return project === GLOBAL_PROJECT ? process.cwd() : project.root;
+    return resolveWorkspaceDir(project.root);
 }
 // A missing directory holds no instincts; one that exists and cannot be read
 // throws, and the request handler answers with that error.

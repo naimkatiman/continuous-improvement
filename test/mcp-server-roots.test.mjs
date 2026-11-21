@@ -11,7 +11,7 @@
  */
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
@@ -181,6 +181,35 @@ describe("MCP server: the client's roots pick the project (expert)", () => {
         wire.write({ jsonrpc: "2.0", id: request.id, result: { roots: [{ uri: fileUri(repo) }] } });
         same(await planRoot(wire, "plan-4"), plain);
         same(await clearanceFile(wire, "clear-4"), join(store, hashProjectRoot(plain), "gateguard-session.json"));
+    });
+    // resolveProjectRoot returns an env value as given, and an env value may be a
+    // synthetic path (a fixture, an operator's label). It still names the bucket,
+    // but the planning tools write files, so they use it only when it is an
+    // absolute, existing directory, and otherwise fall back to the git toplevel
+    // of the server's cwd, then the cwd (the old getWorkspaceRoot rule).
+    it("a project env var that is not an existing absolute directory keeps the bucket, and the planning files fall back to the cwd's repository or the cwd", async () => {
+        const missing = join(base, "does-not-exist");
+        const file = join(base, "a-file.txt");
+        writeFileSync(file, "not a directory\n");
+        const cases = [
+            { cwd: outside, value: missing, expected: () => outside },
+            { cwd: sub, value: missing, expected: () => toplevel(repo) },
+            { cwd: outside, value: "relative/project", expected: () => outside },
+            { cwd: outside, value: file, expected: () => outside },
+        ];
+        for (const [index, { cwd, value, expected }] of cases.entries()) {
+            const wire = await start({ cwd, roots: false, env: { CLAUDE_PROJECT_DIR: value } });
+            const init = await wire.tool(`init-env-${index}`, "ci_plan_init", { goal: "synthetic env root" });
+            assert.doesNotMatch(init, /failed/, init);
+            const match = /\*\*Project root:\*\* (.+)/.exec(init);
+            assert.ok(match, init);
+            same(match[1].trim(), expected());
+            assert.ok(existsSync(join(expected(), "task_plan.md")), `no task_plan.md in ${expected()}`);
+            same(await planRoot(wire, `plan-env-${index}`), expected());
+            same(await clearanceFile(wire, `clear-env-${index}`), join(store, hashProjectRoot(value), "gateguard-session.json"));
+            for (const name of ["task_plan.md", "findings.md", "progress.md"])
+                rmSync(join(expected(), name), { force: true });
+        }
     });
     it("follows roots/list_changed, ignores a stale or unknown reply, and falls back to its cwd on a reply it cannot use", async () => {
         const wire = await start({ cwd: outside, roots: true });
