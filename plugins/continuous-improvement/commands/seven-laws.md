@@ -11,6 +11,6 @@ Brand-aligned alias for [`/continuous-improvement`](continuous-improvement.md). 
 2. **Analyze** (Law 7) — process pending observations into instincts.
 3. **Status** — show all instincts for the project + global with confidence and current level.
 
-Run the workflow defined in [`continuous-improvement.md`](continuous-improvement.md). The `status`, `analyze` and `weekly` subcommands work identically.
+Run the workflow defined in [`continuous-improvement.md`](continuous-improvement.md). The `weekly` subcommand works identically.
 
 `/continuous-improvement` remains supported indefinitely for backward compatibility. Prefer `/seven-laws` going forward — it matches the brand and the SKILL.md spec.

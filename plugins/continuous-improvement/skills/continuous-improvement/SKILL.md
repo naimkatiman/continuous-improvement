@@ -102,18 +102,18 @@ Your sessions create knowledge. Capture it.
 Instincts at 0.5 or above reach you in the session-start block (see Instinct System below). Suggest the ones below 0.7 and follow the ones at 0.7 or above. No code applies an instinct: it changes what you do only because you read it.
 Nothing changes an instinct's confidence in the background: it moves when analysis runs or `ci_reinforce` is called. A user correction lowers it and a confirmation raises it.
 
-Nothing learned is permanent. Decay is applied when analysis runs, not by a background job.
+No code decays an instinct. The Confidence Changes table below is what analysis should apply when it updates one.
 
 ### Friction Harvest Pipeline (`/harvest`)
 
-Beyond the reflection-driven path above, the **friction harvest classifier** turns observation logs (`~/.claude/instincts/<project-hash>/observations.jsonl`) into typed instincts automatically. Run via `/harvest` or `node bin/harvest-friction.mjs`. Four typed friction patterns with confidence scoring:
+`/harvest` (`node bin/harvest-friction.mjs`, npm checkout only; the plugin bundle does not include it) runs the **friction harvest classifier**: it classifies failure rows in `~/.claude/instincts/<project-hash>/observations.jsonl` into typed friction records in `<project-hash>/instincts.jsonl`. These are not YAML instincts: the session-start block does not load them, and they reach a later session only if analysis or `ci_create_instinct` turns one into a YAML instinct. Four typed friction patterns with confidence scoring:
 
 - **`env_issue`** — jq missing, command not found, not recognized as cmdlet
 - **`permission_block`** — sandbox / harness blocked, Permission denied
 - **`wrong_approach`** — file changed since last read (parallel-actor stale)
 - **`buggy_code`** — file not read first, old_string ambiguous, file too large
 
-Idempotent: each instinct's `dedup_key = sha1(type + tool + summary[:120])`; re-running on the same observations does not duplicate previously-written instincts. Confidence weights frequency × recency-decay so old failures fade and recurring ones strengthen, in line with the Law 7 contract above.
+Idempotent: each record's `dedup_key = sha1(type + tool + summary[:120])`; re-running on the same observations does not duplicate previously-written records. Confidence weights frequency × recency-decay so old failures fade and recurring ones strengthen, in line with the Law 7 contract above.
 
 The harvest is opt-in: it runs only when explicitly invoked. Cron / hook triggers are deliberately not wired so the operator stays in control of when the classifier reads observation history.
 

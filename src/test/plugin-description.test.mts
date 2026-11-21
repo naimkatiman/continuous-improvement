@@ -73,21 +73,65 @@ describe("plugin description", () => {
     });
   }
 
-  it("is repeated word for word in package.json", () => {
-    const pkg = JSON.parse(readRepoFile("package.json")) as { description: string };
-    assert.equal(pkg.description, DESCRIPTION);
-  });
-
   it("is repeated word for word in .cloudplugin/marketplace.json", () => {
     const manifest = JSON.parse(readRepoFile(".cloudplugin/marketplace.json")) as { description: string };
     assert.equal(manifest.description, DESCRIPTION);
   });
+});
 
-  it("is the summary line of llms.txt", () => {
+// npm and llms.txt are read by people who may install with npx instead of the
+// plugin, and src/bin/install.mts wires much less than the plugin's hooks.json:
+// the tool-call log (bin/observe.mjs) always, the session hook and the MCP
+// server only with --mode expert, and no PreToolUse guard at all.
+describe("package description (npm and llms.txt)", () => {
+  const pkg = JSON.parse(readRepoFile("package.json")) as { description: string };
+  const installer = readRepoFile("bin/install.mjs");
+
+  it("is the summary line of llms.txt, word for word", () => {
     const summary = readRepoFile("llms.txt")
       .split(/\r?\n/)
       .find((line) => line.startsWith("> "));
-    assert.equal(summary, `> ${DESCRIPTION}`);
+    assert.equal(summary, `> ${pkg.description}`);
+  });
+
+  it("says the guards and the session loader come with the plugin install", () => {
+    assert.match(pkg.description, /As a Claude Code plugin it wires/);
+    for (const mechanism of MECHANISMS) {
+      assert.match(pkg.description, mechanism.says);
+    }
+  });
+
+  it("says what `npx continuous-improvement install` wires, which is what src/bin/install.mts wires", () => {
+    for (const guard of ["hooks/gateguard.mjs", "hooks/hook-pack.mjs", "hooks/config-guard.mjs", "hooks/typecheck-stop.mjs"]) {
+      assert.ok(!installer.includes(guard), `the installer now wires ${guard}; update the description`);
+    }
+    assert.match(installer, /if \(INSTALL_MODE === "expert"\) \{\s*setupMcpServer\(\);/);
+    assert.match(
+      pkg.description,
+      /`npx continuous-improvement install` wires only the tool-call log \(with --mode expert, also the session-start loader and the MCP server\)/,
+    );
+  });
+});
+
+describe("llms.txt install steps", () => {
+  const llms = readRepoFile("llms.txt");
+
+  it("does not say the npx install fires gateguard, which src/bin/install.mts never wires", () => {
+    assert.ok(!readRepoFile("bin/install.mjs").includes("hooks/gateguard.mjs"));
+    assert.deepEqual(
+      llms
+        .split(/\r?\n/)
+        .filter((line) => /npx continuous-improvement install/.test(line) && /gateguard fires/i.test(line))
+        .filter((line) => !/`npx continuous-improvement install` does not wire gateguard/.test(line)),
+      [],
+    );
+  });
+
+  it("gives the plugin install first, and marks the npx install as the narrower one", () => {
+    const install = llms.slice(llms.indexOf("## Install"));
+    assert.ok(install.indexOf("/plugin install") !== -1, "the plugin install is listed");
+    assert.ok(install.indexOf("/plugin install") < install.indexOf("npx continuous-improvement install"));
+    assert.match(install, /log only/);
   });
 });
 
@@ -137,6 +181,102 @@ describe("core skill and command docs", () => {
 
     it(`${doc} does not say a lesson is created or applied with nobody acting`, () => {
       assert.deepEqual(matchingLines(doc, UNATTENDED_CLAIMS), []);
+    });
+  }
+});
+
+// Each sentence below was false of the code; the test names the code it checks.
+describe("core docs say only what the code does", () => {
+  const COMMAND_DOCS = ["commands/continuous-improvement.md", "plugins/continuous-improvement/commands/continuous-improvement.md"];
+  const SKILL_DOCS = ["SKILL.md", "plugins/continuous-improvement/skills/continuous-improvement/SKILL.md"];
+  const SEVEN_LAWS_DOCS = ["commands/seven-laws.md", "plugins/continuous-improvement/commands/seven-laws.md"];
+
+  for (const doc of COMMAND_DOCS) {
+    // Step 1 records an instinct from any reflection with a "Rule to add"; only
+    // Step 2's mining waits for 20 observations.
+    it(`${doc} says in the empty state that Step 1 records an instinct whatever the observation count`, () => {
+      const text = readRepoFile(doc);
+      assert.match(text, /If there's a "Rule to add", record it as an instinct/);
+      const emptyState = text.split(/\r?\n/).find((line) => line.startsWith("If no instincts or observations exist yet"));
+      assert.ok(emptyState, `${doc} has no empty-state sentence`);
+      assert.doesNotMatch(emptyState, /this command creates instincts once 20\+ observations/);
+      assert.match(emptyState, /Step 1 records an instinct whenever the reflection has a rule to add/);
+      assert.match(emptyState, /Step 2 mines observations into instincts once 20\+ have accumulated/);
+    });
+  }
+
+  for (const doc of SKILL_DOCS) {
+    // The only code that rewrites a YAML instinct's confidence is
+    // updateInstinctConfidence, reached from ci_reinforce; neither analysis
+    // procedure has a decay step.
+    it(`${doc} does not say decay is applied, since no code decays an instinct`, () => {
+      const server = readRepoFile("bin/mcp-server.mjs");
+      assert.equal([...server.matchAll(/updateInstinctConfidence\(/g)].length, 2, "defined once, called once");
+      assert.match(server, /case "ci_reinforce": \{[\s\S]*?updateInstinctConfidence\(project\.hash/);
+      assert.deepEqual(matchingLines(doc, [/Decay is applied when analysis runs/]), []);
+      assert.match(readRepoFile(doc), /No code decays an instinct\./);
+    });
+
+    // bin/harvest-friction.mjs appends JSON lines to instincts.jsonl, the
+    // session hook reads only *.yaml, and the plugin bundle has no copy of it.
+    it(`${doc} says the friction harvest writes instincts.jsonl, which the session-start block does not load`, () => {
+      assert.match(readRepoFile("bin/harvest-friction.mjs"), /join\(projectDir, "instincts\.jsonl"\)/);
+      assert.match(readRepoFile("hooks/session.mjs"), /name\.endsWith\("\.yaml"\)/);
+      assert.ok(!readdirSync(join(REPO_ROOT, "plugins", "continuous-improvement", "bin")).includes("harvest-friction.mjs"));
+      const text = readRepoFile(doc);
+      assert.doesNotMatch(text, /into typed instincts automatically/);
+      assert.match(text, /npm checkout only/);
+      assert.match(text, /`<project-hash>\/instincts\.jsonl`/);
+      assert.match(text, /the session-start block does not load them/);
+    });
+  }
+
+  for (const doc of SEVEN_LAWS_DOCS) {
+    it(`${doc} names only subcommands that continuous-improvement.md defines`, () => {
+      const commandDoc = readRepoFile(doc.replace("seven-laws.md", "continuous-improvement.md"));
+      const defined = [...commandDoc.matchAll(/^### `\/continuous-improvement (\w+)`/gm)].map((match) => match[1]);
+      const sentence = readRepoFile(doc).split(/\r?\n/).find((line) => /subcommands? works? identically/.test(line));
+      assert.ok(sentence, `${doc} no longer says which subcommands it shares`);
+      const named = [...sentence.matchAll(/`(\w+)`/g)].map((match) => match[1]);
+      assert.ok(named.length > 0);
+      for (const name of named) {
+        assert.ok(defined.includes(name), `${doc} names \`${name}\`, which continuous-improvement.md does not define (it defines ${defined.join(", ")})`);
+      }
+    });
+  }
+});
+
+// src/bin/install.mts copies two skills (SKILL_SOURCE and SHIP_SKILL_SOURCE),
+// whatever the mode, and no runtime file reads an always-on setting. A skill
+// loads when its description matches the task.
+describe("skill guides say which install delivers which skills", () => {
+  const GUIDES = ["skills/README.md", "docs/skill-use-cases.md"];
+  const installer = readRepoFile("bin/install.mjs");
+  const copiedSkills = [...installer.matchAll(/const \w*SKILL_SOURCE = join\(__dirname, "\.\.", ([^)]*)\);/g)].map((match) => match[1]);
+
+  it("the npm installer copies the core skill and ship, and no other", () => {
+    assert.deepEqual(copiedSkills, ['"SKILL.md"', '"skills", "ship.md"']);
+  });
+
+  for (const guide of GUIDES) {
+    it(`${guide} calls no skill always-on while no runtime file reads always_on`, () => {
+      if (runtimeReads("always_on")) return;
+      assert.deepEqual(matchingLines(guide, [/always[-_ ]on/i, /Always loaded/]), []);
+    });
+
+    it(`${guide} says \`npx continuous-improvement install\` copies only the core skill and ship`, () => {
+      assert.deepEqual(
+        matchingLines(guide, [
+          /ship and load by default in \*\*Beginner\*\* install/,
+          /for users running `npx continuous-improvement install --mode expert`/,
+          /ships as part of the expert install/,
+        ]),
+        [],
+      );
+      assert.match(
+        readRepoFile(guide),
+        /`npx continuous-improvement install` copies only the core `continuous-improvement` skill and `ship`, in either mode/,
+      );
     });
   }
 });

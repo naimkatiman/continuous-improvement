@@ -1,6 +1,6 @@
 # continuous-improvement
 
-> Guard and memory plugin for Claude Code. A hook denies known destructive shell commands in every permission mode. Opt-in hooks also deny pushes to protected branches and edits to the files that wire the guardrails, and hold a turn open on a failing typecheck. Tool calls go to a local searchable log; up to 10 recorded lessons load at session start. Ships 28 bundled skills and an MCP server.
+> Guard and memory plugin for Claude Code. As a Claude Code plugin it wires a hook that denies known destructive shell commands in every permission mode; opt-in hooks that deny pushes to protected branches and edits to the files that wire the guardrails, and hold a turn open on a failing typecheck; a local searchable log of tool calls; up to 10 recorded lessons loaded at session start; and an MCP server. `npx continuous-improvement install` wires only the tool-call log (with --mode expert, also the session-start loader and the MCP server) and copies the core and ship skills. Ships 28 bundled skills.
 
 ## What This Is
 
@@ -13,11 +13,20 @@ What the gate can and cannot do: hooks/gateguard.mjs allows a new file and an ed
 Smarter models do not retire this product. Planning etiquette and "remember to verify" reminders merge into the model over time. The runtime gate, this-repo memory, and proof that a change worked do not. Keep goal-driven execution plus research / verify / learn guardrails; retire scaffolding when the native harness covers it (see skills/model-forward.md).
 
 How you actually benefit:
-1. Beginner install (or `npx continuous-improvement install`) — gateguard fires on Edit/Write; no prompt prefix required.
+1. Plugin install: gateguard fires on Edit/Write and on destructive Bash, with no prompt prefix required. `npx continuous-improvement install` does not wire gateguard; it wires the tool-call log only.
 2. After a real session run `/seven-laws` — capture is silent; instincts form when you close the loop. `/recall` for "have I hit this before?". `/planning-with-files` writes `task_plan.md`.
-3. Expert mode for MCP tools, `/harvest`, `/distill`, and optional `CLAUDE_RECALL_BRIEFING=1`. Empty harvest/distill on day 1 means missing observation history, not a broken command.
+3. MCP tools: the plugin install starts the server in expert mode; with npx, add `--mode expert`. `/harvest` runs from an npm checkout, `/distill` needs the MCP tools, and `CLAUDE_RECALL_BRIEFING=1` is optional. Empty harvest/distill on day 1 means missing observation history, not a broken command.
 
 ## Install
+
+As a Claude Code plugin (hooks, guards, session-start loader, MCP server):
+
+```
+/plugin marketplace add naimkatiman/continuous-improvement
+/plugin install continuous-improvement@continuous-improvement
+```
+
+From npm, tool-call log only (add `--mode expert` for the session-start loader and the MCP server):
 
 ```bash
 npx continuous-improvement install

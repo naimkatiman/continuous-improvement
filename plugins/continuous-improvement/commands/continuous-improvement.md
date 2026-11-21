@@ -94,7 +94,7 @@ Display all instincts for the current project + global:
 - System auto-levels as instincts gain confidence
 ```
 
-If no instincts or observations exist yet, explain this is expected: the system is in CAPTURE level, and this command creates instincts once 20+ observations have accumulated.
+If no instincts or observations exist yet, explain this is expected: the system is in CAPTURE level. Step 1 records an instinct whenever the reflection has a rule to add, and Step 2 mines observations into instincts once 20+ have accumulated.
 
 ## Subcommands
 
