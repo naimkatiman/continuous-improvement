@@ -57,12 +57,22 @@ function isDestructiveBash(command, toolName) {
 function destructiveShellFor(command, alias) {
     return classifierShells(alias.flavor).find((shell) => isDestructiveBash(command, shell)) ?? null;
 }
-function classifyTool(toolName, toolInput) {
+// The classifier readings of a Claude-named shell. Claude Code's own flavor
+// keeps the tool name, so its rules do not change; another agent that reports
+// the name with an unknown flavor (Codex's Bash runs PowerShell on Windows) is
+// read both ways on Windows (plan Architecture item 8).
+function claudeShellReadings(toolName, flavor) {
+    return flavor === "unknown" ? classifierShells(flavor) : [toolName];
+}
+function destructiveClaudeShell(command, toolName, flavor) {
+    return claudeShellReadings(toolName, flavor).find((shell) => isDestructiveBash(command, shell)) ?? null;
+}
+function classifyTool(toolName, toolInput, flavor) {
     const route = TOOL_ROUTE[toolName] ?? "allow";
     if (route !== "allow")
         return route;
     if (SHELL_TOOLS.has(toolName) && typeof toolInput.command === "string") {
-        if (isDestructiveBash(toolInput.command, toolName))
+        if (destructiveClaudeShell(toolInput.command, toolName, flavor) !== null)
             return "destructive-bash";
     }
     // Other agents' tool names, never a Claude Code one (lib/agent-profiles.mjs).
@@ -368,7 +378,7 @@ export async function decideGateguard(event, config) {
     const deny = (reason) => ({ kind: "deny", reason, notices });
     const { toolName, payload } = event;
     const toolInput = event.toolInput;
-    const gate = classifyTool(toolName, toolInput);
+    const gate = classifyTool(toolName, toolInput, event.shellFlavor);
     // Unquoted @{…} refs trip the built-in Bash parser — catch them first, for
     // both routine and destructive commands, so the quoted fix surfaces before the
     // opaque post-hoc block (and before the destructive rollback demand).
@@ -388,7 +398,7 @@ export async function decideGateguard(event, config) {
             return deny(buildDestructiveBashReason(cmd, destructiveShellFor(cmd, alias) ?? "Bash"));
         }
         const cmd = typeof toolInput.command === "string" ? toolInput.command : "";
-        return deny(buildDestructiveBashReason(cmd, toolName));
+        return deny(buildDestructiveBashReason(cmd, destructiveClaudeShell(cmd, toolName, event.shellFlavor) ?? toolName));
     }
     // mutating-file — scope state to THIS session so the clearance cap never
     // bleeds across concurrent same-day sessions. session_id is the standard hook

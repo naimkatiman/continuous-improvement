@@ -4,12 +4,8 @@ import { join } from "node:path";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot, projectYamlFiles, yamlFiles } from "../lib/gateguard-state.mjs";
 import { flatten, parseYamlInstinct } from "../lib/instinct-yaml.mjs";
-import { emit, encode, parsePayload, readStdin } from "../lib/hook-io.mjs";
+import { claudeEventName, emit, encode, hookAgent, parsePayload, readStdin } from "../lib/hook-io.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
-// The hook is: read stdin, decide (the lesson block and status line below),
-// encode for the agent (lib/hook-io.mjs). The claude encoder prints a
-// SessionStart context as plain stdout and every notice on stderr.
-const AGENT = "claude";
 // Claude Code adds a SessionStart hook's plain-text stdout to the model's
 // context and never shows the model the stderr of a hook that exits 0
 // (https://code.claude.com/docs/en/hooks). The status line below goes to
@@ -67,7 +63,8 @@ function readPayload() {
     const payload = parsed.value;
     if (!payload || typeof payload !== "object" || Array.isArray(payload))
         return null;
-    const event = payload.hook_event_name ?? payload.hook_type ?? payload.event_type;
+    // Cursor and Copilot say sessionStart, Kiro agentSpawn, Cline (hookName) TaskStart.
+    const event = claudeEventName(payload.hook_event_name ?? payload.hook_type ?? payload.event_type ?? payload.hookName);
     return { event: event === "SessionStart" || event === "SessionEnd" ? event : "unknown", payload };
 }
 // Each trigger and body goes through flatten (src/lib/instinct-yaml.mts), so a
@@ -194,4 +191,4 @@ function main() {
 const { event, decision } = main();
 // A closed stdout must not crash the hook after the decision is made.
 process.stdout.on("error", () => { });
-emit(encode(AGENT, event, decision));
+emit(encode(hookAgent(), event, decision));

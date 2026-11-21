@@ -28,10 +28,9 @@ import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs
 import { evaluateGoalDrift, type GoalDriftMode } from "../lib/goal-drift-gate.mjs";
 import type { GoalObservation } from "../lib/goal-state.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
-import { emit, encode, readStdin, type AgentId, type Decision } from "../lib/hook-io.mjs";
+import { emit, encode, hookAgent, readStdin, type Decision } from "../lib/hook-io.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 
-const AGENT: AgentId = "claude";
 const EVENT = "Stop";
 const ALLOW: Decision = { kind: "allow" };
 
@@ -183,4 +182,5 @@ function main(): Decision {
   }
 }
 
-emit(encode(AGENT, EVENT, main()));
+const decision = main();
+emit(encode(hookAgent(), EVENT, decision));

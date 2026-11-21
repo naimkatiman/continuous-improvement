@@ -28,10 +28,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { readKnob } from "../lib/agent-env.mjs";
 import { GLOBAL_PROJECT_ROOT, resolveProjectRoot } from "../lib/agent-paths.mjs";
-import { emit, encode } from "../lib/hook-io.mjs";
+import { emit, encode, hookAgent } from "../lib/hook-io.mjs";
 import { decideTypecheckAction, formatTypecheckReason, hasChangedTsFile, parseChangedFiles, pickTypecheckKind, resolveTypecheckMode, } from "../lib/typecheck-gate.mjs";
 const SPAWN_TIMEOUT_MS = 25_000;
-const AGENT = "claude";
 const EVENT = "Stop";
 const ALLOW = { kind: "allow" };
 // This hook never reads stdin, so the root comes from the env and git only.
@@ -120,4 +119,5 @@ function main() {
         return ALLOW;
     }
 }
-emit(encode(AGENT, EVENT, main()));
+const decision = main();
+emit(encode(hookAgent(), EVENT, decision));

@@ -1,0 +1,61 @@
+{
+  "agent": "junie",
+  "checked": "2026-11-21",
+  "source": "Verified research, Junie CLI ([Junie] rows of the Zed/Aider/Goose/Droid/Auggie/Junie entry): junie.jetbrains.com/docs/junie-cli-hooks.html; hooks are an Early Access feature (skeptic: hook_pre_tool corrected, hook_session_start and hook_stop confirmed).",
+  "selection": {
+    "sniff": null,
+    "sniffNote": "The verified research names no Junie hook env var, so Junie is picked by --agent junie or CI_AGENT.",
+    "bare": "claude",
+    "bareNote": "Junie's payload is Claude-shaped; Junie documents a top-level decision field, not hookSpecificOutput, so a Junie run relies on --agent junie for the exit 2 deny."
+  },
+  "expect": {
+    "deny": {
+      "source": "[Junie] hook_pre_tool: exit 2 blocks no matter what is printed.",
+      "exitCode": 2,
+      "stderrReason": true
+    },
+    "context": {
+      "source": "[Junie] hook_session_start: SessionStart additionalContext is ignored, so lessons go to ~/.junie/AGENTS.md (plan PR 11).",
+      "none": true
+    }
+  },
+  "events": {
+    "PreToolUse": {
+      "source": "Junie hook_payload_example: one line of JSON from junie-cli-hooks.html",
+      "checked": "2026-11-21",
+      "unverified": ["cwd", "session_id"],
+      "stdin": { "hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": { "command": "<COMMAND>", "run_in_background": false, "timeout": 30 }, "cwd": "<PROJECT>", "session_id": "junie-session" }
+    },
+    "PostToolUse": {
+      "source": "[Junie] hook_post_tool: the payload carries tool_response, tool_use_id and duration_ms",
+      "checked": "2026-11-21",
+      "unverified": ["cwd", "session_id"],
+      "stdin": { "hook_event_name": "PostToolUse", "tool_name": "Bash", "tool_input": { "command": "<COMMAND>" }, "tool_response": "", "tool_use_id": "junie-call-1", "duration_ms": 12, "cwd": "<PROJECT>", "session_id": "junie-session" }
+    },
+    "UserPromptSubmit": {
+      "source": "[Junie] hook_user_prompt: UserPromptSubmit receives prompt",
+      "checked": "2026-11-21",
+      "unverified": ["cwd", "session_id"],
+      "stdin": { "hook_event_name": "UserPromptSubmit", "prompt": "run the tests", "cwd": "<PROJECT>", "session_id": "junie-session" }
+    },
+    "SessionStart": {
+      "source": "[Junie] hook_session_start: SessionStart fires with source, cwd, session_id and project_path",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "hook_event_name": "SessionStart", "source": "startup", "cwd": "<PROJECT>", "session_id": "junie-session", "project_path": "<PROJECT>" }
+    },
+    "SessionEnd": {
+      "source": "[Junie] hook_pre_tool skeptic: SessionEnd has a 2 s default timeout; its input keys are not in the verified research",
+      "checked": "2026-11-21",
+      "unverified": ["cwd", "session_id"],
+      "stdin": { "hook_event_name": "SessionEnd", "cwd": "<PROJECT>", "session_id": "junie-session" }
+    },
+    "Stop": {
+      "source": "[Junie] hook_stop: the payload has stop_hook_active and last_assistant_message",
+      "checked": "2026-11-21",
+      "unverified": ["cwd", "session_id"],
+      "stdin": { "hook_event_name": "Stop", "stop_hook_active": false, "last_assistant_message": "done", "cwd": "<PROJECT>", "session_id": "junie-session" }
+    }
+  },
+  "absent": {}
+}

@@ -35,9 +35,8 @@ import { platform } from "node:os";
 import { dirname, join } from "node:path";
 import { performance } from "node:perf_hooks";
 import { readKnob } from "../lib/agent-env.mjs";
-import { emit, encode, readStdin } from "../lib/hook-io.mjs";
+import { emit, encode, hookAgent, readStdin } from "../lib/hook-io.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
-const AGENT = "claude";
 const EVENT = "Stop";
 const ALLOW = { kind: "allow" };
 const MIN_LENGTH_TO_GATE = 600;
@@ -198,4 +197,5 @@ function main() {
         return ALLOW;
     }
 }
-emit(encode(AGENT, EVENT, main()));
+const decision = main();
+emit(encode(hookAgent(), EVENT, decision));

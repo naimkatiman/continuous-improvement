@@ -1,0 +1,61 @@
+{
+  "agent": "droid",
+  "checked": "2026-11-21",
+  "source": "Verified research, Factory Droid 1.17 ([Droid] rows of the Zed/Aider/Goose/Droid/Auggie/Junie entry): docs.factory.com/reference/hooks-reference (skeptic: hook_pre_tool, hook_session_start and hook_stop confirmed).",
+  "selection": {
+    "sniff": null,
+    "sniffNote": "Droid's hooks are Claude Code compatible and its encoder writes the claude bytes, so no sniff is needed; --agent droid is what the installer renders.",
+    "bare": "claude"
+  },
+  "expect": {
+    "deny": {
+      "source": "[Droid] hook_pre_tool: exit 0 with hookSpecificOutput.permissionDecision deny and permissionDecisionReason.",
+      "exitCode": 0,
+      "json": { "hookSpecificOutput": { "hookEventName": "PreToolUse", "permissionDecision": "deny" } },
+      "reasonAt": [["hookSpecificOutput", "permissionDecisionReason"]]
+    },
+    "context": {
+      "source": "[Droid] hook_session_start: hookSpecificOutput.additionalContext, or plain stdout on exit 0, is added to model context.",
+      "plain": true
+    }
+  },
+  "events": {
+    "PreToolUse": {
+      "source": "Droid hook_payload_example (docs.factory.com/reference/hooks-reference), with the shell tool Execute; the doc example is Create, so Execute's command key is not documented",
+      "checked": "2026-11-21",
+      "unverified": ["tool_input.command"],
+      "stdin": { "session_id": "droid-session", "transcript_path": "<HOME>/droid-session.jsonl", "cwd": "<PROJECT>", "permission_mode": "off", "hook_event_name": "PreToolUse", "tool_name": "Execute", "tool_input": { "command": "<COMMAND>" } }
+    },
+    "PostToolUse": {
+      "source": "[Droid] hook_post_tool: the PostToolUse payload adds tool_response",
+      "checked": "2026-11-21",
+      "unverified": ["tool_input.command", "tool_response"],
+      "stdin": { "session_id": "droid-session", "transcript_path": "<HOME>/droid-session.jsonl", "cwd": "<PROJECT>", "permission_mode": "off", "hook_event_name": "PostToolUse", "tool_name": "Execute", "tool_input": { "command": "<COMMAND>" }, "tool_response": "" }
+    },
+    "UserPromptSubmit": {
+      "source": "[Droid] hook_user_prompt: prompt and has_images",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "session_id": "droid-session", "transcript_path": "<HOME>/droid-session.jsonl", "cwd": "<PROJECT>", "permission_mode": "off", "hook_event_name": "UserPromptSubmit", "prompt": "run the tests", "has_images": false }
+    },
+    "SessionStart": {
+      "source": "[Droid] hook_session_start: the matcher runs against source (startup, resume, clear, compact)",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "session_id": "droid-session", "transcript_path": "<HOME>/droid-session.jsonl", "cwd": "<PROJECT>", "permission_mode": "off", "hook_event_name": "SessionStart", "source": "startup" }
+    },
+    "SessionEnd": {
+      "source": "[Droid] hook_pre_tool skeptic: SessionEnd is in the full event set; its input keys are not in the verified research",
+      "checked": "2026-11-21",
+      "unverified": ["reason"],
+      "stdin": { "session_id": "droid-session", "transcript_path": "<HOME>/droid-session.jsonl", "cwd": "<PROJECT>", "hook_event_name": "SessionEnd", "reason": "exit" }
+    },
+    "Stop": {
+      "source": "[Droid] hook_stop: Stop receives stop_hook_active, tool_execution_count and elapsed_time",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "session_id": "droid-session", "transcript_path": "<HOME>/droid-session.jsonl", "cwd": "<PROJECT>", "permission_mode": "off", "hook_event_name": "Stop", "stop_hook_active": false, "tool_execution_count": 1, "elapsed_time": 10 }
+    }
+  },
+  "absent": {}
+}

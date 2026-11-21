@@ -1,0 +1,61 @@
+{
+  "agent": "auggie",
+  "checked": "2026-11-21",
+  "source": "Verified research, Augment Auggie 1.2.2 ([Auggie] rows of the Zed/Aider/Goose/Droid/Auggie/Junie entry): docs.augmentcode.com/cli/hooks and the npm package read on this host (skeptic: hook_pre_tool, hook_session_start and hook_stop confirmed).",
+  "selection": {
+    "sniff": null,
+    "sniffNote": "Auggie's payload is Claude-shaped and its deny is the claude bytes, so no sniff is needed; the skeptic lists AUGMENT_PROJECT_DIR among the hook env vars.",
+    "bare": "claude"
+  },
+  "expect": {
+    "deny": {
+      "source": "Auggie hook_payload_example: exit 0 plus hookSpecificOutput.permissionDecision deny; only deny is supported.",
+      "exitCode": 0,
+      "json": { "hookSpecificOutput": { "hookEventName": "PreToolUse", "permissionDecision": "deny" } },
+      "reasonAt": [["hookSpecificOutput", "permissionDecisionReason"]]
+    },
+    "context": {
+      "source": "[Auggie] hook_session_start: SessionStart runs in the background and its output is not added to agent context, so lessons go to a rules file (plan PR 11).",
+      "none": true
+    }
+  },
+  "events": {
+    "PreToolUse": {
+      "source": "Auggie hook_payload_example (docs.augmentcode.com/cli/hooks)",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "hook_event_name": "PreToolUse", "conversation_id": "auggie-conv", "workspace_roots": ["<PROJECT>"], "tool_name": "bash", "tool_input": { "command": "<COMMAND>" } }
+    },
+    "PostToolUse": {
+      "source": "[Auggie] hook_post_tool: PostToolUse receives tool_output, tool_error, tool_result, tool_is_error and file_changes",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "hook_event_name": "PostToolUse", "conversation_id": "auggie-conv", "workspace_roots": ["<PROJECT>"], "tool_name": "bash", "tool_input": { "command": "<COMMAND>" }, "tool_output": "", "tool_error": null, "tool_result": "", "tool_is_error": false, "file_changes": [] }
+    },
+    "UserPromptSubmit": {
+      "source": "[Auggie] hook_user_prompt: the event is PromptSubmit and its payload field is user_prompt",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "hook_event_name": "PromptSubmit", "conversation_id": "auggie-conv", "workspace_roots": ["<PROJECT>"], "user_prompt": "run the tests" }
+    },
+    "SessionStart": {
+      "source": "[Auggie] hook_session_start: SessionStart exists (background); its input keys beyond the common ones are not documented",
+      "checked": "2026-11-21",
+      "unverified": ["hook_event_name", "conversation_id", "workspace_roots"],
+      "stdin": { "hook_event_name": "SessionStart", "conversation_id": "auggie-conv", "workspace_roots": ["<PROJECT>"] }
+    },
+    "SessionEnd": {
+      "source": "Not in the [Auggie] rows of the verified research; the common keys only",
+      "checked": "2026-11-21",
+      "unverified": ["hook_event_name", "conversation_id", "workspace_roots"],
+      "stdin": { "hook_event_name": "SessionEnd", "conversation_id": "auggie-conv", "workspace_roots": ["<PROJECT>"] }
+    },
+    "Stop": {
+      "source": "[Auggie] hook_stop: the Stop event exists, payload agent_stop_cause; it runs in the background and cannot block",
+      "checked": "2026-11-21",
+      "unverified": ["agent_stop_cause value"],
+      "stdin": { "hook_event_name": "Stop", "conversation_id": "auggie-conv", "workspace_roots": ["<PROJECT>"], "agent_stop_cause": "end_turn" }
+    }
+  },
+  "absent": {}
+}

@@ -48,8 +48,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
-import { emit, encode, parsePayload, readStdin } from "../lib/hook-io.mjs";
-const AGENT = "claude";
+import { emit, encode, hookAgent, parsePayload, readStdin } from "../lib/hook-io.mjs";
 const EVENT = "UserPromptSubmit";
 const ALLOW = { kind: "allow" };
 const ENABLED_VALUES = new Set(["1", "on", "true", "yes"]);
@@ -158,4 +157,5 @@ function main() {
     });
     return { kind: "context", text: buildContext(match.row) };
 }
-emit(encode(AGENT, EVENT, main()));
+const decision = main();
+emit(encode(hookAgent(), EVENT, decision));

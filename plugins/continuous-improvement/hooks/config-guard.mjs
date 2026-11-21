@@ -28,8 +28,7 @@
  * (lib/config-guard-gate.mjs), encode for the agent.
  */
 import { classifyMutation, decide, parseMode } from "../lib/config-guard-gate.mjs";
-import { emit, encode, normalizeEvent, parsePayload, readStdin, } from "../lib/hook-io.mjs";
-const AGENT = "claude";
+import { emit, encode, hookAgent, normalizeEvent, parsePayload, readStdin, } from "../lib/hook-io.mjs";
 const EVENT = "PreToolUse";
 const ALLOW = { kind: "allow" };
 function buildReason(toolName, hit, mode) {
@@ -51,7 +50,7 @@ function decideConfigGuard() {
     const parsed = parsePayload(readStdin());
     if (!parsed.ok)
         return ALLOW;
-    const event = normalizeEvent(AGENT, EVENT, parsed.value);
+    const event = normalizeEvent(hookAgent(), EVENT, parsed.value);
     const hit = classifyMutation(event.toolName, event.toolInput);
     if (!hit)
         return ALLOW;
@@ -80,4 +79,5 @@ function main() {
         return ALLOW;
     }
 }
-emit(encode(AGENT, EVENT, main()));
+const decision = main();
+emit(encode(hookAgent(), EVENT, decision));

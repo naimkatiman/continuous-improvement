@@ -14,7 +14,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
-import { encode, normalizeEvent, parsePayload, runHook } from "../lib/hook-io.mjs";
+import { AGENT_IDS, claudeEventName, encode, normalizeEvent, parsePayload, runHook, selectAgent, } from "../lib/hook-io.mjs";
 const REASON = 'Destructive command requested: rm "a"\nMatched rule: x';
 describe("encode, claude", () => {
     it("allow is empty stdout and exit 0", () => {
@@ -59,7 +59,7 @@ describe("encode, claude", () => {
     });
 });
 describe("encode, an agent with no encoder fails closed", () => {
-    for (const agent of ["", "codex", "Claude", "unknown-agent", "__proto__"]) {
+    for (const agent of ["", "zed", "Claude", "unknown-agent", "__proto__"]) {
         it(`deny for ${JSON.stringify(agent)} is exit 2, the reason on stderr, empty stdout`, () => {
             const out = encode(agent, "PreToolUse", { kind: "deny", reason: REASON, notices: ["note"] });
             assert.deepEqual(out, { stdout: "", stderr: `note\n${REASON}\n`, exitCode: 2 });
@@ -78,7 +78,7 @@ describe("encode, an agent with no encoder fails closed", () => {
     for (const reason of ["", "  ", "\n"]) {
         it(`deny and continue with the blank reason ${JSON.stringify(reason)} still put a non-blank line on stderr`, () => {
             for (const kind of ["deny", "continue"]) {
-                const out = encode("codex", kind === "deny" ? "PreToolUse" : "Stop", { kind, reason });
+                const out = encode("zed", kind === "deny" ? "PreToolUse" : "Stop", { kind, reason });
                 assert.equal(out.exitCode, 2);
                 assert.equal(out.stdout, "");
                 assert.equal(out.stderr, "[continuous-improvement] blocked\n");
@@ -350,6 +350,223 @@ describe("hooks that write through hook-io", () => {
             ]) {
                 assert.doesNotMatch(source, pattern, `${name} matches ${pattern}`);
             }
+        });
+    }
+});
+// Plan PR 8, Architecture item 7: each agent's deny, context and continue
+// shapes. Every shape comes from the verified research of 2026-11-21 (the
+// Sources table of docs/plans/2026-11-21-all-agents.md, skeptic corrections
+// applied), cited on the encoder table in src/lib/hook-io.mts.
+describe("encode, per-agent deny", () => {
+    const json = (value) => ({ stdout: `${JSON.stringify(value)}\n`, stderr: "note\n", exitCode: 0 });
+    const deny = (agent) => encode(agent, "PreToolUse", { kind: "deny", reason: REASON, notices: ["note"] });
+    const claudeJson = {
+        hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: REASON },
+    };
+    for (const agent of ["codex", "qwen", "grok", "droid", "auggie"]) {
+        it(`${agent}: the Claude permissionDecision JSON at exit 0`, () => assert.deepEqual(deny(agent), json(claudeJson)));
+    }
+    it("gemini: top-level decision deny with the reason", () => {
+        assert.deepEqual(deny("gemini"), json({ decision: "deny", reason: REASON }));
+    });
+    it("cursor: the flat permission key with user_message and agent_message", () => {
+        assert.deepEqual(deny("cursor"), json({ permission: "deny", user_message: REASON, agent_message: REASON }));
+    });
+    it("copilot: top-level permissionDecision with permissionDecisionReason", () => {
+        assert.deepEqual(deny("copilot"), json({ permissionDecision: "deny", permissionDecisionReason: REASON }));
+    });
+    it("devin: decision block with the reason", () => {
+        assert.deepEqual(deny("devin"), json({ decision: "block", reason: REASON }));
+    });
+    it("cline: cancel true with errorMessage", () => {
+        assert.deepEqual(deny("cline"), json({ cancel: true, errorMessage: REASON }));
+    });
+    for (const agent of ["kiro", "junie", "goose"]) {
+        it(`${agent}: exit 2 with the reason on stderr and empty stdout`, () => {
+            assert.deepEqual(deny(agent), { stdout: "", stderr: `note\n${REASON}\n`, exitCode: 2 });
+        });
+    }
+    it("a blank reason gets the fixed line on every agent but claude, whose bytes do not change", () => {
+        for (const agent of AGENT_IDS.filter((id) => id !== "claude")) {
+            for (const kind of ["deny", "continue"]) {
+                const out = encode(agent, kind === "deny" ? "PreToolUse" : "Stop", { kind, reason: " \n" });
+                assert.ok(`${out.stdout}${out.stderr}`.includes("[continuous-improvement] blocked"), `${agent} ${kind}`);
+            }
+        }
+        assert.ok(encode("claude", "PreToolUse", { kind: "deny", reason: "" }).stdout.includes('"permissionDecisionReason":""'));
+    });
+    it("allow is empty stdout and exit 0 on every agent", () => {
+        for (const agent of AGENT_IDS) {
+            assert.deepEqual(encode(agent, "PreToolUse", { kind: "allow", notices: ["n"] }), { stdout: "", stderr: "n\n", exitCode: 0 });
+        }
+    });
+});
+describe("encode, per-agent context", () => {
+    const context = (agent, event = "SessionStart") => encode(agent, event, { kind: "context", text: "- lesson\n" });
+    const line = (value) => `${JSON.stringify(value)}\n`;
+    for (const agent of ["codex", "qwen", "droid", "kiro"]) {
+        it(`${agent}: SessionStart context is plain stdout`, () => assert.equal(context(agent).stdout, "- lesson\n"));
+    }
+    it("codex, qwen and droid: prompt context is the Claude additionalContext JSON; kiro's is plain", () => {
+        for (const agent of ["codex", "qwen", "droid"]) {
+            assert.equal(context(agent, "UserPromptSubmit").stdout, line({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: "- lesson\n" } }));
+        }
+        assert.equal(context("kiro", "UserPromptSubmit").stdout, "- lesson\n");
+    });
+    it("gemini: hookSpecificOutput.additionalContext under Gemini's event name", () => {
+        assert.equal(context("gemini").stdout, line({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: "- lesson\n" } }));
+        assert.equal(context("gemini", "UserPromptSubmit").stdout, line({ hookSpecificOutput: { hookEventName: "BeforeAgent", additionalContext: "- lesson\n" } }));
+    });
+    it("devin: hookSpecificOutput.additionalContext", () => {
+        assert.equal(context("devin").stdout, line({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: "- lesson\n" } }));
+    });
+    it("copilot: top-level additionalContext", () => assert.equal(context("copilot").stdout, line({ additionalContext: "- lesson\n" })));
+    it("cursor: additional_context", () => assert.equal(context("cursor").stdout, line({ additional_context: "- lesson\n" })));
+    it("cline: contextModification with cancel false", () => {
+        assert.equal(context("cline").stdout, line({ cancel: false, contextModification: "- lesson\n" }));
+    });
+    for (const agent of ["grok", "auggie", "junie", "goose"]) {
+        it(`${agent}: no verified context channel, so nothing on stdout`, () => {
+            assert.deepEqual(context(agent), { stdout: "", stderr: "", exitCode: 0 });
+        });
+    }
+    it("context on a Stop is dropped for every agent but claude (no verified channel there)", () => {
+        for (const agent of AGENT_IDS.filter((id) => id !== "claude"))
+            assert.equal(context(agent, "Stop").stdout, "", agent);
+    });
+});
+describe("encode, per-agent continue", () => {
+    const go = (agent) => encode(agent, "Stop", { kind: "continue", reason: "run the tests" });
+    for (const agent of ["codex", "qwen", "grok", "droid", "devin", "kiro", "copilot", "junie", "goose"]) {
+        it(`${agent}: decision block with the reason at exit 0`, () => {
+            assert.deepEqual(go(agent), { stdout: `${JSON.stringify({ decision: "block", reason: "run the tests" })}\n`, stderr: "", exitCode: 0 });
+        });
+    }
+    it("gemini: decision deny (AfterAgent retry)", () => {
+        assert.equal(go("gemini").stdout, `${JSON.stringify({ decision: "deny", reason: "run the tests" })}\n`);
+    });
+    it("cursor: followup_message", () => {
+        assert.equal(go("cursor").stdout, `${JSON.stringify({ followup_message: "run the tests" })}\n`);
+    });
+    for (const agent of ["auggie", "cline"]) {
+        it(`${agent}: no Stop channel, so the reason goes to stderr at exit 0`, () => {
+            assert.deepEqual(go(agent), { stdout: "", stderr: "run the tests\n", exitCode: 0 });
+        });
+    }
+});
+describe("selectAgent", () => {
+    const cursorPayload = { hook_event_name: "preToolUse", cursor_version: "3.20.17", tool_name: "Shell" };
+    const claudePayload = { hook_event_name: "PreToolUse", session_id: "s", tool_name: "Bash" };
+    it("takes --agent first, then CI_AGENT, then the sniff", () => {
+        assert.equal(selectAgent(["--agent", "codex"], { CI_AGENT: "gemini", CURSOR_VERSION: "3" }, cursorPayload), "codex");
+        assert.equal(selectAgent(["--agent=kiro"], {}, claudePayload), "kiro");
+        assert.equal(selectAgent([], { CI_AGENT: " gemini " }, cursorPayload), "gemini");
+        assert.equal(selectAgent([], { CURSOR_VERSION: "3.20.17" }, cursorPayload), "cursor");
+    });
+    it("is claude with no flag, no CI_AGENT and a Claude payload, whatever agent env is set", () => {
+        assert.equal(selectAgent([], {}, claudePayload), "claude");
+        for (const env of [{ CURSOR_VERSION: "3" }, { GEMINI_SESSION_ID: "g" }, { DEVIN_PROJECT_DIR: "/r" }, { GROK_SESSION_ID: "x" }]) {
+            assert.equal(selectAgent([], env, claudePayload), "claude", JSON.stringify(env));
+        }
+        for (const payload of [undefined, null, [], 42, "text", {}])
+            assert.equal(selectAgent([], {}, payload), "claude");
+    });
+    it("needs both signals: an agent env var alone or a payload shape alone does not pick the agent", () => {
+        assert.notEqual(selectAgent([], {}, cursorPayload), "cursor");
+        assert.equal(selectAgent([], { GEMINI_SESSION_ID: "g" }, { hook_event_name: "BeforeTool" }), "gemini");
+        assert.notEqual(selectAgent([], {}, { hook_event_name: "BeforeTool" }), "gemini");
+        assert.equal(selectAgent([], { DEVIN_PROJECT_DIR: "/r" }, { ...claudePayload, prompt_id: "p" }), "devin");
+        assert.equal(selectAgent([], { GROK_SESSION_ID: "x" }, { ...claudePayload, hookEventName: "pre_tool_use" }), "grok");
+        assert.equal(selectAgent([], { QWEN_PROJECT_DIR: "/r" }, { ...claudePayload, timestamp: "2026-11-21T00:00:00Z" }), "qwen");
+    });
+    it("a clearly non-Claude payload with no matching profile gets the fail-closed id, never claude", () => {
+        for (const payload of [
+            cursorPayload,
+            { hook_event_name: "BeforeTool", tool_name: "run_shell_command" },
+            { toolName: "bash", toolArgs: "{}" },
+            { hookName: "PreToolUse", preToolUse: { toolName: "run_commands" } },
+            { event: "PreToolUse", tool_name: "shell" },
+        ]) {
+            const agent = selectAgent([], {}, payload);
+            assert.ok(!AGENT_IDS.includes(agent), `${JSON.stringify(payload)} -> ${agent}`);
+            assert.equal(encode(agent, "PreToolUse", { kind: "deny", reason: "r" }).exitCode, 2);
+        }
+    });
+    it("an empty or unknown --agent or CI_AGENT value fails closed instead of falling back to claude", () => {
+        for (const args of [["--agent"], ["--agent", ""], ["--agent", "zed"], ["--agent="]]) {
+            const agent = selectAgent(args, {}, claudePayload);
+            assert.equal(encode(agent, "PreToolUse", { kind: "deny", reason: "r" }).exitCode, 2, JSON.stringify(args));
+        }
+        assert.equal(encode(selectAgent([], { CI_AGENT: "zed" }, claudePayload), "PreToolUse", { kind: "deny", reason: "r" }).exitCode, 2);
+        assert.equal(selectAgent([], { CI_AGENT: "  " }, claudePayload), "claude");
+    });
+    it("accepts an id in any case and ignores inherited property names", () => {
+        assert.equal(selectAgent(["--agent", "Cursor"], {}, undefined), "cursor");
+        assert.notEqual(selectAgent(["--agent", "__proto__"], {}, undefined), "claude");
+        assert.equal(encode(selectAgent(["--agent", "__proto__"], {}, undefined), "PreToolUse", { kind: "deny", reason: "r" }).exitCode, 2);
+    });
+});
+describe("normalizeEvent, other agents' payload keys", () => {
+    it("reads Copilot's camelCase toolName and toolArgs, as an object or a JSON string", () => {
+        for (const toolArgs of ['{"command":"git status"}', { command: "git status" }]) {
+            const event = normalizeEvent("copilot", "PreToolUse", { sessionId: "c1", toolName: "bash", toolArgs });
+            assert.equal(event.toolName, "bash");
+            assert.equal(event.command, "git status");
+            assert.equal(event.sessionId, "c1");
+        }
+        assert.deepEqual(normalizeEvent("copilot", "PreToolUse", { toolName: "bash", toolArgs: "{not json" }).toolInput, {});
+    });
+    it("reads Cline's nested preToolUse, with commands as a JSON-encoded array or an array", () => {
+        for (const commands of ['["git status","npm test"]', ["git status", "npm test"]]) {
+            const event = normalizeEvent("cline", "PreToolUse", {
+                hookName: "PreToolUse",
+                preToolUse: { toolName: "run_commands", parameters: { commands } },
+            });
+            assert.equal(event.toolName, "run_commands");
+            assert.equal(event.kind, "shell");
+            assert.equal(event.command, "git status\nnpm test");
+        }
+        const plain = normalizeEvent("cline", "PreToolUse", { preToolUse: { toolName: "run_commands", parameters: { commands: "ls" } } });
+        assert.equal(plain.command, "ls");
+        assert.equal(normalizeEvent("cline", "PreToolUse", { preToolUse: { toolName: 3 } }).toolName, "");
+    });
+    it("prefers the Claude keys when both are present (Grok sends both)", () => {
+        const event = normalizeEvent("grok", "PreToolUse", {
+            tool_name: "run_terminal_command",
+            tool_input: { command: "ls" },
+            toolName: "other",
+            toolInput: { command: "rm" },
+        });
+        assert.equal(event.toolName, "run_terminal_command");
+        assert.equal(event.command, "ls");
+    });
+    it("gives a Claude-named shell the flavor of the agent that reports it", () => {
+        assert.equal(normalizeEvent("claude", "PreToolUse", { tool_name: "Bash" }).shellFlavor, "posix");
+        assert.equal(normalizeEvent("codex", "PreToolUse", { tool_name: "Bash" }).shellFlavor, "unknown");
+        assert.equal(normalizeEvent("copilot", "PreToolUse", { tool_name: "Bash" }).shellFlavor, "unknown");
+        assert.equal(normalizeEvent("junie", "PreToolUse", { tool_name: "Bash" }).shellFlavor, "posix");
+        assert.equal(normalizeEvent("zed", "PreToolUse", { tool_name: "Bash" }).shellFlavor, "posix");
+    });
+});
+describe("claudeEventName", () => {
+    it("maps the native session-start names to SessionStart and passes the rest through", () => {
+        for (const name of ["sessionStart", "agentSpawn", "AgentSpawn", "TaskStart"])
+            assert.equal(claudeEventName(name), "SessionStart");
+        assert.equal(claudeEventName("sessionEnd"), "SessionEnd");
+        for (const name of ["SessionStart", "SessionEnd", "PreToolUse", "x", "toString"])
+            assert.equal(claudeEventName(name), name);
+        for (const value of [undefined, null, 3])
+            assert.equal(claudeEventName(value), value);
+    });
+});
+describe("hooks pick their agent through hookAgent", () => {
+    const HOOKS = ["gateguard", "hook-pack", "config-guard", "session", "three-section-close", "goal-drift-stop",
+        "workflow-distill", "typecheck-stop", "query-cost-nudge", "recall-briefing", "route-prompt"];
+    for (const name of HOOKS) {
+        it(`${name} encodes for hookAgent(), not a fixed agent`, () => {
+            const source = readFileSync(new URL(`../hooks/${name}.mjs`, import.meta.url), "utf8");
+            assert.match(source, /\bhookAgent\(\)/);
+            assert.doesNotMatch(source, /AGENT\s*=\s*"claude"/);
         });
     }
 });

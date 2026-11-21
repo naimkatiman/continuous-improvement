@@ -22,12 +22,11 @@ import { execFileSync } from "node:child_process";
 import { readKnob } from "../lib/agent-env.mjs";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
-import { emit, encode, normalizeEvent, parsePayload, readStdin } from "../lib/hook-io.mjs";
+import { emit, encode, hookAgent, normalizeEvent, parsePayload, readStdin } from "../lib/hook-io.mjs";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { buildQueryCostReminder, changedQueryPaths, parseChangedFiles, resolveQueryCostNudge, } from "../lib/query-cost-gate.mjs";
-const AGENT = "claude";
 const EVENT = "Stop";
 const ALLOW = { kind: "allow" };
 function resolveHome() {
@@ -64,7 +63,7 @@ function decideQueryCostNudge() {
     // stdin optional: without a session id the dedup is per day.
     const parsed = parsePayload(readStdin());
     const payload = parsed.ok ? parsed.value : null;
-    const sessionId = normalizeEvent(AGENT, EVENT, payload).sessionId;
+    const sessionId = normalizeEvent(hookAgent(), EVENT, payload).sessionId;
     // Trimmed: this hook has always trimmed CLAUDE_PROJECT_DIR before using it.
     const root = resolveProjectRoot(payload).trim();
     if (root === "global")
@@ -93,4 +92,5 @@ function main() {
         return ALLOW;
     }
 }
-emit(encode(AGENT, EVENT, main()));
+const decision = main();
+emit(encode(hookAgent(), EVENT, decision));

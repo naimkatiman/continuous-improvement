@@ -1,0 +1,61 @@
+{
+  "agent": "devin",
+  "checked": "2026-11-21",
+  "source": "Verified research, Devin Local 3000.14.30833 (Windsurf / Devin Desktop) entry: bundled docs extensibility/hooks/overview.mdx and lifecycle-hooks.mdx, changelog/stable.mdx (skeptic: hook_pre_tool and hook_stop corrected, hook_session_start confirmed).",
+  "selection": {
+    "sniff": { "env": { "DEVIN_PROJECT_DIR": "<PROJECT>" }, "source": "Devin hook_pre_tool: DEVIN_PROJECT_DIR is set for hooks; the Claude-format payload adds prompt_id (overview.mdx lines 111-121), and the skeptic adds tool_provenance." },
+    "bare": "claude",
+    "bareNote": "The Devin payload is Claude-shaped. Whether Devin honours the Claude hookSpecificOutput deny is not in the verified research, so a Devin run relies on --agent devin or the DEVIN_PROJECT_DIR sniff."
+  },
+  "expect": {
+    "deny": {
+      "source": "Devin hook_payload_example: exit 0 and print {decision: block, reason} (overview.mdx line 53).",
+      "exitCode": 0,
+      "json": { "decision": "block" },
+      "reasonAt": [["reason"]]
+    },
+    "context": {
+      "source": "Devin hook_session_start (skeptic: confirmed): hookSpecificOutput.additionalContext on stdout (lifecycle-hooks.mdx line 286).",
+      "jsonAt": ["hookSpecificOutput", "additionalContext"]
+    }
+  },
+  "events": {
+    "PreToolUse": {
+      "source": "Devin hook_payload_example, verbatim from overview.mdx lines 111-121, with shell_id from lifecycle-hooks.mdx line 25",
+      "checked": "2026-11-21",
+      "unverified": ["cwd"],
+      "stdin": { "hook_event_name": "PreToolUse", "tool_name": "exec", "tool_input": { "command": "<COMMAND>", "shell_id": "main" }, "session_id": "devin-session", "prompt_id": "devin-prompt", "cwd": "<PROJECT>" }
+    },
+    "PostToolUse": {
+      "source": "Devin hook_post_tool: tool_name, tool_input, tool_response {success, output, error}, session_id, prompt_id",
+      "checked": "2026-11-21",
+      "unverified": ["cwd"],
+      "stdin": { "hook_event_name": "PostToolUse", "tool_name": "exec", "tool_input": { "command": "<COMMAND>", "shell_id": "main" }, "tool_response": { "success": true, "output": "", "error": null }, "session_id": "devin-session", "prompt_id": "devin-prompt", "cwd": "<PROJECT>" }
+    },
+    "UserPromptSubmit": {
+      "source": "Devin hook_user_prompt: prompt, session_id, prompt_id (lifecycle-hooks.mdx line 156)",
+      "checked": "2026-11-21",
+      "unverified": ["cwd"],
+      "stdin": { "hook_event_name": "UserPromptSubmit", "prompt": "run the tests", "session_id": "devin-session", "prompt_id": "devin-prompt", "cwd": "<PROJECT>" }
+    },
+    "SessionStart": {
+      "source": "Devin hook_session_start: source startup|resume and session_id; prompt_id is absent (overview.mdx line 128)",
+      "checked": "2026-11-21",
+      "unverified": ["cwd"],
+      "stdin": { "hook_event_name": "SessionStart", "source": "startup", "session_id": "devin-session", "cwd": "<PROJECT>" }
+    },
+    "SessionEnd": {
+      "source": "Devin hook_stop skeptic: SessionEnd stdin reason in Claude Code's vocabulary (changelog line 425)",
+      "checked": "2026-11-21",
+      "unverified": ["cwd"],
+      "stdin": { "hook_event_name": "SessionEnd", "reason": "exit", "session_id": "devin-session", "cwd": "<PROJECT>" }
+    },
+    "Stop": {
+      "source": "Devin hook_stop: stop_hook_active, session_id, prompt_id, and last_assistant_message (skeptic, changelog line 426)",
+      "checked": "2026-11-21",
+      "unverified": ["cwd"],
+      "stdin": { "hook_event_name": "Stop", "stop_hook_active": false, "last_assistant_message": "done", "session_id": "devin-session", "prompt_id": "devin-prompt", "cwd": "<PROJECT>" }
+    }
+  },
+  "absent": {}
+}

@@ -1,0 +1,57 @@
+{
+  "agent": "goose",
+  "checked": "2026-11-21",
+  "source": "Verified research, Goose 1.60 ([Goose] rows of the Zed/Aider/Goose/Droid/Auggie/Junie entry): goose repo documentation/docs/guides/context-engineering/hooks.md, Open Plugins hooks spec (skeptic: hook_pre_tool and hook_session_start corrected, hook_stop confirmed).",
+  "selection": {
+    "sniff": null,
+    "sniffNote": "The verified research names no Goose hook env var, so Goose is picked by --agent goose or CI_AGENT.",
+    "bare": "fallback",
+    "bareNote": "Goose names the event in `event`, not hook_event_name, so with no flag the deny is exit 2 with the reason on stderr, which Goose documents as a block."
+  },
+  "expect": {
+    "deny": {
+      "source": "[Goose] hook_pre_tool: block with exit 2 (reason on stderr); stdout is the decision channel, so nothing else is printed.",
+      "exitCode": 2,
+      "stderrReason": true
+    },
+    "context": {
+      "source": "[Goose] hook_session_start (skeptic): SessionStart is observation-only; lessons go through GOOSE_MOIM_MESSAGE_FILE (plan PR 11).",
+      "none": true
+    }
+  },
+  "events": {
+    "PreToolUse": {
+      "source": "Goose hook_payload_example: the documented PostToolUse stdin with the event set to PreToolUse; the skeptic adds tool_call_id",
+      "checked": "2026-11-21",
+      "unverified": ["event value PreToolUse"],
+      "stdin": { "event": "PreToolUse", "session_id": "goose-session", "matcher_context": "shell", "tool_name": "shell", "tool_input": { "command": "<COMMAND>" }, "tool_call_id": "goose-call-1", "working_dir": "<PROJECT>" }
+    },
+    "PostToolUse": {
+      "source": "Goose hook_payload_example: PostToolUse stdin verbatim from hooks.md (values replaced)",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "event": "PostToolUse", "session_id": "goose-session", "matcher_context": "shell", "tool_name": "shell", "tool_input": { "command": "<COMMAND>" }, "working_dir": "<PROJECT>" }
+    },
+    "UserPromptSubmit": {
+      "source": "[Goose] hook_user_prompt: UserPromptSubmit is observation-only and the prompt arrives in message",
+      "checked": "2026-11-21",
+      "unverified": ["event value UserPromptSubmit"],
+      "stdin": { "event": "UserPromptSubmit", "session_id": "goose-session", "message": "run the tests", "working_dir": "<PROJECT>" }
+    },
+    "SessionStart": {
+      "source": "[Goose] hook_session_start: the SessionStart event fires, observation-only; its keys beyond event, session_id and working_dir are not documented",
+      "checked": "2026-11-21",
+      "unverified": ["event value SessionStart"],
+      "stdin": { "event": "SessionStart", "session_id": "goose-session", "working_dir": "<PROJECT>" }
+    },
+    "Stop": {
+      "source": "[Goose] hook_stop: a Stop block forces the turn to continue; the payload includes last_assistant_message",
+      "checked": "2026-11-21",
+      "unverified": ["event value Stop"],
+      "stdin": { "event": "Stop", "session_id": "goose-session", "last_assistant_message": "done", "working_dir": "<PROJECT>" }
+    }
+  },
+  "absent": {
+    "SessionEnd": "No SessionEnd event in the [Goose] rows of the verified research, so session.mjs is not wired to one."
+  }
+}

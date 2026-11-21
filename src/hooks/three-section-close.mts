@@ -37,10 +37,9 @@ import { dirname, join } from "node:path";
 import { performance } from "node:perf_hooks";
 
 import { readKnob } from "../lib/agent-env.mjs";
-import { emit, encode, readStdin, type AgentId, type Decision } from "../lib/hook-io.mjs";
+import { emit, encode, hookAgent, readStdin, type Decision } from "../lib/hook-io.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 
-const AGENT: AgentId = "claude";
 const EVENT = "Stop";
 const ALLOW: Decision = { kind: "allow" };
 
@@ -220,4 +219,5 @@ function main(): Decision {
   }
 }
 
-emit(encode(AGENT, EVENT, main()));
+const decision = main();
+emit(encode(hookAgent(), EVENT, decision));

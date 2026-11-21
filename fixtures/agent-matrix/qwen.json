@@ -1,0 +1,60 @@
+{
+  "agent": "qwen",
+  "checked": "2026-11-21",
+  "source": "Verified research, Qwen Code 0.28.0 entry: bundled qc-helper/docs/features/hooks.md and source createBaseInput (hook_payload_example; skeptic verdicts hook_session_start, hook_stop and hook_user_prompt confirmed or corrected).",
+  "selection": {
+    "sniff": { "env": { "QWEN_PROJECT_DIR": "<PROJECT>" }, "source": "Qwen hook_pre_tool: QWEN_PROJECT_DIR is set in every command hook's env; createBaseInput adds timestamp, which Claude Code does not send." },
+    "bare": "claude"
+  },
+  "expect": {
+    "deny": {
+      "source": "Qwen hook_payload_example: deny option A, exit 0 with hookSpecificOutput.permissionDecision deny.",
+      "exitCode": 0,
+      "json": { "hookSpecificOutput": { "hookEventName": "PreToolUse", "permissionDecision": "deny" } },
+      "reasonAt": [["hookSpecificOutput", "permissionDecisionReason"]]
+    },
+    "context": {
+      "source": "Qwen hook_session_start (skeptic: confirmed): plain stdout at exit 0 is added to the model context on SessionStart.",
+      "plain": true
+    }
+  },
+  "events": {
+    "PreToolUse": {
+      "source": "Qwen hook_payload_example (documented field names, illustrative values)",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "session_id": "qwen-session", "transcript_path": "<HOME>/qwen.jsonl", "cwd": "<PROJECT>", "hook_event_name": "PreToolUse", "timestamp": "2026-11-21T10:00:00.000Z", "permission_mode": "default", "prompt_id": "p1", "tool_name": "run_shell_command", "tool_input": { "command": "<COMMAND>" }, "tool_use_id": "toolu_1", "tool_call_id": "call_1" }
+    },
+    "PostToolUse": {
+      "source": "Qwen hook_payload_example base fields; the tool_response shape is not in the verified research",
+      "checked": "2026-11-21",
+      "unverified": ["tool_response"],
+      "stdin": { "session_id": "qwen-session", "transcript_path": "<HOME>/qwen.jsonl", "cwd": "<PROJECT>", "hook_event_name": "PostToolUse", "timestamp": "2026-11-21T10:00:01.000Z", "permission_mode": "default", "tool_name": "run_shell_command", "tool_input": { "command": "<COMMAND>" }, "tool_use_id": "toolu_1", "tool_response": "" }
+    },
+    "UserPromptSubmit": {
+      "source": "Qwen hook_user_prompt: prompt and the optional submitted_prompt",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "session_id": "qwen-session", "transcript_path": "<HOME>/qwen.jsonl", "cwd": "<PROJECT>", "hook_event_name": "UserPromptSubmit", "timestamp": "2026-11-21T10:00:00.000Z", "permission_mode": "default", "prompt": "run the tests" }
+    },
+    "SessionStart": {
+      "source": "Qwen hook_session_start skeptic: hooks.md:891-915 fields permission_mode, source, model, agent_type",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "session_id": "qwen-session", "transcript_path": "<HOME>/qwen.jsonl", "cwd": "<PROJECT>", "hook_event_name": "SessionStart", "timestamp": "2026-11-21T10:00:00.000Z", "permission_mode": "default", "source": "startup", "model": "qwen3-coder" }
+    },
+    "SessionEnd": {
+      "source": "Qwen hook_stop: SessionEnd exists with a matcher on reason",
+      "checked": "2026-11-21",
+      "unverified": ["reason"],
+      "stdin": { "session_id": "qwen-session", "transcript_path": "<HOME>/qwen.jsonl", "cwd": "<PROJECT>", "hook_event_name": "SessionEnd", "timestamp": "2026-11-21T10:00:00.000Z", "reason": "exit" }
+    },
+    "Stop": {
+      "source": "Qwen hook_stop skeptic: hooks.md:979-1019 Stop fields stop_hook_active, last_assistant_message, background_tasks, crons",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "session_id": "qwen-session", "transcript_path": "<HOME>/qwen.jsonl", "cwd": "<PROJECT>", "hook_event_name": "Stop", "timestamp": "2026-11-21T10:00:00.000Z", "permission_mode": "default", "stop_hook_active": false, "last_assistant_message": "done", "background_tasks": [], "crons": [] }
+    }
+  },
+  "absent": {}
+}
