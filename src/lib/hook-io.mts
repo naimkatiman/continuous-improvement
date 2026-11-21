@@ -66,8 +66,12 @@ export interface NeutralEvent {
   sessionId: string | undefined;
   /** The payload cwd when it is a non-empty string. */
   cwd: string | undefined;
-  /** Claude Code's stop_hook_active: a Stop hook already re-prompted this turn. */
+  /** stop_hook_active (or Grok's camelCase stopHookActive): a Stop hook already re-prompted this turn. */
   stopActive: boolean;
+  /** The payload's reason when it is a string: Grok's Stop sends end_turn, or channel_closed / shutdown at session end. */
+  stopReason: string | undefined;
+  /** Cursor's loop_count: the number when it is a non-negative integer, null when absent, Infinity for any other value. */
+  loopCount: number | null;
   /** The parsed stdin, for the resolvers that read cwd, working_dir and workspace_roots (lib/agent-paths.mjs). */
   payload: unknown;
 }
@@ -308,6 +312,14 @@ export function parsePayload(raw: string | null): { ok: true; value: unknown } |
   }
 }
 
+// A loop_count that is present but not a count cannot prove a first fire, so it
+// reads as Infinity and the Stop guard treats it as a repeat.
+function loopCount(fields: Record<string, unknown>): number | null {
+  if (!("loop_count" in fields)) return null;
+  const value = fields.loop_count;
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : Number.POSITIVE_INFINITY;
+}
+
 /**
  * The neutral event for a parsed payload. Total: a payload that is not an
  * object (null, an array, a number) gives an event with no tool, and a field
@@ -346,9 +358,29 @@ export function normalizeEvent(agent: string, event: string, payload: unknown): 
     prompt: typeof fields.prompt === "string" ? fields.prompt : null,
     sessionId: typeof fields.session_id === "string" ? fields.session_id : typeof fields.sessionId === "string" ? fields.sessionId : undefined,
     cwd: nonEmptyString(fields.cwd),
-    stopActive: fields.stop_hook_active === true,
+    stopActive: fields.stop_hook_active === true || fields.stopHookActive === true,
+    stopReason: typeof fields.reason === "string" ? fields.reason : undefined,
+    loopCount: loopCount(fields),
     payload,
   };
+}
+
+/**
+ * Whether a Stop hook that can continue the turn stays out of this Stop fire
+ * (plan PR 9, Architecture item 7). Never for claude: by owner decision Claude
+ * Code's Stop bytes stay those of v3.27.0. For every other agent, including
+ * one with no encoder: a repeat fire, where stop_hook_active or stopHookActive
+ * is true or loop_count is not 0, because Cursor gives imported Claude hooks
+ * loop_limit null (no cap) and the other agents cap at 8 continuations at most.
+ * On Grok, also every fire whose reason is not end_turn: Grok fires an extra
+ * Stop at session end (channel_closed or shutdown) whose decision it ignores
+ * (verified research 2026-11-21, hook_stop for Grok, Cursor, Copilot, Codex,
+ * Qwen, Gemini, Devin, Droid and Junie, skeptic verdicts applied).
+ */
+export function skipsStopGate(event: NeutralEvent): boolean {
+  if (event.agent === "claude") return false;
+  if (event.agent === "grok" && event.stopReason !== "end_turn") return true;
+  return event.stopActive || (event.loopCount !== null && event.loopCount !== 0);
 }
 
 function noticeLines(decision: Decision): string {
@@ -526,29 +558,53 @@ export function emit(output: EncodedOutput, streams: HookStreams = PROCESS_STREA
   streams.exit(output.exitCode);
 }
 
+function crashOutput(error: unknown): EncodedOutput {
+  // String(error) and a stack getter can throw too; that must not reject.
+  let text: string;
+  try {
+    text = error instanceof Error ? (error.stack ?? `${error.name}: ${error.message}`) : String(error);
+  } catch {
+    text = "unprintable error";
+  }
+  return { stdout: "", stderr: `[continuous-improvement] hook error: ${text}\n`, exitCode: 0 };
+}
+
 /**
- * Run a hook body and emit what it returns. Any throw ends as exit 0 with empty
+ * The output of a hook body, crash-safe. Any throw ends as exit 0 with empty
  * stdout and the error on stderr: on Kiro an exit 1 from a Stop hook starts
- * another turn, and on Cursor 3.x non-JSON stdout blocks every tool call
- * (plan, "What the research found" item 3). Nothing the body encoded before the
- * throw is printed.
+ * another turn, on Cursor 3.x non-JSON stdout blocks every tool call (plan,
+ * "What the research found" item 3), and Copilot reads a crashed preToolUse as
+ * a deny. Nothing the body encoded before the throw is printed.
+ *
+ * `agent` is read only after a throw. When it names claude the throw is
+ * rethrown unchanged, so Node reports it as v3.27.0 did (exit 1, which Claude
+ * Code reads as a non-blocking error) and the goldens keep their bytes (owner
+ * decision: Claude Code behaviour stays byte-identical). Every hook entry point
+ * is `emit(await settleHook(body, hookAgent))`.
  */
+export async function settleHook(
+  body: () => EncodedOutput | Promise<EncodedOutput>,
+  agent?: () => string,
+): Promise<EncodedOutput> {
+  try {
+    return await body();
+  } catch (error) {
+    let claude = false;
+    try {
+      claude = agent?.() === "claude";
+    } catch {
+      // An agent that cannot be read is not Claude Code.
+    }
+    if (claude) throw error;
+    return crashOutput(error);
+  }
+}
+
+/** Run a hook body and emit what it returns; a throw ends as settleHook's exit 0. */
 export async function runHook(
   body: () => EncodedOutput | Promise<EncodedOutput>,
   streams: HookStreams = PROCESS_STREAMS,
 ): Promise<void> {
-  let output: EncodedOutput;
-  try {
-    output = await body();
-  } catch (error) {
-    // String(error) and a stack getter can throw too; that must not reject.
-    let text: string;
-    try {
-      text = error instanceof Error ? (error.stack ?? `${error.name}: ${error.message}`) : String(error);
-    } catch {
-      text = "unprintable error";
-    }
-    output = { stdout: "", stderr: `[continuous-improvement] hook error: ${text}\n`, exitCode: 0 };
-  }
-  emit(output, streams);
+  emit(await settleHook(body), streams);
 }
+

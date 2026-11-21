@@ -34,6 +34,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
+import { emit, hookAgent, settleHook } from "../lib/hook-io.mjs";
 const OVERRIDES = {
     "tdd-workflow": {
         companion: "superpowers:test-driven-development",
@@ -124,7 +125,7 @@ function writeTelemetry(home, payload, event) {
         // fail-open — telemetry failure never changes the decision
     }
 }
-function main() {
+async function main() {
     const raw = readStdin();
     let payload;
     try {
@@ -175,4 +176,9 @@ function main() {
     writeTelemetry(home, payload, { ...baseEvent, mode, action: "block-not-installed" });
     emitDenyAndExit(`companion_preference=strict-companions: companion plugin \`${override.plugin}\` is not installed. Install with \`/plugin install ${override.plugin}@continuous-improvement\` or relax the setting to \`companions-first\` or \`ci-first\` in ~/.claude/settings.json.`);
 }
-main();
+// Every path through main exits on its own. main() is called here, not inside
+// settleHook, so a Claude Code crash's stack names main and this module only
+// (golden companion-preference/null-stdin); settleHook ends a crash as exit 0
+// for every other agent.
+const pending = main();
+emit(await settleHook(() => pending, hookAgent));

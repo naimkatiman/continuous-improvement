@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot, projectYamlFiles, yamlFiles } from "../lib/gateguard-state.mjs";
 import { flatten, parseYamlInstinct } from "../lib/instinct-yaml.mjs";
-import { claudeEventName, emit, encode, hookAgent, parsePayload, readStdin } from "../lib/hook-io.mjs";
+import { claudeEventName, emit, encode, hookAgent, parsePayload, readStdin, settleHook } from "../lib/hook-io.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 // Claude Code adds a SessionStart hook's plain-text stdout to the model's
 // context and never shows the model the stderr of a hook that exits 0
@@ -194,7 +194,9 @@ function main() {
         return { event: "unknown", decision: ALLOW };
     }
 }
-const { event, decision } = main();
 // A closed stdout must not crash the hook after the decision is made.
 process.stdout.on("error", () => { });
-emit(encode(hookAgent(), event, decision));
+emit(await settleHook(() => {
+    const { event, decision } = main();
+    return encode(hookAgent(), event, decision);
+}, hookAgent));

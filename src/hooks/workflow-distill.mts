@@ -33,7 +33,7 @@ import { join } from "node:path";
 import { readKnob } from "../lib/agent-env.mjs";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
-import { emit, encode, hookAgent, type Decision } from "../lib/hook-io.mjs";
+import { emit, encode, hookAgent, settleHook, type Decision } from "../lib/hook-io.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 import { workflowRunFromObservations, type DistillObservation } from "../lib/skill-distill.mjs";
 
@@ -155,5 +155,4 @@ function main(): Decision {
   }
 }
 
-const decision = main();
-emit(encode(hookAgent(), EVENT, decision));
+emit(await settleHook(() => encode(hookAgent(), EVENT, main()), hookAgent));

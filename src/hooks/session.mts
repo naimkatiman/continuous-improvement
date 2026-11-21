@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot, projectYamlFiles, yamlFiles } from "../lib/gateguard-state.mjs";
 import { flatten, parseYamlInstinct } from "../lib/instinct-yaml.mjs";
-import { claudeEventName, emit, encode, hookAgent, parsePayload, readStdin, type Decision } from "../lib/hook-io.mjs";
+import { claudeEventName, emit, encode, hookAgent, parsePayload, readStdin, settleHook, type Decision } from "../lib/hook-io.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 // The hook is: read stdin, decide (the lesson block and status line below),
 // encode for the agent (lib/hook-io.mjs). The claude encoder prints a
@@ -190,7 +190,9 @@ function main(): { event: SessionEvent; decision: Decision } {
     return { event: "unknown", decision: ALLOW };
   }
 }
-const { event, decision } = main();
 // A closed stdout must not crash the hook after the decision is made.
 process.stdout.on("error", () => { });
-emit(encode(hookAgent(), event, decision));
+emit(await settleHook(() => {
+  const { event, decision } = main();
+  return encode(hookAgent(), event, decision);
+}, hookAgent));

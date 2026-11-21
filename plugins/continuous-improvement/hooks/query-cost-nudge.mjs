@@ -22,7 +22,7 @@ import { execFileSync } from "node:child_process";
 import { readKnob } from "../lib/agent-env.mjs";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
-import { emit, encode, hookAgent, normalizeEvent, parsePayload, readStdin } from "../lib/hook-io.mjs";
+import { emit, encode, hookAgent, normalizeEvent, parsePayload, readStdin, settleHook } from "../lib/hook-io.mjs";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -92,5 +92,4 @@ function main() {
         return ALLOW;
     }
 }
-const decision = main();
-emit(encode(hookAgent(), EVENT, decision));
+emit(await settleHook(() => encode(hookAgent(), EVENT, main()), hookAgent));

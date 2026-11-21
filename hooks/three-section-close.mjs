@@ -35,7 +35,7 @@ import { platform } from "node:os";
 import { dirname, join } from "node:path";
 import { performance } from "node:perf_hooks";
 import { readKnob } from "../lib/agent-env.mjs";
-import { emit, encode, hookAgent, readStdin } from "../lib/hook-io.mjs";
+import { emit, encode, hookAgent, normalizeEvent, readStdin, settleHook, skipsStopGate } from "../lib/hook-io.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 const EVENT = "Stop";
 const ALLOW = { kind: "allow" };
@@ -149,6 +149,9 @@ function decideThreeSectionClose() {
     // A Stop hook already continued this turn; blocking again could loop.
     if (payload.stop_hook_active === true)
         return ALLOW;
+    // The same for another agent's repeat-fire keys, and Grok's session-end fire.
+    if (skipsStopGate(normalizeEvent(hookAgent(), EVENT, payload)))
+        return ALLOW;
     if (!existsSync(payload.transcript_path))
         return ALLOW;
     let lastText;
@@ -197,5 +200,4 @@ function main() {
         return ALLOW;
     }
 }
-const decision = main();
-emit(encode(hookAgent(), EVENT, decision));
+emit(await settleHook(() => encode(hookAgent(), EVENT, main()), hookAgent));

@@ -36,7 +36,7 @@ import { DEFAULT_MAX_HITS, decideBriefing } from "../lib/recall-briefing.mjs";
 import { readKnob } from "../lib/agent-env.mjs";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
-import { emit, encode, hookAgent, normalizeEvent, parsePayload, readStdin, type Decision } from "../lib/hook-io.mjs";
+import { emit, encode, hookAgent, normalizeEvent, parsePayload, readStdin, settleHook, type Decision } from "../lib/hook-io.mjs";
 
 const EVENT = "UserPromptSubmit";
 const ALLOW: Decision = { kind: "allow" };
@@ -141,5 +141,4 @@ function main(): Decision {
   }
 }
 
-const decision = main();
-emit(encode(hookAgent(), EVENT, decision));
+emit(await settleHook(() => encode(hookAgent(), EVENT, main()), hookAgent));

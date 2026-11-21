@@ -37,7 +37,7 @@ import { homedir } from "node:os";
 import { readKnob } from "../lib/agent-env.mjs";
 import { classifierShells } from "../lib/agent-profiles.mjs";
 import { COMMIT_FILE_LIMIT, classifyCommand, decide, evaluateCommitSize, evaluatePush, parseMode, } from "../lib/hook-pack-gate.mjs";
-import { emit, encode, hookAgent, normalizeEvent, parsePayload, readStdin, } from "../lib/hook-io.mjs";
+import { emit, encode, hookAgent, normalizeEvent, parsePayload, readStdin, settleHook, } from "../lib/hook-io.mjs";
 const EVENT = "PreToolUse";
 // A directory as the command line wrote it, as a value `git -C` can enter. `~`
 // is the home directory. Git Bash writes a drive as /d/repo; git.exe started
@@ -154,4 +154,4 @@ function main() {
     const output = encode(agent, EVENT, decision);
     return decision.kind === "deny" && agent === "claude" ? withoutFinalNewline(output) : output;
 }
-emit(main());
+emit(await settleHook(main, hookAgent));
