@@ -5,7 +5,8 @@
 // hooks/session.mjs (the SessionStart lesson block) both import it, so a file is
 // an instinct, and has the confidence it has, by the same rules on both paths.
 // The format is what writeInstinct in src/bin/mcp-server.mts writes: `key: value`
-// lines, a `---` line, then the body.
+// lines, a `---` line, then the body. flatten() below is how both print a
+// stored trigger or body to the model.
 
 export type InstinctScope = "project" | "global";
 
@@ -69,4 +70,29 @@ export function parseYamlInstinct(content: string): Instinct | null {
     last_seen: typeof meta.last_seen === "string" ? meta.last_seen : undefined,
     observation_count: typeof meta.observation_count === "number" ? meta.observation_count : undefined,
   };
+}
+
+// Only this much of a trigger or body (or `max`, when larger) is looked at
+// before it is cut to fit.
+const MAX_RAW_CHARS = 2000;
+
+// Instinct text is data: a model wrote it, or it came from an imported pack.
+// Wherever it is printed to the model (the SessionStart block, ci_instincts),
+// each field becomes one line of plain text. Compatibility forms are folded (a
+// full-width bracket becomes the ASCII one), invisible format characters are
+// dropped, control characters and every kind of line break become a space, and
+// angle brackets are escaped. A stored field can then neither close a system
+// reminder nor start a line of its own. At most `max` characters are kept;
+// pass Infinity to keep the whole field.
+export function flatten(text: string, max: number): string {
+  const flat = text
+    .slice(0, Math.max(max, MAX_RAW_CHARS))
+    .normalize("NFKC")
+    .replace(/[\p{Cf}\p{Cs}]+/gu, "")
+    .replace(/[\p{Cc}\s]+/gu, " ")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .trim();
+  if (flat.length <= max) return flat;
+  return `${flat.slice(0, max - 3).replace(/[\uD800-\uDBFF]$/, "").trimEnd()}...`;
 }

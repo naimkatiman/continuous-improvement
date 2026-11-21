@@ -32,7 +32,7 @@ import {
   parseGoalFromPlan,
   scoreObservations,
 } from "../lib/goal-state.mjs";
-import { parseYamlInstinct, type Instinct } from "../lib/instinct-yaml.mjs";
+import { flatten, parseYamlInstinct, type Instinct } from "../lib/instinct-yaml.mjs";
 import {
   buildIndex,
   formatRecallHits,
@@ -182,9 +182,7 @@ function toInstinct(value: unknown): Instinct | null {
     return null;
   }
 
-  let confidence = getNumber(record.confidence, 0.6);
-  // Validate confidence bounds (0.0 - 0.9)
-  confidence = Math.max(0, Math.min(0.9, confidence));
+  const confidence = clampConfidence(getNumber(record.confidence, 0.6));
   const scopeValue = getString(record.scope);
   const scope = scopeValue === "global" || scopeValue === "project"
     ? scopeValue
@@ -342,6 +340,17 @@ function writeFailed(id: string, reason: string): string {
   return `Could not write instinct ${JSON.stringify(id)}: ${reason}`;
 }
 
+// Every writer stores a confidence in 0 to 0.9, the documented range.
+function clampConfidence(value: number): number {
+  return Number.isNaN(value) ? 0.6 : Math.max(0, Math.min(0.9, value));
+}
+
+// The parser reads one `key: value` per line and the last one wins, so a line
+// break inside a header value would add or override a key. Each becomes a space.
+function headerValue(value: string): string {
+  return value.replace(/[\r\n\v\f\x85\p{Zl}\p{Zp}]+/gu, " ");
+}
+
 // The one place an instinct id becomes a filesystem path.
 function writeInstinct(projectHash: string, instinct: Instinct): WriteOutcome {
   const scope = instinct.scope === "global" ? "global" : "project";
@@ -355,14 +364,14 @@ function writeInstinct(projectHash: string, instinct: Instinct): WriteOutcome {
   const today = new Date().toISOString().split("T")[0];
   const yaml = [
     `id: ${instinct.id}`,
-    `trigger: "${instinct.trigger}"`,
-    `confidence: ${instinct.confidence}`,
-    `domain: ${instinct.domain || "workflow"}`,
-    `source: ${instinct.source || "manual"}`,
+    `trigger: "${headerValue(instinct.trigger)}"`,
+    `confidence: ${clampConfidence(instinct.confidence)}`,
+    `domain: ${headerValue(instinct.domain || "workflow")}`,
+    `source: ${headerValue(instinct.source || "manual")}`,
     `scope: ${scope}`,
-    `project_id: ${projectHash}`,
-    `created: "${instinct.created || today}"`,
-    `last_seen: "${instinct.last_seen || today}"`,
+    `project_id: ${headerValue(projectHash)}`,
+    `created: "${headerValue(instinct.created || today)}"`,
+    `last_seen: "${headerValue(instinct.last_seen || today)}"`,
     `observation_count: ${instinct.observation_count || 1}`,
     "---",
     instinct.body,
@@ -652,7 +661,8 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
             : instinct.confidence >= 0.5
               ? "SUGGEST"
               : "silent";
-          return `- **${instinct.id}** (${instinct.confidence}) [${behavior}]\n  Trigger: ${instinct.trigger}\n  ${instinct.body}`;
+          // Stored text is data; flatten keeps each field on one line with no raw "<".
+          return `- **${flatten(instinct.id, Infinity)}** (${instinct.confidence}) [${behavior}]\n  Trigger: ${flatten(instinct.trigger, Infinity)}\n  ${flatten(instinct.body, Infinity)}`;
         });
 
       return text(`## Instincts for ${project.name}\n\n${lines.join("\n\n")}`);
@@ -762,7 +772,7 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
         id: getString(params.id),
         trigger: getString(params.trigger),
         body: getString(params.body),
-        confidence: getNumber(params.confidence, 0.6),
+        confidence: clampConfidence(getNumber(params.confidence, 0.6)),
         domain: getString(params.domain, "workflow"),
         source: "manual",
         scope,

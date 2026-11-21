@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { closeSync, openSync, readFileSync, readSync, readdirSync } from "node:fs";
 import { basename, join } from "node:path";
 import { canonicalizeProjectRoot, hashProjectRoot } from "../lib/gateguard-state.mjs";
-import { parseYamlInstinct } from "../lib/instinct-yaml.mjs";
+import { flatten, parseYamlInstinct } from "../lib/instinct-yaml.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 // Claude Code adds a SessionStart hook's plain-text stdout to the model's
 // context and never shows the model the stderr of a hook that exits 0
@@ -19,8 +19,6 @@ const MAX_LESSONS = 10;
 const MAX_BLOCK_CHARS = 1500;
 const MAX_LINE_CHARS = 200;
 const MAX_TRIGGER_CHARS = 80;
-// Only this much of a trigger or body is looked at before it is cut to fit.
-const MAX_RAW_CHARS = 2000;
 // Session start has to stay fast whatever is on disk: at most this many instinct
 // files are read (the project's first, then global, each in name order) and at
 // most this much of each. One read costs about a millisecond on Windows, so 200
@@ -127,26 +125,9 @@ function projectYamlFiles(instinctsRoot, root, canonicalHash) {
     }
     return files;
 }
-// Instinct text is data: a model wrote it, or it came from an imported pack. It
-// is printed inside a system reminder, so each field becomes one line of plain
-// text. Compatibility forms are folded (a full-width bracket becomes the ASCII
-// one), invisible format characters are dropped, control characters and every
-// kind of line break become a space, and angle brackets are escaped. A lesson
-// can then neither close the reminder nor start a line of its own, which keeps
-// the header the only line that does not begin with "- ".
-function flatten(text, max) {
-    const flat = text
-        .slice(0, MAX_RAW_CHARS)
-        .normalize("NFKC")
-        .replace(/[\p{Cf}\p{Cs}]+/gu, "")
-        .replace(/[\p{Cc}\s]+/gu, " ")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .trim();
-    if (flat.length <= max)
-        return flat;
-    return `${flat.slice(0, max - 3).replace(/[\uD800-\uDBFF]$/, "").trimEnd()}...`;
-}
+// Each trigger and body goes through flatten (src/lib/instinct-yaml.mts), so a
+// lesson cannot close the reminder or start a line of its own, which keeps the
+// header the only line that does not begin with "- ".
 // The text and the confidence of a line are whatever the writer of the file put
 // there: a model through one tool call, a pack, or a hand edit. The header
 // therefore claims no more for a line than that it is a stored note, and says

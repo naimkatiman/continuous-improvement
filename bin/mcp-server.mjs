@@ -18,7 +18,7 @@ import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { PACKAGE_NAME, VERSION, getToolDefinitions, isPluginMode, } from "../lib/plugin-metadata.mjs";
 import { formatDriftReport, parseGoalFromPlan, scoreObservations, } from "../lib/goal-state.mjs";
-import { parseYamlInstinct } from "../lib/instinct-yaml.mjs";
+import { flatten, parseYamlInstinct } from "../lib/instinct-yaml.mjs";
 import { buildIndex, formatRecallHits, parseSince, query as queryRecall, } from "../lib/recall-index.mjs";
 import { draftFromCandidate, draftFromWorkflowRun, extractTrajectories, findCandidates, formatCandidates, serializeDraft, workflowRunFromObservations, } from "../lib/skill-distill.mjs";
 import { MAX_CLEARED_FILES, canonicalizeFileKey, clearFiles, hashProjectRoot, resolveInstinctsRoot, resolveProjectRoot, resolveSessionDir, } from "../lib/gateguard-state.mjs";
@@ -89,9 +89,7 @@ function toInstinct(value) {
     if (!id || !trigger || !body) {
         return null;
     }
-    let confidence = getNumber(record.confidence, 0.6);
-    // Validate confidence bounds (0.0 - 0.9)
-    confidence = Math.max(0, Math.min(0.9, confidence));
+    const confidence = clampConfidence(getNumber(record.confidence, 0.6));
     const scopeValue = getString(record.scope);
     const scope = scopeValue === "global" || scopeValue === "project"
         ? scopeValue
@@ -231,6 +229,15 @@ function detectLevel(projectHash) {
 function writeFailed(id, reason) {
     return `Could not write instinct ${JSON.stringify(id)}: ${reason}`;
 }
+// Every writer stores a confidence in 0 to 0.9, the documented range.
+function clampConfidence(value) {
+    return Number.isNaN(value) ? 0.6 : Math.max(0, Math.min(0.9, value));
+}
+// The parser reads one `key: value` per line and the last one wins, so a line
+// break inside a header value would add or override a key. Each becomes a space.
+function headerValue(value) {
+    return value.replace(/[\r\n\v\f\x85\p{Zl}\p{Zp}]+/gu, " ");
+}
 // The one place an instinct id becomes a filesystem path.
 function writeInstinct(projectHash, instinct) {
     const scope = instinct.scope === "global" ? "global" : "project";
@@ -243,14 +250,14 @@ function writeInstinct(projectHash, instinct) {
     const today = new Date().toISOString().split("T")[0];
     const yaml = [
         `id: ${instinct.id}`,
-        `trigger: "${instinct.trigger}"`,
-        `confidence: ${instinct.confidence}`,
-        `domain: ${instinct.domain || "workflow"}`,
-        `source: ${instinct.source || "manual"}`,
+        `trigger: "${headerValue(instinct.trigger)}"`,
+        `confidence: ${clampConfidence(instinct.confidence)}`,
+        `domain: ${headerValue(instinct.domain || "workflow")}`,
+        `source: ${headerValue(instinct.source || "manual")}`,
         `scope: ${scope}`,
-        `project_id: ${projectHash}`,
-        `created: "${instinct.created || today}"`,
-        `last_seen: "${instinct.last_seen || today}"`,
+        `project_id: ${headerValue(projectHash)}`,
+        `created: "${headerValue(instinct.created || today)}"`,
+        `last_seen: "${headerValue(instinct.last_seen || today)}"`,
         `observation_count: ${instinct.observation_count || 1}`,
         "---",
         instinct.body,
@@ -498,7 +505,8 @@ function handleTool(name, params) {
                     : instinct.confidence >= 0.5
                         ? "SUGGEST"
                         : "silent";
-                return `- **${instinct.id}** (${instinct.confidence}) [${behavior}]\n  Trigger: ${instinct.trigger}\n  ${instinct.body}`;
+                // Stored text is data; flatten keeps each field on one line with no raw "<".
+                return `- **${flatten(instinct.id, Infinity)}** (${instinct.confidence}) [${behavior}]\n  Trigger: ${flatten(instinct.trigger, Infinity)}\n  ${flatten(instinct.body, Infinity)}`;
             });
             return text(`## Instincts for ${project.name}\n\n${lines.join("\n\n")}`);
         }
@@ -595,7 +603,7 @@ function handleTool(name, params) {
                 id: getString(params.id),
                 trigger: getString(params.trigger),
                 body: getString(params.body),
-                confidence: getNumber(params.confidence, 0.6),
+                confidence: clampConfidence(getNumber(params.confidence, 0.6)),
                 domain: getString(params.domain, "workflow"),
                 source: "manual",
                 scope,
