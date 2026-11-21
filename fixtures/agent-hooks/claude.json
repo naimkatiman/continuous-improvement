@@ -1,0 +1,3184 @@
+{
+  "agent": "claude",
+  "recorded_against": "continuous-improvement v3.27.0 (cb46c89), hooks/*.mjs and bin/observe.mjs as built from src/",
+  "checked": "2026-11-21",
+  "about": "Golden stdout, stderr and exit code for every hook entry point over Claude Code payloads. Read by src/test/agent-claude-golden.test.mts. Placeholders: <HOME> and <PROJECT> are the per-case temp home and project, <ROOT> their parent, <REPO> the repository root, <PROJECT_HASH> hashProjectRoot(<PROJECT>). Setup file keys and string values are substituted; an array value is written as JSON lines, an object as JSON. A step env value of null unsets that variable.",
+  "sources": {
+    "wiring": "Events, matchers and scripts: plugins/continuous-improvement/hooks/hooks.json, generated from src/lib/plugin-metadata.mts:724-760 (inventory: Plugin packaging).",
+    "payload_keys": "Claude Code snake_case keys session_id, transcript_path, permission_mode, tool_name, tool_input, tool_response, tool_use_id (verified research, Grok entry, which mirrors them as the Claude aliases), plus hook_event_name (session.mts:62-63), cwd (gateguard.mts:78-83), prompt (route-prompt.mts, recall-briefing.mts:155-158) and stop_hook_active (three-section-close.mts:73).",
+    "tool_names": "Claude tool names Bash, PowerShell, Monitor, Read, Write, Edit, MultiEdit, NotebookEdit and Skill as hardcoded in TOOL_ROUTE / SHELL_TOOLS (gateguard.mts:85-106) and the Skill matcher (companion-preference.mts:193-196). Only names Claude Code emits are used here: a non-Claude tool name belongs in the per-agent fixtures, not in the Claude goldens.",
+    "tool_input": "file_path, edits[].file_path, command (gateguard.mts:129-138), notebook_path (config-guard-gate.mts:88-99), skill (companion-preference.mts:193).",
+    "transcript": "Stop hooks read the transcript JSONL at transcript_path: the last type 'assistant' row, message.content[] blocks of type 'text' (three-section-close.mts:75-100, goal-drift-stop.mts:101-125).",
+    "outputs": "Deny: hookSpecificOutput.permissionDecision 'deny' JSON at exit 0 (gateguard.mts:441-452, hook-pack.mts:165-168, config-guard.mts:87-90, companion-preference.mts:84-87). Stop block: {decision:'block',reason} (three-section-close.mts:132, goal-drift-stop.mts:185, typecheck-stop.mts:128). Context: hookSpecificOutput.additionalContext (route-prompt.mts:231-234, recall-briefing.mts:129-134, query-cost-nudge.mts:118); SessionStart plain stdout (session.mts:18-23). Allow: empty stdout, exit 0."
+  },
+  "cases": [
+    {
+      "id": "gateguard/bash-routine-allow",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "git status",
+              "description": "Show working tree status"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "gateguard/bash-destructive-rm-deny",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "rm -rf build"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Destructive command requested: rm -rf build\\n\\n  1. List ALL files/data this command will modify or delete\\n  2. Write a one-line rollback procedure\\n  3. Quote the user's current instruction verbatim\\n\\nMatched rule: rm-recursive-force\\nDestructive Bash gates EVERY call — clearance is not cached.\"}}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "gateguard/bash-destructive-reset-hard-deny",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "git reset --hard HEAD~1"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Destructive command requested: git reset --hard HEAD~1\\n\\n  1. List ALL files/data this command will modify or delete\\n  2. Write a one-line rollback procedure\\n  3. Quote the user's current instruction verbatim\\n\\nMatched rule: git-reset-hard\\nDestructive Bash gates EVERY call — clearance is not cached.\"}}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "gateguard/powershell-destructive-remove-item-deny",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "PowerShell",
+            "tool_input": {
+              "command": "Remove-Item -Recurse -Force .\\build"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Destructive command requested: Remove-Item -Recurse -Force .\\\\build\\n\\n  1. List ALL files/data this command will modify or delete\\n  2. Write a one-line rollback procedure\\n  3. Quote the user's current instruction verbatim\\n\\nMatched rule: powershell-remove-item\\nDestructive Bash gates EVERY call — clearance is not cached.\"}}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "gateguard/powershell-routine-allow",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "PowerShell",
+            "tool_input": {
+              "command": "Get-ChildItem -Name"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "gateguard/monitor-destructive-force-push-deny",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Monitor",
+            "tool_input": {
+              "command": "git push --force origin main"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Destructive command requested: git push --force origin main\\n\\n  1. List ALL files/data this command will modify or delete\\n  2. Write a one-line rollback procedure\\n  3. Quote the user's current instruction verbatim\\n\\nMatched rule: git-push-force\\nDestructive Bash gates EVERY call — clearance is not cached.\"}}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "gateguard/bash-unquoted-brace-ref-deny",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "git log --oneline @{u}..HEAD"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Unquoted git ref @{u} — Claude Code's Bash parser trips on the braces and blocks this\\npost-hoc, costing a retry. Quote the ref and run the SAME command:\\n\\n  git log --oneline '@{u}..HEAD'\\n\\nSingle quotes stop the shell from touching the braces; git reads the ref as-is.\"}}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "gateguard/read-allow",
+      "setup": {
+        "files": {
+          "<PROJECT>/src/app.ts": "export const answer = 42;\n"
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Read",
+            "tool_input": {
+              "file_path": "<PROJECT>/src/app.ts"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "gateguard/evidence-write-new-file-allow",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Write",
+            "tool_input": {
+              "file_path": "<PROJECT>/src/new.ts",
+              "content": "export {};\n"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "gateguard/evidence-edit-without-observation-log-allow",
+      "note": "No observations.jsonl: the evidence gate cannot judge and allows (src/hooks/gateguard.mts:552).",
+      "setup": {
+        "files": {
+          "<PROJECT>/src/app.ts": "export const answer = 42;\n"
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Edit",
+            "tool_input": {
+              "file_path": "<PROJECT>/src/app.ts",
+              "old_string": "42",
+              "new_string": "43"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "gateguard/evidence-blind-edit-deny",
+      "setup": {
+        "files": {
+          "<PROJECT>/src/app.ts": "export const answer = 42;\n",
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            {
+              "ts": "2026-11-21T00:00:00Z",
+              "event": "tool_complete",
+              "session": "golden-session",
+              "tool": "Bash",
+              "input_summary": "git status",
+              "output_summary": "On branch main",
+              "project_id": "<PROJECT_HASH>",
+              "project_name": "project"
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Edit",
+            "tool_input": {
+              "file_path": "<PROJECT>/src/app.ts",
+              "old_string": "42",
+              "new_string": "43"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"This session's observation log shows no read of <PROJECT>/src/app.ts. Read it, then retry the same call.\\nIf it is already in context (a file attached with @ or by the IDE leaves no row in the log), clear the gate and retry: node \\\"<REPO>/bin/gateguard-clear.mjs\\\" --state \\\"<HOME>/.claude/instincts/<PROJECT_HASH>/sessions/golden-session/gateguard-session.json\\\" \\\"<PROJECT>/src/app.ts\\\"\"}}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "gateguard/evidence-observed-read-then-edit-allow",
+      "note": "The observer records the Read on PostToolUse, then the evidence gate finds it and allows the Edit.",
+      "setup": {
+        "files": {
+          "<PROJECT>/src/app.ts": "export const answer = 42;\n"
+        }
+      },
+      "steps": [
+        {
+          "hook": "bin/observe.mjs",
+          "event": "PostToolUse",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Read",
+            "tool_input": {
+              "file_path": "<PROJECT>/src/app.ts"
+            },
+            "tool_response": {
+              "type": "text",
+              "file": {
+                "filePath": "<PROJECT>/src/app.ts",
+                "content": "export const answer = 42;\n"
+              }
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        },
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Edit",
+            "tool_input": {
+              "file_path": "<PROJECT>/src/app.ts",
+              "old_string": "42",
+              "new_string": "43"
+            },
+            "tool_use_id": "toolu_golden_02"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "gateguard/evidence-notebook-edit-allow",
+      "setup": {
+        "files": {
+          "<PROJECT>/analysis.ipynb": "{}\n"
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "NotebookEdit",
+            "tool_input": {
+              "notebook_path": "<PROJECT>/analysis.ipynb",
+              "new_source": "print(1)"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "gateguard/strict-edit-facts-then-cleared-allow",
+      "setup": {
+        "files": {
+          "<PROJECT>/src/app.ts": "export const answer = 42;\n"
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CI_GATEGUARD_FILE_GATE": "strict"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Edit",
+            "tool_input": {
+              "file_path": "<PROJECT>/src/app.ts",
+              "old_string": "42",
+              "new_string": "43"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Before editing <PROJECT>/src/app.ts, present these facts:\\n\\n  1. List ALL files that import/require this file (use Grep)\\n  2. List the public functions/classes affected by this change\\n  3. If this file reads/writes data files, show field names, structure, and date format\\n  4. Quote the user's current instruction verbatim\\n\\nThen clear the gate and retry the same call. Either route works:\\n  A. Bash (always works — run verbatim): node \\\"<REPO>/bin/gateguard-clear.mjs\\\" --state \\\"<HOME>/.claude/instincts/<PROJECT_HASH>/sessions/golden-session/gateguard-session.json\\\" \\\"<PROJECT>/src/app.ts\\\"\\n  B. MCP tool (when the continuous-improvement server is connected): ci_gateguard_clear  {file_paths: [\\\"<PROJECT>/src/app.ts\\\"], state_path: \\\"<HOME>/.claude/instincts/<PROJECT_HASH>/sessions/golden-session/gateguard-session.json\\\"}\\n  Both canonicalize paths — drive-letter case and separators don't matter.\\n  (Harnesses that forward unknown tool params may instead retry the call with\\n  `_gateguard_facts_presented: true`; Claude Code's strict schema rejects that, so use A or B.)\"}}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        },
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CI_GATEGUARD_FILE_GATE": "strict"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Edit",
+            "tool_input": {
+              "file_path": "<PROJECT>/src/app.ts",
+              "old_string": "42",
+              "new_string": "43",
+              "_gateguard_facts_presented": true
+            },
+            "tool_use_id": "toolu_golden_02"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        },
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CI_GATEGUARD_FILE_GATE": "strict"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Edit",
+            "tool_input": {
+              "file_path": "<PROJECT>/src/app.ts",
+              "old_string": "43",
+              "new_string": "44"
+            },
+            "tool_use_id": "toolu_golden_03"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "gateguard/strict-write-deny",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CI_GATEGUARD_FILE_GATE": "strict"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Write",
+            "tool_input": {
+              "file_path": "<PROJECT>/src/new.ts",
+              "content": "export {};\n"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Before creating <PROJECT>/src/new.ts, present these facts:\\n\\n  1. List ALL files that import/require this file (use Grep)\\n  2. List the public functions/classes affected by this change\\n  3. If this file reads/writes data files, show field names, structure, and date format\\n  4. Quote the user's current instruction verbatim\\n\\nThen clear the gate and retry the same call. Either route works:\\n  A. Bash (always works — run verbatim): node \\\"<REPO>/bin/gateguard-clear.mjs\\\" --state \\\"<HOME>/.claude/instincts/<PROJECT_HASH>/sessions/golden-session/gateguard-session.json\\\" \\\"<PROJECT>/src/new.ts\\\"\\n  B. MCP tool (when the continuous-improvement server is connected): ci_gateguard_clear  {file_paths: [\\\"<PROJECT>/src/new.ts\\\"], state_path: \\\"<HOME>/.claude/instincts/<PROJECT_HASH>/sessions/golden-session/gateguard-session.json\\\"}\\n  Both canonicalize paths — drive-letter case and separators don't matter.\\n  (Harnesses that forward unknown tool params may instead retry the call with\\n  `_gateguard_facts_presented: true`; Claude Code's strict schema rejects that, so use A or B.)\"}}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "gateguard/strict-multiedit-batch-deny",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CI_GATEGUARD_FILE_GATE": "strict"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "MultiEdit",
+            "tool_input": {
+              "edits": [
+                {
+                  "file_path": "<PROJECT>/src/a.ts",
+                  "old_string": "a",
+                  "new_string": "b"
+                },
+                {
+                  "file_path": "<PROJECT>/src/b.ts",
+                  "old_string": "c",
+                  "new_string": "d"
+                }
+              ]
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Before editing 2 files (<PROJECT>/src/a.ts, <PROJECT>/src/b.ts), present these facts:\\n\\n  1. List ALL files that import/require this file (use Grep)\\n  2. List the public functions/classes affected by this change\\n  3. If this file reads/writes data files, show field names, structure, and date format\\n  4. Quote the user's current instruction verbatim\\n\\nThen clear the gate and retry the same call. Either route works:\\n  A. Bash (always works — run verbatim): node \\\"<REPO>/bin/gateguard-clear.mjs\\\" --state \\\"<HOME>/.claude/instincts/<PROJECT_HASH>/sessions/golden-session/gateguard-session.json\\\" \\\"<PROJECT>/src/a.ts\\\" \\\"<PROJECT>/src/b.ts\\\"\\n  B. MCP tool (when the continuous-improvement server is connected): ci_gateguard_clear  {file_paths: [\\\"<PROJECT>/src/a.ts\\\", \\\"<PROJECT>/src/b.ts\\\"], state_path: \\\"<HOME>/.claude/instincts/<PROJECT_HASH>/sessions/golden-session/gateguard-session.json\\\"}\\n  Both canonicalize paths — drive-letter case and separators don't matter.\\n  (Harnesses that forward unknown tool params may instead retry the call with\\n  `_gateguard_facts_presented: true`; Claude Code's strict schema rejects that, so use A or B.)\"}}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "gateguard/strict-notebook-edit-deny",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CI_GATEGUARD_FILE_GATE": "strict"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "NotebookEdit",
+            "tool_input": {
+              "notebook_path": "<PROJECT>/analysis.ipynb",
+              "new_source": "print(1)"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Before editing <unknown>, present these facts:\\n\\n  1. List ALL files that import/require this file (use Grep)\\n  2. List the public functions/classes affected by this change\\n  3. If this file reads/writes data files, show field names, structure, and date format\\n  4. Quote the user's current instruction verbatim\\n\\nThen clear the gate and retry the same call. Either route works:\\n  A. Bash (always works — run verbatim): node \\\"<REPO>/bin/gateguard-clear.mjs\\\" --state \\\"<HOME>/.claude/instincts/<PROJECT_HASH>/sessions/golden-session/gateguard-session.json\\\" \\\"<unknown>\\\"\\n  B. MCP tool (when the continuous-improvement server is connected): ci_gateguard_clear  {file_paths: [\\\"<unknown>\\\"], state_path: \\\"<HOME>/.claude/instincts/<PROJECT_HASH>/sessions/golden-session/gateguard-session.json\\\"}\\n  Both canonicalize paths — drive-letter case and separators don't matter.\\n  (Harnesses that forward unknown tool params may instead retry the call with\\n  `_gateguard_facts_presented: true`; Claude Code's strict schema rejects that, so use A or B.)\"}}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "gateguard/strict-clearance-cap-deny",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CI_GATEGUARD_FILE_GATE": "strict",
+            "GATEGUARD_MAX_CLEARED_FILES": "1"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Write",
+            "tool_input": {
+              "file_path": "<PROJECT>/src/a.ts",
+              "content": "a",
+              "_gateguard_facts_presented": true
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        },
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CI_GATEGUARD_FILE_GATE": "strict",
+            "GATEGUARD_MAX_CLEARED_FILES": "1"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Write",
+            "tool_input": {
+              "file_path": "<PROJECT>/src/b.ts",
+              "content": "b",
+              "_gateguard_facts_presented": true
+            },
+            "tool_use_id": "toolu_golden_02"
+          },
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Gateguard clearance cap reached (1 distinct files this session).\\nThe cap is per-session: start a new Claude Code session to reset it, or wait\\nfor the state file to self-heal. It bounds stuck-loop or rogue-agent clearance\\nfrom compounding within one session without affecting your other sessions.\"}}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "gateguard/off-edit-allow",
+      "setup": {
+        "files": {
+          "<PROJECT>/src/app.ts": "export const answer = 42;\n"
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CI_GATEGUARD_FILE_GATE": "off"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Edit",
+            "tool_input": {
+              "file_path": "<PROJECT>/src/app.ts",
+              "old_string": "42",
+              "new_string": "43"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "gateguard/unknown-file-gate-mode-notice",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CI_GATEGUARD_FILE_GATE": "paranoid"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Write",
+            "tool_input": {
+              "file_path": "<PROJECT>/src/new.ts",
+              "content": "export {};\n"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "[continuous-improvement] gateguard: CI_GATEGUARD_FILE_GATE=\"paranoid\" is not a mode, using evidence. Accepted values: evidence, strict, off.\n",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "gateguard/exclude-fragment-notice",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CI_GATEGUARD_FILE_GATE": "strict",
+            "CI_GATEGUARD_EXCLUDE": "docs/wiki"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Write",
+            "tool_input": {
+              "file_path": "<PROJECT>/docs/wiki/page.md",
+              "content": "# Page\n"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "[continuous-improvement] gateguard: skipped by CI_GATEGUARD_EXCLUDE (fragment \"docs/wiki\" matched <PROJECT>/docs/wiki/page.md).\n",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "gateguard/exclude-catch-all-notice",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CI_GATEGUARD_FILE_GATE": "strict",
+            "CI_GATEGUARD_EXCLUDE": "/,."
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Write",
+            "tool_input": {
+              "file_path": "<PROJECT>/src/new.ts",
+              "content": "export {};\n"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "[continuous-improvement] gateguard: CI_GATEGUARD_EXCLUDE fragment \"/\" matches every path, so the file gate is off for this session (skipped <PROJECT>/src/new.ts). Narrow it to a directory, e.g. CI_GATEGUARD_EXCLUDE=docs/wiki, to get the gate back.\n",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "gateguard/target-lock-outside-root-deny",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CI_GATEGUARD_TARGET_LOCK": "block"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Write",
+            "tool_input": {
+              "file_path": "<ROOT>/elsewhere/stray.ts",
+              "content": "export {};\n"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Target is outside the session project root — refusing a possible wrong-repo / wrong-worktree write.\\n\\n  Target: <ROOT>/elsewhere/stray.ts\\n  Session root: <PROJECT>\\n\\nIf this is intentional, confirm you are in the right worktree (cwd / CLAUDE_PROJECT_DIR),\\nor unset CI_GATEGUARD_TARGET_LOCK for this session. Target lock is opt-in; it fires only\\nwhen CI_GATEGUARD_TARGET_LOCK=block.\"}}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "gateguard/malformed-stdin-allow",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "stdinRaw": "{not json",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "gateguard/empty-stdin-allow",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "event": "PreToolUse",
+          "stdinRaw": "",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "companion-preference/ci-first-mapped-skill-allow",
+      "steps": [
+        {
+          "hook": "hooks/companion-preference.mjs",
+          "event": "PreToolUse",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Skill",
+            "tool_input": {
+              "skill": "tdd-workflow"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "companion-preference/companions-first-advisory",
+      "setup": {
+        "files": {
+          "<HOME>/.claude/settings.json": {
+            "continuous_improvement": {
+              "companion_preference": "companions-first"
+            }
+          }
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/companion-preference.mjs",
+          "event": "PreToolUse",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Skill",
+            "tool_input": {
+              "skill": "ci:verification-loop"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "[continuous-improvement] companion_preference=companions-first → prefer `superpowers:verification-before-completion` over `ci:verification-loop`.\n",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "companion-preference/strict-companions-installed-deny",
+      "setup": {
+        "dirs": [
+          "<HOME>/.claude/plugins/superpowers"
+        ],
+        "files": {
+          "<HOME>/.claude/settings.json": {
+            "continuous_improvement": {
+              "companion_preference": "strict-companions"
+            }
+          }
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/companion-preference.mjs",
+          "event": "PreToolUse",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Skill",
+            "tool_input": {
+              "skill": "tdd-workflow"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"companion_preference=strict-companions: route to `superpowers:test-driven-development` instead of `ci:tdd-workflow`. The CI fallback is suppressed by your setting.\"}}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "companion-preference/strict-companions-not-installed-deny",
+      "setup": {
+        "files": {
+          "<HOME>/.claude/settings.json": {
+            "continuous_improvement": {
+              "companion_preference": "strict-companions"
+            }
+          }
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/companion-preference.mjs",
+          "event": "PreToolUse",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Skill",
+            "tool_input": {
+              "skill": "ralph"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"companion_preference=strict-companions: companion plugin `oh-my-claudecode` is not installed. Install with `/plugin install oh-my-claudecode@continuous-improvement` or relax the setting to `companions-first` or `ci-first` in ~/.claude/settings.json.\"}}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "companion-preference/unmapped-skill-allow",
+      "setup": {
+        "files": {
+          "<HOME>/.claude/settings.json": {
+            "continuous_improvement": {
+              "companion_preference": "strict-companions"
+            }
+          }
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/companion-preference.mjs",
+          "event": "PreToolUse",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Skill",
+            "tool_input": {
+              "skill": "gateguard"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "companion-preference/malformed-stdin-allow",
+      "steps": [
+        {
+          "hook": "hooks/companion-preference.mjs",
+          "event": "PreToolUse",
+          "stdinRaw": "{not json",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "hook-pack/push-main-warn-default",
+      "steps": [
+        {
+          "hook": "hooks/hook-pack.mjs",
+          "event": "PreToolUse",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "git push origin main"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "[hook-pack] Direct push to protected branch \"main\" — open a feature branch + PR instead.\n",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "hook-pack/push-main-block",
+      "steps": [
+        {
+          "hook": "hooks/hook-pack.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CLAUDE_CI_HOOKPACK_GATE": "block"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "git push origin main"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Direct push to protected branch \\\"main\\\" — open a feature branch + PR instead.\"}}",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "hook-pack/powershell-push-main-block",
+      "steps": [
+        {
+          "hook": "hooks/hook-pack.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CLAUDE_CI_HOOKPACK_GATE": "block"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "PowerShell",
+            "tool_input": {
+              "command": "git push origin main"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Direct push to protected branch \\\"main\\\" — open a feature branch + PR instead.\"}}",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "hook-pack/bare-push-on-main-block",
+      "setup": {
+        "git": [
+          [
+            "init",
+            "-q",
+            "-b",
+            "main"
+          ],
+          [
+            "-c",
+            "user.name=golden",
+            "-c",
+            "user.email=golden@example.invalid",
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "init"
+          ]
+        ]
+      },
+      "steps": [
+        {
+          "hook": "hooks/hook-pack.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CLAUDE_CI_HOOKPACK_GATE": "block"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "git push"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Direct push to protected branch \\\"main\\\" — open a feature branch + PR instead.\"}}",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "hook-pack/push-feature-branch-allow",
+      "steps": [
+        {
+          "hook": "hooks/hook-pack.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CLAUDE_CI_HOOKPACK_GATE": "block"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "git push -u origin feat/goldens"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "hook-pack/push-main-off",
+      "steps": [
+        {
+          "hook": "hooks/hook-pack.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CLAUDE_CI_HOOKPACK_GATE": "off"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "git push origin main"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "hook-pack/commit-over-limit-block",
+      "setup": {
+        "files": {
+          "<PROJECT>/f01.txt": "1\n",
+          "<PROJECT>/f02.txt": "2\n",
+          "<PROJECT>/f03.txt": "3\n",
+          "<PROJECT>/f04.txt": "4\n",
+          "<PROJECT>/f05.txt": "5\n",
+          "<PROJECT>/f06.txt": "6\n",
+          "<PROJECT>/f07.txt": "7\n",
+          "<PROJECT>/f08.txt": "8\n",
+          "<PROJECT>/f09.txt": "9\n",
+          "<PROJECT>/f10.txt": "10\n",
+          "<PROJECT>/f11.txt": "11\n",
+          "<PROJECT>/f12.txt": "12\n",
+          "<PROJECT>/f13.txt": "13\n",
+          "<PROJECT>/f14.txt": "14\n",
+          "<PROJECT>/f15.txt": "15\n",
+          "<PROJECT>/f16.txt": "16\n"
+        },
+        "git": [
+          [
+            "init",
+            "-q",
+            "-b",
+            "main"
+          ],
+          [
+            "add",
+            "--",
+            "."
+          ]
+        ]
+      },
+      "steps": [
+        {
+          "hook": "hooks/hook-pack.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CLAUDE_CI_HOOKPACK_GATE": "block"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "git commit -m \"feat: add sixteen files\""
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"This commit stages more than 15 files — exceeds the one-concern limit. Split by layer, or set CLAUDE_CI_HOOKPACK_GATE=off for genuinely generated bulk.\"}}",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "hook-pack/commit-under-limit-allow",
+      "setup": {
+        "files": {
+          "<PROJECT>/f01.txt": "1\n",
+          "<PROJECT>/f02.txt": "2\n"
+        },
+        "git": [
+          [
+            "init",
+            "-q",
+            "-b",
+            "main"
+          ],
+          [
+            "add",
+            "--",
+            "."
+          ]
+        ]
+      },
+      "steps": [
+        {
+          "hook": "hooks/hook-pack.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CLAUDE_CI_HOOKPACK_GATE": "block"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "git commit -m \"feat: add two files\""
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "hook-pack/monitor-routine-allow",
+      "steps": [
+        {
+          "hook": "hooks/hook-pack.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CLAUDE_CI_HOOKPACK_GATE": "block"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Monitor",
+            "tool_input": {
+              "command": "npm test"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "hook-pack/malformed-stdin-allow",
+      "steps": [
+        {
+          "hook": "hooks/hook-pack.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CLAUDE_CI_HOOKPACK_GATE": "block"
+          },
+          "stdinRaw": "{not json",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "config-guard/edit-settings-warn-default",
+      "steps": [
+        {
+          "hook": "hooks/config-guard.mjs",
+          "event": "PreToolUse",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Edit",
+            "tool_input": {
+              "file_path": "<PROJECT>/.claude/settings.json",
+              "old_string": "{",
+              "new_string": "{ "
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "[continuous-improvement] config-guard: Edit would modify <PROJECT>/.claude/settings.json (matches \".claude/settings.json\"), one of the files that wires the guardrails (settings, MCP config, hooks, installed plugins).\n",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "config-guard/write-mcp-json-block",
+      "steps": [
+        {
+          "hook": "hooks/config-guard.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CI_CONFIG_GUARD": "block"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Write",
+            "tool_input": {
+              "file_path": "<PROJECT>/.mcp.json",
+              "content": "{}\n"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"config-guard: Write would modify <PROJECT>/.mcp.json (matches \\\".mcp.json\\\"), one of the files that wires the guardrails (settings, MCP config, hooks, installed plugins).\\nIf this is intended, rerun this one call with CI_CONFIG_GUARD_ALLOW=true, or set CI_CONFIG_GUARD=off for the session.\\nYou are seeing a deny because CI_CONFIG_GUARD=block; the default is warn.\"}}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "config-guard/bash-redirect-into-hooks-block",
+      "steps": [
+        {
+          "hook": "hooks/config-guard.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CI_CONFIG_GUARD": "block"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "echo '{}' > .claude/settings.local.json"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"config-guard: Bash would modify .claude/settings.local.json (matches \\\".claude/settings.local.json\\\"), one of the files that wires the guardrails (settings, MCP config, hooks, installed plugins).\\nIf this is intended, rerun this one call with CI_CONFIG_GUARD_ALLOW=true, or set CI_CONFIG_GUARD=off for the session.\\nYou are seeing a deny because CI_CONFIG_GUARD=block; the default is warn.\"}}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "config-guard/claude-mcp-add-block",
+      "steps": [
+        {
+          "hook": "hooks/config-guard.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CI_CONFIG_GUARD": "block"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "PowerShell",
+            "tool_input": {
+              "command": "claude mcp add demo -- node server.mjs"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"config-guard: `claude mcp add` edits the plugin / MCP / settings configuration, one of the files that wires the guardrails (settings, MCP config, hooks, installed plugins).\\nIf this is intended, rerun this one call with CI_CONFIG_GUARD_ALLOW=true, or set CI_CONFIG_GUARD=off for the session.\\nYou are seeing a deny because CI_CONFIG_GUARD=block; the default is warn.\"}}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "config-guard/allow-override-notice",
+      "steps": [
+        {
+          "hook": "hooks/config-guard.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CI_CONFIG_GUARD": "block",
+            "CI_CONFIG_GUARD_ALLOW": "true"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "MultiEdit",
+            "tool_input": {
+              "edits": [
+                {
+                  "file_path": "<PROJECT>/.claude/settings.json",
+                  "old_string": "a",
+                  "new_string": "b"
+                }
+              ]
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "[continuous-improvement] config-guard: CI_CONFIG_GUARD_ALLOW=true let MultiEdit touch <PROJECT>/.claude/settings.json on this call.\n",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "config-guard/off-no-output",
+      "steps": [
+        {
+          "hook": "hooks/config-guard.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CI_CONFIG_GUARD": "off"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Write",
+            "tool_input": {
+              "file_path": "<PROJECT>/.mcp.json",
+              "content": "{}\n"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "config-guard/ordinary-file-allow",
+      "steps": [
+        {
+          "hook": "hooks/config-guard.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CI_CONFIG_GUARD": "block"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "NotebookEdit",
+            "tool_input": {
+              "notebook_path": "<PROJECT>/analysis.ipynb",
+              "new_source": "print(1)"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "config-guard/malformed-stdin-allow",
+      "steps": [
+        {
+          "hook": "hooks/config-guard.mjs",
+          "event": "PreToolUse",
+          "env": {
+            "CI_CONFIG_GUARD": "block"
+          },
+          "stdinRaw": "{not json",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "observe/post-tool-use-bash",
+      "steps": [
+        {
+          "hook": "bin/observe.mjs",
+          "event": "PostToolUse",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "npm test"
+            },
+            "tool_response": {
+              "stdout": "ok 1 - passes",
+              "stderr": "",
+              "interrupted": false,
+              "isImage": false
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "observe/pre-tool-use-installer-wiring",
+      "note": "The npm installer also wires the observer on PreToolUse (src/bin/install.mts:121, HOOK_TYPES).",
+      "steps": [
+        {
+          "hook": "bin/observe.mjs",
+          "event": "PreToolUse",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Grep",
+            "tool_input": {
+              "pattern": "resolveProjectRoot",
+              "path": "<PROJECT>"
+            },
+            "tool_use_id": "toolu_golden_01"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "observe/malformed-stdin",
+      "steps": [
+        {
+          "hook": "bin/observe.mjs",
+          "event": "PostToolUse",
+          "stdinRaw": "{not json",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "route-prompt/disabled-by-default",
+      "steps": [
+        {
+          "hook": "hooks/route-prompt.mjs",
+          "event": "UserPromptSubmit",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "write a failing test for the parser"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "route-prompt/enabled-match-context",
+      "steps": [
+        {
+          "hook": "hooks/route-prompt.mjs",
+          "event": "UserPromptSubmit",
+          "env": {
+            "CI_ROUTE_PROMPT": "1"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "write a failing test for the parser"
+          },
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"<system-reminder>\\nPrompt-router suggestion: Prompt mentions writing tests, TDD, or RED-GREEN-REFACTOR.\\nConsider invoking `/tdd-workflow` now.\\n</system-reminder>\"}}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "route-prompt/enabled-no-match",
+      "steps": [
+        {
+          "hook": "hooks/route-prompt.mjs",
+          "event": "UserPromptSubmit",
+          "env": {
+            "CI_ROUTE_PROMPT": "on"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "rename the variable"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "route-prompt/enabled-but-disabled-wins",
+      "steps": [
+        {
+          "hook": "hooks/route-prompt.mjs",
+          "event": "UserPromptSubmit",
+          "env": {
+            "CI_ROUTE_PROMPT": "1",
+            "CI_ROUTE_PROMPT_DISABLE": "1"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "write a failing test for the parser"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "route-prompt/enabled-malformed-stdin",
+      "steps": [
+        {
+          "hook": "hooks/route-prompt.mjs",
+          "event": "UserPromptSubmit",
+          "env": {
+            "CI_ROUTE_PROMPT": "1"
+          },
+          "stdinRaw": "{not json",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "recall-briefing/disabled-by-default",
+      "steps": [
+        {
+          "hook": "hooks/recall-briefing.mjs",
+          "event": "UserPromptSubmit",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "how did we fix the oauth token refresh bug"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "recall-briefing/enabled-briefs-once-per-session",
+      "setup": {
+        "files": {
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            {
+              "ts": "2026-11-20T09:00:00Z",
+              "event": "tool_complete",
+              "session": "earlier-session",
+              "tool": "Edit",
+              "input_summary": "src/auth/oauth-token-refresh.ts",
+              "output_summary": "fixed oauth token refresh race by locking the refresh call",
+              "project_id": "<PROJECT_HASH>",
+              "project_name": "project"
+            },
+            {
+              "ts": "2026-11-20T09:05:00Z",
+              "event": "tool_complete",
+              "session": "earlier-session",
+              "tool": "Bash",
+              "input_summary": "npm test -- oauth",
+              "output_summary": "oauth token refresh tests pass",
+              "project_id": "<PROJECT_HASH>",
+              "project_name": "project"
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/recall-briefing.mjs",
+          "event": "UserPromptSubmit",
+          "env": {
+            "CLAUDE_RECALL_BRIEFING": "1"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "how did we fix the oauth token refresh bug"
+          },
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"<system-reminder>\\nRecall briefing: this project has prior sessions that touched related work. Before re-deriving a fix, consider the `ci_recall` MCP tool (or `/recall`) for full context. Most relevant past activity:\\n- [2026-11-20T09:00:00Z] Edit: Edit src/auth/oauth-token-refresh.ts fixed oauth token refresh race by lo…\\n- [2026-11-20T09:05:00Z] Bash: Bash npm test -- oauth oauth token refresh tests pass\\n</system-reminder>\"}}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        },
+        {
+          "hook": "hooks/recall-briefing.mjs",
+          "event": "UserPromptSubmit",
+          "env": {
+            "CLAUDE_RECALL_BRIEFING": "1"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "how did we fix the oauth token refresh bug"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "recall-briefing/enabled-no-observations",
+      "steps": [
+        {
+          "hook": "hooks/recall-briefing.mjs",
+          "event": "UserPromptSubmit",
+          "env": {
+            "CLAUDE_RECALL_BRIEFING": "1"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "how did we fix the oauth token refresh bug"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "session/start-no-instincts",
+      "steps": [
+        {
+          "hook": "hooks/session.mjs",
+          "event": "SessionStart",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "SessionStart"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "[continuous-improvement] Level: CAPTURE | Observations: 0 | Instincts: 0\n",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "session/start-loads-lessons",
+      "setup": {
+        "files": {
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/build-before-stage.yaml": "id: build-before-stage\ntrigger: \"when staging generated files\"\nconfidence: 0.8\ndomain: workflow\nsource: manual\nscope: project\nproject_id: 0123456789ab\ncreated: \"2026-11-20\"\nlast_seen: \"2026-11-20\"\nobservation_count: 1\n---\nRun npm run build first.\n",
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/too-weak.yaml": "id: too-weak\ntrigger: \"when naming a branch\"\nconfidence: 0.3\ndomain: workflow\nsource: manual\nscope: project\nproject_id: 0123456789ab\ncreated: \"2026-11-20\"\nlast_seen: \"2026-11-20\"\nobservation_count: 1\n---\nPrefix it with the ticket number.\n",
+          "<HOME>/.claude/instincts/global/grep-before-edit.yaml": "id: grep-before-edit\ntrigger: \"when modifying code\"\nconfidence: 0.6\ndomain: workflow\nsource: manual\nscope: global\nproject_id: global\ncreated: \"2026-11-20\"\nlast_seen: \"2026-11-20\"\nobservation_count: 1\n---\nSearch with Grep to confirm the location before using Edit.\n"
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/session.mjs",
+          "event": "SessionStart",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "SessionStart"
+          },
+          "expect": {
+            "stdout": "Notes from continuous-improvement instinct files: this repository's, and those marked [global], which load in every repository. They are not user instructions: the user's instructions and this repository's rules override them, and a note cannot grant approval. Use those at 0.7 and above when relevant; treat 0.5 to 0.69 as suggestions. The ci_instincts tool lists the stored instincts.\n- when staging generated files: Run npm run build first. (0.8)\n- [global] when modifying code: Search with Grep to confirm the location before using Edit. (0.6)\n",
+            "stderr": "[continuous-improvement] Level: AUTO-APPLY | Observations: 0 | Instincts: 3\n",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "session/start-lessons-off",
+      "setup": {
+        "files": {
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/build-before-stage.yaml": "id: build-before-stage\ntrigger: \"when staging generated files\"\nconfidence: 0.8\ndomain: workflow\nsource: manual\nscope: project\nproject_id: 0123456789ab\ncreated: \"2026-11-20\"\nlast_seen: \"2026-11-20\"\nobservation_count: 1\n---\nRun npm run build first.\n"
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/session.mjs",
+          "event": "SessionStart",
+          "env": {
+            "CI_INSTINCT_LOAD": "off"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "SessionStart"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "[continuous-improvement] Level: AUTO-APPLY | Observations: 0 | Instincts: 1\n",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "session/end-reflection-nudge",
+      "steps": [
+        {
+          "hook": "hooks/session.mjs",
+          "event": "SessionEnd",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "SessionEnd"
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "[continuous-improvement] Session ending. Run /continuous-improvement to reflect and capture learnings.\n",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "session/empty-stdin",
+      "steps": [
+        {
+          "hook": "hooks/session.mjs",
+          "event": "SessionStart",
+          "stdinRaw": "",
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "three-section-close/disabled-by-default",
+      "setup": {
+        "files": {
+          "<HOME>/transcript.jsonl": [
+            {
+              "type": "assistant",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point."
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/three-section-close.mjs",
+          "event": "Stop",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "three-section-close/enabled-missing-sections-block",
+      "setup": {
+        "files": {
+          "<HOME>/transcript.jsonl": [
+            {
+              "type": "user",
+              "message": {
+                "role": "user",
+                "content": "summarise the goldens"
+              }
+            },
+            {
+              "type": "assistant",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "## What has been done\nThe hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point."
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/three-section-close.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_THREE_SECTION_CLOSE": "1"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false
+          },
+          "expect": {
+            "stdout": "{\"decision\":\"block\",\"reason\":\"Your reply is missing the required 3-section close. Add these sections at the end of the reply with these exact headings:\\n- \\\"## What is next\\\" — minimum 5 specific, actionable bullets\\n- \\\"## Recommendation\\\" — ranked descending by impact, or write \\\"no\\\" if there is no recommendation\"}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "three-section-close/enabled-all-sections-pass",
+      "setup": {
+        "files": {
+          "<HOME>/transcript.jsonl": [
+            {
+              "type": "assistant",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "## What has been done\nThe hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point.\n\n## What is next\n- Land the profiles table.\n\n## Recommendation\nno"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/three-section-close.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_THREE_SECTION_CLOSE": "1"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "three-section-close/enabled-short-reply-skip",
+      "setup": {
+        "files": {
+          "<HOME>/transcript.jsonl": [
+            {
+              "type": "assistant",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Done."
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/three-section-close.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_THREE_SECTION_CLOSE": "1"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "three-section-close/stop-hook-active-skip",
+      "setup": {
+        "files": {
+          "<HOME>/transcript.jsonl": [
+            {
+              "type": "assistant",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point."
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/three-section-close.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_THREE_SECTION_CLOSE": "1"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": true
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "three-section-close/enabled-missing-transcript",
+      "steps": [
+        {
+          "hook": "hooks/three-section-close.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_THREE_SECTION_CLOSE": "1"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/missing.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "goal-drift-stop/no-goal-allow",
+      "steps": [
+        {
+          "hook": "hooks/goal-drift-stop.mjs",
+          "event": "Stop",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "goal-drift-stop/drift-warn-default",
+      "setup": {
+        "files": {
+          "<PROJECT>/task_plan.md": "# Task Plan\n\n## Goal\nImplement OAuth login with JWT session tokens for the auth service.\n\n## Goal Keywords\noauth, jwt, login, session\n",
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            {
+              "ts": "2026-11-21T00:00:00Z",
+              "tool": "Edit",
+              "input_summary": "src/marketing/banner.ts",
+              "output_summary": ""
+            },
+            {
+              "ts": "2026-11-21T00:01:00Z",
+              "tool": "Edit",
+              "input_summary": "src/dashboard/widget.ts",
+              "output_summary": ""
+            },
+            {
+              "ts": "2026-11-21T00:02:00Z",
+              "tool": "Edit",
+              "input_summary": "docs/roadmap.md",
+              "output_summary": ""
+            }
+          ],
+          "<HOME>/transcript.jsonl": [
+            {
+              "type": "assistant",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point."
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/goal-drift-stop.mjs",
+          "event": "Stop",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "[continuous-improvement] goal-drift: Session has DRIFTed from the stated goal (0/3 recent actions on-goal, 0%). Re-check the work against the '## Goal' in task_plan.md — or update the goal if it has legitimately changed — before closing.\n",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "goal-drift-stop/drift-block",
+      "setup": {
+        "files": {
+          "<PROJECT>/task_plan.md": "# Task Plan\n\n## Goal\nImplement OAuth login with JWT session tokens for the auth service.\n\n## Goal Keywords\noauth, jwt, login, session\n",
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            {
+              "ts": "2026-11-21T00:00:00Z",
+              "tool": "Edit",
+              "input_summary": "src/marketing/banner.ts",
+              "output_summary": ""
+            },
+            {
+              "ts": "2026-11-21T00:01:00Z",
+              "tool": "Edit",
+              "input_summary": "src/dashboard/widget.ts",
+              "output_summary": ""
+            },
+            {
+              "ts": "2026-11-21T00:02:00Z",
+              "tool": "Edit",
+              "input_summary": "docs/roadmap.md",
+              "output_summary": ""
+            }
+          ],
+          "<HOME>/transcript.jsonl": [
+            {
+              "type": "assistant",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point."
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/goal-drift-stop.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_GOAL_DRIFT_GATE": "block"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false
+          },
+          "expect": {
+            "stdout": "{\"decision\":\"block\",\"reason\":\"Session has DRIFTed from the stated goal (0/3 recent actions on-goal, 0%). Re-check the work against the '## Goal' in task_plan.md — or update the goal if it has legitimately changed — before closing.\"}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "goal-drift-stop/drift-short-reply-allow",
+      "setup": {
+        "files": {
+          "<PROJECT>/task_plan.md": "# Task Plan\n\n## Goal\nImplement OAuth login with JWT session tokens for the auth service.\n\n## Goal Keywords\noauth, jwt, login, session\n",
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            {
+              "ts": "2026-11-21T00:00:00Z",
+              "tool": "Edit",
+              "input_summary": "src/marketing/banner.ts",
+              "output_summary": ""
+            },
+            {
+              "ts": "2026-11-21T00:01:00Z",
+              "tool": "Edit",
+              "input_summary": "src/dashboard/widget.ts",
+              "output_summary": ""
+            },
+            {
+              "ts": "2026-11-21T00:02:00Z",
+              "tool": "Edit",
+              "input_summary": "docs/roadmap.md",
+              "output_summary": ""
+            }
+          ],
+          "<HOME>/transcript.jsonl": [
+            {
+              "type": "assistant",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Done."
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/goal-drift-stop.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_GOAL_DRIFT_GATE": "block"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "goal-drift-stop/on-goal-block-mode-allow",
+      "setup": {
+        "files": {
+          "<PROJECT>/task_plan.md": "# Task Plan\n\n## Goal\nImplement OAuth login with JWT session tokens for the auth service.\n\n## Goal Keywords\noauth, jwt, login, session\n",
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            {
+              "ts": "2026-11-21T00:00:00Z",
+              "tool": "Edit",
+              "input_summary": "src/auth/oauth-login.ts",
+              "output_summary": ""
+            },
+            {
+              "ts": "2026-11-21T00:01:00Z",
+              "tool": "Edit",
+              "input_summary": "src/auth/session.ts",
+              "output_summary": ""
+            },
+            {
+              "ts": "2026-11-21T00:02:00Z",
+              "tool": "Edit",
+              "input_summary": "src/auth/jwt.ts",
+              "output_summary": ""
+            }
+          ],
+          "<HOME>/transcript.jsonl": [
+            {
+              "type": "assistant",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point. The hook goldens record stdout, stderr and the exit code for every entry point."
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/goal-drift-stop.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_GOAL_DRIFT_GATE": "block"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "goal-drift-stop/off-no-output",
+      "setup": {
+        "files": {
+          "<PROJECT>/task_plan.md": "# Task Plan\n\n## Goal\nImplement OAuth login with JWT session tokens for the auth service.\n\n## Goal Keywords\noauth, jwt, login, session\n",
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            {
+              "ts": "2026-11-21T00:00:00Z",
+              "tool": "Edit",
+              "input_summary": "src/marketing/banner.ts",
+              "output_summary": ""
+            },
+            {
+              "ts": "2026-11-21T00:01:00Z",
+              "tool": "Edit",
+              "input_summary": "src/dashboard/widget.ts",
+              "output_summary": ""
+            },
+            {
+              "ts": "2026-11-21T00:02:00Z",
+              "tool": "Edit",
+              "input_summary": "docs/roadmap.md",
+              "output_summary": ""
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/goal-drift-stop.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_GOAL_DRIFT_GATE": "off"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "workflow-distill/off-by-default",
+      "setup": {
+        "files": {
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            {
+              "ts": "2026-11-21T12:00:00Z",
+              "session": "golden-session",
+              "tool": "Workflow",
+              "input_summary": "{\"script\":\"export const meta = { name: 'demo-flow', description: 'fan out three readers', phases: [{ title: 'Read' }, { title: 'Synthesize' }] }\\nawait parallel([])\"}",
+              "output_summary": "{\"status\":\"async_launched\",\"runId\":\"wf_demo\",\"summary\":\"demo\"}"
+            },
+            {
+              "ts": "2026-11-21T12:01:00Z",
+              "session": "golden-session",
+              "tool": "Bash",
+              "input_summary": "npm run verify:all",
+              "output_summary": "OK, all checks passed"
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/workflow-distill.mjs",
+          "event": "Stop",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "workflow-distill/on-verified-run-nudges-once",
+      "setup": {
+        "files": {
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            {
+              "ts": "2026-11-21T12:00:00Z",
+              "session": "golden-session",
+              "tool": "Workflow",
+              "input_summary": "{\"script\":\"export const meta = { name: 'demo-flow', description: 'fan out three readers', phases: [{ title: 'Read' }, { title: 'Synthesize' }] }\\nawait parallel([])\"}",
+              "output_summary": "{\"status\":\"async_launched\",\"runId\":\"wf_demo\",\"summary\":\"demo\"}"
+            },
+            {
+              "ts": "2026-11-21T12:01:00Z",
+              "session": "golden-session",
+              "tool": "Bash",
+              "input_summary": "npm run verify:all",
+              "output_summary": "OK, all checks passed"
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/workflow-distill.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_WORKFLOW_DISTILL_NUDGE": "on"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "[continuous-improvement] workflow-distill: verified workflow run \"demo-flow\" detected — run the ci_distill_from_workflow MCP tool to persist it as a Mulahazah draft instinct.\n",
+            "exitCode": 0
+          }
+        },
+        {
+          "hook": "hooks/workflow-distill.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_WORKFLOW_DISTILL_NUDGE": "on"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "workflow-distill/on-unverified-run-quiet",
+      "setup": {
+        "files": {
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            {
+              "ts": "2026-11-21T12:00:00Z",
+              "session": "golden-session",
+              "tool": "Workflow",
+              "input_summary": "{\"script\":\"export const meta = { name: 'demo-flow', description: 'fan out three readers', phases: [{ title: 'Read' }, { title: 'Synthesize' }] }\\nawait parallel([])\"}",
+              "output_summary": "{\"status\":\"async_launched\",\"runId\":\"wf_demo\",\"summary\":\"demo\"}"
+            }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/workflow-distill.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_WORKFLOW_DISTILL_NUDGE": "on"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "typecheck-stop/off-by-default",
+      "setup": {
+        "files": {
+          "<PROJECT>/tsconfig.json": {
+            "compilerOptions": {
+              "strict": true
+            }
+          },
+          "<PROJECT>/src/index.ts": "export const total: number = \"oops\";\n",
+          "<PROJECT>/node_modules/typescript/bin/tsc": "console.log(\"src/index.ts(1,14): error TS2322: Type 'string' is not assignable to type 'number'.\");\nprocess.exit(2);\n"
+        },
+        "git": [
+          [
+            "init",
+            "-q",
+            "-b",
+            "main"
+          ]
+        ]
+      },
+      "steps": [
+        {
+          "hook": "hooks/typecheck-stop.mjs",
+          "event": "Stop",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "typecheck-stop/block-on-failing-tsc",
+      "setup": {
+        "files": {
+          "<PROJECT>/tsconfig.json": {
+            "compilerOptions": {
+              "strict": true
+            }
+          },
+          "<PROJECT>/src/index.ts": "export const total: number = \"oops\";\n",
+          "<PROJECT>/node_modules/typescript/bin/tsc": "console.log(\"src/index.ts(1,14): error TS2322: Type 'string' is not assignable to type 'number'.\");\nprocess.exit(2);\n"
+        },
+        "git": [
+          [
+            "init",
+            "-q",
+            "-b",
+            "main"
+          ]
+        ]
+      },
+      "steps": [
+        {
+          "hook": "hooks/typecheck-stop.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_TYPECHECK_GATE": "block"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false
+          },
+          "expect": {
+            "stdout": "{\"decision\":\"block\",\"reason\":\"Typecheck FAILED on changed TS files — fix before ending the turn:\\nsrc/index.ts(1,14): error TS2322: Type 'string' is not assignable to type 'number'.\"}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "typecheck-stop/warn-on-failing-tsc",
+      "setup": {
+        "files": {
+          "<PROJECT>/tsconfig.json": {
+            "compilerOptions": {
+              "strict": true
+            }
+          },
+          "<PROJECT>/src/index.ts": "export const total: number = \"oops\";\n",
+          "<PROJECT>/node_modules/typescript/bin/tsc": "console.log(\"src/index.ts(1,14): error TS2322: Type 'string' is not assignable to type 'number'.\");\nprocess.exit(2);\n"
+        },
+        "git": [
+          [
+            "init",
+            "-q",
+            "-b",
+            "main"
+          ]
+        ]
+      },
+      "steps": [
+        {
+          "hook": "hooks/typecheck-stop.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_TYPECHECK_GATE": "warn"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "[continuous-improvement] typecheck: Typecheck FAILED on changed TS files — fix before ending the turn:\nsrc/index.ts(1,14): error TS2322: Type 'string' is not assignable to type 'number'.\n",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "typecheck-stop/block-mode-passing-tsc-allow",
+      "setup": {
+        "files": {
+          "<PROJECT>/tsconfig.json": {
+            "compilerOptions": {
+              "strict": true
+            }
+          },
+          "<PROJECT>/src/index.ts": "export const total: number = 1;\n",
+          "<PROJECT>/node_modules/typescript/bin/tsc": "process.exit(0);\n"
+        },
+        "git": [
+          [
+            "init",
+            "-q",
+            "-b",
+            "main"
+          ]
+        ]
+      },
+      "steps": [
+        {
+          "hook": "hooks/typecheck-stop.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_TYPECHECK_GATE": "block"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "typecheck-stop/block-mode-no-ts-change-allow",
+      "setup": {
+        "files": {
+          "<PROJECT>/tsconfig.json": {
+            "compilerOptions": {
+              "strict": true
+            }
+          },
+          "<PROJECT>/README.md": "# project\n",
+          "<PROJECT>/node_modules/typescript/bin/tsc": "console.log(\"should not run\");\nprocess.exit(2);\n"
+        },
+        "git": [
+          [
+            "init",
+            "-q",
+            "-b",
+            "main"
+          ]
+        ]
+      },
+      "steps": [
+        {
+          "hook": "hooks/typecheck-stop.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_TYPECHECK_GATE": "block"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "typecheck-stop/block-mode-not-ts-project-allow",
+      "setup": {
+        "files": {
+          "<PROJECT>/src/index.ts": "export const total: number = \"oops\";\n"
+        },
+        "git": [
+          [
+            "init",
+            "-q",
+            "-b",
+            "main"
+          ]
+        ]
+      },
+      "steps": [
+        {
+          "hook": "hooks/typecheck-stop.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_TYPECHECK_GATE": "block"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "query-cost-nudge/off-by-default",
+      "setup": {
+        "files": {
+          "<PROJECT>/migrations/001_init.sql": "CREATE TABLE t (id INTEGER PRIMARY KEY);\n"
+        },
+        "git": [
+          [
+            "init",
+            "-q",
+            "-b",
+            "main"
+          ]
+        ]
+      },
+      "steps": [
+        {
+          "hook": "hooks/query-cost-nudge.mjs",
+          "event": "Stop",
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "query-cost-nudge/on-query-change-nudges-once",
+      "setup": {
+        "files": {
+          "<PROJECT>/migrations/001_init.sql": "CREATE TABLE t (id INTEGER PRIMARY KEY);\n"
+        },
+        "git": [
+          [
+            "init",
+            "-q",
+            "-b",
+            "main"
+          ]
+        ]
+      },
+      "steps": [
+        {
+          "hook": "hooks/query-cost-nudge.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_QUERY_COST_NUDGE": "on"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false
+          },
+          "expect": {
+            "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"Stop\",\"additionalContext\":\"<system-reminder>\\nQuery-cost check: you changed DB/query file(s) this session (migrations/001_init.sql).\\nBefore finishing, audit cost — dispatch the database-reviewer agent, or check directly:\\n  - EXPLAIN QUERY PLAN each new/changed query; no full table SCAN on a hot path.\\n  - Every WHERE / JOIN / ORDER BY column is index-covered; no N+1 loops.\\n  - D1: rows_read is billed per row SCANNED (not returned) — add covering indexes and cache hot reads (KV) instead of re-querying.\\n  - No unbounded query — add LIMIT / pagination.\\nOne-time per-session reminder (CLAUDE_QUERY_COST_NUDGE).\\n</system-reminder>\"}}\n",
+            "stderr": "",
+            "exitCode": 0
+          }
+        },
+        {
+          "hook": "hooks/query-cost-nudge.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_QUERY_COST_NUDGE": "on"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "query-cost-nudge/on-no-query-change-quiet",
+      "setup": {
+        "files": {
+          "<PROJECT>/src/index.ts": "export {};\n"
+        },
+        "git": [
+          [
+            "init",
+            "-q",
+            "-b",
+            "main"
+          ]
+        ]
+      },
+      "steps": [
+        {
+          "hook": "hooks/query-cost-nudge.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_QUERY_COST_NUDGE": "on"
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "query-cost-nudge/on-no-repository-quiet",
+      "note": "No CLAUDE_PROJECT_DIR and no git repository below the ceiling: the root is global and there is nothing to diff.",
+      "setup": {
+        "files": {
+          "<PROJECT>/migrations/001_init.sql": "CREATE TABLE t (id INTEGER PRIMARY KEY);\n"
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/query-cost-nudge.mjs",
+          "event": "Stop",
+          "env": {
+            "CLAUDE_QUERY_COST_NUDGE": "on",
+            "CLAUDE_PROJECT_DIR": null
+          },
+          "stdin": {
+            "session_id": "golden-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false
+          },
+          "expect": {
+            "stdout": "",
+            "stderr": "",
+            "exitCode": 0
+          }
+        }
+      ]
+    }
+  ]
+}
