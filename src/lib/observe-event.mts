@@ -12,6 +12,7 @@
 // it knows are not written to observations.jsonl.
 
 import { inboundCommand, inboundPatchText, inboundPaths, resolveInboundTool } from "./agent-profiles.mjs";
+import { payloadSessionId, payloadToolCall } from "./hook-io.mjs";
 import { isBareSecretName, isCredentialShaped, isSecretName, redactSecrets } from "./redact-secrets.mjs";
 
 const INPUT_TRUNCATE = 500;
@@ -31,30 +32,49 @@ export interface HookPayload {
   session_id: string;
   tool_input: unknown;
   tool_response: unknown;
+  /** The agent's id for this tool call, or "" when the payload has none. */
+  tool_use_id?: string;
+  /** True for a finished call (a tool_complete row), false for one about to run. */
+  complete?: boolean;
 }
 
-interface RawHookPayload {
-  tool_name?: unknown;
-  session_id?: unknown;
-  tool_input?: unknown;
-  tool_response?: unknown;
-  tool_output?: unknown;
-  toolOutput?: unknown;
-}
+// The result keys after Claude's tool_response, tool_output and toolOutput, per
+// the verified research: Cline's postToolUse.result (hook_post_tool, VS Code
+// and CLI), Grok's and Copilot's camelCase toolResult, and tool_result (Auggie,
+// Copilot's snake form). The first one present wins.
+const RESULT_KEYS = ["tool_response", "tool_output", "toolOutput", "toolResult", "tool_result"] as const;
+// The tool call id: Claude, Codex, Cursor, Qwen, Grok and Junie tool_use_id,
+// Grok's camelCase toolUseId, Goose's tool_call_id (skeptic, hook_pre_tool).
+const TOOL_USE_ID_KEYS = ["tool_use_id", "toolUseId", "tool_call_id"] as const;
+// Where a payload names its event: Claude's hook_event_name, Grok's camelCase
+// hookEventName, Goose's event and Cline's hookName.
+const EVENT_KEYS = ["hook_event_name", "hookEventName", "event", "hookName"] as const;
+// Post-tool event names: Claude's PostToolUse (also Codex, Qwen, Kiro, Devin,
+// Droid, Junie, Auggie, Goose and Cline), Gemini's AfterTool, Cursor's and
+// Copilot's postToolUse, Grok's post_tool_use and the Cline CLI's tool_result.
+const POST_EVENTS: ReadonlySet<string> = new Set(["PostToolUse", "AfterTool", "postToolUse", "post_tool_use", "tool_result"]);
+const PRE_EVENTS: ReadonlySet<string> = new Set(["PreToolUse", "BeforeTool", "preToolUse", "pre_tool_use", "tool_call"]);
 
 /**
- * Parse the raw JSON stdin payload from a Claude Code PreToolUse/PostToolUse
- * hook event. Returns null for any unparseable or schema-invalid input —
- * never throws. Empty/null/array payloads are rejected (the harness only
- * sends objects).
+ * Parse the raw JSON stdin payload of a PreToolUse/PostToolUse hook event from
+ * `agent` (the id hook-io's selectAgent picks). Returns null for any
+ * unparseable or schema-invalid input, never throws. Empty/null/array payloads
+ * and payloads with no tool name are rejected, so an unknown shape writes no
+ * row.
  *
- * Field-name normalisation: Claude Code's PostToolUse payload uses
- * `tool_response`. Older mocks and some third-party harnesses emit
- * `tool_output` or `toolOutput`. We accept all three at the boundary and
- * expose a single `tool_response` field downstream so the discriminator and
- * `summariseOutput` only have to know one name.
+ * The tool call is Claude's tool_name / tool_input, else Copilot's camelCase
+ * toolName / toolArgs or Cline's nested preToolUse / postToolUse (hook-io
+ * payloadToolCall). The result is the first of RESULT_KEYS present, then
+ * Cline's postToolUse.result; for another agent a tool_response object with a
+ * string `output` (Devin's {success, output, error}) is that output. The
+ * session is hook-io payloadSessionId's, the one the gate reads.
+ *
+ * `complete`: for claude, whether a result is present, as before. Another
+ * agent's call is finished when its event is a post-tool event, even with no
+ * result (Goose's PostToolUse carries none), and not when it is a pre-tool one;
+ * a payload that names no event (Copilot camelCase) falls back to the result.
  */
-export function parseHookPayload(raw: string): HookPayload | null {
+export function parseHookPayload(raw: string, agent = "claude"): Required<HookPayload> | null {
   if (!raw) return null;
   let parsed: unknown;
   try {
@@ -65,21 +85,27 @@ export function parseHookPayload(raw: string): HookPayload | null {
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
     return null;
   }
-  const obj = parsed as RawHookPayload;
-  if (typeof obj.tool_name !== "string" || obj.tool_name.length === 0) {
-    return null;
+  const obj = parsed as Record<string, unknown>;
+  // Claude's input is kept as sent, so its rows stay byte for byte.
+  const call = typeof obj.tool_name === "string" ? { name: obj.tool_name, input: obj.tool_input } : payloadToolCall(obj);
+  if (call.name.length === 0) return null;
+
+  const key = RESULT_KEYS.find((name) => obj[name] !== undefined);
+  const cline = obj.postToolUse !== null && typeof obj.postToolUse === "object" ? (obj.postToolUse as Record<string, unknown>) : null;
+  let toolResponse = key !== undefined ? obj[key] : cline?.result;
+  const output = (toolResponse as Record<string, unknown> | null | undefined)?.output;
+  if (agent !== "claude" && key === "tool_response" && typeof toolResponse === "object" && typeof output === "string") {
+    toolResponse = output;
   }
-  const toolResponse =
-    obj.tool_response !== undefined
-      ? obj.tool_response
-      : obj.tool_output !== undefined
-        ? obj.tool_output
-        : obj.toolOutput;
+  const eventName = EVENT_KEYS.map((name) => obj[name]).find((value): value is string => typeof value === "string");
+  const named = agent === "claude" || eventName === undefined ? undefined : POST_EVENTS.has(eventName) ? true : PRE_EVENTS.has(eventName) ? false : undefined;
   return {
-    tool_name: obj.tool_name,
-    session_id: typeof obj.session_id === "string" ? obj.session_id : "",
-    tool_input: obj.tool_input,
+    tool_name: call.name,
+    session_id: payloadSessionId(obj) ?? "",
+    tool_input: call.input,
     tool_response: toolResponse,
+    tool_use_id: TOOL_USE_ID_KEYS.map((name) => obj[name]).find((value): value is string => typeof value === "string" && value !== "") ?? "",
+    complete: named ?? toolResponse !== undefined,
   };
 }
 

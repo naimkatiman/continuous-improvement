@@ -46,6 +46,13 @@
       "stdin": { "clineVersion": "4.1.27", "hookName": "TaskStart", "timestamp": "1763712000000", "workspaceRoots": ["<PROJECT>"], "userId": "cline-user", "taskId": "cline-task", "taskStart": { "taskMetadata": { "taskId": "cline-task", "ulid": "", "initialTask": "run the tests" } } }
     }
   },
+  "evidence": {
+    "source": "Cline hook_payload_example (VS Code: taskId, workspaceRoots, nested preToolUse {toolName, parameters}) and hook_post_tool (postToolUse {toolName, parameters, result, success, executionTimeMs}); read_file and replace_in_file take path (docs.cline.bot/sdk/tools.md)",
+    "checked": "2026-11-22",
+    "unverified": [],
+    "read": { "clineVersion": "4.1.27", "hookName": "PostToolUse", "timestamp": "1763712000001", "workspaceRoots": ["<PROJECT>"], "userId": "cline-user", "taskId": "<SESSION>", "postToolUse": { "toolName": "read_file", "parameters": { "path": "<FILE>" }, "result": "a", "success": true, "executionTimeMs": 3 } },
+    "edit": { "clineVersion": "4.1.27", "hookName": "PreToolUse", "timestamp": "1763712000002", "workspaceRoots": ["<PROJECT>"], "userId": "cline-user", "taskId": "<SESSION>", "model": { "provider": "unknown", "slug": "unknown" }, "preToolUse": { "toolName": "replace_in_file", "parameters": { "path": "<FILE>", "diff": "a" } } }
+  },
   "absent": {
     "Stop": "Cline hook_stop (skeptic: confirmed): TaskComplete and TaskCancel are notification-only and cannot re-prompt, so the Stop hooks are not wired on Cline.",
     "SessionEnd": "Cline hook_stop: SessionShutdown is CLI/SDK only and the VS Code adapter does not wire it, so session.mjs is not wired to a session end on Cline."

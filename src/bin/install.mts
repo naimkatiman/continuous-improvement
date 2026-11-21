@@ -114,13 +114,15 @@ const COMMAND_FILES = [
 // would resolve ../lib beside the link target, where nothing is installed.
 // Keep both lists in step with the imports of src/bin/observe.mts and
 // src/hooks/session.mts, including what those lib modules import in turn
-// (observe-event.mjs imports redact-secrets.mjs and agent-profiles.mjs, which
+// (observe.mjs and observe-event.mjs import hook-io.mjs; observe-event.mjs
+// imports redact-secrets.mjs and agent-profiles.mjs, which
 // imports patch-paths.mjs; gateguard-state.mjs imports agent-paths.mjs;
 // hook-io.mjs imports agent-profiles.mjs; lesson-render.mjs imports
 // gateguard-state, hook-io and instinct-yaml); a hook with a missing import dies at
 // module load.
 const OBSERVER_LIB_FILES = [
   "observe-event.mjs",
+  "hook-io.mjs",
   "redact-secrets.mjs",
   "agent-profiles.mjs",
   "patch-paths.mjs",

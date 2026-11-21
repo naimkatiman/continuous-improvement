@@ -519,3 +519,88 @@ describe("HookPayload type contract", () => {
         assert.equal(sample.tool_name, "Bash");
     });
 });
+// Plan PR 18 (Architecture item 9): every hook agent's verified PostToolUse
+// shape, from fixtures/agent-matrix/<agent>.json and the research rows they cite.
+describe("parseHookPayload: other agents' payloads", () => {
+    const parse = (value, agent) => parseHookPayload(JSON.stringify(value), agent);
+    it("reads Copilot's camelCase toolName, toolArgs (a JSON string) and toolResult, and sessionId", () => {
+        const result = parse({ sessionId: "c1", cwd: "/p", toolName: "bash", toolArgs: "{\"command\":\"cat a.txt\"}", toolResult: { resultType: "success", textResultForLlm: "x" } }, "copilot");
+        assert.ok(result);
+        assert.equal(result.tool_name, "bash");
+        assert.deepEqual(result.tool_input, { command: "cat a.txt" });
+        assert.deepEqual(result.tool_response, { resultType: "success", textResultForLlm: "x" });
+        assert.equal(result.session_id, "c1");
+        assert.equal(result.complete, true);
+    });
+    it("reads Copilot's snake form tool_result", () => {
+        const result = parse({ hook_event_name: "PostToolUse", session_id: "c1", tool_name: "bash", tool_input: { command: "ls" }, tool_result: { result_type: "success", text_result_for_llm: "x" } }, "copilot");
+        assert.deepEqual(result?.tool_response, { result_type: "success", text_result_for_llm: "x" });
+        assert.equal(result?.complete, true);
+    });
+    it("reads Cline's nested postToolUse and its result, and taskId as the session", () => {
+        const result = parse({ hookName: "PostToolUse", taskId: "t1", postToolUse: { toolName: "read_file", parameters: { path: "a.txt" }, result: "body", success: true } }, "cline");
+        assert.ok(result);
+        assert.equal(result.tool_name, "read_file");
+        assert.deepEqual(result.tool_input, { path: "a.txt" });
+        assert.equal(result.tool_response, "body");
+        assert.equal(result.session_id, "t1");
+        assert.equal(result.complete, true);
+    });
+    it("marks Goose's PostToolUse complete though it carries no result, and its PreToolUse not", () => {
+        const post = parse({ event: "PostToolUse", session_id: "g1", tool_name: "shell", tool_input: { command: "cat a.txt" }, working_dir: "/p" }, "goose");
+        assert.equal(post?.tool_response, undefined);
+        assert.equal(post?.complete, true);
+        const pre = parse({ event: "PreToolUse", session_id: "g1", tool_name: "shell", tool_input: { command: "ls" }, tool_call_id: "c2" }, "goose");
+        assert.equal(pre?.complete, false);
+        assert.equal(pre?.tool_use_id, "c2");
+    });
+    it("classifies by Gemini's AfterTool and BeforeTool, Cursor's camelCase and Grok's hookEventName", () => {
+        assert.equal(parse({ hook_event_name: "AfterTool", session_id: "s", tool_name: "read_file" }, "gemini")?.complete, true);
+        assert.equal(parse({ hook_event_name: "BeforeTool", session_id: "s", tool_name: "read_file", tool_response: "x" }, "gemini")?.complete, false);
+        assert.equal(parse({ hook_event_name: "postToolUse", conversation_id: "c", tool_name: "Read" }, "cursor")?.complete, true);
+        assert.equal(parse({ hookEventName: "post_tool_use", session_id: "s", tool_name: "read_file" }, "grok")?.complete, true);
+    });
+    it("reads Grok's toolResult and toolUseId, and Cursor's and Auggie's conversation_id", () => {
+        const grok = parse({ hookEventName: "post_tool_use", session_id: "s", tool_name: "read_file", toolResult: "x", toolUseId: "u1" }, "grok");
+        assert.equal(grok?.tool_response, "x");
+        assert.equal(grok?.tool_use_id, "u1");
+        assert.equal(parse({ hook_event_name: "postToolUse", conversation_id: "c9", tool_name: "Read", tool_output: "x" }, "cursor")?.session_id, "c9");
+        assert.equal(parse({ hook_event_name: "PostToolUse", conversation_id: "a9", tool_name: "bash", tool_output: "o", tool_result: "r" }, "auggie")?.session_id, "a9");
+    });
+    it("takes Devin's tool_response.output for another agent, and keeps Claude's tool_response whole", () => {
+        const response = { success: true, output: "file body", error: null };
+        assert.equal(parse({ hook_event_name: "PostToolUse", session_id: "d", tool_name: "exec", tool_response: response }, "devin")?.tool_response, "file body");
+        assert.deepEqual(parse({ hook_event_name: "PostToolUse", session_id: "d", tool_name: "Bash", tool_response: response }, "claude")?.tool_response, response);
+    });
+    it("keeps Claude's classification by result: a PostToolUse with no tool_response stays tool_start", () => {
+        const result = parse({ hook_event_name: "PostToolUse", session_id: "s", tool_name: "Bash", tool_input: "raw", tool_use_id: "toolu_1" }, "claude");
+        assert.equal(result?.complete, false);
+        assert.equal(result?.tool_input, "raw", "Claude's tool_input is kept as sent");
+        assert.equal(result?.tool_use_id, "toolu_1");
+    });
+    it("an event name it does not know falls back to the result", () => {
+        assert.equal(parse({ event: "Weird", session_id: "s", tool_name: "shell" }, "goose")?.complete, false);
+        assert.equal(parse({ event: "Weird", session_id: "s", tool_name: "shell", tool_response: "x" }, "goose")?.complete, true);
+    });
+    it("writes nothing for an unknown shape, an empty nested call or malformed toolArgs with no name", () => {
+        for (const value of [
+            { event: "PostToolUse", session_id: "s" },
+            { hookName: "PostToolUse", taskId: "t", postToolUse: {} },
+            { hookName: "PostToolUse", taskId: "t", postToolUse: { toolName: 3 } },
+            { hookName: "PostToolUse", postToolUse: null },
+            { sessionId: "c", toolName: "" },
+            { toolArgs: "{not json" },
+        ]) {
+            assert.equal(parse(value, "copilot"), null, JSON.stringify(value));
+        }
+    });
+    it("keeps a call with malformed toolArgs, with empty input", () => {
+        const result = parse({ sessionId: "c", toolName: "bash", toolArgs: "{not json", toolResult: {} }, "copilot");
+        assert.deepEqual(result?.tool_input, {});
+    });
+    it("names no session and no call id when the payload has none, or a blank call id", () => {
+        const result = parse({ event: "PostToolUse", tool_name: "shell", tool_use_id: "" }, "goose");
+        assert.equal(result?.session_id, "");
+        assert.equal(result?.tool_use_id, "");
+    });
+});

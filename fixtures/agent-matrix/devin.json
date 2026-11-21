@@ -57,5 +57,12 @@
       "stdin": { "hook_event_name": "Stop", "stop_hook_active": false, "last_assistant_message": "done", "session_id": "devin-session", "prompt_id": "devin-prompt", "cwd": "<PROJECT>" }
     }
   },
+  "evidence": {
+    "source": "Devin hook_payload_example (exec tool_input {command, shell_id}, session_id, prompt_id) and hook_post_tool (tool_response {success, output, error}); the edit tool's input keys are not documented",
+    "checked": "2026-11-22",
+    "unverified": ["cwd", "edit tool_input.file_path"],
+    "read": { "hook_event_name": "PostToolUse", "tool_name": "exec", "tool_input": { "command": "cat <FILE>", "shell_id": "main" }, "tool_response": { "success": true, "output": "a", "error": null }, "session_id": "<SESSION>", "prompt_id": "devin-prompt", "cwd": "<PROJECT>" },
+    "edit": { "hook_event_name": "PreToolUse", "tool_name": "edit", "tool_input": { "file_path": "<FILE>", "old_string": "a", "new_string": "b" }, "session_id": "<SESSION>", "prompt_id": "devin-prompt", "cwd": "<PROJECT>" }
+  },
   "absent": {}
 }

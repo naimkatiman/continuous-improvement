@@ -51,6 +51,13 @@
       "stdin": { "event": "Stop", "session_id": "goose-session", "last_assistant_message": "done", "working_dir": "<PROJECT>" }
     }
   },
+  "evidence": {
+    "source": "Goose hook_payload_example: PostToolUse stdin verbatim from hooks.md (event, session_id, shell tool_input.command, working_dir, no tool_response); edit {path, before, after} (research tool_names, skeptic: confirmed), tool_call_id on PreToolUse (skeptic)",
+    "checked": "2026-11-22",
+    "unverified": ["event value PreToolUse"],
+    "read": { "event": "PostToolUse", "session_id": "<SESSION>", "matcher_context": "shell", "tool_name": "shell", "tool_input": { "command": "cat <FILE>" }, "working_dir": "<PROJECT>" },
+    "edit": { "event": "PreToolUse", "session_id": "<SESSION>", "matcher_context": "edit", "tool_name": "edit", "tool_input": { "path": "<FILE>", "before": "a", "after": "b" }, "tool_call_id": "goose-edit", "working_dir": "<PROJECT>" }
+  },
   "absent": {
     "SessionEnd": "No SessionEnd event in the [Goose] rows of the verified research, so session.mjs is not wired to one."
   }

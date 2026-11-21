@@ -56,5 +56,12 @@
       "stdin": { "hookEventName": "stop", "hook_event_name": "Stop", "session_id": "grok-session", "cwd": "<PROJECT>", "stopHookActive": false, "stop_hook_active": false, "last_assistant_message": "done", "reason": "end_turn" }
     }
   },
+  "evidence": {
+    "source": "Grok hook_post_tool: input carries tool_name, tool_input, toolResult and the tool_response alias copied from it (10-hooks.md line 679); read_file and write take file_path (research tool_names, ReadFileInput and WriteInput)",
+    "checked": "2026-11-22",
+    "unverified": ["toolResult shape"],
+    "read": { "hookEventName": "post_tool_use", "hook_event_name": "PostToolUse", "sessionId": "<SESSION>", "session_id": "<SESSION>", "cwd": "<PROJECT>", "toolName": "read_file", "tool_name": "read_file", "toolInput": { "file_path": "<FILE>" }, "tool_input": { "file_path": "<FILE>" }, "toolUseId": "grok-read", "tool_use_id": "grok-read", "toolResult": "a", "tool_response": "a" },
+    "edit": { "hookEventName": "pre_tool_use", "hook_event_name": "PreToolUse", "sessionId": "<SESSION>", "session_id": "<SESSION>", "cwd": "<PROJECT>", "toolName": "write", "tool_name": "write", "toolInput": { "file_path": "<FILE>", "content": "b" }, "tool_input": { "file_path": "<FILE>", "content": "b" }, "toolUseId": "grok-edit", "tool_use_id": "grok-edit" }
+  },
   "absent": {}
 }

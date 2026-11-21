@@ -61,6 +61,8 @@ interface Fixture {
   selection: { sniff: { env: Record<string, string>; source: string } | null; sniffNote?: string; bare: "claude" | "fallback" };
   expect: { deny: DenyExpect; context: ContextExpect };
   events: Record<string, Payload>;
+  /** A read the observer records, then an edit of the same file gateguard gates (<SESSION>, <FILE>). */
+  evidence: { source: string; checked: string; unverified: string[]; read: unknown; edit: unknown };
   absent: Record<string, string>;
 }
 
@@ -128,8 +130,17 @@ function substitute(value: unknown, dirs: { home: string; project: string }, com
   return value;
 }
 
-function runHook(script: string, args: string[], payload: Payload, command: string, extraEnv: Record<string, string>, lesson = false): Promise<Run> {
-  const dirs = workspace(lesson);
+type Workspace = { root: string; home: string; project: string };
+
+function runHook(
+  script: string,
+  args: string[],
+  payload: Payload,
+  command: string,
+  extraEnv: Record<string, string>,
+  lesson = false,
+  dirs: Workspace = workspace(lesson),
+): Promise<Run> {
   const env: NodeJS.ProcessEnv = {};
   for (const [key, value] of Object.entries(process.env)) {
     if (INHERITED_ENV.has(key.toLowerCase()) && value !== undefined) env[key] = value;
@@ -171,19 +182,19 @@ function assertSubset(actual: unknown, expected: unknown, where: string): void {
   }
 }
 
-function assertDeny(expect: DenyExpect, run: Run, where: string): void {
+function assertDeny(expect: DenyExpect, run: Run, where: string, needle = DESTRUCTIVE_RULE): void {
   const detail = `${where}\nstdout: ${run.stdout}\nstderr: ${run.stderr}`;
   assert.equal(run.status, expect.exitCode, detail);
   if (expect.exitCode === 2) {
     assert.equal(run.stdout, "", detail);
-    assert.ok(run.stderr.includes(DESTRUCTIVE_RULE), detail);
+    assert.ok(run.stderr.includes(needle), detail);
     return;
   }
   const output = JSON.parse(run.stdout) as unknown;
   assertSubset(output, expect.json, detail);
   for (const path of expect.reasonAt) {
     const reason = at(output, path);
-    assert.ok(typeof reason === "string" && reason.includes(DESTRUCTIVE_RULE), `${detail}\nreason at ${path.join(".")}`);
+    assert.ok(typeof reason === "string" && reason.includes(needle), `${detail}\nreason at ${path.join(".")}`);
   }
 }
 
@@ -309,5 +320,71 @@ describe("an agent id with no encoder", () => {
   it("fails closed: a deny is exit 2 with the reason on stderr, not an allow", async () => {
     const pre = fixtures.find((fixture) => fixture.agent === "claude")!.events.PreToolUse!;
     assertDeny(FALLBACK_DENY, await runHook("hooks/gateguard.mjs", ["--agent", "zed"], pre, DESTRUCTIVE, {}), "--agent zed");
+  });
+});
+
+// Observe a read, then gate an edit (plan Architecture item 9, PR 18). Each
+// fixture's `evidence` holds a PostToolUse read and a PreToolUse edit in that
+// agent's verified shape, with the session at the agent's own key. The observer
+// and gateguard run with the --agent the installer renders, in one workspace,
+// in the default evidence mode of the file gate.
+function fill(value: unknown, session: string, file: string): Payload {
+  const text = JSON.stringify(value).split("<SESSION>").join(session).split("<FILE>").join(file);
+  return { source: "evidence", checked: "2026-11-22", unverified: [], stdin: JSON.parse(text) as unknown };
+}
+
+function evidenceWorkspace(): { dirs: Workspace; read: string; unread: string } {
+  const dirs = workspace(false);
+  // Forward slashes: Copilot's toolArgs is a JSON string, where a backslash is an escape.
+  const project = dirs.project.split("\\").join("/");
+  writeFileSync(join(dirs.project, "notes.txt"), "a\n");
+  writeFileSync(join(dirs.project, "other.txt"), "a\n");
+  return { dirs, read: `${project}/notes.txt`, unread: `${project}/other.txt` };
+}
+
+describe("observe a read, then gate the edit, on every hook agent", () => {
+  for (const fixture of fixtures) {
+    const flag = ["--agent", fixture.agent];
+    const { evidence } = fixture;
+
+    it(`${fixture.agent}: the evidence case carries its source and names the session and file in both payloads`, () => {
+      assert.ok(evidence.source.length > 0);
+      assert.match(evidence.checked, DATE);
+      assert.ok(Array.isArray(evidence.unverified));
+      for (const payload of [evidence.read, evidence.edit]) {
+        const text = JSON.stringify(payload);
+        assert.ok(text.includes("<SESSION>") && text.includes("<FILE>"), text);
+      }
+    });
+
+    it(`${fixture.agent}: a read clears the edit of that file in the same session only`, async () => {
+      const { dirs, read, unread } = evidenceWorkspace();
+      const observed = await runHook("bin/observe.mjs", flag, fill(evidence.read, "session-a", read), ROUTINE, {}, false, dirs);
+      assert.equal(observed.status, 0, observed.stderr);
+      assert.equal(observed.stdout, "", observed.stderr);
+      assert.equal(observed.stderr, "", "the observer catches every throw, so a crash shows only on stderr");
+
+      const allowed = await runHook("hooks/gateguard.mjs", flag, fill(evidence.edit, "session-a", read), ROUTINE, {}, false, dirs);
+      assert.equal(allowed.status, 0, `${fixture.agent} edit after read\nstdout: ${allowed.stdout}\nstderr: ${allowed.stderr}`);
+      assert.equal(allowed.stdout, "", `${fixture.agent} edit after read\nstderr: ${allowed.stderr}`);
+
+      const neverRead = await runHook("hooks/gateguard.mjs", flag, fill(evidence.edit, "session-a", unread), ROUTINE, {}, false, dirs);
+      assertDeny(fixture.expect.deny, neverRead, `${fixture.agent} edit of a file never read`, "other.txt");
+
+      const otherSession = await runHook("hooks/gateguard.mjs", flag, fill(evidence.edit, "session-b", read), ROUTINE, {}, false, dirs);
+      assertDeny(fixture.expect.deny, otherSession, `${fixture.agent} edit in another session`, "notes.txt");
+    });
+  }
+
+  it("an agent payload that names no session cannot be cleared by a read, not even by its own session-less read", async () => {
+    const goose = fixtures.find((fixture) => fixture.agent === "goose")!;
+    const strip = (payload: Payload): Payload => {
+      const { session_id: _session, ...rest } = payload.stdin as Record<string, unknown>;
+      return { ...payload, stdin: rest };
+    };
+    const { dirs, read } = evidenceWorkspace();
+    await runHook("bin/observe.mjs", ["--agent", "goose"], strip(fill(goose.evidence.read, "x", read)), ROUTINE, {}, false, dirs);
+    const run = await runHook("hooks/gateguard.mjs", ["--agent", "goose"], strip(fill(goose.evidence.edit, "x", read)), ROUTINE, {}, false, dirs);
+    assertDeny(goose.expect.deny, run, "goose edit with no session id", "names no session");
   });
 });

@@ -218,19 +218,41 @@ function clineParameters(parameters) {
         return parameters;
     return { ...parameters, commands: commands.join("\n") };
 }
-// The tool call in a payload: Claude's tool_name / tool_input (Grok sends these
-// beside its camelCase copies), Copilot's camelCase toolName / toolArgs (an
-// object or a JSON string), or Cline's nested preToolUse.toolName / parameters.
-function toolCall(fields) {
+/**
+ * The tool call in a payload: Claude's tool_name / tool_input (Grok sends these
+ * beside its camelCase copies), Copilot's camelCase toolName / toolArgs (an
+ * object or a JSON string), or Cline's nested preToolUse or postToolUse
+ * toolName / parameters (research Cline hook_pre_tool and hook_post_tool).
+ * No tool name gives the name "".
+ */
+export function payloadToolCall(fields) {
     if (typeof fields.tool_name === "string")
         return { name: fields.tool_name, input: asRecord(fields.tool_input) ?? {} };
     if (typeof fields.toolName === "string")
         return { name: fields.toolName, input: parsedObject(fields.toolArgs) ?? {} };
-    const cline = asRecord(fields.preToolUse);
-    if (cline !== null && typeof cline.toolName === "string") {
-        return { name: cline.toolName, input: clineParameters(asRecord(cline.parameters) ?? {}) };
+    for (const key of ["preToolUse", "postToolUse"]) {
+        const cline = asRecord(fields[key]);
+        if (cline !== null && typeof cline.toolName === "string") {
+            return { name: cline.toolName, input: clineParameters(asRecord(cline.parameters) ?? {}) };
+        }
     }
     return { name: "", input: {} };
+}
+// Where each agent's verified payload carries its session (research
+// hook_payload_example per agent, skeptic verdicts applied): session_id on
+// Claude, Codex, Qwen, Gemini, Grok, Devin, Droid, Kiro, Junie and Goose;
+// Copilot's camelCase sessionId; conversation_id on Cursor tool events and on
+// Auggie; Cline's taskId (the CLI sets it to the conversation id). Read by
+// shape, in this order, so the observer and the gate name the same session.
+const SESSION_KEYS = ["session_id", "sessionId", "conversation_id", "taskId"];
+/** The session a payload names, or undefined when it names none. */
+export function payloadSessionId(fields) {
+    for (const key of SESSION_KEYS) {
+        const value = fields[key];
+        if (typeof value === "string")
+            return value;
+    }
+    return undefined;
 }
 /** JSON-parse stdin. Empty, malformed or unread stdin is not ok; JSON null and arrays are ok. */
 export function parsePayload(raw) {
@@ -257,13 +279,15 @@ function loopCount(fields) {
  * of the wrong type reads as absent. The keys are Claude Code's
  * (tool_name, tool_input, session_id, cwd, prompt, stop_hook_active), then
  * Copilot's camelCase toolName / toolArgs / sessionId and Cline's nested
- * preToolUse, read by shape so an unidentified agent is still gated. Other
+ * preToolUse, read by shape so an unidentified agent is still gated. The
+ * session is the first of payloadSessionId's keys present, so Cursor, Auggie
+ * and Cline get a session of their own instead of the project-level state. Other
  * agents' tool names resolve through their profile alias, and a Claude-named
  * shell takes the flavor of the agent's own profile (Codex's Bash is unknown).
  */
 export function normalizeEvent(agent, event, payload) {
     const fields = asRecord(payload) ?? {};
-    const { name: toolName, input: toolInput } = toolCall(fields);
+    const { name: toolName, input: toolInput } = payloadToolCall(fields);
     const own = agent === "claude" ? null : profileTool(agent, toolName);
     const claude = CLAUDE_TOOLS.get(toolName);
     const alias = claude ? null : resolveInboundTool(toolName);
@@ -290,7 +314,7 @@ export function normalizeEvent(agent, event, payload) {
         command,
         filePaths,
         prompt: typeof fields.prompt === "string" ? fields.prompt : null,
-        sessionId: typeof fields.session_id === "string" ? fields.session_id : typeof fields.sessionId === "string" ? fields.sessionId : undefined,
+        sessionId: payloadSessionId(fields),
         cwd: nonEmptyString(fields.cwd),
         stopActive: fields.stop_hook_active === true || fields.stopHookActive === true,
         stopReason: typeof fields.reason === "string" ? fields.reason : undefined,
