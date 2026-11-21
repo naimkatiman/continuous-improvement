@@ -711,17 +711,20 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
       // resolve at write time, so without a bound this is an arbitrary-write
       // primitive. Resolve + canonicalize, then require containment within the
       // instincts root (the only tree the hook ever prints a state_path inside).
+      // The check is on the directory that will be written, so a state_path
+      // equal to the root (whose dirname is ~/.claude) is refused.
       const rawStatePath = getString(params.state_path).trim();
       let sessionDir: string;
       if (rawStatePath) {
-        const resolvedKey = canonicalizeFileKey(resolve(rawStatePath));
+        const candidateDir = dirname(resolve(rawStatePath));
+        const dirKey = canonicalizeFileKey(candidateDir);
         const rootKey = canonicalizeFileKey(resolveInstinctsRoot());
-        if (resolvedKey !== rootKey && !resolvedKey.startsWith(`${rootKey}/`)) {
+        if (dirKey !== rootKey && !dirKey.startsWith(`${rootKey}/`)) {
           return error(
             "state_path must resolve inside ~/.claude/instincts/. Pass it verbatim from the GateGuard block reason.",
           );
         }
-        sessionDir = dirname(resolve(rawStatePath));
+        sessionDir = candidateDir;
       } else {
         sessionDir = resolveSessionDir();
       }

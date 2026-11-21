@@ -230,6 +230,22 @@ describe("MCP server — beginner mode", () => {
         assert.match(response.result.content[0].text, /instincts/);
         assert.ok(!existsSync(evil), "must not write the state file outside the instincts root");
     });
+    it("ci_gateguard_clear rejects a state_path equal to the instincts root, whose directory is one level above it", async () => {
+        const root = join(tempHome, ".claude", "instincts");
+        const above = join(tempHome, ".claude", "gateguard-session.json");
+        const response = await client.send({
+            jsonrpc: "2.0",
+            id: 45,
+            method: "tools/call",
+            params: {
+                name: "ci_gateguard_clear",
+                arguments: { file_paths: ["D:\\proj\\z.ts"], state_path: root },
+            },
+        });
+        assert.ok(response.result.isError, "the directory written would be ~/.claude, outside the instincts tree");
+        assert.match(response.result.content[0].text, /instincts/);
+        assert.ok(!existsSync(above), "must not write a state file next to the instincts root");
+    });
     it("ci_status returns project info", async () => {
         const response = await client.send({
             jsonrpc: "2.0",
