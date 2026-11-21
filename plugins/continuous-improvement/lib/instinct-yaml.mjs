@@ -60,16 +60,18 @@ const MAX_RAW_CHARS = 2000;
 // Instinct text is data: a model wrote it, or it came from an imported pack.
 // Wherever it is printed to the model (the SessionStart block, ci_instincts),
 // each field becomes one line of plain text. Compatibility forms are folded (a
-// full-width bracket becomes the ASCII one), invisible format characters are
+// full-width bracket becomes the ASCII one), format characters, default-ignorable
+// code points (variation selectors among them) and the blank U+2800 are
 // dropped, control characters and every kind of line break become a space, and
-// angle brackets are escaped. A stored field can then neither close a system
+// angle brackets are escaped. Combining marks stay, since scripts such as Thai
+// need them. A stored field can then neither close a system
 // reminder nor start a line of its own. At most `max` characters are kept;
 // pass Infinity to keep the whole field.
 export function flatten(text, max) {
     const flat = text
         .slice(0, Math.max(max, MAX_RAW_CHARS))
         .normalize("NFKC")
-        .replace(/[\p{Cf}\p{Cs}]+/gu, "")
+        .replace(/[\p{Cf}\p{Cs}\p{Default_Ignorable_Code_Point}\u{2800}]+/gu, "")
         .replace(/[\p{Cc}\s]+/gu, " ")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")

@@ -425,6 +425,32 @@ describe("SessionStart loads recorded lessons into context", () => {
             assert.deepEqual(forbidden, []);
         });
     });
+    // Variation selectors (category Mn) and the other default-ignorable code points
+    // render as nothing and can carry hidden bytes; U+2800 renders as a blank.
+    // Combining marks that a script needs to be read stay.
+    it("drops every default-ignorable code point and U+2800, and keeps Thai combining marks", () => {
+        withSessionFixture((fixture) => {
+            const chars = (...codePoints) => String.fromCodePoint(...codePoints);
+            const hidden = chars(0xfe0f, 0xe0100, 0xe01ef, 0x034f, 0x180b, 0x115f, 0x3164, 0xffa0, 0x2800, 0x200b);
+            const thai = chars(0x0e17, 0x0e31, 0x0e49, 0x0e07);
+            writeLesson(fixture.projectDir, {
+                id: "hidden-bytes",
+                trigger: `when${hidden} reading ${thai}`,
+                body: `Keep${hidden} it visible.`,
+                confidence: 0.8,
+            });
+            const result = startSession(fixture);
+            const { header, lessons } = blockLines(result.stdout);
+            assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+            assert.equal(header, lessonHeader(1, 1));
+            assert.deepEqual(lessons, [`- when reading ${thai}: Keep it visible. (0.8)`]);
+            const forbidden = Array.from(result.stdout)
+                .filter((character) => /\p{Default_Ignorable_Code_Point}/u.test(character) || character.codePointAt(0) === 0x2800)
+                .map((character) => `U+${(character.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0")}`);
+            assert.deepEqual(forbidden, []);
+            assert.ok(lessons[0].includes(chars(0x0e31)) && lessons[0].includes(chars(0x0e49)), "Thai U+0E31 and U+0E49 are kept");
+        });
+    });
     it("skips files that are not instincts and still exits 0", () => {
         withSessionFixture((fixture) => {
             writeFileSync(join(fixture.projectDir, "a-binary.yaml"), Buffer.from([0, 159, 146, 150, 255, 10]));
