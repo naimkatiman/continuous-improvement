@@ -445,6 +445,40 @@ describe("SessionStart loads recorded lessons into context", () => {
             assert.match(result.stderr, /\[continuous-improvement\] Level: AUTO-APPLY \| Observations: 0 \| Instincts: 7/);
         });
     });
+    // Windows PowerShell 5.1 writes UTF-8 with a byte order mark by default, so a
+    // hand-written instinct file often starts with one. The status line counted
+    // it at AUTO-APPLY while the parser, which saw "<BOM>id:", skipped it.
+    it("loads an instinct file that starts with a UTF-8 byte order mark, and the status line agrees", () => {
+        withSessionFixture((fixture) => {
+            writeFileSync(join(fixture.projectDir, "with-bom.yaml"), `${String.fromCodePoint(0xfeff)}${instinctYaml({
+                id: "with-bom",
+                trigger: "when the file was saved from PowerShell",
+                body: "Read it all the same.",
+                confidence: 0.7,
+            })}`);
+            const result = startSession(fixture);
+            assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+            assert.equal(result.stdout, `${lessonHeader(1, 1)}\n- when the file was saved from PowerShell: Read it all the same. (0.7)\n`);
+            assert.match(result.stderr, /Level: AUTO-APPLY \| Observations: 0 \| Instincts: 1/);
+        });
+    });
+    // The status line read 'confidence: 0.3  # demoted' as 0.3 while the parser
+    // kept the text and fell back to 0.6, so the demoted lesson was still loaded.
+    it("reads a confidence followed by a comment as the number, and the status line agrees", () => {
+        withSessionFixture((fixture) => {
+            const commented = (id, confidence, trigger) => `id: ${id}\ntrigger: "${trigger}"\nconfidence: ${confidence}\n---\nBody of ${id}.\n`;
+            writeFileSync(join(fixture.projectDir, "demoted.yaml"), commented("demoted", "0.3  # demoted", "when demoted"));
+            const demoted = startSession(fixture);
+            assert.equal(demoted.status, 0, `stderr: ${demoted.stderr}`);
+            assert.equal(demoted.stdout, "", "a lesson demoted to 0.3 is not loaded");
+            assert.match(demoted.stderr, /Level: ANALYZE \| Observations: 0 \| Instincts: 1/);
+            writeFileSync(join(fixture.projectDir, "promoted.yaml"), commented("promoted", "0.8 # promoted by hand", "when promoted"));
+            const promoted = startSession(fixture);
+            assert.equal(promoted.status, 0, `stderr: ${promoted.stderr}`);
+            assert.equal(promoted.stdout, `${lessonHeader(1, 1)}\n- when promoted: Body of promoted. (0.8)\n`);
+            assert.match(promoted.stderr, /Level: AUTO-APPLY \| Observations: 0 \| Instincts: 2/);
+        });
+    });
     it("prints nothing when CI_INSTINCT_LOAD is off, 0, false or no", () => {
         withSessionFixture((fixture) => {
             writeLesson(fixture.projectDir, {

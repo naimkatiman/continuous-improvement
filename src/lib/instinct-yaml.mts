@@ -25,7 +25,10 @@ export interface Instinct {
 }
 
 export function parseYamlInstinct(content: string): Instinct | null {
-  const lines = content.split("\n");
+  // Windows PowerShell 5.1 writes UTF-8 with a byte order mark by default; left
+  // in place it hides the `id:` key on the first line.
+  const text = content.charCodeAt(0) === 0xfeff ? content.slice(1) : content;
+  const lines = text.split("\n");
   const meta: Partial<Instinct> = {};
   let body = "";
   let inBody = false;
@@ -47,8 +50,11 @@ export function parseYamlInstinct(content: string): Instinct | null {
     }
 
     const rawValue = match[2].trim().replace(/^["']|["']$/g, "");
-    const value = rawValue !== "" && !Number.isNaN(Number(rawValue))
-      ? Number(rawValue)
+    // A number may carry a trailing YAML comment ('confidence: 0.3  # demoted').
+    // Text values keep theirs: a quoted trigger can contain " #".
+    const numberText = rawValue.replace(/\s+#.*$/, "");
+    const value = numberText !== "" && !Number.isNaN(Number(numberText))
+      ? Number(numberText)
       : rawValue;
     (meta as Record<string, string | number | undefined>)[match[1]] = value;
   }
