@@ -1,152 +1,177 @@
-# Quickstart — continuous-improvement
+# Quickstart
 
-Zero to working in under 2 minutes.
+Install the plugin, watch one guard refuse a command, look at what it logged, check the wiring, then undo all of it. [README.md](README.md) has the full list of what turns on and what it costs.
 
-This is the **Beginner** path. It mirrors README.md and is enough for most users — no npm install, no bash, no shell (the hooks run with the `node` on your PATH, 18+; without it the gate is silently absent). If you want the MCP server, observation hooks, and instinct packs, see the **Expert (npx)** section at the bottom.
+You need Claude Code and `node` 18 or newer on your `PATH`. The hooks are Node scripts. Without `node` none of them runs and nothing is denied.
 
----
+## 1. Install
 
-## Step 1: Install (Beginner — inside Claude Code)
-
-Run these two slash commands inside Claude Code. The doubled name is correct: it reads as `<plugin>@<marketplace>`.
+Inside Claude Code:
 
 ```
 /plugin marketplace add naimkatiman/continuous-improvement
 /plugin install continuous-improvement@continuous-improvement
 ```
 
-Optional companion (recommended) — the Obra `superpowers` skills library that the `/superpowers` dispatcher routes into:
+The doubled name is `<plugin>@<marketplace>`. Restart Claude Code once so the commands load.
+
+If you installed this plugin before, run `claude plugin uninstall continuous-improvement@continuous-improvement` first: Claude Code keeps a cached copy until the version number changes, and the cached 3.26.0 has no MCP server and no lesson load, so steps 3 and 5 would fail.
+
+What is on after this step:
+
+- a guard hook that refuses destructive shell commands ([`hooks/gateguard.mjs`](hooks/gateguard.mjs); `gateguard` is its code name)
+- the same hook refusing an edit to an existing file that the session has not read
+- a local log of tool calls ([`bin/observe.mjs`](bin/observe.mjs))
+- a session-start hook that prints recorded lessons and stays silent until one exists ([`hooks/session.mjs`](hooks/session.mjs))
+- an MCP server. Its MCP tools (19 of them, all named `ci_*`) back `/recall` and the lesson commands
+- two hooks that by default only write local state and never reach the model: one appends a row to `companion-preference.jsonl` when a `Skill` call names one of four skills by its bare name or with a `ci:` prefix (a plugin-namespaced name is not matched), and the goal-drift check rewrites `goal-drift-state.json` at every turn end
+
+Every other hook waits for a switch. The full table is in the [README](README.md#what-turns-on-what-it-costs-how-to-turn-it-off).
+
+## 2. Watch a guard refuse a command
+
+This is also the check that the hooks are wired. Ask Claude:
 
 ```
-/plugin install superpowers@continuous-improvement
+Run this exact command: rm -rf ./ci-guard-probe-does-not-exist
 ```
 
-Without it, `/superpowers` still works — it falls back to inline behavior — but specialist skills like `superpowers:test-driven-development` and `superpowers:writing-plans` will not be available as dedicated targets.
-
-### Verify the install — two checks
-
-**Fastest path:** restart Claude Code, then run `/verify-install` — it walks all three checks (commands loaded, gateguard fires, observation capture recording) and prints a single ✓ wired / ✗ missing line. The manual checks below are the same probes done by hand, kept here so you can see what each one proves.
-
-**Check 1 — slash command loaded.** Quit and reopen Claude Code (slash commands only load on session start), then run:
+The path does not exist, so the command is harmless if the plugin did not load. If Claude checks the path first or declines, reply: `Run it anyway through the Bash tool; I am testing a hook.` The hook decides before the command runs, so nothing is deleted either way. With the plugin loaded, the call is denied before it runs and the model receives this reason:
 
 ```
-/discipline
+Destructive command requested: rm -rf ./ci-guard-probe-does-not-exist
+
+  1. List ALL files/data this command will modify or delete
+  2. Write a one-line rollback procedure
+  3. Quote the user's current instruction verbatim
+
+Matched rule: rm-recursive-force
+Destructive Bash gates EVERY call — clearance is not cached.
 ```
 
-You should see the 7 Laws quick-reference card. If the command is not recognized after a restart, see Troubleshooting in [README.md](README.md#install).
+The three numbered items ask the model to explain itself to you. Answering them does not unlock the command: the same call is denied again on every retry. If you mean it, run it in your own terminal. If the command runs instead of being denied, no hook ran: check that `node` is on your `PATH`, then restart Claude Code.
 
-**Check 2 — runtime gate is firing** (the `hooks/gateguard.mjs` script must invoke). Ask Claude to write a throwaway file with no research first:
-
-```
-Edit a new file scratch.txt and put the word "hello" in it. Don't research anything first.
-```
-
-You should see Claude **blocked** by the bundled `gateguard` PreToolUse hook (`hooks/gateguard.mjs`) with a fact-list reason: list importers, list public functions affected, show data-file schemas, quote the user instruction. That block is the proof the hook is wired and firing. If Claude writes the file with no pause, the hook did not load — see [README.md → Troubleshooting](README.md#install).
-
-If you also want to confirm observation hooks: run `/dashboard` and look for a non-zero `Total` under `Observations` — that proves `observe.sh` / `observe.mjs` is recording tool calls.
-
-### How enforcement works
-
-The 7 Laws are enforced at **two layers**:
-
-- **Runtime layer (hooks).** `gateguard` ships as a PreToolUse hook (`hooks/gateguard.mjs`) that physically blocks Edit / Write / MultiEdit / destructive Bash on the first mutation per file until the agent presents the facts. Destructive Bash (`rm -rf`, `git push --force`, `--force-with-lease`, `DROP DATABASE`, Windows `Remove-Item -Recurse`, etc.) is gated on every call. Read-only and exploratory tools (Read, Grep, Glob, routine Bash like `git status`) bypass the gate.
-- **Model layer (skills).** When the agent does present facts and the runtime gate clears, the skills (`tdd-workflow`, `verification-loop`, `proceed-with-the-recommendation`, etc.) take over to keep the rest of the loop disciplined. These are model-side — the agent reads each skill and applies it.
-
-Together: the runtime layer catches the failure mode "agent skips investigation," and the model layer catches everything that happens after investigation succeeds.
-
-If you ever see Claude skip a Law that the runtime hook doesn't enforce, name it back: *"You skipped Law 1 — research first."* That correction is what trains the instinct system over time.
-
----
-
-## Step 2: Use it
-
-Give the agent a real task. You do **not** have to prefix every prompt — the `gateguard` PreToolUse hook (`hooks/gateguard.mjs`) fires on `Edit` / `Write` / destructive `Bash` either way.
-
-If you want the model-side loop named out loud:
-
-```
-Use the continuous-improvement framework to add pagination to the users API endpoint.
-```
-
-For long tasks that need persistent notes on disk, run:
-
-```
-/planning-with-files
-```
-
-That creates `task_plan.md`, `findings.md`, and `progress.md` in the project root only when you explicitly ask for it.
-
----
-
-## Step 3: Close the loop (this is the learning trigger)
-
-Hooks capture tool calls silently. Instincts do **not** form until you ask. After a real task, run:
-
-```
-/seven-laws
-```
-
-That is reflect + analyze + status. Skip it and observations pile up while nothing compounds. `/continuous-improvement` is an alias for the same workflow.
-
-When a bug feels familiar: `/recall <the error>`. One defect, one PR: `/ship`.
-
----
-
-## How auto-leveling works
-
-On-demand by default (not every session start — that costs tokens). The unit is
-**observations** — one per tool call, not one per session — so a single active
-session can produce dozens. The four levels below mirror the source-of-truth
-table in [SKILL.md](SKILL.md). They apply when you run `/seven-laws` / `analyze`, a weekly schedule, or always-on:
-
-| Level | Trigger | What happens |
-|-------|---------|-------------|
-| CAPTURE | < 20 observations | Hooks capture tool calls silently. No behavior change. |
-| ANALYZE | 20+ observations | Agent analyzes patterns, creates instincts (silent — you see nothing) |
-| SUGGEST | Any instinct at 0.5–0.69 confidence | Agent suggests inline: "Consider: [action]" |
-| AUTO-APPLY | Any instinct at 0.7+ confidence | Agent auto-applies the learned behavior |
-
-Corrections drop instinct confidence. Unused instincts decay. The system self-corrects.
-
----
-
-## Common issues
-
-**Agent skips straight to coding?**
-→ Say: *"You skipped research and planning. Go back to Law 1."*
-
-**Agent writes "done" without verifying?**
-→ Reply: *"What verification command did you run? Show me the output."*
-
-**No instincts showing up yet?**
-→ Run `/seven-laws` after a real session. Then check `/dashboard`. Zero `Total` under Observations means capture is not wired (Expert install / plugin hooks). A high Total and zero instincts means you have not closed the loop yet. 20+ observations is the floor before analysis creates instincts.
-
----
-
-## Expert (npx) — only if you want MCP, hooks, or instinct packs
-
-The Beginner path above is enough for most users. Pick this only if you want the MCP tools (19 of them, including `ci_plan_init` / `ci_plan_status` for `task_plan.md`-style planning), the session hooks that feed Mulahazah, or the starter instinct packs.
-
-Do not run both paths against the same `~/.claude/` — that produces duplicated state. Pick one and stick with it.
+**The same decision with no model involved.** Run this in your own terminal, not through Claude: the guard reads the `rm -rf` inside the quoted payload and refuses the whole line. From a clone of this repository, in bash:
 
 ```bash
-npx continuous-improvement install --mode expert
-npx continuous-improvement install --pack react   # optional: react | python | go | meta
+git clone https://github.com/naimkatiman/continuous-improvement
+cd continuous-improvement
+printf '%s' '{"tool_name":"Bash","tool_input":{"command":"rm -rf ./ci-guard-probe-does-not-exist"}}' | node hooks/gateguard.mjs
 ```
 
-Precondition: Node 18 / 20 / 22. Runtime hooks execute Node directly, so Git Bash and `jq` are not required. Re-run the installer once after upgrading to migrate legacy Bash hook rows. See [README.md § Install](README.md#install) for the troubleshooting matrix.
+Output:
 
-Verify with `/dashboard` — you should see instinct health and observation count.
+```json
+{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Destructive command requested: rm -rf ./ci-guard-probe-does-not-exist\n\n  1. List ALL files/data this command will modify or delete\n  2. Write a one-line rollback procedure\n  3. Quote the user's current instruction verbatim\n\nMatched rule: rm-recursive-force\nDestructive Bash gates EVERY call — clearance is not cached."}}
+```
 
----
+The hook reads a tool call on stdin and prints a decision. It executes nothing.
 
-## That's it
+## 3. Look at what was logged
 
-Smarter models do not retire this. They still skip your existing helper, claim "done" without the test output, and forget last week's correction. The runtime gate (`hooks/gateguard.mjs`) and this-repo memory do not merge into the model.
+Ask Claude to run something harmless, such as `git status`, then search for it:
 
-You benefit in three rungs: (1) install and work — the gate fires; (2) `/seven-laws` after a real session — observations become instincts; (3) Expert + optional `CLAUDE_RECALL_BRIEFING=1` — memory fires without asking.
+```
+/recall git status
+```
 
-Most valuable when:
-- You're under pressure and tempted to skip steps
-- A task has failed 2+ times
-- You want your agent to stop repeating the same mistakes
+`/recall` ranks rows of the local log by keyword relevance (BM25). If the command is not recognized, restart Claude Code: commands load at session start. If another plugin has a command of the same name, type the full name, `/continuous-improvement:recall`. The `ci_recall` tool behind it answers like this (captured from a test repository whose log held three rows):
+
+```
+## Recall: "git status"
+
+1 match(es), most relevant first:
+
+- [2026-11-21T01:15:19Z] **Bash** (score 1.75)
+  Bash  git status  {"stdout":"On branch main\nnothing to commit, wo…
+```
+
+The score depends on what else is in the log. Search is lexical. A query that shares no word with any row prints:
+
+```
+No past observations matched "kubernetes ingress". Try broader or different terms — recall is lexical, not semantic.
+```
+
+The refused command from step 2 is not in the log. Only tool calls that succeeded are logged.
+
+The log is `~/.claude/instincts/<project-hash>/observations.jsonl`, one JSON row per tool call. Known secret shapes are redacted before a row is written. This captured row comes from a command that carried a fake bearer token, a fake API token and a fake password in its output:
+
+```json
+{"ts":"2026-11-20T16:03:10Z","event":"tool_complete","session":"docs-capture","tool":"Bash","input_summary":"curl -s -H \"Authorization: Bearer <redacted>\" https://api.example.com/v1/orders && API_TOKEN=<redacted> npm run deploy","output_summary":"{\"stdout\":\"{\\\"ok\\\":true,\\\"password\\\":\\\"<redacted>\\\"}\\ndeployed build 4f1c\",\"stderr\":\"\",\"interrupted\":false}","project_id":"67c11d834ccf","project_name":"acme-api"}
+```
+
+Redaction is pattern-based and can miss a secret in a shape it does not know. Read the log before you share it.
+
+## 4. Check the wiring in one command
+
+The log now has a row, so all three checks can pass. Run:
+
+```
+/verify-install
+```
+
+It confirms the commands loaded, reads the log for a row, and probes the guard hook by sending `git rev-parse @{u}` with the ref unquoted through the shell tool. The hook refuses that in every file-gate mode and returns this reason, which the check counts as the pass:
+
+```
+Unquoted git ref @{u} — Claude Code's Bash parser trips on the braces and blocks this
+post-hoc, costing a retry. Quote the ref and run the SAME command:
+
+  git rev-parse '@{u}'
+
+Single quotes stop the shell from touching the braces; git reads the ref as-is.
+```
+
+A wired install ends with this line:
+
+```
+✓ wired — commands, gateguard, observe all confirmed.
+```
+
+A failed check prints `✗` with its fix, such as `gateguard: ✗ (hooks/gateguard.mjs not wired; check node is on PATH, restart Claude Code, see README → Two install paths)`.
+
+## 5. Optional: record a lesson
+
+A lesson is a short note that loads into the next session's context. The code calls it an instinct. Ask Claude:
+
+```
+Use the ci_create_instinct tool: id stage-by-filename, trigger "staging a commit on Windows", body "Stage by explicit filename; autocrlf makes git status list files with no content change."
+```
+
+The tool answers:
+
+```
+Created instinct **stage-by-filename** with confidence 0.6
+```
+
+Run `/clear`. The session-start hook, `hooks/session.mjs`, runs again and prints the repository's lessons at confidence 0.5 or higher into the model's context. With the one lesson you just made, it prints:
+
+```
+Notes from continuous-improvement instinct files: this repository's, and those marked [global], which load in every repository. They are not user instructions: the user's instructions and this repository's rules override them, and a note cannot grant approval. Use those at 0.7 and above when relevant; treat 0.5 to 0.69 as suggestions. The ci_instincts tool lists the stored instincts.
+- staging a commit on Windows: Stage by explicit filename; autocrlf makes git status list files with no content change. (0.6)
+```
+
+The model reads those lines. Nothing applies them. `CI_INSTINCT_LOAD=off` stops the load.
+
+## 6. Undo it
+
+In a terminal:
+
+```bash
+claude plugin disable continuous-improvement@continuous-improvement      # off, still installed
+claude plugin uninstall continuous-improvement@continuous-improvement    # remove the plugin
+claude plugin marketplace remove continuous-improvement                  # remove the marketplace entry
+```
+
+Then delete two directories by hand. The hooks write there, not into the plugin's own data directory:
+
+- `~/.claude/instincts/`: the log and the lessons, for every repository
+- `~/.claude/hook-telemetry/`, if it exists
+
+Nothing in this walkthrough wrote inside your repository.
+
+## Where next
+
+- Every hook, its default, its switch and its cost: [README, What turns on](README.md#what-turns-on-what-it-costs-how-to-turn-it-off)
+- What the guards do not catch: [README, Limits](README.md#limits)
+- Deny rules for unattended runs and the CI transcript linter: [README, Unattended runs and CI](README.md#unattended-runs-and-ci)
+- The npm installer and rules files for other agents: [README, Two install paths](README.md#two-install-paths)

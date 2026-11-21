@@ -35,7 +35,7 @@ the shell tool (Bash or PowerShell) with the ref **unquoted**, exactly as writte
   load. The hook runs as `node hooks/gateguard.mjs`, so check that `node` is on
   the PATH Claude Code starts with, then restart Claude Code (hooks load on
   session start). Record
-  `gateguard: ✗ (hooks/gateguard.mjs not wired; check node is on PATH, restart Claude Code, see README → Install)`.
+  `gateguard: ✗ (hooks/gateguard.mjs not wired; check node is on PATH, restart Claude Code, see README → Two install paths)`.
 
 Do not probe with a file write. The file gate defaults to
 `CI_GATEGUARD_FILE_GATE=evidence`, which allows a new file and allows an existing
