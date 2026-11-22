@@ -12,10 +12,27 @@
  * the out-of-band phuryn/pm-skills marketplace install. See CHANGELOG [3.13.0].
  */
 
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
+import { dirname, isAbsolute, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
+import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import CLIAnything from "../lib/cli-anything.mjs";
+import {
+  isInstinctLoadOff,
+  isLessonPathAllowed,
+  LESSON_FORMATS,
+  LESSON_SCOPES,
+  lessonRoute,
+  lessonRouteNote,
+  type LessonScope,
+  projectLessonRoute,
+  readLessonSources,
+  renderForRoute,
+  renderLessonBlock,
+  renderLessons,
+} from "../lib/lesson-render.mjs";
+import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 
 interface Config {
   verbose: boolean;
@@ -68,6 +85,8 @@ class UnifiedCLI {
         return this.handleList();
       case "config":
         return this.handleConfig(args);
+      case "lessons":
+        return handleLessons(args);
       default:
         throw new Error(`Unknown command: ${command}`);
     }
@@ -138,6 +157,99 @@ class UnifiedCLI {
   }
 }
 
+const LESSONS_USAGE = `Usage: ci lessons --format <${LESSON_FORMATS.join("|")}> [--scope ${LESSON_SCOPES.join("|")}] [--write]`;
+
+function parseLessonsArgs(args: readonly string[]): { format: string; scope: LessonScope | null; write: boolean } {
+  let format: string | undefined;
+  let scope: string | undefined;
+  let write = false;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--write") write = true;
+    else if (arg === "--format") format = args[++i];
+    else if (arg.startsWith("--format=")) format = arg.slice("--format=".length);
+    else if (arg === "--scope") scope = args[++i] ?? "";
+    else if (arg.startsWith("--scope=")) scope = arg.slice("--scope=".length);
+    else throw new Error(`${LESSONS_USAGE}\nUnexpected argument: ${arg}`);
+  }
+  if (!format) throw new Error(LESSONS_USAGE);
+  if (scope !== undefined && !LESSON_SCOPES.includes(scope)) {
+    throw new Error(`${LESSONS_USAGE}\nUnknown --scope: ${JSON.stringify(scope)}. Valid: ${LESSON_SCOPES.join(", ")}`);
+  }
+  return { format, scope: (scope as LessonScope | undefined) ?? null, write };
+}
+
+// The project directory a project-scope route is written in: the root that
+// picks the instincts bucket, when it is an absolute, existing directory.
+function projectDir(): string {
+  const root = resolveProjectRoot();
+  let usable = false;
+  try {
+    usable = isAbsolute(root) && statSync(root).isDirectory();
+  } catch { }
+  if (!usable) {
+    throw new Error(`no project directory (${root}): run inside the project, or pass --scope user to write the user-level file`);
+  }
+  return root;
+}
+
+function lessonCount(block: string): number {
+  return block.split("\n").filter((line) => line.startsWith("- ")).length;
+}
+
+// `ci lessons --format <agent> [--scope project|user] [--write]`
+// (docs/plans/2026-11-21-all-agents.md, Architecture item 10). A hook agent
+// gets the SessionStart bytes its encoder writes, for this project and
+// global/, and nothing when CI_INSTINCT_LOAD is off, as hooks/session.mjs does.
+// A static route is written only with --write. By the owner decision "User-level
+// config writes" the default scope is the project: the route inside it, with
+// this project's lessons and global/. `--scope user` writes the user-level file
+// instead, with global/ only, because that file loads in every repository.
+function handleLessons(args: readonly string[]): void {
+  const { format, scope: givenScope, write } = parseLessonsArgs(args);
+  const home = resolveHomeDir();
+  if (!home) throw new Error("no home directory: set HOME or USERPROFILE");
+  const userRoute = lessonRoute(format, home, process.env, process.platform);
+  const instinctsRoot = resolveInstinctsRoot(home);
+  if (userRoute === null) {
+    const hookRoute = `${format} reads the lessons from its SessionStart hook (hooks/session.mjs --agent ${format})`;
+    if (write) throw new Error(`${hookRoute}; there is no static route to write`);
+    if (givenScope !== null) throw new Error(`${hookRoute}; --scope applies only to a static route`);
+    if (isInstinctLoadOff(process.env.CI_INSTINCT_LOAD)) return;
+    const { contents, projectCount } = readLessonSources(instinctsRoot, resolveProjectRoot());
+    process.stdout.write(renderLessons(format, renderLessonBlock(contents, projectCount), null));
+    return;
+  }
+  const scope: LessonScope = givenScope ?? "project";
+  let route = userRoute;
+  let block: string;
+  if (scope === "user") {
+    block = renderLessonBlock(readLessonSources(instinctsRoot, null).contents, 0);
+  } else {
+    const root = projectDir();
+    const projectRoute = projectLessonRoute(format, root);
+    if (projectRoute === null) throw new Error(`no project route for ${format}`);
+    route = projectRoute;
+    const { contents, projectCount } = readLessonSources(instinctsRoot, root);
+    block = renderLessonBlock(contents, projectCount);
+  }
+  if (!isLessonPathAllowed(route.path, home)) {
+    throw new Error(`refusing to write ${route.path}: nothing is written under ${join(home, ".agents")}`);
+  }
+  if (!write) {
+    process.stdout.write(renderForRoute(route, block, null));
+    console.error(`Would write ${route.path} (--scope ${scope}); pass --write to write it.`);
+    return;
+  }
+  const existing = route.mode === "managed" && existsSync(route.path) ? readFileSync(route.path, "utf8") : null;
+  const content = renderForRoute(route, block, existing);
+  mkdirSync(dirname(route.path), { recursive: true });
+  writeFileSync(route.path, content);
+  console.log(`Wrote ${lessonCount(block)} lessons to ${route.path}`);
+  const note = lessonRouteNote(format, route.path, home, process.env, scope);
+  if (note) console.log(note);
+}
+
 function parseGlobalOptions(args: string[]): ParsedOptions {
   const options: ParsedOptions = {};
 
@@ -180,6 +292,12 @@ Commands:
   list                      Show CLI-Anything capabilities
   config show               Show current configuration
   config set <key> <value>  Set a configuration value (workspace | verbose)
+  lessons --format <agent>  Print the saved lessons as <agent> reads them
+          [--write]         Write the agent's lessons rules file (grok, auggie,
+                            junie, goose, zed, aider); nothing is written without it
+          [--scope project|user]
+                            Where that file lives: the project (default), or the
+                            user-level file, written only with --scope user
 
 Global Options:
   --workspace <dir>         Workspace directory (default: ./ci-workspace)
@@ -207,7 +325,19 @@ Examples:
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// argv[1] is a native path (backslashes on Windows) and may be an npm bin
+// symlink, so compare real paths rather than a file:// string.
+function isEntryPoint(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isEntryPoint()) {
   main().catch((error: unknown) => {
     console.error(`Fatal error: ${getErrorMessage(error)}`);
     process.exit(1);

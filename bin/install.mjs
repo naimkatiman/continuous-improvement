@@ -52,7 +52,8 @@ const COMMAND_FILES = [
 // src/hooks/session.mts, including what those lib modules import in turn
 // (observe-event.mjs imports redact-secrets.mjs and agent-profiles.mjs, which
 // imports patch-paths.mjs; gateguard-state.mjs imports agent-paths.mjs;
-// hook-io.mjs imports agent-profiles.mjs); a hook with a missing import dies at
+// hook-io.mjs imports agent-profiles.mjs; lesson-render.mjs imports
+// gateguard-state, hook-io and instinct-yaml); a hook with a missing import dies at
 // module load.
 const OBSERVER_LIB_FILES = [
     "observe-event.mjs",
@@ -70,6 +71,7 @@ const SESSION_LIB_FILES = [
     "hook-io.mjs",
     "agent-profiles.mjs",
     "patch-paths.mjs",
+    "lesson-render.mjs",
 ];
 const INSTALLED_LIB_FILES = Array.from(new Set([...OBSERVER_LIB_FILES, ...SESSION_LIB_FILES]));
 // Where the session hook was installed before it moved to instincts/hooks.

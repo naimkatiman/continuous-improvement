@@ -188,6 +188,8 @@ async function writePluginBundle() {
         copyFileTo(join(REPO_ROOT, "lib", "resolve-home-dir.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "resolve-home-dir.mjs")),
         // Imported by both bin/mcp-server.mjs and hooks/session.mjs.
         copyFileTo(join(REPO_ROOT, "lib", "instinct-yaml.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "instinct-yaml.mjs")),
+        // The lesson block, imported by hooks/session.mjs.
+        copyFileTo(join(REPO_ROOT, "lib", "lesson-render.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "lesson-render.mjs")),
         copyFileTo(join(REPO_ROOT, "lib", "observe-event.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "observe-event.mjs")),
         // Imported by both observe-event.mjs and recall-index.mjs.
         copyFileTo(join(REPO_ROOT, "lib", "redact-secrets.mjs"), join(PLUGIN_BUNDLE_DIR, "lib", "redact-secrets.mjs")),
