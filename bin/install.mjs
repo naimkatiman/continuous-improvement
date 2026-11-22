@@ -712,8 +712,8 @@ Options for 'install':
                       zed       — .rules
                       aider     — CONVENTIONS.md + .aider.conf.yml
                       copilot   — .github/copilot-instructions.md
-                    Non-claude targets write the 7-Laws skill text into the
-                    current project; hooks/MCP/instincts stay Claude Code-only.
+                    Non-claude targets write the 7-Laws rules file into the
+                    current project; add --hooks to install the guard as well.
   --hooks           With --target codex, qwen, grok, devin (windsurf), droid,
                     gemini, cursor, copilot, kiro, auggie, junie, goose or cline:
                     also install that agent's hooks and MCP server, pointing at
@@ -842,7 +842,7 @@ if (args.includes("--uninstall")) {
 }
 // --target <names>: comma-separated platform list, default claude-only.
 // Non-claude targets receive the skill text in their platform's rules file
-// (project-level); the full hook/MCP/instinct install stays Claude Code-only.
+// (project-level); --hooks (handled above) installs the guard for them.
 const targetFlagIndex = rawArgs.indexOf("--target");
 let requestedTargets = ["claude"];
 if (targetFlagIndex !== -1) {

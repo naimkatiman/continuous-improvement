@@ -25,8 +25,11 @@ npm version X.Y.Z --no-git-tag-version
 # Update all four release markers in docs/landing/index.html to X.Y.Z.
 npm run build
 npm run verify:landing-version
+node bin/capture-readme-demos.mjs            # the README demos name the runtime path, so they change with the version
+node bin/render-readme-assets.mjs --write
 git add package.json package-lock.json \
   docs/landing/index.html \
+  demo/captures/demos.json assets/readme/*.svg \
   .claude-plugin/marketplace.json \
   plugins/continuous-improvement/.claude-plugin/marketplace.json \
   plugins/continuous-improvement/.claude-plugin/plugin.json \
@@ -36,6 +39,8 @@ git commit -m "chore(release): cut vX.Y.Z"
 git push -u origin chore/release-vX.Y.Z
 gh pr create --title "chore(release): cut vX.Y.Z" --body "Release bump for X.Y.Z."
 ```
+
+The README images are drawn from `demo/captures/demos.json`, which records the package version it ran on. Skip the capture and `src/test/render-readme-assets.test.mts` fails: the capture's version is not the one in `package.json`.
 
 If you forget `npm run build`, CI fails at `git diff --exit-code -- .claude-plugin bin test lib plugins`. Loud failure, not silent — just rebuild, restage the regenerated files, and push a new commit.
 

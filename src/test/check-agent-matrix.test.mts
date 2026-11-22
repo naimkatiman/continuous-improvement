@@ -23,6 +23,7 @@ import {
   type AgentSupport,
 } from "../lib/agent-support.mjs";
 import {
+  AGENT_MAP_SVG,
   BLOCK_END,
   BLOCK_START,
   CHANGELOG_FILE,
@@ -30,6 +31,9 @@ import {
   changelogClaims,
   checkAgentMatrix,
   findBlockingClaims,
+  headingAnchor,
+  renderAgentMapSvg,
+  renderReadmeTierMarkdown,
   renderSupportDoc,
   renderTierHtml,
   renderTierMarkdown,
@@ -353,7 +357,7 @@ describe("checkAgentMatrix", () => {
   it("reports every stale surface, then passes after --write", () => {
     const root = fixtureRepo();
     const before = checkAgentMatrix(root).join("\n");
-    for (const what of ["docs/AGENT-SUPPORT.md", "README.md", "docs/landing/index.html", "compatibleWith", "version"]) {
+    for (const what of ["docs/AGENT-SUPPORT.md", "README.md", "docs/landing/index.html", "assets/readme/agents-map.svg", "compatibleWith", "version"]) {
       assert.match(before, new RegExp(what.replace(/[.]/g, "\\.")), what);
     }
     writeAgentMatrix(root);
@@ -376,6 +380,14 @@ describe("checkAgentMatrix", () => {
     writeAgentMatrix(root);
     writeFileSync(join(root, "QUICKSTART.md"), "# q\n\nThe guard blocks rm -rf in Aider too.\n");
     assert.match(checkAgentMatrix(root).join("\n"), /QUICKSTART\.md:3: .*Aider/);
+  });
+
+  it("fails when the agents map is edited by hand", () => {
+    const root = fixtureRepo();
+    writeAgentMatrix(root);
+    const path = join(root, AGENT_MAP_SVG);
+    writeFileSync(path, readFileSync(path, "utf8").replace("Cursor", "Zed"));
+    assert.match(checkAgentMatrix(root).join("\n"), /assets\/readme\/agents-map\.svg: differs from the rows/);
   });
 
   it("passes on this repository", () => {
@@ -683,5 +695,67 @@ describe("the Gemini row describes the settings.json install", () => {
     assert.doesNotMatch(gemini!.cannot, /hooks\.json/);
     assert.match(gemini!.cannot, /No CLI command lists the hooks/);
     assert.match(gemini!.cannot, /\/hooks panel/);
+  });
+});
+
+// Owner, 2026-11-22: the README names only the agents it works on. The README
+// tier table and its map keep the rows that block a destructive command; the
+// support doc and the landing table keep every row.
+describe("the README lists only the agents where the guard blocks", () => {
+  const blind = AGENT_SUPPORT.filter((r) => !blocksPreTool(r));
+  const working = AGENT_SUPPORT.filter((r) => blocksPreTool(r));
+
+  it("leaves the non-blocking rows out of the README table", () => {
+    assert.deepEqual(blind.map((r) => r.names[0]), ["Kiro IDE", "Zed", "Aider"]);
+    const md = renderReadmeTierMarkdown(AGENT_SUPPORT);
+    for (const r of blind) assert.ok(!md.includes(`| ${r.names[0]} |`), `${r.id} is listed in the README table`);
+    for (const r of working) assert.ok(md.includes(`| ${r.names[0]} |`), `${r.id} is missing from the README table`);
+    assert.equal(md.split("\n").length, 2 + working.length);
+  });
+
+  it("keeps every row, the three non-blocking ones included, in the support doc and the landing table", () => {
+    const doc = renderSupportDoc(AGENT_SUPPORT);
+    const html = renderTierHtml(AGENT_SUPPORT);
+    assert.equal(AGENT_SUPPORT.length, 19);
+    for (const r of AGENT_SUPPORT) {
+      assert.ok(doc.includes(`### ${r.names[0]}`), `${r.id} section`);
+      assert.ok(html.includes(r.names[0]!), `${r.id} landing row`);
+    }
+    assert.equal(renderTierMarkdown(AGENT_SUPPORT).split("\n").length, 2 + AGENT_SUPPORT.length);
+  });
+
+  it("does not frame the support doc as Claude Code first", () => {
+    assert.doesNotMatch(renderSupportDoc(AGENT_SUPPORT), /Claude Code first/);
+  });
+
+  // The map carries names under the tier meanings; each condition is in the
+  // README table under it and in the image description.
+  it("draws one chip per blocking row in the agents map, names the surface, and keeps each condition in the table and the description", () => {
+    const svg = renderAgentMapSvg(AGENT_SUPPORT);
+    for (const r of working) assert.ok(svg.includes(`>${r.names[0]}</text>`), `${r.id} chip`);
+    for (const r of blind) assert.ok(!svg.includes(r.names[0]!), `${r.id} is drawn`);
+    assert.match(svg, />Kiro CLI<\/text>/);
+    assert.doesNotMatch(svg, />Kiro<\/text>/);
+    assert.match(/<desc id="desc">[^<]*<\/desc>/.exec(svg)![0], /Early Access build/);
+    assert.match(renderReadmeTierMarkdown(AGENT_SUPPORT), /\| Junie CLI \| `junie` \(add `--scope user`\) \| partial \| yes, on the Early Access build \|/);
+    assert.doesNotMatch(svg, /agent-support\.mts/, "no source-file jargon in the image");
+  });
+
+  it("links each README row to its section in the support doc", () => {
+    const md = renderReadmeTierMarkdown(AGENT_SUPPORT);
+    const doc = renderSupportDoc(AGENT_SUPPORT);
+    for (const r of working) {
+      const anchor = headingAnchor(r.names[0]!);
+      assert.ok(md.includes(`(docs/AGENT-SUPPORT.md#${anchor})`), `${r.id} link`);
+      assert.ok(doc.split("\n").some((line) => line.startsWith("### ") && headingAnchor(line.slice(4)) === anchor), `${r.id} anchor exists`);
+    }
+  });
+
+  it("draws an image GitHub and npm can show: a title, a dark scheme, and no script, font or link", () => {
+    const svg = renderAgentMapSvg(AGENT_SUPPORT);
+    assert.match(svg, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg"/);
+    assert.match(svg, /<title id="title">[^<]+<\/title>/);
+    assert.match(svg, /@media \(prefers-color-scheme:dark\)/);
+    assert.doesNotMatch(svg, /<script|@import|@font-face|href=|url\(/i);
   });
 });

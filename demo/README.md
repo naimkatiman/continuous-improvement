@@ -5,7 +5,7 @@ Reproducible sources for the marketing/discovery images. Both render to exactly 
 | Source | Renders to | Used for |
 |---|---|---|
 | [`social-card.html`](social-card.html) | `assets/social-preview.png` | GitHub repo **Social preview** (Settings) + link-share Open Graph card |
-| [`gateguard-demo.html`](gateguard-demo.html) | `assets/gateguard-demo.png` | The "See it in action" demo image in the README |
+| [`gateguard-demo.html`](gateguard-demo.html) | `assets/gateguard-demo.png` | A still of the gateguard deny. The README does not use it; its images are under "README images" below |
 
 ## Regenerate the PNGs
 
@@ -45,4 +45,17 @@ agg gateguard.cast assets/gateguard-demo.gif      # github.com/asciinema/agg
 # or use charmbracelet/vhs with a .tape script for a fully scripted capture
 ```
 
-Then swap the README hero (`assets/combined.gif`) or the "See it in action" image to the animated `gateguard-demo.gif`.
+The README does not use `assets/combined.gif` or `gateguard-demo.png`. Its images are the SVGs below, drawn from captured runs.
+
+## README images
+
+The README's images live in `assets/readme/` and are drawn by code, not by hand:
+
+```bash
+npm run build
+node bin/capture-readme-demos.mjs        # runs the hooks in a temp HOME, writes demo/captures/demos.json
+node bin/render-readme-assets.mjs --write # draws the terminal cards and diagrams from it
+node bin/check-agent-matrix.mjs --write   # draws assets/readme/agents-map.svg from src/lib/agent-support.mts
+```
+
+`src/test/render-readme-assets.test.mts` fails when a committed image differs from what its data draws, when a card shows a line the capture does not hold, and when the capture no longer matches what the hooks print. GitHub and npm load these images from the default branch, so merge an image change before the release that needs it.

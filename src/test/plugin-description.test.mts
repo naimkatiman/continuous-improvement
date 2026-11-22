@@ -113,13 +113,15 @@ describe("package description (npm and llms.txt)", () => {
     );
   });
 
-  // PR 17 of the all-agents train changed the positioning on purpose: guardrails
-  // for coding agents, Claude Code first. "for Claude Code" now qualifies the npx
-  // sentence above, because `--target <agent> --hooks` does install the guard for
-  // other agents. The count it states comes from the support table, so it cannot
-  // drift from the agents the tier table says can block.
+  // PR 17 of the all-agents train changed the positioning on purpose, and the
+  // owner changed it again on 2026-11-22: guardrails for coding agents, with no
+  // agent named first. "for Claude Code" qualifies the npx sentence above,
+  // because `--target <agent> --hooks` does install the guard for other agents.
+  // The count it states comes from the support table, so it cannot drift from
+  // the agents the tier table says can block.
   it("leads with the positioning and states how many other agents can block, from lib/agent-support.mjs", () => {
-    assert.match(pkg.description, /^Guardrails for coding agents, Claude Code first\. /);
+    assert.match(pkg.description, /^Guardrails for coding agents\. /);
+    assert.doesNotMatch(pkg.description, /Claude Code first/);
     const others = AGENT_SUPPORT.filter((row) => row.id !== "claude" && blocksPreTool(row)).length;
     assert.ok(
       pkg.description.includes(`\`--target <agent> --hooks\` installs the guard for ${others} other agents that can block a tool call`),

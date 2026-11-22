@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 560" width="640" height="560" role="img" aria-labelledby="title desc">
+<title id="title">Codex CLI: an edit before a read is refused</title>
+<desc id="desc">Codex CLI sends an apply_patch of src/app.ts before reading it and the guard denies it; after a logged read the same patch is allowed.</desc>
+<style>text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif}.mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace}.b{font-weight:600}.bg{fill:#ffffff}.panel{fill:#f6f8fa;stroke:#d0d7de}.rule{stroke:#d0d7de}.tx{fill:#1f2328}.mute{fill:#59636e}.deny{fill:#cf222e}.deny-bg{fill:#ffebe9;stroke:#cf222e}.ok{fill:#1a7f37}.ok-bg{fill:#dafbe1;stroke:#1a7f37}.accent{fill:#0969da}.accent-bg{fill:#ddf4ff;stroke:#0969da}.warn{fill:#9a6700}.warn-bg{fill:#fff8c5;stroke:#9a6700}.arrow{stroke:#59636e;fill:none}.head{fill:#59636e}@media (prefers-color-scheme:dark){.bg{fill:#0d1117}.panel{fill:#161b22;stroke:#3d444d}.rule{stroke:#3d444d}.tx{fill:#f0f6fc}.mute{fill:#9198a1}.deny{fill:#ff7b72}.deny-bg{fill:#3d1214;stroke:#ff7b72}.ok{fill:#3fb950}.ok-bg{fill:#12301c;stroke:#3fb950}.accent{fill:#58a6ff}.accent-bg{fill:#0c2d5a;stroke:#58a6ff}.warn{fill:#d29922}.warn-bg{fill:#3a2a07;stroke:#d29922}.arrow{stroke:#9198a1;fill:none}.head{fill:#9198a1}}</style>
+<rect x="0" y="0" width="640" height="560" rx="12" class="bg"/>
+<text x="24" y="46" font-size="22" class="tx b" xml:space="preserve">Codex CLI: an edit before a read is refused</text>
+<rect x="24" y="62" width="592" height="474" rx="8" class="panel"/>
+<text x="40" y="102" font-size="18" class="tx b" xml:space="preserve">1. the session's first call, git status, is logged</text>
+<text x="40" y="134" font-size="18" class="mute mono" xml:space="preserve">bin/observe.mjs: exit 0, no output</text>
+<line x1="40" y1="148" x2="600" y2="148" class="rule" stroke-width="1"/>
+<text x="40" y="178" font-size="18" class="tx b" xml:space="preserve">2. edit src/app.ts before reading it</text>
+<text x="40" y="210" font-size="18" class="tx mono" xml:space="preserve">tool call: apply_patch</text>
+<text x="40" y="236" font-size="18" class="deny mono" xml:space="preserve"><tspan class="b">&quot;permissionDecision&quot;:&quot;deny&quot;</tspan></text>
+<text x="40" y="262" font-size="18" class="tx mono" xml:space="preserve">This session's observation log shows no read of</text>
+<text x="40" y="288" font-size="18" class="tx mono" xml:space="preserve">  ~/project/src/app.ts. Read it, then retry the</text>
+<text x="40" y="314" font-size="18" class="tx mono" xml:space="preserve">  same call.</text>
+<line x1="40" y1="328" x2="600" y2="328" class="rule" stroke-width="1"/>
+<text x="40" y="358" font-size="18" class="tx b" xml:space="preserve">3. the read of src/app.ts is logged</text>
+<text x="40" y="390" font-size="18" class="tx mono" xml:space="preserve">$ cat ~/project/src/app.ts</text>
+<text x="40" y="416" font-size="18" class="mute mono" xml:space="preserve">bin/observe.mjs: exit 0, no output</text>
+<line x1="40" y1="430" x2="600" y2="430" class="rule" stroke-width="1"/>
+<text x="40" y="460" font-size="18" class="tx b" xml:space="preserve">4. the same edit again</text>
+<text x="40" y="492" font-size="18" class="ok mono" xml:space="preserve"><tspan class="b">hooks/gateguard.mjs: exit 0, no output</tspan></text>
+<text x="40" y="518" font-size="18" class="ok" xml:space="preserve">so the patch goes through</text>
+</svg>

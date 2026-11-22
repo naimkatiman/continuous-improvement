@@ -9,7 +9,12 @@
  *
  *   - docs/AGENT-SUPPORT.md is rendered from the rows, whole.
  *   - README.md and docs/landing/index.html carry the tier table between
- *     `<!-- agent-matrix:start -->` and `<!-- agent-matrix:end -->`.
+ *     `<!-- agent-matrix:start -->` and `<!-- agent-matrix:end -->`. The
+ *     README lists only the rows that block a destructive command (the owner's
+ *     2026-11-22 call: the README names the agents it works on); the landing
+ *     table and docs/AGENT-SUPPORT.md keep every row.
+ *   - assets/readme/agents-map.svg, the README's map of those same rows, is
+ *     rendered from them byte for byte.
  *   - .cloudplugin/marketplace.json carries compatibleWith from the rows and
  *     the package.json version (the build writes both).
  *   - No sentence in README.md, QUICKSTART.md, llms.txt, docs/AGENT-SUPPORT.md
@@ -40,8 +45,8 @@
  *   1 — at least one violation
  */
 
-import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { argv, cwd, exit } from "node:process";
 
 import { HOOK_AGENT_IDS, PLUGIN_AGENT_IDS } from "../lib/agent-install-plans.mjs";
@@ -52,9 +57,11 @@ import {
   supportTier,
   type AgentSupport,
 } from "../lib/agent-support.mjs";
+import { IMAGE_WIDTH, PAD, charsFit, rect, richText, svgDocument, text, wrap } from "../lib/readme-svg.mjs";
 
 export const SUPPORT_DOC = "docs/AGENT-SUPPORT.md";
 export const CLOUDPLUGIN = ".cloudplugin/marketplace.json";
+export const AGENT_MAP_SVG = "assets/readme/agents-map.svg";
 export const BLOCK_START = "<!-- agent-matrix:start -->";
 export const BLOCK_END = "<!-- agent-matrix:end -->";
 export const CLAIM_SCAN_FILES: readonly string[] = ["README.md", "QUICKSTART.md", "llms.txt", SUPPORT_DOC, "docs/landing/index.html"];
@@ -387,7 +394,7 @@ export function renderSupportDoc(rows: readonly AgentSupport[] = AGENT_SUPPORT):
     "",
     "# Agent support",
     "",
-    "continuous-improvement is guardrails for coding agents, built for Claude Code first. This page is the promise for every other agent: what the guard does there, how saved lessons reach the model, and what the agent cannot do. Nothing here goes beyond what the 2026-11-21 research verified, with the skeptic corrections applied ([plan](plans/2026-11-21-all-agents.md)).",
+    "continuous-improvement is guardrails for coding agents. This page is the promise for each agent: what the guard does there, how saved lessons reach the model, and what the agent cannot do. Nothing here goes beyond what the 2026-11-21 research verified, with the skeptic corrections applied ([plan](plans/2026-11-21-all-agents.md)).",
     "",
     "## What the tiers mean",
     "",
@@ -435,10 +442,88 @@ function packageVersion(repoRoot: string): string | null {
   }
 }
 
+/** GitHub's anchor for a heading: lower case, punctuation dropped, spaces to hyphens. */
+export function headingAnchor(heading: string): string {
+  return heading.toLowerCase().replace(/[^\p{L}\p{N} _-]/gu, "").replace(/ /g, "-");
+}
+
+/** The README's `--target` cell: the id and any extra flag the install needs, or the plugin for Claude Code. */
+function targetCell(row: AgentSupport): string {
+  const match = /--target (\S+)(.*)$/.exec(row.install[0] ?? "");
+  if (!match) return "plugin, see [Install](#install)";
+  const extra = match[2]!.replace(/\s*--hooks\b/, "").trim();
+  return `\`${match[1]}\`${extra === "" ? "" : ` (add \`${extra}\`)`}`;
+}
+
+/**
+ * The README tier table: only the rows that block a destructive command. Each
+ * row links to its section in the support doc, which keeps the install
+ * commands, the follow-up step and what the agent cannot do.
+ */
+export function renderReadmeTierMarkdown(rows: readonly AgentSupport[] = AGENT_SUPPORT): string {
+  const lines = [
+    "| Agent | `--target` | Tier | Blocks a destructive command | Lessons at session start | MCP server | Setup and limits |",
+    "|---|---|---|---|---|---|---|",
+    ...rows.filter((row) => blocksPreTool(row)).map((row) =>
+      `| ${row.names[0]} | ${targetCell(row)} | ${supportTier(row)} | ${row.blocks} | ${LESSONS[row.lessons]} | ${row.mcp ? "yes" : "no"} | [details](${SUPPORT_DOC}#${headingAnchor(row.names[0]!)}) |`),
+  ];
+  return lines.join("\n");
+}
+
 const BLOCK_RENDERERS: ReadonlyArray<readonly [string, (rows: readonly AgentSupport[]) => string]> = [
-  ["README.md", renderTierMarkdown],
+  ["README.md", renderReadmeTierMarkdown],
   ["docs/landing/index.html", renderTierHtml],
 ];
+
+const MAP_GROUPS: ReadonlyArray<readonly [ReturnType<typeof supportTier>, string, string]> = [
+  ["full", "Full", "blocks, loads lessons at session start, has a Stop gate"],
+  ["partial", "Partial", "blocks; session lessons or the Stop gate are missing"],
+];
+
+/**
+ * assets/readme/agents-map.svg: one chip per row that blocks a destructive
+ * command, grouped by tier under the tier's meaning. The chips carry names
+ * only; the README table under the map carries each agent's condition.
+ */
+export function renderAgentMapSvg(rows: readonly AgentSupport[] = AGENT_SUPPORT): string {
+  const working = rows.filter((row) => blocksPreTool(row));
+  const nameSize = 20;
+  const chipH = 42;
+  const gapX = 10;
+  const gapY = 10;
+  const body: string[] = [];
+  let y = PAD;
+  for (const [tier, heading, meaning] of MAP_GROUPS) {
+    const group = working.filter((row) => supportTier(row) === tier);
+    if (group.length === 0) continue;
+    body.push(richText(PAD, y + 20, 20, "tx", [{ text: `${heading}: `, bold: true }, { text: meaning }]));
+    y += 34;
+    let x = PAD;
+    for (const row of group) {
+      const name = row.names[0] ?? row.id;
+      const w = Math.ceil(name.length * nameSize * 0.6) + 32;
+      if (x + w > IMAGE_WIDTH - PAD) {
+        x = PAD;
+        y += chipH + gapY;
+      }
+      body.push(rect(x, y, w, chipH, "ok-bg", 21));
+      body.push(text(x + w / 2, y + 28, nameSize, "tx b", name, "middle"));
+      x += w + gapX;
+    }
+    y += chipH + 26;
+  }
+  for (const line of wrap("When each one blocks: the table below. Every other agent: docs/AGENT-SUPPORT.md", charsFit(IMAGE_WIDTH - 2 * PAD, 18, "sans"))) {
+    body.push(text(PAD, y + 4, 18, "mute", line));
+    y += 26;
+  }
+  y += PAD - 12;
+  return svgDocument({
+    height: y,
+    title: "Where the guard blocks a destructive command",
+    desc: `${working.length} agents grouped by tier. ${MAP_GROUPS.map(([tier]) => `${tier}: ${working.filter((row) => supportTier(row) === tier).map((row) => `${row.names[0]} (${row.blocks})`).join(", ")}`).join(". ")}.`,
+    body,
+  });
+}
 
 function claimViolation(claim: Claim): string {
   return `${claim.file}:${claim.line}: ${claim.reason ?? "claims blocking for an agent that cannot block"}: "${claim.text}"`;
@@ -462,6 +547,10 @@ export function checkAgentMatrix(repoRoot: string, rows: readonly AgentSupport[]
     if (want === null) out.push(`${file}: needs exactly one ${BLOCK_START} ... ${BLOCK_END} marker pair`);
     else if (want !== text.replace(/\r\n/g, "\n")) out.push(`${file}: the tier table differs from the rows; ${REGENERATE}`);
   }
+
+  const map = read(repoRoot, AGENT_MAP_SVG);
+  if (map === null) out.push(`${AGENT_MAP_SVG}: missing; ${REGENERATE}`);
+  else if (map.replace(/\r\n/g, "\n") !== renderAgentMapSvg(rows)) out.push(`${AGENT_MAP_SVG}: differs from the rows; ${REGENERATE}`);
 
   const version = packageVersion(repoRoot);
   const manifest = read(repoRoot, CLOUDPLUGIN);
@@ -505,6 +594,9 @@ export function writeAgentMatrix(repoRoot: string, rows: readonly AgentSupport[]
     writeFileSync(join(repoRoot, file), next);
     written.push(file);
   }
+  mkdirSync(dirname(join(repoRoot, AGENT_MAP_SVG)), { recursive: true });
+  writeFileSync(join(repoRoot, AGENT_MAP_SVG), renderAgentMapSvg(rows));
+  written.push(AGENT_MAP_SVG);
   const version = packageVersion(repoRoot);
   const manifest = read(repoRoot, CLOUDPLUGIN);
   if (version !== null && manifest !== null) {
@@ -523,7 +615,7 @@ function main(): void {
   }
   const violations = checkAgentMatrix(repoRoot);
   if (violations.length === 0) {
-    console.log(`OK agent-matrix: ${AGENT_SUPPORT.length} rows; ${SUPPORT_DOC}, the README and landing tier tables and ${CLOUDPLUGIN} match the rows, and no scanned doc or ${CHANGELOG_FILE} [Unreleased] lead claims blocking for an agent that cannot block, or leaves out a condition or surface.`);
+    console.log(`OK agent-matrix: ${AGENT_SUPPORT.length} rows; ${SUPPORT_DOC}, the README and landing tier tables, ${AGENT_MAP_SVG} and ${CLOUDPLUGIN} match the rows, and no scanned doc or ${CHANGELOG_FILE} [Unreleased] lead claims blocking for an agent that cannot block, or leaves out a condition or surface.`);
     exit(0);
   }
   console.error(`FAIL agent-matrix: ${violations.length} violation(s).\n`);
