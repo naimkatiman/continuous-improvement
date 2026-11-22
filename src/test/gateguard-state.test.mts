@@ -6,9 +6,10 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { after, before, describe, it } from "node:test";
 
 import {
@@ -23,6 +24,8 @@ import {
   markFileCleared,
   resolveMaxClearedFiles,
   resolveSessionDir,
+  saveState,
+  writeFileAtomic,
 } from "../lib/gateguard-state.mjs";
 
 describe("resolveMaxClearedFiles", () => {
@@ -306,5 +309,230 @@ describe("clearFiles shared writer", () => {
     } finally {
       rmSync(capDir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("writeFileAtomic", () => {
+  let dir = "";
+
+  before(() => {
+    dir = mkdtempSync(join(tmpdir(), "gg-atomic-"));
+  });
+
+  after(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  function codedError(code: string): NodeJS.ErrnoException {
+    const err = new Error(`${code}: simulated rename failure`) as NodeJS.ErrnoException;
+    err.code = code;
+    return err;
+  }
+
+  // Throws one simulated error per queued code, then does a real move, and
+  // records every (from, to) pair so a test can see where the temp file was.
+  function flakyRename(failures: string[]): {
+    calls: Array<[string, string]>;
+    rename: (from: string, to: string) => void;
+  } {
+    const calls: Array<[string, string]> = [];
+    const queue = [...failures];
+    return {
+      calls,
+      rename: (from, to) => {
+        calls.push([from, to]);
+        const code = queue.shift();
+        if (code) throw codedError(code);
+        writeFileSync(to, readFileSync(from));
+        rmSync(from);
+      },
+    };
+  }
+
+  function leftovers(target: string): string[] {
+    return readdirSync(dirname(target)).filter((name) => name !== "state.json");
+  }
+
+  it("writes the data and leaves no temp file behind", () => {
+    const sub = mkdtempSync(join(dir, "plain-"));
+    const target = join(sub, "state.json");
+    writeFileAtomic(target, "{\"a\":1}\n");
+    assert.equal(readFileSync(target, "utf8"), "{\"a\":1}\n");
+    assert.deepEqual(leftovers(target), []);
+  });
+
+  it("writes the temp file in the target's directory and renames it over the target", () => {
+    const sub = mkdtempSync(join(dir, "same-dir-"));
+    const target = join(sub, "state.json");
+    const fake = flakyRename([]);
+    writeFileAtomic(target, "x", fake.rename);
+    assert.equal(fake.calls.length, 1);
+    const [from, to] = fake.calls[0];
+    assert.equal(to, target);
+    assert.notEqual(from, target);
+    assert.equal(dirname(from), dirname(target), "a cross-directory rename is not atomic");
+  });
+
+  for (const code of ["EPERM", "EBUSY"]) {
+    it(`retries the rename on ${code} and succeeds`, () => {
+      const sub = mkdtempSync(join(dir, `retry-${code}-`));
+      const target = join(sub, "state.json");
+      const fake = flakyRename([code]);
+      writeFileAtomic(target, "after", fake.rename);
+      assert.equal(fake.calls.length, 2);
+      assert.equal(readFileSync(target, "utf8"), "after");
+      assert.deepEqual(leftovers(target), []);
+    });
+  }
+
+  it("keeps retrying with backoff and succeeds on the third retry", () => {
+    const sub = mkdtempSync(join(dir, "thrice-"));
+    const target = join(sub, "state.json");
+    const fake = flakyRename(["EPERM", "EBUSY", "EPERM"]);
+    writeFileAtomic(target, "after", fake.rename);
+    assert.equal(fake.calls.length, 4);
+    assert.equal(readFileSync(target, "utf8"), "after");
+    assert.deepEqual(leftovers(target), []);
+  });
+
+  it("throws after the last retry, keeps the old file and removes the temp file", () => {
+    const sub = mkdtempSync(join(dir, "exhausted-"));
+    const target = join(sub, "state.json");
+    writeFileSync(target, "before");
+    const fake = flakyRename(["EPERM", "EPERM", "EPERM", "EPERM"]);
+    assert.throws(() => writeFileAtomic(target, "after", fake.rename), { code: "EPERM" });
+    assert.equal(fake.calls.length, 4, "one try and three retries");
+    assert.equal(readFileSync(target, "utf8"), "before");
+    assert.deepEqual(leftovers(target), []);
+  });
+
+  for (const code of ["EACCES", "ENOENT", "EXDEV"]) {
+    it(`does not retry ${code}, throws it and removes the temp file`, () => {
+      const sub = mkdtempSync(join(dir, `noretry-${code}-`));
+      const target = join(sub, "state.json");
+      writeFileSync(target, "before");
+      const fake = flakyRename([code]);
+      assert.throws(() => writeFileAtomic(target, "after", fake.rename), { code });
+      assert.equal(fake.calls.length, 1);
+      assert.equal(readFileSync(target, "utf8"), "before");
+      assert.deepEqual(leftovers(target), []);
+    });
+  }
+
+  it("does not retry an error that carries no code", () => {
+    const sub = mkdtempSync(join(dir, "nocode-"));
+    const target = join(sub, "state.json");
+    let calls = 0;
+    const rename = (): void => {
+      calls += 1;
+      throw new Error("no code");
+    };
+    assert.throws(() => writeFileAtomic(target, "after", rename), /no code/);
+    assert.equal(calls, 1);
+    assert.deepEqual(leftovers(target), []);
+  });
+});
+
+describe("saveState concurrency", () => {
+  let dir = "";
+  const libUrl = new URL("../lib/gateguard-state.mjs", import.meta.url).href;
+
+  before(() => {
+    dir = mkdtempSync(join(tmpdir(), "gg-race-"));
+  });
+
+  after(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("keeps the on-disk format: pretty JSON with a trailing newline", () => {
+    const sub = mkdtempSync(join(dir, "format-"));
+    const state = { created_at: "2026-11-21T00:00:00.000Z", cleared_files: { "d:/a.ts": { cleared_at: "t" } } };
+    saveState(sub, state);
+    assert.equal(readFileSync(join(sub, "gateguard-session.json"), "utf8"), `${JSON.stringify(state, null, 2)}\n`);
+    assert.deepEqual(readdirSync(sub), ["gateguard-session.json"]);
+  });
+
+  function runNode(script: string, args: string[]): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const child = spawn(process.execPath, ["--input-type=module", "-e", script, ...args], {
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      let out = "";
+      let err = "";
+      child.stdout.on("data", (chunk: Buffer) => (out += chunk.toString()));
+      child.stderr.on("data", (chunk: Buffer) => (err += chunk.toString()));
+      child.on("error", reject);
+      child.on("close", (code) => (code === 0 ? resolve(out) : reject(new Error(`exit ${code}: ${err}`))));
+    });
+  }
+
+  // Each writer saves a large state whose every value names the writer, so a
+  // torn read fails JSON.parse and an interleaved one mixes writer ids. A
+  // writer error (a rename that still loses to a reader after its retries)
+  // is counted and tolerated: a lost cache write is the hook's existing policy,
+  // a torn file is not.
+  const KEYS = 3000;
+  const ROUNDS = 60;
+  const WRITER = `
+    const [url, sessionDir, id, rounds, keys] = process.argv.slice(1);
+    const { saveState } = await import(url);
+    const cleared_files = {};
+    for (let i = 0; i < Number(keys); i++) cleared_files["w" + id + "/" + "f".repeat(20) + i + ".ts"] = { cleared_at: "w" + id };
+    let failed = 0;
+    for (let r = 0; r < Number(rounds); r++) {
+      try { saveState(sessionDir, { created_at: new Date().toISOString(), cleared_files }); } catch { failed++; }
+    }
+    process.stdout.write(JSON.stringify({ failed }));
+  `;
+  const READER = `
+    const { existsSync, readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const [sessionDir, keys] = process.argv.slice(1);
+    const target = join(sessionDir, "gateguard-session.json");
+    const stop = join(sessionDir, "stop");
+    const verdict = (raw) => {
+      let parsed;
+      try { parsed = JSON.parse(raw); } catch { return "torn"; }
+      const values = Object.values(parsed.cleared_files ?? {});
+      if (values.length === 0) return "seed";
+      const ids = new Set(values.map((v) => v.cleared_at));
+      return ids.size === 1 && values.length === Number(keys) ? "whole" : "interleaved";
+    };
+    const counts = { whole: 0, seed: 0, torn: 0, interleaved: 0, readError: 0 };
+    while (!existsSync(stop)) {
+      let raw;
+      try { raw = readFileSync(target, "utf8"); } catch { counts.readError++; continue; }
+      counts[verdict(raw)]++;
+    }
+    process.stdout.write(JSON.stringify(counts));
+  `;
+
+  it("concurrent writers never leave a truncated or interleaved file", async () => {
+    const sessionDir = mkdtempSync(join(dir, "race-"));
+    const target = join(sessionDir, "gateguard-session.json");
+    saveState(sessionDir, { created_at: new Date().toISOString(), cleared_files: {} });
+    const reader = runNode(READER, [sessionDir, String(KEYS)]);
+    const writers = ["1", "2", "3", "4"].map((id) => runNode(WRITER, [libUrl, sessionDir, id, String(ROUNDS), String(KEYS)]));
+    const results = (await Promise.all(writers)).map((out) => JSON.parse(out) as { failed: number });
+    writeFileSync(join(sessionDir, "stop"), "");
+    const counts = JSON.parse(await reader) as Record<string, number>;
+    const seen = JSON.stringify({ counts, results });
+
+    assert.equal(counts.torn, 0, `torn reads: ${seen}`);
+    assert.equal(counts.interleaved, 0, `interleaved reads: ${seen}`);
+    assert.ok(counts.whole > 0, `the reader never saw a complete state: ${seen}`);
+    const failed = results.reduce((sum, r) => sum + r.failed, 0);
+    assert.ok(failed < results.length * ROUNDS, `every write failed: ${seen}`);
+
+    const final = JSON.parse(readFileSync(target, "utf8")) as {
+      cleared_files: Record<string, { cleared_at: string }>;
+    };
+    const values = Object.values(final.cleared_files);
+    assert.equal(values.length, KEYS);
+    assert.equal(new Set(values.map((v) => v.cleared_at)).size, 1, "the final file holds one writer's state");
+    const strays = readdirSync(sessionDir).filter((name) => name !== "gateguard-session.json" && name !== "stop");
+    assert.deepEqual(strays, [], "no temp files left behind");
+    assert.equal(existsSync(target), true);
   });
 });

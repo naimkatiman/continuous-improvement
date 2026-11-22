@@ -26,7 +26,7 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it, before, after } from "node:test";
@@ -1051,5 +1051,45 @@ describe("hooks/gateguard.mjs — CI_GATEGUARD_EXCLUDE is observable", () => {
       CI_GATEGUARD_EXCLUDE: "/,.",
     });
     assert.equal(run.decision, "block");
+  });
+});
+
+// A clearance save that fails must not fail the hook. On Copilot a non-zero
+// preToolUse exit is a deny (preToolUse is fail-closed, per the 2026-11-21
+// all-agents research), so a throw from saveState would turn an allow into a
+// deny. A lost clearance only re-asks for facts on the next call.
+describe("hooks/gateguard.mjs — a failed clearance save still allows", () => {
+  let sessionDir = "";
+  before(() => {
+    sessionDir = mkdtempSync(join(tmpdir(), "gateguard-save-fail-"));
+  });
+  after(() => {
+    if (sessionDir) rmSync(sessionDir, { recursive: true, force: true });
+  });
+
+  const flagged = { file_path: "x.txt", content: "x", _gateguard_facts_presented: true };
+
+  function assertCleanAllow(run: HookRun): void {
+    assert.equal(run.decision, "allow");
+    assert.doesNotMatch(run.stderr, /node:fs|\n\s+at /, "no stack trace on stderr");
+  }
+
+  it("allows when a parallel hook holds the state file open (Windows rename EPERM)", () => {
+    const dir = mkdtempSync(join(sessionDir, "held-"));
+    seedClearedFiles(dir, []);
+    const fd = openSync(join(dir, "gateguard-session.json"), "r");
+    try {
+      assertCleanAllow(runHookRaw("Write", flagged, dir));
+    } finally {
+      closeSync(fd);
+    }
+  });
+
+  it("allows when the state path cannot be written at all", () => {
+    const dir = mkdtempSync(join(sessionDir, "unwritable-"));
+    // A non-empty directory where the state file belongs: loadState falls back
+    // to fresh state and every rename over it fails, on every platform.
+    mkdirSync(join(dir, "gateguard-session.json", "blocker"), { recursive: true });
+    assertCleanAllow(runHookRaw("Write", flagged, dir));
   });
 });
