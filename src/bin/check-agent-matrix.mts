@@ -16,7 +16,10 @@
  *     or docs/landing/index.html names an agent whose row cannot block a tool
  *     call together with a blocking verb, unless the sentence negates it.
  *   - The rows themselves agree: a blocking row has a pre-tool hook install,
- *     and its "blocks" cell says yes; a non-blocking row says no.
+ *     and its "blocks" cell says yes; a non-blocking row says no or "not
+ *     claimed". A row whose verified matrix verdict is anything but yes (the
+ *     Kiro IDE is partial) claims no blocking, by the flag or by its cell. A
+ *     variant row names a base row of the same `--target`.
  *
  * Fail-closed: a missing file, a missing or repeated marker, and a row whose
  * canBlockPreTool is anything but true (read as non-blocking) are violations.
@@ -88,14 +91,24 @@ export function supportViolations(rows: readonly AgentSupport[]): string[] {
   if (rows.length === 0) return ["agent-support: the table has no rows"];
   const out: string[] = [];
   const seen = new Set<string>();
+  const byId = new Map(rows.map((row) => [row.id, row]));
   for (const row of rows) {
     const at = `agent-support ${row.id}`;
     if (seen.has(row.id)) out.push(`${at}: duplicate id`);
     seen.add(row.id);
+    if (row.variantOf !== undefined) {
+      const base = byId.get(row.variantOf);
+      if (base === undefined) out.push(`${at}: variant of ${row.variantOf}, which has no row`);
+      else if (base.variantOf !== undefined) out.push(`${at}: variant of ${row.variantOf}, which is itself a variant`);
+    }
+    // Fail closed: only the literal verdict "yes" lets a row claim blocking.
+    if (row.preToolVerdict !== "yes" && (blocksPreTool(row) || /^yes\b/i.test(row.blocks))) {
+      out.push(`${at}: the verified matrix rates its pre-tool block ${JSON.stringify(row.preToolVerdict)}, but the row claims blocking ("${row.blocks}")`);
+    }
     if (blocksPreTool(row)) {
-      if (!HOOK_INSTALLS.has(row.id)) out.push(`${at}: claims blocking but the installer wires no pre-tool hook for it`);
-      if (/^no\b/i.test(row.blocks)) out.push(`${at}: canBlockPreTool is true but the blocks cell says "${row.blocks}"`);
-    } else if (row.blocks !== "no") {
+      if (!HOOK_INSTALLS.has(row.variantOf ?? row.id)) out.push(`${at}: claims blocking but the installer wires no pre-tool hook for it`);
+      if (/^(?:no|not)\b/i.test(row.blocks)) out.push(`${at}: canBlockPreTool is true but the blocks cell says "${row.blocks}"`);
+    } else if (row.blocks !== "no" && !/^not claimed\b/.test(row.blocks)) {
       out.push(`${at}: canBlockPreTool is not true but the blocks cell says "${row.blocks}"`);
     }
     if (row.install.length === 0 || row.install.some((cmd) => cmd.trim() === "")) out.push(`${at}: no install command`);
@@ -274,10 +287,12 @@ export function renderSupportDoc(rows: readonly AgentSupport[] = AGENT_SUPPORT):
     "## What the tiers mean",
     "",
     "- **full**: the guard blocks a destructive command before it runs, saved lessons reach the model at session start through a hook, and a Stop hook can send the turn back.",
-    "- **partial**: the guard blocks, and one of the other two is missing.",
+    "- **partial**: the guard blocks, and one of the other two is missing. A surface whose hooks run but whose deny the research could not confirm is partial too, and no blocking is claimed for it.",
     "- **rules only**: the agent has no hook this package can use, so nothing is blocked. It gets the 7 Laws rules file, and the lessons through `ci lessons`.",
     "",
     "The guard is `hooks/gateguard.mjs` (destructive shell commands and blind edits), with `hooks/hook-pack.mjs` (protected-branch pushes, opt-in) and `hooks/config-guard.mjs` (guardrail config edits, opt-in). Lessons come from `hooks/session.mjs`. The Stop gate is `hooks/typecheck-stop.mjs` and `hooks/goal-drift-stop.mjs`, both off or warn-only until you switch them on (`CI_TYPECHECK_GATE=block`, `CI_GOAL_DRIFT_GATE=block`). The tool-call log is `bin/observe.mjs` and the MCP server is `bin/mcp-server.mjs`. `lib/hook-io.mjs` writes each answer in the format the agent reads, and OpenCode and Amp run the same hook files through `lib/hook-bridge.mjs`.",
+    "",
+    "A blind edit is an edit of an existing file that this conversation's tool-call log shows no read of; with no log yet, every edit passes. A shell command that names the file counts as a read on every hook agent, and so does a file tool whose path key the research documents. Copilot, Devin and Auggie document none for their file-read tools, so a read through `view` never counts and a read through `read` counts only when it names the file as `path`: read the file through the shell, or run the clear command the deny prints. A tool event from another agent that names no session gets that deny for every edit of an existing file.",
     "",
     "\"Blocks\" means the agent stops the tool call when the hook runs and answers deny. An agent that fails open on a hook crash or timeout, or a setting that turns hooks off (Codex trust, Gemini and Qwen folder trust, Devin Restricted Mode, Copilot `disableAllHooks`), lets the call through. `npx -p continuous-improvement ci doctor --agent <id>` shows what an installed agent loaded, using only its own listing commands.",
     "",
@@ -399,7 +414,7 @@ function main(): void {
   }
   const violations = checkAgentMatrix(repoRoot);
   if (violations.length === 0) {
-    console.log(`OK agent-matrix: ${AGENT_SUPPORT.length} agents; ${SUPPORT_DOC}, the README and landing tier tables and ${CLOUDPLUGIN} match the rows, and no scanned doc claims blocking for an agent that cannot block.`);
+    console.log(`OK agent-matrix: ${AGENT_SUPPORT.length} rows; ${SUPPORT_DOC}, the README and landing tier tables and ${CLOUDPLUGIN} match the rows, and no scanned doc claims blocking for an agent that cannot block.`);
     exit(0);
   }
   console.error(`FAIL agent-matrix: ${violations.length} violation(s).\n`);

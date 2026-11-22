@@ -1032,7 +1032,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
   <section class="sec wide-sec" id="agents" aria-labelledby="h-agents">
     <div class="copy">
       <h2 id="h-agents">Other coding agents, and what each one gets.</h2>
-      <p class="lead">The same hook files run on every agent, from a stable copy under <code>~/.claude/instincts/runtime/</code>, and each answer is written in the format that agent reads. This table is the promise. Blocks means the call stops when the hook runs: an agent that fails open on a hook crash or timeout, or has hooks switched off, lets it through. Each row's follow-up step and sources are in <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/docs/AGENT-SUPPORT.md">docs/AGENT-SUPPORT.md</a>.</p>
+      <p class="lead">The same hook files run on every agent, from a stable copy at <code>&lt;instincts root&gt;/runtime/&lt;version&gt;/</code> (<code>CI_INSTINCTS_HOME</code> when set, else <code>~/.claude/instincts</code>), and each answer is written in the format that agent reads. This table is the promise. Blocks means the call stops when the hook runs: an agent that fails open on a hook crash or timeout, or has hooks switched off, lets it through. Each row's follow-up step and sources are in <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/docs/AGENT-SUPPORT.md">docs/AGENT-SUPPORT.md</a>.</p>
       <div class="wide">
 <!-- agent-matrix:start -->
       <table class="files agents" role="table" aria-labelledby="h-agents">
@@ -1072,7 +1072,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
             <th role="rowheader" scope="row">GitHub Copilot CLI</th>
             <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes.</td>
             <td role="cell" data-l="Install"><code>npx continuous-improvement install --target copilot --hooks</code></td>
-            <td role="cell" data-l="Cannot">Prompt hook output is dropped, so the prompt hooks are not wired. A hook that times out fails open. The cloud agent reads only .github/hooks, and disableAllHooks turns every hook off.</td>
+            <td role="cell" data-l="Cannot">Prompt hook output is dropped, so the prompt hooks are not wired. A hook that times out fails open. The cloud agent reads only .github/hooks, and disableAllHooks turns every hook off. A read through <code>view</code> does not clear the blind-edit gate, so read the file through the shell first.</td>
           </tr>
           <tr role="row">
             <th role="rowheader" scope="row">Grok CLI</th>
@@ -1084,13 +1084,19 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
             <th role="rowheader" scope="row">Devin Local</th>
             <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes, outside Restricted Mode.</td>
             <td role="cell" data-l="Install"><code>npx continuous-improvement install --target devin --hooks</code></td>
-            <td role="cell" data-l="Cannot">Restricted Mode runs no hooks. Hooks it imports from ~/.claude can fire twice. Plugin hooks fail open.</td>
+            <td role="cell" data-l="Cannot">Restricted Mode runs no hooks. Hooks it imports from ~/.claude can fire twice. Plugin hooks fail open. A read through <code>read</code> may not clear the blind-edit gate (its path key is undocumented), so read the file through the shell first.</td>
           </tr>
           <tr role="row">
-            <th role="rowheader" scope="row">Kiro CLI and IDE</th>
+            <th role="rowheader" scope="row">Kiro CLI</th>
             <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes (exit 2).</td>
             <td role="cell" data-l="Install"><code>npx continuous-improvement install --target kiro --hooks</code></td>
-            <td role="cell" data-l="Cannot">CLI sessions on the V2 harness read agent-profile hooks, not this file. A hook crash exits 1, which Kiro CLI allows, and the IDE docs disagree on what that exit means.</td>
+            <td role="cell" data-l="Cannot">CLI sessions on the V2 harness read agent-profile hooks, not this file. A hook crash exits 1, which Kiro CLI allows.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Kiro IDE</th>
+            <td role="cell" data-l="Tier"><b>partial</b>. Blocks: not claimed (its hook docs disagree on exit codes).</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target kiro --hooks</code></td>
+            <td role="cell" data-l="Cannot">The IDE's two hook pages disagree on what a non-zero exit does, and no IDE run was captured, so no blocking is claimed here. The same hooks answer with exit 2 on a deny. The IDE reads only the workspace .kiro/hooks, so install at project scope.</td>
           </tr>
           <tr role="row">
             <th role="rowheader" scope="row">Factory Droid</th>
@@ -1102,13 +1108,13 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
             <th role="rowheader" scope="row">Auggie</th>
             <td role="cell" data-l="Tier"><b>partial</b>. Blocks: yes.</td>
             <td role="cell" data-l="Install"><code>npx continuous-improvement install --target auggie --hooks</code></td>
-            <td role="cell" data-l="Cannot">Only the tool-call hooks act. Session, Stop and prompt hooks run in the background, so only the guards and the log are wired.</td>
+            <td role="cell" data-l="Cannot">Only the tool-call hooks act. Session, Stop and prompt hooks run in the background, so only the guards and the log are wired. A read through <code>view</code> does not clear the blind-edit gate, and one through <code>read</code> only when it names the file as <code>path</code>, so read the file through the shell first.</td>
           </tr>
           <tr role="row">
             <th role="rowheader" scope="row">Junie CLI</th>
             <td role="cell" data-l="Tier"><b>partial</b>. Blocks: yes, on the Early Access build.</td>
             <td role="cell" data-l="Install"><code>npx continuous-improvement install --target junie --hooks --scope user</code></td>
-            <td role="cell" data-l="Cannot">Stable builds run no hooks. SessionStart context is ignored.</td>
+            <td role="cell" data-l="Cannot">Stable builds run no hooks. SessionStart context is ignored. The documented tool event names no session; if a real one has none, every edit of an existing file needs the clear command the deny prints.</td>
           </tr>
           <tr role="row">
             <th role="rowheader" scope="row">Cline</th>

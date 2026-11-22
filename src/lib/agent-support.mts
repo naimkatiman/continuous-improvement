@@ -25,16 +25,28 @@ export type LessonRoute = "hook" | "rules file" | "none";
 /** What the claim rests on: runs captured here, the installed binary or its bundled docs, or vendor docs only. */
 export type Evidence = "tested" | "local" | "docs";
 export type SupportTier = "full" | "partial" | "rules only";
+/**
+ * The "Pre-tool block" cell of the verified capability matrix for one surface.
+ * partial means the research could not settle that a deny blocks there (the
+ * Kiro IDE: its two hook docs disagree on exit codes). A block that holds only
+ * under a stated condition (Codex after /hooks trust, Junie on the Early Access
+ * build) is yes, and the blocks cell states the condition.
+ */
+export type PreToolVerdict = "yes" | "partial" | "no";
 
 export interface AgentSupport {
-  /** The `--target` id. */
+  /** The `--target` id; for a variant row, its own id (the .cloudplugin compatibleWith list carries it). */
   id: string;
+  /** Another surface of the agent installed with `--target <variantOf>` (the Kiro IDE beside Kiro CLI). */
+  variantOf?: string;
   /** Display name first; every name a doc may use for the agent. */
   names: readonly string[];
   /** Other ids the .cloudplugin compatibleWith list carries for this agent. */
   compat: readonly string[];
   /** The guard (hooks/gateguard.mjs) blocks a destructive command before it runs. Anything but true counts as false. */
   canBlockPreTool: boolean;
+  /** The verified matrix verdict. canBlockPreTool may be true, and the blocks cell may say yes, only when this is "yes". */
+  preToolVerdict: PreToolVerdict;
   /** The "blocks" cell: "no" when canBlockPreTool is false, else "yes" plus its condition. */
   blocks: string;
   /** How saved lessons reach the model: a session hook, a rules file from `ci lessons`, or not at all. */
@@ -62,6 +74,7 @@ export const AGENT_SUPPORT: readonly AgentSupport[] = [
     names: ["Claude Code"],
     compat: ["claude-code"],
     canBlockPreTool: true,
+    preToolVerdict: "yes",
     blocks: "yes, in every permission mode",
     lessons: "hook",
     stopGate: true,
@@ -77,6 +90,7 @@ export const AGENT_SUPPORT: readonly AgentSupport[] = [
     names: ["Codex CLI", "Codex"],
     compat: [],
     canBlockPreTool: true,
+    preToolVerdict: "yes",
     blocks: "yes, after you trust each hook in /hooks",
     lessons: "hook",
     stopGate: true,
@@ -92,6 +106,7 @@ export const AGENT_SUPPORT: readonly AgentSupport[] = [
     names: ["Gemini CLI", "Gemini"],
     compat: ["gemini-cli"],
     canBlockPreTool: true,
+    preToolVerdict: "yes",
     blocks: "yes",
     lessons: "hook",
     stopGate: true,
@@ -107,6 +122,7 @@ export const AGENT_SUPPORT: readonly AgentSupport[] = [
     names: ["Qwen Code", "Qwen"],
     compat: ["qwen-code"],
     canBlockPreTool: true,
+    preToolVerdict: "yes",
     blocks: "yes",
     lessons: "hook",
     stopGate: true,
@@ -122,6 +138,7 @@ export const AGENT_SUPPORT: readonly AgentSupport[] = [
     names: ["Cursor"],
     compat: [],
     canBlockPreTool: true,
+    preToolVerdict: "yes",
     blocks: "yes (3.x)",
     lessons: "hook",
     stopGate: true,
@@ -137,6 +154,7 @@ export const AGENT_SUPPORT: readonly AgentSupport[] = [
     names: ["GitHub Copilot CLI", "Copilot"],
     compat: ["github-copilot"],
     canBlockPreTool: true,
+    preToolVerdict: "yes",
     blocks: "yes",
     lessons: "hook",
     stopGate: true,
@@ -144,7 +162,7 @@ export const AGENT_SUPPORT: readonly AgentSupport[] = [
     evidence: "docs",
     install: [`${NPX} --target copilot --hooks`],
     then: "",
-    cannot: "Prompt hook output is dropped, so the prompt hooks are not wired. A hook that times out fails open. The cloud agent reads only .github/hooks, and disableAllHooks turns every hook off.",
+    cannot: "Prompt hook output is dropped, so the prompt hooks are not wired. A hook that times out fails open. The cloud agent reads only .github/hooks, and disableAllHooks turns every hook off. A read through `view` does not clear the blind-edit gate, so read the file through the shell first.",
     source: "Research GitHub Copilot hook_pre_tool (skeptic: corrected; exit 2 deny, fail-closed on errors, fail-open on timeouts), additionalContext, 8-block Stop cap; matrix row Copilot CLI.",
   },
   {
@@ -152,6 +170,7 @@ export const AGENT_SUPPORT: readonly AgentSupport[] = [
     names: ["Grok CLI", "Grok"],
     compat: [],
     canBlockPreTool: true,
+    preToolVerdict: "yes",
     blocks: "yes, in a trusted folder",
     lessons: "rules file",
     stopGate: true,
@@ -167,6 +186,7 @@ export const AGENT_SUPPORT: readonly AgentSupport[] = [
     names: ["Devin Local", "Devin", "Windsurf"],
     compat: ["windsurf"],
     canBlockPreTool: true,
+    preToolVerdict: "yes",
     blocks: "yes, outside Restricted Mode",
     lessons: "hook",
     stopGate: true,
@@ -174,14 +194,15 @@ export const AGENT_SUPPORT: readonly AgentSupport[] = [
     evidence: "local",
     install: [`${NPX} --target devin --hooks`],
     then: "Run the printed `devin mcp add` step. `--target windsurf --hooks` is the same install.",
-    cannot: "Restricted Mode runs no hooks. Hooks it imports from ~/.claude can fire twice. Plugin hooks fail open.",
+    cannot: "Restricted Mode runs no hooks. Hooks it imports from ~/.claude can fire twice. Plugin hooks fail open. A read through `read` may not clear the blind-edit gate (its path key is undocumented), so read the file through the shell first.",
     source: "Research Windsurf / Devin Local 3000.14 hook_pre_tool (skeptic: corrected; exit 2 or decision block, other non-zero exits fail open), JSON session context; matrix row Devin Local 3000.14.",
   },
   {
     id: "kiro",
-    names: ["Kiro CLI and IDE", "Kiro"],
+    names: ["Kiro CLI", "Kiro"],
     compat: [],
     canBlockPreTool: true,
+    preToolVerdict: "yes",
     blocks: "yes (exit 2)",
     lessons: "hook",
     stopGate: true,
@@ -189,14 +210,32 @@ export const AGENT_SUPPORT: readonly AgentSupport[] = [
     evidence: "docs",
     install: [`${NPX} --target kiro --hooks`],
     then: "",
-    cannot: "CLI sessions on the V2 harness read agent-profile hooks, not this file. A hook crash exits 1, which Kiro CLI allows, and the IDE docs disagree on what that exit means.",
-    source: "Research Kiro hook_pre_tool (skeptic: corrected; exit 2 blocks on every surface, IDE non-zero exit docs contradict each other); matrix rows Kiro CLI V3 and Kiro IDE 1.x.",
+    cannot: "CLI sessions on the V2 harness read agent-profile hooks, not this file. A hook crash exits 1, which Kiro CLI allows.",
+    source: "Research Kiro hook_pre_tool (skeptic: corrected; on the CLI exit 0 allows, exit 2 blocks with stderr sent to the model, other codes warn and allow); matrix row Kiro CLI V3 (pre-tool block yes, exit 2).",
+  },
+  {
+    id: "kiro-ide",
+    variantOf: "kiro",
+    names: ["Kiro IDE"],
+    compat: [],
+    canBlockPreTool: false,
+    preToolVerdict: "partial",
+    blocks: "not claimed (its hook docs disagree on exit codes)",
+    lessons: "hook",
+    stopGate: true,
+    mcp: true,
+    evidence: "docs",
+    install: [`${NPX} --target kiro --hooks`],
+    then: "",
+    cannot: "The IDE's two hook pages disagree on what a non-zero exit does, and no IDE run was captured, so no blocking is claimed here. The same hooks answer with exit 2 on a deny. The IDE reads only the workspace .kiro/hooks, so install at project scope.",
+    source: "Research Kiro hook_pre_tool (skeptic: corrected; hooks/actions.md says any non-zero exit blocks, ide/whats-new-v1/hooks.md says other non-zero exits are errors, not blocks); matrix row Kiro IDE 1.x, whose pre-tool cell is partial; the user-scope install note in lib/agent-install-plans.mjs.",
   },
   {
     id: "droid",
     names: ["Factory Droid", "Droid"],
     compat: [],
     canBlockPreTool: true,
+    preToolVerdict: "yes",
     blocks: "yes",
     lessons: "hook",
     stopGate: true,
@@ -212,6 +251,7 @@ export const AGENT_SUPPORT: readonly AgentSupport[] = [
     names: ["Auggie"],
     compat: [],
     canBlockPreTool: true,
+    preToolVerdict: "yes",
     blocks: "yes",
     lessons: "rules file",
     stopGate: false,
@@ -219,7 +259,7 @@ export const AGENT_SUPPORT: readonly AgentSupport[] = [
     evidence: "docs",
     install: [`${NPX} --target auggie --hooks`],
     then: `Run the printed \`auggie mcp add --project\` step. ${LESSONS("auggie")}`,
-    cannot: "Only the tool-call hooks act. Session, Stop and prompt hooks run in the background, so only the guards and the log are wired.",
+    cannot: "Only the tool-call hooks act. Session, Stop and prompt hooks run in the background, so only the guards and the log are wired. A read through `view` does not clear the blind-edit gate, and one through `read` only when it names the file as `path`, so read the file through the shell first.",
     source: "Research [Auggie] hook_pre_tool (skeptic: confirmed; JSON read only on exit 0) and the background session, Stop and prompt hooks; matrix row Auggie 1.2.2.",
   },
   {
@@ -227,6 +267,7 @@ export const AGENT_SUPPORT: readonly AgentSupport[] = [
     names: ["Junie CLI", "Junie"],
     compat: [],
     canBlockPreTool: true,
+    preToolVerdict: "yes",
     blocks: "yes, on the Early Access build",
     lessons: "rules file",
     stopGate: false,
@@ -234,7 +275,7 @@ export const AGENT_SUPPORT: readonly AgentSupport[] = [
     evidence: "docs",
     install: [`${NPX} --target junie --hooks --scope user`],
     then: `A project .junie/config.json loads only with --config-location, so install at user scope. ${LESSONS("junie")}`,
-    cannot: "Stable builds run no hooks. SessionStart context is ignored.",
+    cannot: "Stable builds run no hooks. SessionStart context is ignored. The documented tool event names no session; if a real one has none, every edit of an existing file needs the clear command the deny prints.",
     source: "Research [Junie] hook_pre_tool (skeptic: corrected; hooks are an Early Access feature, project config.json ignored by default); matrix row Junie CLI.",
   },
   {
@@ -242,6 +283,7 @@ export const AGENT_SUPPORT: readonly AgentSupport[] = [
     names: ["Cline"],
     compat: [],
     canBlockPreTool: true,
+    preToolVerdict: "yes",
     blocks: "yes, while Enable Hooks is on",
     lessons: "none",
     stopGate: false,
@@ -257,6 +299,7 @@ export const AGENT_SUPPORT: readonly AgentSupport[] = [
     names: ["Goose"],
     compat: [],
     canBlockPreTool: true,
+    preToolVerdict: "yes",
     blocks: "yes",
     lessons: "rules file",
     stopGate: true,
@@ -272,6 +315,7 @@ export const AGENT_SUPPORT: readonly AgentSupport[] = [
     names: ["OpenCode"],
     compat: [],
     canBlockPreTool: true,
+    preToolVerdict: "yes",
     blocks: "yes, through a local plugin file",
     lessons: "hook",
     stopGate: false,
@@ -287,6 +331,7 @@ export const AGENT_SUPPORT: readonly AgentSupport[] = [
     names: ["Amp"],
     compat: [],
     canBlockPreTool: true,
+    preToolVerdict: "yes",
     blocks: "yes, through a local plugin file",
     lessons: "hook",
     stopGate: true,
@@ -302,6 +347,7 @@ export const AGENT_SUPPORT: readonly AgentSupport[] = [
     names: ["Zed"],
     compat: [],
     canBlockPreTool: false,
+    preToolVerdict: "no",
     blocks: "no",
     lessons: "rules file",
     stopGate: false,
@@ -317,6 +363,7 @@ export const AGENT_SUPPORT: readonly AgentSupport[] = [
     names: ["Aider"],
     compat: [],
     canBlockPreTool: false,
+    preToolVerdict: "no",
     blocks: "no",
     lessons: "rules file",
     stopGate: false,
@@ -336,11 +383,12 @@ export function blocksPreTool(row: Pick<AgentSupport, "canBlockPreTool">): boole
 
 /**
  * full: blocks, lessons through a session hook, and a Stop gate.
- * partial: blocks, and one of the other two is missing.
+ * partial: blocks, and one of the other two is missing; or the hooks run but
+ *   the verified matrix rates the deny partial, so no blocking is claimed.
  * rules only: no hook this package can use.
  */
-export function supportTier(row: Pick<AgentSupport, "canBlockPreTool" | "lessons" | "stopGate">): SupportTier {
-  if (!blocksPreTool(row)) return "rules only";
+export function supportTier(row: Pick<AgentSupport, "canBlockPreTool" | "preToolVerdict" | "lessons" | "stopGate">): SupportTier {
+  if (!blocksPreTool(row)) return row.preToolVerdict === "partial" ? "partial" : "rules only";
   return row.lessons === "hook" && row.stopGate === true ? "full" : "partial";
 }
 
