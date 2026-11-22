@@ -128,29 +128,12 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx --yes wrangler@4.104.0 pages deploy docs/landing --project-name=continuous-improvement --branch=main --commit-dirty=true
 
-      # Deploying is not the same as being live. This is the landing-drift check
-      # run inline, so a silent no-op deploy fails the release instead of waiting
-      # for tomorrow's scheduled run to notice.
+      # Deploying is not the same as being live. Wrangler success plus a
+      # one-shot curl of *.pages.dev is how v3.25.0 went red: the upload
+      # landed, the next step ran in the same second, and the CDN still
+      # served 3.24.0. Poll until the REV matches, then fail closed.
+      # Apex 403s runner IPs (bot protection); the checker tries it first
+      # then falls back to *.pages.dev, same order as landing-drift.yml.
       - name: Verify the deployed page serves this version
         if: steps.cf.outputs.configured == 'true'
-        run: |
-          expected=$(node -p "require('./package.json').version")
-          ua='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
-          rev() { curl -fsSL --retry 5 --retry-delay 5 -A "$ua" "$1" 2>/dev/null \
-            | grep -oE 'REV [0-9]+\.[0-9]+\.[0-9]+' | head -1 | awk '{print $2}'; }
-          # The apex sits behind the customer zone's bot protection, which 403s
-          # runner IPs; *.pages.dev is the Cloudflare-managed zone and serves the
-          # same deployment. Same fallback order as landing-drift.yml.
-          url='https://continuous-improvement.dev/'
-          live=$(rev "$url")
-          if [ -z "$live" ]; then
-            url='https://continuous-improvement.pages.dev/'
-            live=$(rev "$url")
-          fi
-          echo "package.json : $expected"
-          echo "live $url : ${live:-<none>}"
-          if [ "$expected" != "$live" ]; then
-            echo "::error::Landing deploy did not take: serving '${live:-<none>}' but this release is $expected."
-            exit 1
-          fi
-          echo "✓ continuous-improvement.dev is serving $expected"
+        run: node bin/check-live-landing-rev.mjs
