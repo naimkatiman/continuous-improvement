@@ -195,7 +195,8 @@ function fakeCli(root, name) {
         "",
     ].join("\n"));
     writeFileSync(join(bin, `${name}.cmd`), `@node "%~dp0${name}-fake.cjs" %*\r\n`);
-    writeFileSync(join(bin, name), `#!/bin/sh\nexec node "$(dirname "$0")/${name}-fake.cjs" "$@"\n`, { mode: 0o755 });
+    // ${0%/*} is the shell's own dirname: fakeEnv's PATH has no /usr/bin, so the dirname program is not found.
+    writeFileSync(join(bin, name), `#!/bin/sh\nexec node "\${0%/*}/${name}-fake.cjs" "$@"\n`, { mode: 0o755 });
     return { bin, log, pids };
 }
 function alive(pid) {
