@@ -14,23 +14,22 @@
  * keyed on the Stop stdin session_id (falls back to a per-day key) — without it,
  * additionalContext "keeps the turn going" and would re-fire every turn while
  * the DB files stay dirty. Never blocks; fail-open on any error.
+ *
+ * The hook is: read stdin, normalize (lib/hook-io.mjs), decide
+ * (lib/query-cost-gate.mjs), encode for the agent.
  */
 import { execFileSync } from "node:child_process";
 import { readKnob } from "../lib/agent-env.mjs";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { emit, encode, normalizeEvent, parsePayload, readStdin } from "../lib/hook-io.mjs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { buildQueryCostReminder, changedQueryPaths, parseChangedFiles, resolveQueryCostNudge, } from "../lib/query-cost-gate.mjs";
-function readStdin() {
-    try {
-        return readFileSync(0, "utf8");
-    }
-    catch {
-        return "";
-    }
-}
+const AGENT = "claude";
+const EVENT = "Stop";
+const ALLOW = { kind: "allow" };
 function resolveHome() {
     return process.env.HOME || process.env.USERPROFILE || homedir();
 }
@@ -59,43 +58,39 @@ function markerPath(home, projectRoot, sessionId) {
     const hash = hashProjectRoot(projectRoot);
     return join(resolveInstinctsRoot(home), hash, "query-cost-nudge", `${markerKey(sessionId)}.nudged`);
 }
-function main() {
+function decideQueryCostNudge() {
     if (resolveQueryCostNudge(readKnob("CLAUDE_QUERY_COST_NUDGE")) === "off")
-        return;
-    let sessionId;
-    let payload = null;
-    try {
-        payload = JSON.parse(readStdin());
-        if (typeof payload.session_id === "string")
-            sessionId = payload.session_id;
-    }
-    catch {
-        // stdin optional — proceed without a session id (per-day dedup)
-    }
+        return ALLOW;
+    // stdin optional: without a session id the dedup is per day.
+    const parsed = parsePayload(readStdin());
+    const payload = parsed.ok ? parsed.value : null;
+    const sessionId = normalizeEvent(AGENT, EVENT, payload).sessionId;
     // Trimmed: this hook has always trimmed CLAUDE_PROJECT_DIR before using it.
     const root = resolveProjectRoot(payload).trim();
     if (root === "global")
-        return; // no repo → nothing to diff
+        return ALLOW; // no repo → nothing to diff
     const changed = changedQueryPaths(collectChangedFiles(root));
     if (changed.length === 0)
-        return;
+        return ALLOW;
     const marker = markerPath(resolveHome(), root, sessionId);
     try {
         if (existsSync(marker))
-            return; // already nudged this session
+            return ALLOW; // already nudged this session
         mkdirSync(dirname(marker), { recursive: true });
         writeFileSync(marker, `${new Date().toISOString()}\n`);
     }
     catch {
         // if the marker can't be written, nudge anyway (no dedup) rather than stay silent
     }
-    process.stdout.write(`${JSON.stringify({
-        hookSpecificOutput: { hookEventName: "Stop", additionalContext: buildQueryCostReminder(changed) },
-    })}\n`);
+    return { kind: "context", text: buildQueryCostReminder(changed) };
 }
-try {
-    main();
+function main() {
+    try {
+        return decideQueryCostNudge();
+    }
+    catch {
+        // fail open — never trap a turn on a hook bug
+        return ALLOW;
+    }
 }
-catch {
-    // fail open — never trap a turn on a hook bug
-}
+emit(encode(AGENT, EVENT, main()));

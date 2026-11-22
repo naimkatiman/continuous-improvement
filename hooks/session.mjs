@@ -4,7 +4,12 @@ import { join } from "node:path";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot, projectYamlFiles, yamlFiles } from "../lib/gateguard-state.mjs";
 import { flatten, parseYamlInstinct } from "../lib/instinct-yaml.mjs";
+import { emit, encode, parsePayload, readStdin } from "../lib/hook-io.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
+// The hook is: read stdin, decide (the lesson block and status line below),
+// encode for the agent (lib/hook-io.mjs). The claude encoder prints a
+// SessionStart context as plain stdout and every notice on stderr.
+const AGENT = "claude";
 // Claude Code adds a SessionStart hook's plain-text stdout to the model's
 // context and never shows the model the stderr of a hook that exits 0
 // (https://code.claude.com/docs/en/hooks). The status line below goes to
@@ -56,19 +61,14 @@ function readHead(path) {
 // The payload comes back too: its working directory picks the project root
 // when no agent sets a project-dir env var.
 function readPayload() {
-    const raw = read(0);
-    if (!raw)
+    const parsed = parsePayload(readStdin());
+    if (!parsed.ok)
         return null;
-    try {
-        const payload = JSON.parse(raw);
-        if (!payload || typeof payload !== "object" || Array.isArray(payload))
-            return null;
-        const event = payload.hook_event_name ?? payload.hook_type ?? payload.event_type;
-        return { event: event === "SessionStart" || event === "SessionEnd" ? event : "unknown", payload };
-    }
-    catch {
+    const payload = parsed.value;
+    if (!payload || typeof payload !== "object" || Array.isArray(payload))
         return null;
-    }
+    const event = payload.hook_event_name ?? payload.hook_type ?? payload.event_type;
+    return { event: event === "SessionStart" || event === "SessionEnd" ? event : "unknown", payload };
 }
 // Each trigger and body goes through flatten (src/lib/instinct-yaml.mts), so a
 // lesson cannot close the reminder or start a line of its own, which keeps the
@@ -138,18 +138,24 @@ function lessonBlock(contents, projectCount) {
         return "";
     return `${lessonHeader(lines.length, lessons.length)}\n${lines.join("\n")}\n`;
 }
-function main() {
+const ALLOW = { kind: "allow" };
+function decideSession() {
     const input = readPayload();
     if (input === null)
-        return;
+        return { event: "unknown", decision: ALLOW };
     const { event, payload } = input;
     if (event === "SessionEnd") {
-        process.stderr.write("[continuous-improvement] Session ending. Run /continuous-improvement to reflect and capture learnings.\n");
-        return;
+        return {
+            event,
+            decision: {
+                kind: "allow",
+                notices: ["[continuous-improvement] Session ending. Run /continuous-improvement to reflect and capture learnings."],
+            },
+        };
     }
     const home = resolveHomeDir();
     if (!home)
-        return;
+        return { event, decision: ALLOW };
     const instinctsRoot = resolveInstinctsRoot(home);
     const root = resolveProjectRoot(payload);
     const hash = hashProjectRoot(root);
@@ -168,19 +174,24 @@ function main() {
         if (Number.isFinite(value) && value >= 0.5)
             level = "SUGGEST";
     }
-    process.stderr.write(`[continuous-improvement] Level: ${level} | Observations: ${observations} | Instincts: ${files.length}\n`);
+    const notices = [`[continuous-improvement] Level: ${level} | Observations: ${observations} | Instincts: ${files.length}`];
     if (event !== "SessionStart")
-        return;
-    if (LOAD_OFF.has((process.env.CI_INSTINCT_LOAD ?? "").trim().toLowerCase()))
-        return;
+        return { event, decision: { kind: "allow", notices } };
+    if (LOAD_OFF.has((process.env.CI_INSTINCT_LOAD ?? "").trim().toLowerCase())) {
+        return { event, decision: { kind: "allow", notices } };
+    }
     const block = lessonBlock(contents, projectFiles.length);
-    if (block) {
-        process.stdout.on("error", () => { });
-        process.stdout.write(block);
+    return { event, decision: block ? { kind: "context", text: block, notices } : { kind: "allow", notices } };
+}
+function main() {
+    try {
+        return decideSession();
+    }
+    catch {
+        return { event: "unknown", decision: ALLOW };
     }
 }
-try {
-    main();
-}
-catch {
-}
+const { event, decision } = main();
+// A closed stdout must not crash the hook after the decision is made.
+process.stdout.on("error", () => { });
+emit(encode(AGENT, event, decision));

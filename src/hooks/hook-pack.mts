@@ -10,6 +10,9 @@
  *          A bare { decision: "allow" } is not schema-valid for PreToolUse.
  * Exit   : 0 always (decision is in stdout; fail-open on any error).
  *
+ * The hook is: read stdin, normalize (lib/hook-io.mjs), decide (the gates
+ * below over lib/hook-pack-gate.mjs), encode for the agent.
+ *
  * Two gates over shell git commands, from the Bash tool or the PowerShell tool
  * (pure logic in ../lib/hook-pack-gate.mjs):
  *   - push-to-main : a direct `git push` to main/master/release-*
@@ -31,11 +34,10 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 
 import { readKnob } from "../lib/agent-env.mjs";
-import { classifierShells, inboundCommand, resolveInboundTool } from "../lib/agent-profiles.mjs";
+import { classifierShells } from "../lib/agent-profiles.mjs";
 import {
   COMMIT_FILE_LIMIT,
   classifyCommand,
@@ -45,22 +47,19 @@ import {
   parseMode,
   type HookPackDecision,
 } from "../lib/hook-pack-gate.mjs";
+import {
+  emit,
+  encode,
+  normalizeEvent,
+  parsePayload,
+  readStdin,
+  type AgentId,
+  type Decision,
+  type EncodedOutput,
+} from "../lib/hook-io.mjs";
 
-function readStdinSync(): string {
-  try {
-    return readFileSync(0, "utf8");
-  } catch {
-    return "";
-  }
-}
-
-function safeJsonParse(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
+const AGENT: AgentId = "claude";
+const EVENT = "PreToolUse";
 
 // A directory as the command line wrote it, as a value `git -C` can enter. `~`
 // is the home directory. Git Bash writes a drive as /d/repo; git.exe started
@@ -117,36 +116,26 @@ function gitStagedCount(dirs: readonly string[], tool: string): number {
 
 const ALLOW: HookPackDecision = { action: "allow", reason: "" };
 
-// The tools whose input is a shell command. Claude Code on Windows exposes a
-// first-class PowerShell tool with the same { command } input as Bash, and the
-// Monitor tool runs its { command } in the same shell as Bash; a `git push` to
-// main is the same push through any of them. A Monitor call in its { ws } form
-// has no command and is allowed.
-const SHELL_TOOLS: ReadonlySet<string> = new Set(["Bash", "PowerShell", "Monitor"]);
-
+// The shell tools are the event kind "shell" (lib/hook-io.mjs). Claude Code on
+// Windows exposes a first-class PowerShell tool with the same { command } input
+// as Bash, and the Monitor tool runs its { command } in the same shell as Bash;
+// the same git command is judged the same through any of them. A Monitor call
+// in its { ws } form has no command and is allowed. Another agent's shell
+// (lib/agent-profiles.mjs, never a Claude Code name) is read in its flavor, and
+// both ways on Windows when the flavor is unknown. The first reading that gates
+// decides.
 function compute(): HookPackDecision {
   const mode = parseMode(readKnob("CLAUDE_CI_HOOKPACK_GATE"));
   if (mode === "off") return ALLOW;
 
-  const payload = safeJsonParse(readStdinSync());
-  if (!payload || typeof payload !== "object") return ALLOW;
-  const obj = payload as { tool_name?: unknown; tool_input?: unknown };
-  if (typeof obj.tool_name !== "string") return ALLOW;
-
-  const input = (obj.tool_input && typeof obj.tool_input === "object"
-    ? (obj.tool_input as { command?: unknown })
-    : {});
-  if (SHELL_TOOLS.has(obj.tool_name)) {
-    return gateCommand(mode, typeof input.command === "string" ? input.command : "", obj.tool_name);
-  }
-
-  // Another agent's shell (lib/agent-profiles.mjs, never a Claude Code name):
-  // read in its flavor, and both ways on Windows when the flavor is unknown.
-  // The first reading that gates decides.
-  const alias = resolveInboundTool(obj.tool_name);
-  const command = alias === null ? null : inboundCommand(alias, input);
-  if (alias === null || command === null) return ALLOW;
-  for (const shell of classifierShells(alias.flavor)) {
+  const parsed = parsePayload(readStdin());
+  if (!parsed.ok) return ALLOW;
+  const event = normalizeEvent(AGENT, EVENT, parsed.value);
+  if (event.kind !== "shell" || event.shellFlavor === null) return ALLOW;
+  // A Claude shell call whose command is not a string is read as the empty
+  // command, which gates nothing.
+  const command = event.command ?? "";
+  for (const shell of classifierShells(event.shellFlavor)) {
     const decision = gateCommand(mode, command, shell);
     if (decision.action !== "allow") return decision;
   }
@@ -176,22 +165,23 @@ function gateCommand(mode: ReturnType<typeof parseMode>, command: string, tool: 
   return ALLOW;
 }
 
-function main(): void {
-  const decision = compute();
-  if (decision.action === "block") {
-    process.stdout.write(
-      JSON.stringify({
-        hookSpecificOutput: {
-          hookEventName: "PreToolUse",
-          permissionDecision: "deny",
-          permissionDecisionReason: decision.reason,
-        },
-      }),
-    );
-  } else if (decision.action === "warn") {
-    process.stderr.write(`[hook-pack] ${decision.reason}\n`);
-  }
-  process.exit(0);
+function toDecision(decision: HookPackDecision): Decision {
+  if (decision.action === "block") return { kind: "deny", reason: decision.reason };
+  if (decision.action === "warn") return { kind: "allow", notices: [`[hook-pack] ${decision.reason}`] };
+  return { kind: "allow" };
 }
 
-main();
+// This hook's Claude deny line has never ended in a newline (golden
+// hook-pack/push-main-block). Claude Code parses the JSON either way, and the
+// goldens pin the bytes, so only the claude deny is trimmed.
+function withoutFinalNewline(output: EncodedOutput): EncodedOutput {
+  return { ...output, stdout: output.stdout.replace(/\n$/, "") };
+}
+
+function main(): EncodedOutput {
+  const decision = toDecision(compute());
+  const output = encode(AGENT, EVENT, decision);
+  return decision.kind === "deny" && AGENT === "claude" ? withoutFinalNewline(output) : output;
+}
+
+emit(main());

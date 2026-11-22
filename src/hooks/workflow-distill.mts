@@ -23,6 +23,9 @@
 // ~/.claude/instincts/<project-hash>/workflow-distill-state.json keyed by run
 // name + verify command, so a run is nudged at most once. Fail-open by
 // construction: any error exits 0 and never blocks. No network. 5s hook budget.
+//
+// The hook is: decide (lib/skill-distill.mjs), encode for the agent
+// (lib/hook-io.mjs). It reads no stdin, and its only output is the notice.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -30,8 +33,13 @@ import { join } from "node:path";
 import { readKnob } from "../lib/agent-env.mjs";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
+import { emit, encode, type AgentId, type Decision } from "../lib/hook-io.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 import { workflowRunFromObservations, type DistillObservation } from "../lib/skill-distill.mjs";
+
+const AGENT: AgentId = "claude";
+const EVENT = "Stop";
+const ALLOW: Decision = { kind: "allow" };
 
 function safeJsonParse(text: string): unknown {
   try {
@@ -108,37 +116,44 @@ function persistNudged(instinctsProjectDir: string, keys: Set<string>): void {
   }
 }
 
-function main(): void {
-  if (resolveMode() === "off") return;
+function decideWorkflowDistill(): Decision {
+  if (resolveMode() === "off") return ALLOW;
 
   const home = resolveHomeDir();
-  if (!home) return;
+  if (!home) return ALLOW;
   // This hook never reads stdin, so the root comes from the env and the git
   // toplevel of the process cwd (see projectHash above).
   const projectRoot = resolveProjectRoot();
   const instinctsProjectDir = join(resolveInstinctsRoot(home), projectHash(projectRoot));
 
   const observations = readObservations(instinctsProjectDir);
-  if (observations.length === 0) return;
+  if (observations.length === 0) return ALLOW;
 
   const run = workflowRunFromObservations(observations);
-  if (!run) return; // fail closed: no verified run, nothing to nudge
+  if (!run) return ALLOW; // fail closed: no verified run, nothing to nudge
 
   const runKey = `${run.name}::${run.verifyCommand}`;
   const nudged = readNudgedKeys(instinctsProjectDir);
-  if (nudged.has(runKey)) return; // already nudged this run — stay quiet
-
-  process.stderr.write(
-    `[continuous-improvement] workflow-distill: verified workflow run "${run.name}" detected — ` +
-      "run the ci_distill_from_workflow MCP tool to persist it as a Mulahazah draft instinct.\n",
-  );
+  if (nudged.has(runKey)) return ALLOW; // already nudged this run — stay quiet
 
   nudged.add(runKey);
   persistNudged(instinctsProjectDir, nudged);
+  return {
+    kind: "allow",
+    notices: [
+      `[continuous-improvement] workflow-distill: verified workflow run "${run.name}" detected — ` +
+        "run the ci_distill_from_workflow MCP tool to persist it as a Mulahazah draft instinct.",
+    ],
+  };
 }
 
-try {
-  main();
-} catch {
-  // fail open — never block the session due to a hook bug
+function main(): Decision {
+  try {
+    return decideWorkflowDistill();
+  } catch {
+    // fail open — never block the session due to a hook bug
+    return ALLOW;
+  }
 }
+
+emit(encode(AGENT, EVENT, main()));

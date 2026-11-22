@@ -26,6 +26,9 @@
 // Telemetry: best-effort JSONL line per gated invocation written to
 // ~/.claude/hook-telemetry/<project-hash>.jsonl. Never throws, never
 // blocks the response. No network. No transcript content recorded.
+//
+// The hook is: read stdin, decide (the section check below), encode for the
+// agent (lib/hook-io.mjs).
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -34,7 +37,12 @@ import { dirname, join } from "node:path";
 import { performance } from "node:perf_hooks";
 
 import { readKnob } from "../lib/agent-env.mjs";
+import { emit, encode, readStdin, type AgentId, type Decision } from "../lib/hook-io.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
+
+const AGENT: AgentId = "claude";
+const EVENT = "Stop";
+const ALLOW: Decision = { kind: "allow" };
 
 const MIN_LENGTH_TO_GATE = 600;
 
@@ -83,14 +91,6 @@ interface TelemetryEntry {
   durationMs: number;
 }
 
-function readStdinSync(): string {
-  try {
-    return readFileSync(0, "utf8");
-  } catch {
-    return "";
-  }
-}
-
 function safeJsonParse(text: string): unknown {
   try {
     return JSON.parse(text);
@@ -124,13 +124,11 @@ function extractLastAssistantText(transcriptPath: string): string | null {
   return null;
 }
 
-function emitBlock(missing: Section[]): void {
+function blockReason(missing: Section[]): string {
   const bullets = missing
     .map((s) => `- "## ${s.heading}" — ${s.hint}`)
     .join("\n");
-  const reason =
-    `Your reply is missing the required 3-section close. Add these sections at the end of the reply with these exact headings:\n${bullets}`;
-  process.stdout.write(JSON.stringify({ decision: "block", reason }) + "\n");
+  return `Your reply is missing the required 3-section close. Add these sections at the end of the reply with these exact headings:\n${bullets}`;
 }
 
 function projectHashFor(transcriptPath: string): string {
@@ -161,32 +159,33 @@ function recordTelemetry(entry: TelemetryEntry, transcriptPath: string): void {
   }
 }
 
-function main(): void {
+function decideThreeSectionClose(): Decision {
   // Opt-in, and the older opt-out still wins: with either switch off the hook
   // short-circuits entirely, with no enforcement and no telemetry.
-  if (!isEnabled()) return;
-  if (readKnob("CLAUDE_THREE_SECTION_CLOSE_DISABLED") === "1") return;
+  if (!isEnabled()) return ALLOW;
+  if (readKnob("CLAUDE_THREE_SECTION_CLOSE_DISABLED") === "1") return ALLOW;
   const startedAt = performance.now();
-  const stdin = readStdinSync();
-  if (!stdin) return;
+  const stdin = readStdin();
+  if (!stdin) return ALLOW;
 
   const payload = safeJsonParse(stdin) as Payload | null;
-  if (!payload || typeof payload.transcript_path !== "string") return;
+  if (!payload || typeof payload.transcript_path !== "string") return ALLOW;
   // A Stop hook already continued this turn; blocking again could loop.
-  if (payload.stop_hook_active === true) return;
-  if (!existsSync(payload.transcript_path)) return;
+  if (payload.stop_hook_active === true) return ALLOW;
+  if (!existsSync(payload.transcript_path)) return ALLOW;
 
   let lastText: string | null;
   try {
     lastText = extractLastAssistantText(payload.transcript_path);
   } catch {
-    return; // fail open on read error
+    return ALLOW; // fail open on read error
   }
-  if (!lastText) return;
+  if (!lastText) return ALLOW;
 
   const textLength = lastText.length;
   let action: string;
   let missing: Section[] = [];
+  let decision: Decision = ALLOW;
 
   if (textLength < MIN_LENGTH_TO_GATE) {
     action = "skip-short";
@@ -196,7 +195,7 @@ function main(): void {
       action = "pass";
     } else {
       action = "block";
-      emitBlock(missing);
+      decision = { kind: "continue", reason: blockReason(missing) };
     }
   }
 
@@ -209,10 +208,16 @@ function main(): void {
     durationMs: Math.round((performance.now() - startedAt) * 1000) / 1000,
   };
   recordTelemetry(entry, payload.transcript_path);
+  return decision;
 }
 
-try {
-  main();
-} catch {
-  // fail open — never block the session due to a hook bug
+function main(): Decision {
+  try {
+    return decideThreeSectionClose();
+  } catch {
+    // fail open — never block the session due to a hook bug
+    return ALLOW;
+  }
 }
+
+emit(encode(AGENT, EVENT, main()));

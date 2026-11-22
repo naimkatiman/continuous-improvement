@@ -38,6 +38,9 @@
  *     ]
  *   }
  * Rows are evaluated in order; first match wins.
+ *
+ * The hook is: read stdin, decide (the route table below), encode for the
+ * agent (lib/hook-io.mjs).
  */
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
@@ -46,6 +49,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
+import { emit, encode, parsePayload, readStdin, type AgentId, type Decision } from "../lib/hook-io.mjs";
+
+const AGENT: AgentId = "claude";
+const EVENT = "UserPromptSubmit";
+const ALLOW: Decision = { kind: "allow" };
 
 interface RouteRow {
   pattern: string;
@@ -62,20 +70,6 @@ interface Payload {
   prompt?: unknown;
 }
 
-interface HookOutput {
-  hookSpecificOutput: {
-    hookEventName: "UserPromptSubmit";
-    additionalContext: string;
-  };
-}
-
-function readStdin(): string {
-  try {
-    return readFileSync(0, "utf8");
-  } catch {
-    return "";
-  }
-}
 
 const ENABLED_VALUES = new Set(["1", "on", "true", "yes"]);
 
@@ -163,36 +157,18 @@ function buildContext(row: RouteRow): string {
   return `<system-reminder>\nPrompt-router suggestion: ${reason}\n</system-reminder>`;
 }
 
-function emit(output: HookOutput | null): void {
-  if (output !== null) {
-    process.stdout.write(`${JSON.stringify(output)}\n`);
-  }
-  process.exit(0);
-}
-
-function main(): void {
-  if (!isRouterEnabled() || isRouterDisabled()) {
-    emit(null);
-    return;
-  }
-  const raw = readStdin();
-  let payload: Payload;
-  try {
-    payload = JSON.parse(raw) as Payload;
-  } catch {
-    emit(null);
-    return;
-  }
+function main(): Decision {
+  if (!isRouterEnabled() || isRouterDisabled()) return ALLOW;
+  const parsed = parsePayload(readStdin());
+  if (!parsed.ok) return ALLOW;
+  const payload = parsed.value as Payload;
+  // JSON null stdin crashes here with exit 1 and a TypeError stack (golden
+  // route-prompt/null-stdin), as it did before the move. Plan PR 9 ends it as
+  // exit 0 and declares the change.
   const prompt = payload.prompt;
-  if (typeof prompt !== "string" || prompt.length === 0) {
-    emit(null);
-    return;
-  }
+  if (typeof prompt !== "string" || prompt.length === 0) return ALLOW;
   const table = loadRouteTable();
-  if (!table) {
-    emit(null);
-    return;
-  }
+  if (!table) return ALLOW;
   const match = findMatch(prompt, table);
   const home = resolveHome();
   if (!match) {
@@ -201,8 +177,7 @@ function main(): void {
       hook: "route-prompt",
       matched: false,
     });
-    emit(null);
-    return;
+    return ALLOW;
   }
   writeTelemetry(home, payload, {
     ts: new Date().toISOString(),
@@ -212,12 +187,7 @@ function main(): void {
     skill: match.row.skill,
     pattern: match.row.pattern,
   });
-  emit({
-    hookSpecificOutput: {
-      hookEventName: "UserPromptSubmit",
-      additionalContext: buildContext(match.row),
-    },
-  });
+  return { kind: "context", text: buildContext(match.row) };
 }
 
-main();
+emit(encode(AGENT, EVENT, main()));

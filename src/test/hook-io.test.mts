@@ -13,6 +13,7 @@
  */
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import { encode, normalizeEvent, parsePayload, runHook, type EncodedOutput, type HookStreams } from "../lib/hook-io.mjs";
@@ -355,4 +356,54 @@ describe("runHook", () => {
     assert.equal(io.stdout, "");
     assert.equal(io.exitCode, 0);
   });
+});
+
+// Plan PR 7: these hooks write every byte through encode, so plan PR 8 can give
+// another agent its own output by adding an encoder, not by editing each hook.
+// fixtures/agent-hooks/claude.json pins their Claude bytes end to end. A direct
+// stdout or stderr write, an exit call, or a hand-built Claude output shape in a
+// hook would bypass the encoder. companion-preference and bin/observe are not
+// on hook-io yet.
+describe("hooks that write through hook-io", () => {
+  const HOOKS = [
+    "gateguard",
+    "hook-pack",
+    "config-guard",
+    "session",
+    "three-section-close",
+    "goal-drift-stop",
+    "workflow-distill",
+    "typecheck-stop",
+    "query-cost-nudge",
+    "recall-briefing",
+    "route-prompt",
+  ];
+  // Block comments and whole-line comments only: the headers describe the
+  // output shapes in prose.
+  const code = (name: string): string =>
+    readFileSync(new URL(`../hooks/${name}.mjs`, import.meta.url), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+
+  for (const name of HOOKS) {
+    it(`${name} imports encode and emit from lib/hook-io`, () => {
+      const source = code(name);
+      assert.match(source, /from "\.\.\/lib\/hook-io\.mjs"/);
+      assert.match(source, /\bencode\(/);
+      assert.match(source, /\bemit\(/);
+    });
+
+    it(`${name} writes no output of its own`, () => {
+      const source = code(name);
+      for (const pattern of [
+        /process\.std(?:out|err)\.write\(/,
+        /process\.exit\(/,
+        /hookSpecificOutput/,
+        /permissionDecision/,
+        /decision:\s*"block"/,
+      ]) {
+        assert.doesNotMatch(source, pattern, `${name} matches ${pattern}`);
+      }
+    });
+  }
 });
