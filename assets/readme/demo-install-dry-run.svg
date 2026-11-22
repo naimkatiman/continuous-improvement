@@ -11,7 +11,7 @@
 <text x="40" y="172" font-size="18" class="mute mono" xml:space="preserve">continuous-improvement agent install (scope:</text>
 <text x="40" y="198" font-size="18" class="mute mono" xml:space="preserve">  project, dry run)</text>
 <text x="40" y="224" font-size="18" class="tx mono" xml:space="preserve">  · would copy the runtime →</text>
-<text x="40" y="250" font-size="18" class="tx mono" xml:space="preserve">    ~/.claude/instincts/runtime/3.27.0</text>
+<text x="40" y="250" font-size="18" class="tx mono" xml:space="preserve">    ~/.claude/instincts/runtime/3.28.0</text>
 <text x="40" y="276" font-size="18" class="tx mono" xml:space="preserve">  · would create ~/project/.gemini/settings.json</text>
 <text x="40" y="302" font-size="18" class="tx mono" xml:space="preserve">    (gemini)</text>
 <text x="40" y="328" font-size="18" class="tx mono" xml:space="preserve">  · would create ~/project/GEMINI.md (gemini)</text>
