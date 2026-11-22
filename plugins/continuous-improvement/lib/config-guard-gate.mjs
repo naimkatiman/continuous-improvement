@@ -22,7 +22,7 @@ import { inboundCommand, inboundPaths, resolveInboundTool } from "./agent-profil
  * must be the whole path or a trailing path segment, so `hooks.json.md` and
  * `config/settings.json` are not matched.
  */
-export const PROTECTED_PATTERNS = [
+const CLAUDE_PATTERNS = [
     ".claude/settings.json",
     ".claude/settings.local.json",
     ".mcp.json",
@@ -31,6 +31,69 @@ export const PROTECTED_PATTERNS = [
     ".claude/plugins/",
     ".claude-plugin/",
 ];
+// The files and directories that wire the other agents' hooks, MCP servers,
+// extensions and plugins (all-agents plan, Architecture item 15). Each comes
+// from the verified research in result.json (research[] capabilities, with the
+// skeptic verify[] verdicts, checked 2026-11-21). `hooks.json` above already
+// covers .codex/hooks.json, .cursor/hooks.json and .factory/hooks.json, and a
+// hooks/hooks.json inside an extension or plugin. They come after the Claude
+// patterns, so a Claude path still reports the pattern it always did.
+const AGENT_PATTERNS = [
+    // Codex: [mcp_servers], inline [hooks] and plugin enablement (research Codex mcp_servers, hook_pre_tool).
+    ".codex/config.toml",
+    // Gemini: mcpServers and hooks in settings.json; extensions in ~/.gemini/extensions (mcp_servers, plugin_or_extension_packaging).
+    ".gemini/settings.json",
+    ".gemini/extensions/",
+    // Cursor: project and user mcp.json (mcp_servers).
+    ".cursor/mcp.json",
+    // Copilot: .github/hooks/*.json, ~/.copilot/hooks/, inline hooks in .github/copilot/settings(.local).json and ~/.copilot/settings.json (hook_pre_tool).
+    ".github/hooks/",
+    ".github/copilot/settings.json",
+    ".github/copilot/settings.local.json",
+    ".copilot/hooks/",
+    ".copilot/settings.json",
+    // Devin Local: .devin/hooks.v1.json, or a hooks key in .devin/config(.local).json or %APPDATA%\devin\config.json (hook_pre_tool).
+    ".devin/hooks.v1.json",
+    ".devin/config.json",
+    ".devin/config.local.json",
+    "AppData/Roaming/devin/config.json",
+    // Kiro: .kiro/hooks/*.json and ~/.kiro/hooks/, and inline hooks in an agent profile under .kiro/agents/ and
+    // ~/.kiro/agents/ (research Kiro hook_pre_tool and subagents; skeptic hook_pre_tool: V2-harness sessions use
+    // agent-profile hooks).
+    ".kiro/hooks/",
+    ".kiro/agents/",
+    // Qwen: mcpServers and hooks in settings.json; extensions in <home>/.qwen/extensions (mcp_servers, plugin_or_extension_packaging).
+    ".qwen/settings.json",
+    ".qwen/extensions/",
+    // Grok: hooks/*.json, and config.toml for [mcp_servers], [[hooks.PreToolUse]] and [plugins] enabled
+    // (mcp_servers, hook_pre_tool). The Grok TUI is the same binary with GROK_HOME=~/.grok-tui (versions_checked).
+    ".grok/hooks/",
+    ".grok/config.toml",
+    ".grok-tui/hooks/",
+    ".grok-tui/config.toml",
+    // Cline: the VS Code extension scans ~/Documents/Cline/Hooks and .clinerules/hooks; the CLI also ~/.cline/hooks
+    // and .cline/hooks (skeptic verdict hook_pre_tool).
+    ".clinerules/hooks/",
+    ".cline/hooks/",
+    "Documents/Cline/Hooks/",
+    // Factory Droid: a hooks key in ~/.factory/settings.json (hook_pre_tool).
+    ".factory/settings.json",
+    // Auggie: hooks and mcpServers in .augment/settings(.local).json and ~/.augment/settings.json (mcp_servers, hook_pre_tool).
+    ".augment/settings.json",
+    ".augment/settings.local.json",
+    // Junie: hooks in ~/.junie/config.json (hook_pre_tool).
+    ".junie/config.json",
+    // OpenCode V1: plugins load from .opencode/plugins/ and ~/.config/opencode/plugins/ (plugin_or_extension_packaging).
+    ".opencode/plugins/",
+    ".config/opencode/plugins/",
+    // Amp: plugins live in .amp/plugins/ and ~/.config/amp/plugins/ (hook_pre_tool).
+    ".amp/plugins/",
+    ".config/amp/plugins/",
+    // Agent Plugins (agent-plugins.org v1) under ~/.agents/plugins/ and <project>/.agents/plugins/: Goose loads hooks only from
+    // a plugin dir there, and Cline reads the same tree (Goose hook_pre_tool, Cline plugin_or_extension_packaging).
+    ".agents/plugins/",
+];
+export const PROTECTED_PATTERNS = [...CLAUDE_PATTERNS, ...AGENT_PATTERNS];
 const ALLOW = { action: "allow", reason: "" };
 export function parseMode(raw) {
     const v = (raw ?? "warn").trim().toLowerCase();
@@ -310,6 +373,12 @@ const GENERIC_WRITE_RE = /writefilesync|writefile\(|appendfile|unlink|rename\(|c
 // The indicators above that remove or rename what they name. Next to one of
 // these a protected directory named itself counts, as it does for `rm`.
 const GENERIC_REMOVE_RE = /unlink|rename\(|rmsync|remove-item|\]::delete\(|\]::move\(|\bdel\b/i;
+// The other agents' patterns embedded in a longer expression, the way the
+// generic scan finds `.claude/` inside `writeFileSync(.claude/settings.json)`.
+// A separate pass after the Claude one, so a Claude path is found as before.
+const AGENT_EMBEDDED_RE = new RegExp(String.raw `(?:^|[('"\s=,])([~A-Za-z0-9_./\\:-]*(?:` +
+    AGENT_PATTERNS.map((pattern) => pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\//g, String.raw `[\\/]`)).join("|") +
+    String.raw `)[A-Za-z0-9_./\\-]*)`, "i");
 // A redirect to another descriptor or to the null device writes no file:
 // `2>&1`, `>&2`, `2>/dev/null`, `>/dev/null`, `&>/dev/null`, `2>$null`, `*>$null`,
 // `>NUL`. It is not a write indicator.
@@ -422,6 +491,81 @@ const CLAUDE_CLI_MUTATIONS = {
     mcp: new Set(["add", "remove", "add-json", "add-from-claude-desktop", "reset-project-choices"]),
     config: new Set(["set", "add", "remove", "reset", "rm"]),
 };
+// `<cli> <area> <verb>` forms of the other agents' CLIs that rewrite their
+// plugin, MCP, extension or hook configuration. An area of two words
+// (`plugin marketplace`) is tried before one. Global flags and their values
+// may come first. Only the verbs the verified research or a skeptic correction
+// names are listed (result.json, checked 2026-11-21 and again 2026-11-22), so
+// the listing, inspecting and validating forms stay allowed:
+// - codex: research Codex mcp_servers (`codex mcp add`, `codex mcp list|get|remove`) and
+//   plugin_or_extension_packaging (`codex plugin add|remove`, `codex plugin marketplace add|upgrade|remove`).
+// - gemini: research Gemini mcp_servers (`gemini mcp add`, project scope by default per the skeptic),
+//   plugin_or_extension_packaging (`gemini extensions install|link`, `gemini hooks migrate --from-claude`,
+//   which writes .gemini/settings.json; unknowns: `gemini hooks` has only `migrate`).
+// - qwen: research Qwen mcp_servers (`qwen mcp add`, `qwen mcp list|remove|reconnect|approve|reject`;
+//   skeptic: approve|reject act on pending servers) and plugin_or_extension_packaging (`qwen extensions install|link`,
+//   "Also uninstall/update/enable/disable/new/settings/sources"; of those, uninstall, update, enable and disable
+//   change which extensions load).
+// - grok: research Grok mcp_servers (`grok mcp add`, `grok mcp enable|disable`) and
+//   plugin_or_extension_packaging (`grok plugin install`, `grok plugin enable|disable|update|uninstall`,
+//   `grok plugin marketplace add`; skeptic: `grok plugin --help` lists them).
+// - copilot: research Copilot mcp_servers (`copilot mcp add`; skeptic: `remove`, `disable` and `enable` also exist)
+//   and plugin_or_extension_packaging (`copilot plugin install` (alias add), uninstall, update, enable, disable,
+//   `copilot plugin marketplace add|list|browse|update|remove`; skeptic: "uninstall (remove, rm), marketplace
+//   update (refresh)").
+// - devin: research Devin mcp_servers (`devin mcp add`, plus enable, disable and remove),
+//   plugin_or_extension_packaging (`devin plugins install`, "Manage with plugins list, info, update, remove and
+//   prune") and no_model_checks (`devin migrate hooks`
+//   writes .devin/hooks.v1.json).
+const AGENT_CLI_MUTATIONS = new Map(Object.entries({
+    codex: {
+        plugin: ["add", "remove"],
+        "plugin marketplace": ["add", "upgrade", "remove"],
+        mcp: ["add", "remove"],
+    },
+    gemini: { extensions: ["install", "link"], mcp: ["add"], hooks: ["migrate"] },
+    qwen: { extensions: ["install", "link", "uninstall", "update", "enable", "disable"], mcp: ["add", "remove", "approve", "reject"] },
+    grok: {
+        plugin: ["install", "uninstall", "update", "enable", "disable"],
+        "plugin marketplace": ["add"],
+        mcp: ["add", "enable", "disable"],
+    },
+    copilot: {
+        plugin: ["install", "add", "uninstall", "remove", "rm", "update", "enable", "disable"],
+        "plugin marketplace": ["add", "update", "refresh", "remove"],
+        mcp: ["add", "remove", "enable", "disable"],
+    },
+    devin: { plugins: ["install", "update", "remove", "prune"], mcp: ["add", "enable", "disable", "remove"], migrate: ["hooks"] },
+}).map(([cli, areas]) => [cli, new Map(Object.entries(areas).map(([area, verbs]) => [area, new Set(verbs)]))]));
+// The CLI a command word names: its last path segment without a Windows
+// launcher suffix (`C:\...\grok.exe`, `gemini.cmd`, `/usr/local/bin/qwen`).
+// The word comes from splitArguments, so a quoted path with a space is one word.
+function cliName(cmd) {
+    return stripQuotes(cmd).replace(/^.*[\\/]/, "").replace(/\.(?:exe|cmd)$/, "");
+}
+function classifyAgentCli({ cmd, rest }) {
+    const cli = cliName(cmd);
+    const areas = AGENT_CLI_MUTATIONS.get(cli);
+    if (!areas)
+        return null;
+    const words = rest.map((word) => stripQuotes(word).toLowerCase());
+    for (let i = 0; i < words.length; i++) {
+        for (const depth of [2, 1]) {
+            const area = words.slice(i, i + depth).join(" ");
+            const verb = words[i + depth];
+            if (verb !== undefined && areas.get(area)?.has(verb)) {
+                return { target: `${cli} ${area} ${verb}`, pattern: `${cli}-cli`, via: "agent-cli" };
+            }
+        }
+        // Only a global flag (`-c`, `--profile=x`) or the value after one may
+        // come before the area: `codex -c x=1 mcp remove`.
+        const previous = words[i - 1];
+        const isValue = previous !== undefined && previous.startsWith("-") && !previous.includes("=");
+        if (!words[i].startsWith("-") && !isValue)
+            break;
+    }
+    return null;
+}
 function classifyBashSegment(segment) {
     const tokens = tokenize(segment);
     if (tokens.length === 0)
@@ -437,6 +581,11 @@ function classifyBashSegment(segment) {
         }
         return null;
     }
+    // Another agent's CLI verb that rewrites its configuration. A form that is
+    // not one goes on through the checks below, so a redirect behind it is seen.
+    const agentCli = classifyAgentCli(commandWord(splitArguments(segment)));
+    if (agentCli)
+        return agentCli;
     // Redirects: `> path`, `>> path`, `2>path`, `>path`, `&>path`, `*> path`.
     // They come first: the output of any command, a copy included, can be sent
     // into a protected file.
@@ -533,6 +682,12 @@ function classifyBashSegment(segment) {
                 const pattern = matchProtected(embedded[1], removes);
                 if (pattern)
                     return { target: embedded[1], pattern, via: "bash" };
+            }
+            const agentEmbedded = AGENT_EMBEDDED_RE.exec(c);
+            if (agentEmbedded) {
+                const pattern = matchProtected(agentEmbedded[1], removes);
+                if (pattern)
+                    return { target: agentEmbedded[1], pattern, via: "bash" };
             }
         }
     }

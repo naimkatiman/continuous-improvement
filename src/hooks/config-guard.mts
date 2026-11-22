@@ -11,8 +11,11 @@
  *
  * Guards the files that wire the guardrails: `.claude/settings*.json`,
  * `.mcp.json`, `hooks.json`, `.claude/hooks/`, `.claude/plugins/`,
- * `.claude-plugin/`, and the `claude plugin|mcp|config` CLI forms that edit
- * them. Pure logic in ../lib/config-guard-gate.mjs.
+ * `.claude-plugin/`, the other agents' hook, MCP, extension and plugin files
+ * (`.codex/config.toml`, `.gemini/settings.json`, `.devin/hooks.v1.json`, ...),
+ * the `claude plugin|mcp|config` CLI forms that edit them, and the plugin, mcp,
+ * extensions and hooks verbs of the codex, gemini, qwen, grok, copilot and
+ * devin CLIs. Pure logic (and the full lists) in ../lib/config-guard-gate.mjs.
  *
  * Mode via CI_CONFIG_GUARD: "warn" (default) | "block" | "off".
  *   warn  : print a one-line notice to stderr; never blocks.
@@ -45,7 +48,7 @@ const ALLOW: Decision = { kind: "allow" };
 
 function buildReason(toolName: string, hit: ConfigMutation, mode: "warn" | "block"): string {
   const what =
-    hit.via === "claude-cli"
+    hit.via === "claude-cli" || hit.via === "agent-cli"
       ? `\`${hit.target}\` edits the plugin / MCP / settings configuration`
       : `${toolName} would modify ${hit.target} (matches "${hit.pattern}")`;
   return [

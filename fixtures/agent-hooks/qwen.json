@@ -209,6 +209,56 @@
           "expect": { "decision": "deny", "stdoutIncludes": "settings.json" }
         }
       ]
+    },
+    {
+      "id": "qwen/run-shell-command-qwen-extensions-install-config-guard-warn",
+      "note": "The default stays warn: qwen extensions install (research Qwen plugin_or_extension_packaging) prints a notice and is allowed.",
+      "steps": [
+        {
+          "hook": "hooks/config-guard.mjs",
+          "stdin": {
+            "session_id": "qwen-session",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "run_shell_command",
+            "tool_input": {
+              "command": "qwen extensions install ./ext --consent"
+            },
+            "tool_use_id": "toolu_qwen_20"
+          },
+          "expect": {
+            "decision": "warn",
+            "stderrIncludes": "`qwen extensions install`"
+          }
+        }
+      ]
+    },
+    {
+      "id": "qwen/write-file-qwen-settings-config-guard-block",
+      "note": "Qwen reads mcpServers and hooks from .qwen/settings.json (research Qwen mcp_servers and hook_pre_tool).",
+      "steps": [
+        {
+          "hook": "hooks/config-guard.mjs",
+          "env": {
+            "CI_CONFIG_GUARD": "block"
+          },
+          "stdin": {
+            "session_id": "qwen-session",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "write_file",
+            "tool_input": {
+              "file_path": "<PROJECT>/.qwen/settings.json",
+              "content": "{}"
+            },
+            "tool_use_id": "toolu_qwen_21"
+          },
+          "expect": {
+            "decision": "deny",
+            "stdoutIncludes": ".qwen/settings.json"
+          }
+        }
+      ]
     }
   ]
 }

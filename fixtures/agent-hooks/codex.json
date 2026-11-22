@@ -280,6 +280,80 @@
           "expect": { "decision": "deny", "stdoutIncludes": "git-push-force" }
         }
       ]
+    },
+    {
+      "id": "codex/bash-codex-mcp-remove-config-guard-block",
+      "note": "codex mcp remove is a mutating verb (research Codex mcp_servers: `codex mcp list|get|remove`).",
+      "steps": [
+        {
+          "hook": "hooks/config-guard.mjs",
+          "env": {
+            "CI_CONFIG_GUARD": "block"
+          },
+          "stdin": {
+            "session_id": "codex-session",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_use_id": "call_20",
+            "tool_input": {
+              "command": "codex mcp remove continuous-improvement"
+            }
+          },
+          "expect": {
+            "decision": "deny",
+            "stdoutIncludes": "`codex mcp remove`"
+          }
+        }
+      ]
+    },
+    {
+      "id": "codex/apply-patch-codex-config-toml-config-guard-warn",
+      "note": "The default stays warn: an apply_patch of .codex/config.toml (research Codex mcp_servers and hook_pre_tool: [mcp_servers] and inline [hooks] live there) prints a notice and is allowed.",
+      "steps": [
+        {
+          "hook": "hooks/config-guard.mjs",
+          "stdin": {
+            "session_id": "codex-session",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "apply_patch",
+            "tool_use_id": "call_21",
+            "tool_input": {
+              "command": "*** Begin Patch\n*** Update File: .codex/config.toml\n@@\n-[features]\n+[features]\n*** End Patch"
+            }
+          },
+          "expect": {
+            "decision": "warn",
+            "stderrIncludes": ".codex/config.toml"
+          }
+        }
+      ]
+    },
+    {
+      "id": "codex/bash-codex-mcp-list-config-guard-allow",
+      "note": "A listing verb is not a mutation.",
+      "steps": [
+        {
+          "hook": "hooks/config-guard.mjs",
+          "env": {
+            "CI_CONFIG_GUARD": "block"
+          },
+          "stdin": {
+            "session_id": "codex-session",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_use_id": "call_22",
+            "tool_input": {
+              "command": "codex mcp list --json"
+            }
+          },
+          "expect": {
+            "decision": "allow"
+          }
+        }
+      ]
     }
   ]
 }
