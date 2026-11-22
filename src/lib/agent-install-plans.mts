@@ -209,8 +209,11 @@ export interface LedgerEntry {
   runtime: string;
   installedAt: string;
   files: LedgerFile[];
-  /** `cwd`: where the command ran (the project root at project scope), and so where its undo runs. */
-  runs: Array<PlannedRun & { ran: boolean; cwd: string | null }>;
+  /**
+   * `cwd`: where the command ran (the project root at project scope), and so where its undo runs.
+   * `undoFailed`: an uninstall ran the undo and it failed; the next uninstall takes the run as removed by hand.
+   */
+  runs: Array<PlannedRun & { ran: boolean; cwd: string | null; undoFailed?: true }>;
   /**
    * Set by an uninstall that removed the files but not a vendor registration (an undo not run, failed or
    * missing): `runs` then holds only those, and the entry keeps its runtime until they are undone.
@@ -1064,7 +1067,7 @@ function isEntry(value: unknown): value is LedgerEntry {
       && (file.skill === undefined || typeof file.skill === "string") && (file.managedBlock === undefined || file.managedBlock === true))
     && (value.pending === undefined || value.pending === true)
     && Array.isArray(value.runs) && value.runs.every((run) => isObject(run) && isStrings(run.argv) && (run.undo === null || isStrings(run.undo)) && typeof run.ran === "boolean"
-      && (run.cwd === undefined || run.cwd === null || typeof run.cwd === "string"));
+      && (run.cwd === undefined || run.cwd === null || typeof run.cwd === "string") && (run.undoFailed === undefined || run.undoFailed === true));
 }
 
 /** The ledger, an empty one when there is no file, or null when it is corrupt (nothing is then changed). */

@@ -659,3 +659,73 @@ describe("install --hooks --scope user follows GEMINI_CLI_HOME and QWEN_HOME", (
     assert.ok(!existsSync(join(qwenHome, "settings.json")));
   });
 });
+
+// PR 19 review: an undo that keeps failing (the vendor CLI uninstalled, or a missing
+// server reported in other words) must not keep the entry pending forever.
+describe("install --uninstall --target drops a registration whose undo failed twice", () => {
+  it("the vendor CLI is gone: the first --run keeps the entry pending, the next takes it as removed by hand and prunes the runtime", () => {
+    const b = box();
+    fakeCli(b, "codex");
+    // Only the fake CLI, node and the system dir: a real codex on this host must not answer the undo.
+    const bare = { PATH: [b.fakeBin, dirname(process.execPath), ...(process.platform === "win32" ? [join(process.env.SystemRoot ?? "C:/Windows", "System32")] : ["/usr/bin", "/bin"])].join(delimiter), Path: undefined };
+    assert.equal(run(b, ["install", "--target", "codex", "--hooks", "--scope", "user", "--run"], bare).status, 0);
+    for (const file of ["codex", "codex.cmd", "codex-record.cjs"]) rmSync(join(b.fakeBin, file));
+
+    const first = run(b, ["--uninstall", "--target", "codex", "--scope", "user", "--run"], bare);
+    assert.equal(first.status, 1, first.stdout);
+    assert.match(first.stderr, /codex mcp remove continuous-improvement failed/);
+    assert.match(first.stdout, /`--uninstall --target codex --scope user` then finishes the uninstall, taking it as removed/);
+    assert.doesNotMatch(first.stdout, /runs that undo and finishes/);
+    assert.deepEqual(ledgerOf(b).entries.map((entry) => [entry.target, entry.pending]), [["codex", true]]);
+    assert.ok(existsSync(runtime(b)));
+
+    const second = run(b, ["--uninstall", "--target", "codex", "--scope", "user", "--run"], bare);
+    assert.equal(second.status, 1, second.stdout);
+    assert.match(second.stdout, /failed again: taken as removed by hand\. If codex still lists continuous-improvement, remove it by hand/);
+    assert.deepEqual(ledgerOf(b), { version: 1, entries: [], runtimes: [] });
+    assert.ok(!existsSync(runtime(b)), "the runtime goes with the entry");
+    assert.match(run(b, ["--uninstall", "--target", "codex", "--scope", "user", "--run"], bare).stdout, /Nothing recorded for codex/);
+  });
+
+  it("without --run after a failed undo, the next uninstall prints the undo and takes it as removed", () => {
+    const b = box();
+    fakeCli(b, "grok");
+    appendFileSync(join(b.fakeBin, "grok-record.cjs"), 'if (process.argv[3] === "remove") { process.stderr.write("boom\\n"); process.exitCode = 1; }\n');
+    assert.equal(run(b, ["install", "--target", "grok", "--hooks", "--scope", "user", "--run"]).status, 0);
+    assert.equal(run(b, ["--uninstall", "--target", "grok", "--scope", "user", "--run"]).status, 1);
+    const next = run(b, ["--uninstall", "--target", "grok", "--scope", "user"]);
+    assert.equal(next.status, 0, next.stderr);
+    assert.match(next.stdout, /grok mcp remove continuous-improvement --scope user failed before: taken as removed by hand/);
+    assert.deepEqual(ledgerOf(b).entries, []);
+  });
+});
+
+describe("install --hooks rules files recorded by more than one install", () => {
+  it("a --scope user install from a second project keeps the first project's rules file recorded, so the uninstall removes both", () => {
+    const b = box();
+    const other = join(b.root, "projectB");
+    mkdirSync(other);
+    assert.equal(run(b, ["install", "--target", "codex", "--hooks", "--scope", "user"]).status, 0);
+    assert.equal(run(b, ["install", "--target", "codex", "--hooks", "--scope", "user"], { CLAUDE_PROJECT_DIR: other }, other).status, 0);
+    const blocks = ledgerOf(b).entries[0]!.files.filter((file) => file.managedBlock).map((file) => file.path).sort();
+    assert.deepEqual(blocks, [slash(join(b.project, "AGENTS.md")), slash(join(other, "AGENTS.md"))].sort());
+    const out = run(b, ["--uninstall", "--target", "codex", "--scope", "user"]);
+    assert.equal(out.status, 0, out.stderr);
+    assert.ok(!existsSync(join(b.project, "AGENTS.md")), "the first project's AGENTS.md we created goes");
+    assert.ok(!existsSync(join(other, "AGENTS.md")));
+  });
+
+  it("an AGENTS.md a project install created and a user install also recorded is deleted by whichever uninstall comes last", () => {
+    for (const order of [["project", "user"], ["user", "project"]] as const) {
+      const b = box();
+      assert.equal(run(b, ["install", "--target", "codex", "--hooks"]).status, 0);
+      assert.equal(run(b, ["install", "--target", "codex", "--hooks", "--scope", "user"]).status, 0);
+      for (const scope of order) {
+        const out = run(b, ["--uninstall", "--target", "codex", ...(scope === "user" ? ["--scope", "user"] : [])]);
+        assert.equal(out.status, 0, out.stderr);
+      }
+      const agents = join(b.project, "AGENTS.md");
+      assert.ok(!existsSync(agents), `${order.join(" then ")}: ${existsSync(agents) ? JSON.stringify(readFileSync(agents, "utf8")) : ""}`);
+    }
+  });
+});

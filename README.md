@@ -256,7 +256,7 @@ The guard is the same hook file on every agent, [`hooks/gateguard.mjs`](hooks/ga
 | Aider | rules only | no | rules file | `npx continuous-improvement install --target aider` | Aider has no hooks, MCP client or skills, so nothing is blocked. |
 <!-- agent-matrix:end -->
 
-`--target <id>` without `--hooks` still writes only the rules file. `--scope user` writes the agent's user-level config, `--dry-run` prints every write first, and `npx continuous-improvement install --uninstall --target <id>` removes what `--hooks` recorded. A vendor `mcp add` it did not undo (run without `--run`, or a failed undo) keeps the agent recorded, and its runtime copy kept, until `--uninstall --target <id> --run` undoes it. `npx -p continuous-improvement ci doctor --agent <id>` shows what an installed agent loaded, using only that agent's own listing commands.
+`--target <id>` without `--hooks` still writes only the rules file. `--scope user` writes the agent's user-level config, `--dry-run` prints every write first, and `npx continuous-improvement install --uninstall --target <id>` removes what `--hooks` recorded. A vendor `mcp add` it did not undo (run without `--run`, or a failed undo) keeps the agent recorded, and its runtime copy kept, until `--uninstall --target <id> --run` undoes it; an undo that fails twice is taken as removed by hand, and the uninstall says so. `npx -p continuous-improvement ci doctor --agent <id>` shows what an installed agent loaded, using only that agent's own listing commands.
 
 ## Unattended runs and CI
 

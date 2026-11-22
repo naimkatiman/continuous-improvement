@@ -39,7 +39,7 @@ The guard is `hooks/gateguard.mjs` (destructive shell commands and blind edits),
 | Zed | rules only | no | rules file | `npx continuous-improvement install --target zed` | Zed has no hooks, so nothing is blocked. This package installs no MCP server or skills for Zed yet. |
 | Aider | rules only | no | rules file | `npx continuous-improvement install --target aider` | Aider has no hooks, MCP client or skills, so nothing is blocked. |
 
-`--target <id>` without `--hooks` still writes only the rules file. Add `--scope user` to write the agent's user-level config, `--dry-run` to see every write first, `--run` to run the vendor `mcp add` command, and `--fail-closed` to set the agent's fail-closed option where it has one. `npx continuous-improvement install --uninstall --target <id>` removes what `--hooks` recorded. A vendor `mcp add` it did not undo (run without `--run`, or a failed undo) keeps the agent recorded, and its runtime copy kept, until `--uninstall --target <id> --run` undoes it.
+`--target <id>` without `--hooks` still writes only the rules file. Add `--scope user` to write the agent's user-level config, `--dry-run` to see every write first, `--run` to run the vendor `mcp add` command, and `--fail-closed` to set the agent's fail-closed option where it has one. `npx continuous-improvement install --uninstall --target <id>` removes what `--hooks` recorded. A vendor `mcp add` it did not undo (run without `--run`, or a failed undo) keeps the agent recorded, and its runtime copy kept, until `--uninstall --target <id> --run` undoes it; an undo that fails twice is taken as removed by hand, and the uninstall says so.
 
 ## Per agent
 

@@ -273,7 +273,6 @@ function rulesWrites(args: ParsedArgs, io: HookRunIo, ledger: Ledger): { recorde
   const skipped: string[] = [];
   if (args.rulesTargets.length === 0) return { recorded, unrecorded, skipped };
   const skillMd = io.skillMd();
-  const project = args.scope === "project" ? slash(io.projectRoot) : null;
   for (const target of args.rulesTargets) {
     const agent = resolveHookAgent(target) ?? target;
     const plan = planTargetWrites(target, skillMd, (rel) => readText(join(io.projectRoot, rel)));
@@ -285,8 +284,9 @@ function rulesWrites(args: ParsedArgs, io: HookRunIo, ledger: Ledger): { recorde
         continue;
       }
       const path = slash(join(io.projectRoot, write.relPath));
-      const before = ledger.entries.find((entry) => entry.target === agent && entry.scope === args.scope && entry.project === project);
-      const created = readText(path) === null || (before?.files.some((file) => slash(file.path) === path && file.created) ?? false);
+      // Created when it is not there, or when any install recorded creating it (this slot's last one, or
+      // the same agent at the other scope), so whichever uninstall of them comes last deletes it.
+      const created = readText(path) === null || ledger.entries.some((entry) => entry.files.some((file) => slash(file.path) === path && file.created));
       const base = { path, content: write.content, created, hooksAt: null, hookCommands: [], mcpAt: null, mcp: null };
       let entryWrite: ConfigWrite | null = null;
       if (write.content.includes(MANAGED_BEGIN)) entryWrite = { ...base, managedBlock: true };
@@ -361,10 +361,16 @@ export function runHookInstall(args: ParsedArgs, io: HookRunIo): number {
       io.out(`  ✓ ${target} → ${path} (there before, so the uninstall keeps it)`);
     }
     for (const plan of plans) {
+      const files = plan.writes.map(toLedgerFile);
+      const paths = new Set(files.map((file) => slash(file.path)));
+      // A user entry is one slot for every project: a rules file an earlier user install wrote into
+      // another project stays recorded, so the uninstall still removes it.
+      const previous = args.scope === "user" ? ledger.entries.find((other) => other.target === plan.agent && other.scope === "user") : undefined;
+      const carried = (previous?.files ?? []).filter((file) => (file.managedBlock === true || (file.script !== undefined && file.skill === undefined)) && !paths.has(slash(file.path)));
       const entry: LedgerEntry = {
         target: plan.agent, scope: args.scope, project: args.scope === "project" ? slash(io.projectRoot) : null, version: io.version, runtime: rt,
         installedAt: new Date().toISOString(),
-        files: plan.writes.map(toLedgerFile),
+        files: [...files, ...carried],
         runs: plan.runs.map((run: PlannedRun) => ({ ...run, ran: false, cwd: runCwd })),
       };
       // The agent's files and its ledger entry land together: a failure puts its
@@ -498,8 +504,11 @@ Nothing was removed.`);
       } else if (args.dryRun) {
         io.out(`  · would ${args.run ? "run" : "print"}: ${display(run.undo)}`);
       } else if (!args.run) {
-        io.out(`  ▸ run yourself: ${display(run.undo)}`);
-        left.push(run);
+        if (run.undoFailed) io.out(`  ▸ ${display(run.undo)} failed before: taken as removed by hand. If it is still there, run that yourself.`);
+        else {
+          io.out(`  ▸ run yourself: ${display(run.undo)}`);
+          left.push(run);
+        }
       } else {
         const failure = runVendor(run.undo, io.platform, run.cwd);
         if (failure === null) io.out(`  ✓ ran: ${display(run.undo)}`);
@@ -507,16 +516,21 @@ Nothing was removed.`);
         else {
           io.err(`  ✗ ${display(run.undo)} failed (${failure}); run it yourself.`);
           status = 1;
-          left.push(run);
+          // A second failure (the vendor CLI uninstalled, or a missing server reported in other words)
+          // is taken as removed by hand, as an undo of null is, so the entry cannot stay pending forever.
+          if (run.undoFailed) io.out(`  ▸ ${display(run.undo)} failed again: taken as removed by hand. If ${entry.target} still lists continuous-improvement, remove it by hand.`);
+          else left.push({ ...run, undoFailed: true });
         }
       }
     }
     if (left.length === 0 || args.dryRun) continue;
     pending.set(entry, { ...entry, files: [], runs: left, pending: true });
     const scopeFlag = entry.scope === "user" ? " --scope user" : "";
-    const finish = left.some((run) => run.undo !== null)
+    const finish = left.some((run) => run.undo !== null && run.undoFailed !== true)
       ? `\`--uninstall --target ${entry.target}${scopeFlag} --run\` runs that undo and finishes the uninstall`
-      : `\`--uninstall --target ${entry.target}${scopeFlag}\` then finishes the uninstall`;
+      : left.some((run) => run.undoFailed === true)
+        ? `\`--uninstall --target ${entry.target}${scopeFlag}\` then finishes the uninstall, taking it as removed (with --run it tries the undo once more)`
+        : `\`--uninstall --target ${entry.target}${scopeFlag}\` then finishes the uninstall`;
     io.out(`  ℹ ${entry.target} stays in the ledger as pending, and so does its runtime ${entry.runtime}, while that registration points at it: ${finish}.`);
   }
   if (args.dryRun) {

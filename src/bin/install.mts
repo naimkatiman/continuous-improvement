@@ -872,7 +872,8 @@ Options for 'install':
                     Remove the hook configs, MCP entries and rules-file blocks
                     --hooks recorded for those agents; a printed snippet you
                     pasted stays. A vendor mcp add it did not undo (no --run)
-                    keeps the agent recorded until --run undoes it
+                    keeps the agent recorded until --run undoes it; an
+                    undo that fails twice is taken as removed by hand
   --help            Show this help
 
 Options for 'backfill':

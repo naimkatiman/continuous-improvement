@@ -489,4 +489,13 @@ describe("PR 19: the planner and the ledger match what the agents read and what 
       assert.equal(parseLedger(JSON.stringify({ version: 1, entries: [bad], runtimes: [RT] })), null);
     }
   });
+
+  it("parseLedger takes a run whose undo failed, and refuses an undoFailed of any other value", () => {
+    const run = { argv: ["codex", "mcp", "add", "continuous-improvement"], undo: ["codex", "mcp", "remove", "continuous-improvement"], ran: true, cwd: null };
+    const entry = (runs: unknown[]) => ({ target: "codex", scope: "user", project: null, version: "9.9.9", runtime: RT, installedAt: "t", files: [], runs, pending: true });
+    assert.equal(parseLedger(JSON.stringify({ version: 1, entries: [entry([{ ...run, undoFailed: true }])], runtimes: [RT] }))?.entries[0]?.runs[0]?.undoFailed, true);
+    for (const undoFailed of [false, "yes", 1, null]) {
+      assert.equal(parseLedger(JSON.stringify({ version: 1, entries: [entry([{ ...run, undoFailed }])], runtimes: [RT] })), null, String(undoFailed));
+    }
+  });
 });
