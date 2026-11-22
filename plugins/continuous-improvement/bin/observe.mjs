@@ -15,10 +15,9 @@
 //   - Hook budget: <500ms on Windows (per CONTRIBUTING.md).
 //
 // See docs/plans/2026-05-05-node-observer-rich-schema.md for the full design.
-import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { basename, join } from "node:path";
+import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { canonicalizeProjectRoot, hashProjectRoot } from "../lib/gateguard-state.mjs";
 import { parseHookPayload, summariseInput, summariseOutput } from "../lib/observe-event.mjs";
 const ROTATION_LINE_THRESHOLD = 10_000;
@@ -40,11 +39,10 @@ function runObserver() {
     const payload = parseHookPayload(raw);
     if (!payload)
         return;
-    const projectRoot = canonicalizeProjectRoot(resolveProjectRoot());
+    const projectRoot = canonicalizeProjectRoot(resolveProjectRoot(parseObject(raw)));
     const projectHash = hashProjectRoot(projectRoot);
     const projectName = basename(projectRoot.replace(/\.git$/, ""));
-    const instinctsDir = join(getHomeDir(), ".claude", "instincts");
-    const projectDir = join(instinctsDir, projectHash);
+    const projectDir = join(resolveInstinctsRoot(), projectHash);
     const obsFile = join(projectDir, "observations.jsonl");
     ensureDir(projectDir);
     rotateIfNeeded(obsFile, projectDir);
@@ -71,32 +69,15 @@ function readStdin() {
         return "";
     }
 }
-function getHomeDir() {
-    // CLAUDE_PROJECT_DIR is the project root, not the home dir; HOME wins for
-    // home-dir resolution. Fall through to USERPROFILE on Windows then os.homedir.
-    return process.env.HOME || process.env.USERPROFILE || homedir();
-}
-function resolveProjectRoot() {
-    const fromEnv = process.env.CLAUDE_PROJECT_DIR;
-    // The bash version trusts CLAUDE_PROJECT_DIR unconditionally when set;
-    // preserve that semantic so test fixtures with synthetic /tmp/... paths
-    // and operator workflows that pre-set the env var both keep working.
-    if (fromEnv)
-        return fromEnv;
+// The raw stdin object, for the payload's working directory. parseHookPayload
+// already accepted the same text, so this parse cannot fail on a row it keeps.
+function parseObject(raw) {
     try {
-        // execFileSync (not execSync) — no shell, fixed argv array, no injection
-        // surface. Inputs are all hard-coded constants.
-        const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
-            encoding: "utf8",
-            stdio: ["ignore", "pipe", "ignore"],
-        }).trim();
-        if (root)
-            return root;
+        return JSON.parse(raw);
     }
     catch {
-        // Not in a git repo — fall through.
+        return null;
     }
-    return "global";
 }
 function ensureDir(dir) {
     if (!existsSync(dir))

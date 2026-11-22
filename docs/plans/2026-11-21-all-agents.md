@@ -196,6 +196,25 @@ lets tests import only `../lib/*.mjs` and `../bin/*.mjs`. Every new bundled
    replaces about 10 copies of resolveProjectRoot and about 33
    `join(home, ".claude", ...)` sites. It also removes the mcp-server split
    between getProjectHash and getWorkspaceRoot.
+   As shipped in PR 4: an env var counts when it is non-blank and is returned
+   as given. A payload dir counts only when it is an absolute path to an
+   existing directory inside a repository, and it is taken as that repo's git
+   toplevel, so a subdirectory shares the repo's bucket (the observer and the
+   MCP server hash the toplevel). A payload dir outside any repository is
+   skipped, so the root falls to the process cwd's toplevel or `global`, the
+   same root the readers without a payload (workflow-distill, typecheck-stop,
+   the MCP server) resolve. Hashing the raw non-git dir would split the buckets
+   for an agent that sets no project env var: the observer would write where
+   workflow-distill never reads, and the MCP `ci_gateguard_clear` fallback
+   would clear a session dir the gateguard hook never reads.
+   `CI_INSTINCTS_HOME` counts only when it is absolute (trimmed); a relative
+   value is ignored, because each process would resolve it against its own
+   cwd. Cline's camelCase
+   `workspaceRoots` and Grok's `workspaceRoot` are not read (Grok sets
+   `GROK_WORKSPACE_ROOT`; Cline's nested payload waits for PR 8).
+   `resolveInstinctsRoot(home?)` takes the caller's home so each hook keeps
+   its own HOME handling. `src/lib/agent-env.mts` holds the CI_* knob
+   aliases; the CLAUDE_* name wins when both are non-blank.
 2. **Neutral hook I/O** (`src/lib/hook-io.mts`). `NeutralEvent` holds event,
    kind (`shell | file-write | patch | file-read | skill | other`), shell
    flavor, command, file paths, prompt, session id, cwd, stop-active, stop
@@ -367,8 +386,8 @@ immediately before staging and stages files by name. `verify:all` and
 | 1 | `test/claude-hook-goldens` | Record stdout, stderr and exit for every hook over the existing Claude scenarios against the v3.27.0 scripts | `src/test/agent-claude-golden.test.mts`, `fixtures/agent-hooks/claude.json` | 350 |
 | 2 | `feat/agent-tool-aliases` | Profiles table, patch-path parser, dual-flavor shell classification. User-visible fix for the fail-open; ships before the refactors because Claude's deny JSON already blocks on Codex, Qwen, Grok, Droid and Auggie | `src/lib/{agent-profiles,patch-paths}.mts`, gateguard-evidence, config-guard-gate, hook-pack-gate, observe-event, fixtures codex/grok/qwen | 490 |
 | 3 | `fix/gateguard-state-atomic` | Temp-file plus rename state writes, with one EPERM retry | `src/lib/gateguard-state.mts`, `src/test/gateguard-state.test.mts` | 120 |
-| 4 | `refactor/agent-paths-hooks` | One root and project resolver, applied to the hooks and observer | `src/lib/agent-paths.mts`, `src/hooks/*.mts` (8), `src/bin/observe.mts`, test | 420 |
-| 5 | `refactor/agent-paths-bins` | Same resolver for mcp-server and the offline CLIs | `src/bin/{mcp-server,backfill,harvest-friction,hook-stats,companion-preference-status,reconcile-instinct-hashes,install}.mts` | 300 |
+| 4 | `refactor/agent-paths-hooks` | One root and project resolver, applied to the hooks and observer, plus the CI_* aliases of the eight CLAUDE_* knobs the hooks read | `src/lib/{agent-paths,agent-env}.mts`, `src/lib/gateguard-state.mts`, `src/hooks/*.mts` (11), `src/bin/observe.mts`, tests | 420 |
+| 5 | `refactor/agent-paths-bins` | Same resolver for mcp-server and the offline CLIs, and the `CI_UPDATE_CHECK` alias for the ninth knob (`CLAUDE_CI_UPDATE_CHECK`, read only by install). Open split to close: the MCP server's `getProjectHash` and the `resolveSessionDir()` fallback of `ci_gateguard_clear` (no `state_path`) get no payload and resolve from the server's own cwd, so for an agent that sets no project env var and starts the server outside the repo its hook payloads name, they hash a different bucket than the hooks. Pass the session's workspace root (MCP roots or the tool argument) into `resolveProjectRoot` | `src/bin/{mcp-server,backfill,harvest-friction,hook-stats,companion-preference-status,reconcile-instinct-hashes,install}.mts` | 300 |
 | 6 | `refactor/hook-core-gateguard` | `hook-io` and `gateguard-decide`, with the Claude encoder moved | `src/lib/{hook-io,gateguard-decide}.mts`, `src/hooks/gateguard.mts` | 480 |
 | 7 | `refactor/hook-core-others` | hook-pack, config-guard, session and the Stop and prompt hooks moved onto hook-io | `src/hooks/*.mts` (8) | 460 |
 | 8 | `feat/agent-output-encoders` | Per-agent encoders, `--agent`/`CI_AGENT`/two-signal sniff, exit-2 fallback | `src/lib/hook-io.mts`, fixtures for the remaining ten agents, `src/test/agent-matrix.test.mts` | 500 |

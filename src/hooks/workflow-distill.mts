@@ -6,7 +6,7 @@
 // multi-agent run survive the run instead of evaporating when the turn ends — the
 // fast-follow deferred in docs/plans/2026-06-08-workflow-instinct-bridge.md.
 //
-// Mode via CLAUDE_WORKFLOW_DISTILL_NUDGE: "on" | "off" (default).
+// Mode via CLAUDE_WORKFLOW_DISTILL_NUDGE (alias CI_WORKFLOW_DISTILL_NUDGE): "on" | "off" (default).
 //   - off (default): no-op. Operators who do not use native Workflows are never
 //     nagged.
 //   - on: if the session's observation feed shows a verified Workflow run that
@@ -24,10 +24,11 @@
 // name + verify command, so a run is nudged at most once. Fail-open by
 // construction: any error exits 0 and never blocks. No network. 5s hook budget.
 
-import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { readKnob } from "../lib/agent-env.mjs";
+import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 import { workflowRunFromObservations, type DistillObservation } from "../lib/skill-distill.mjs";
@@ -41,26 +42,15 @@ function safeJsonParse(text: string): unknown {
 }
 
 function resolveMode(): "on" | "off" {
-  return (process.env.CLAUDE_WORKFLOW_DISTILL_NUDGE ?? "off").trim().toLowerCase() === "on" ? "on" : "off";
+  return (readKnob("CLAUDE_WORKFLOW_DISTILL_NUDGE") ?? "off").trim().toLowerCase() === "on" ? "on" : "off";
 }
 
-// Mirrors bin/observe.mts:resolveProjectRoot — the same basis the observer uses
-// to bucket observations.jsonl, so the hash here resolves to the same file.
-function resolveProjectRoot(): string {
-  const fromEnv = process.env.CLAUDE_PROJECT_DIR;
-  if (fromEnv) return fromEnv;
-  try {
-    const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-    if (root) return root;
-  } catch {
-    // not a git repo
-  }
-  return "global";
-}
-
+// The observer resolves its root through lib/agent-paths too. It also reads the
+// payload dir, but only a dir inside a repository counts, so the two agree when
+// a project env var is set, when the payload dir is outside any repository
+// (both fall back to this process cwd), and when the hook runs inside the
+// payload's repository. They differ only for an agent that sets no project env
+// var and spawns its hooks outside the repository its payload names.
 function projectHash(root: string): string {
   return hashProjectRoot(root);
 }
@@ -123,8 +113,10 @@ function main(): void {
 
   const home = resolveHomeDir();
   if (!home) return;
+  // This hook never reads stdin, so the root comes from the env and the git
+  // toplevel of the process cwd (see projectHash above).
   const projectRoot = resolveProjectRoot();
-  const instinctsProjectDir = join(home, ".claude", "instincts", projectHash(projectRoot));
+  const instinctsProjectDir = join(resolveInstinctsRoot(home), projectHash(projectRoot));
 
   const observations = readObservations(instinctsProjectDir);
   if (observations.length === 0) return;

@@ -35,6 +35,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
+import { KNOB_ALIASES } from "../lib/agent-env.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 
 const REPO_ROOT = join(fileURLToPath(new URL(".", import.meta.url)), "..");
@@ -456,6 +457,68 @@ describe("Claude golden fixture coverage", () => {
       if (payload && typeof payload === "object" && "hook_event_name" in payload) {
         assert.equal(payload.hook_event_name, step.event, `${step.hook}: stdin event differs from step event`);
       }
+    }
+  });
+});
+
+// PR 4 (refactor/agent-paths-hooks): each CLAUDE_* knob a hook reads has a CI_*
+// alias. A golden replayed with the alias in place of the CLAUDE_* name must
+// give the same bytes, and with both names set the CLAUDE_* value decides.
+describe("CI_* knob aliases replay the Claude goldens", { concurrency: 8 }, () => {
+  const aliasOf = KNOB_ALIASES as Record<string, string>;
+  const withEnv = (goldenCase: GoldenCase, map: (env: Record<string, string | null>) => Record<string, string | null>): GoldenCase => ({
+    ...goldenCase,
+    steps: goldenCase.steps.map((step) => ({ ...step, env: map(step.env ?? {}) })),
+  });
+  const usesKnob = (step: Step): string[] => Object.keys(step.env ?? {}).filter((key) => key in aliasOf);
+  const expectAll = async (goldenCase: GoldenCase, label: string, expected: (index: number) => Golden): Promise<void> => {
+    const results = await runCase(goldenCase);
+    results.forEach((result, index) => {
+      assert.deepEqual(result, expected(index), `${goldenCase.id} step ${index + 1} ${label}`);
+    });
+  };
+
+  const knobCases = fixture.cases.filter((goldenCase) => goldenCase.steps.some((step) => usesKnob(step).length > 0));
+
+  for (const goldenCase of knobCases) {
+    it(`${goldenCase.id} with the CI_* name only`, async () => {
+      const renamed = withEnv(goldenCase, (env) =>
+        Object.fromEntries(Object.entries(env).map(([key, value]) => [aliasOf[key] ?? key, value])),
+      );
+      await expectAll(renamed, "differs under the CI_* alias", (index) => goldenCase.steps[index]!.expect!);
+    });
+  }
+
+  // One case per knob whose golden acts (prints or exits non-zero) with the knob
+  // on. "off" on the alias would silence it, so an alias that won would show.
+  const actingCase = new Map<string, GoldenCase>();
+  for (const goldenCase of fixture.cases) {
+    for (const step of goldenCase.steps) {
+      const acts = step.expect && (step.expect.stdout !== "" || step.expect.stderr !== "" || step.expect.exitCode !== 0);
+      for (const knob of usesKnob(step)) {
+        if (acts && step.env?.[knob] !== "off" && !actingCase.has(knob)) actingCase.set(knob, goldenCase);
+      }
+    }
+  }
+
+  it("has an acting golden for every knob but the older three-section-close opt-out", () => {
+    const expected = Object.keys(aliasOf).filter((knob) => knob !== "CLAUDE_THREE_SECTION_CLOSE_DISABLED").sort();
+    assert.deepEqual([...actingCase.keys()].sort(), expected);
+  });
+
+  for (const [knob, goldenCase] of actingCase) {
+    it(`${goldenCase.id}: ${knob} wins over ${aliasOf[knob]}=off`, async () => {
+      const both = withEnv(goldenCase, (env) => (knob in env ? { ...env, [aliasOf[knob]!]: "off" } : env));
+      await expectAll(both, `changed when ${aliasOf[knob]}=off was added`, (index) => goldenCase.steps[index]!.expect!);
+    });
+  }
+
+  it("CI_THREE_SECTION_CLOSE_DISABLED=1 silences the hook like CLAUDE_THREE_SECTION_CLOSE_DISABLED=1", async () => {
+    const goldenCase = actingCase.get("CLAUDE_THREE_SECTION_CLOSE");
+    assert.ok(goldenCase, "no acting three-section-close golden");
+    const silent: Golden = { stdout: "", stderr: "", exitCode: 0 };
+    for (const name of ["CLAUDE_THREE_SECTION_CLOSE_DISABLED", "CI_THREE_SECTION_CLOSE_DISABLED"]) {
+      await expectAll(withEnv(goldenCase, (env) => ({ ...env, [name]: "1" })), `not silenced by ${name}=1`, () => silent);
     }
   });
 });

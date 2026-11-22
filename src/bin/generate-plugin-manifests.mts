@@ -248,6 +248,17 @@ async function writePluginBundle(): Promise<void> {
       join(REPO_ROOT, "lib", "gateguard-state.mjs"),
       join(PLUGIN_BUNDLE_DIR, "lib", "gateguard-state.mjs"),
     ),
+    // The instincts root and project root, imported by gateguard-state, the
+    // observer and the hooks.
+    copyFileTo(
+      join(REPO_ROOT, "lib", "agent-paths.mjs"),
+      join(PLUGIN_BUNDLE_DIR, "lib", "agent-paths.mjs"),
+    ),
+    // The CI_* aliases of the CLAUDE_* knobs, imported by the hooks.
+    copyFileTo(
+      join(REPO_ROOT, "lib", "agent-env.mjs"),
+      join(PLUGIN_BUNDLE_DIR, "lib", "agent-env.mjs"),
+    ),
     // Imported by hooks/gateguard.mjs. It imports observe-event.mjs, copied below.
     copyFileTo(
       join(REPO_ROOT, "lib", "gateguard-evidence.mjs"),

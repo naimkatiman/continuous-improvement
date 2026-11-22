@@ -9,7 +9,7 @@
  * proactive instead of opt-in-per-query (the ci_recall MCP tool stays available
  * for explicit, deeper searches).
  *
- * Opt-in: runs only when CLAUDE_RECALL_BRIEFING is 1/on/true. Default off, so it
+ * Opt-in: runs only when CLAUDE_RECALL_BRIEFING (alias CI_RECALL_BRIEFING) is 1/on/true. Default off, so it
  * never changes the prompt path for users who have not enabled it.
  *
  * Stdin  : JSON { prompt, session_id?, cwd? }
@@ -27,10 +27,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { execFileSync } from "node:child_process";
 
 import { buildIndex, query, type RecallObservation } from "../lib/recall-index.mjs";
 import { DEFAULT_MAX_HITS, decideBriefing } from "../lib/recall-briefing.mjs";
+import { readKnob } from "../lib/agent-env.mjs";
+import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 
 interface Payload {
@@ -46,7 +47,7 @@ const ENABLED_VALUES = new Set(["1", "on", "true", "yes"]);
 const MAX_BRIEFED_KEYS = 1000;
 
 function isEnabled(): boolean {
-  const flag = (process.env.CLAUDE_RECALL_BRIEFING ?? "").trim().toLowerCase();
+  const flag = (readKnob("CLAUDE_RECALL_BRIEFING") ?? "").trim().toLowerCase();
   return ENABLED_VALUES.has(flag);
 }
 
@@ -62,24 +63,9 @@ function resolveHome(): string {
   return process.env.HOME ?? process.env.USERPROFILE ?? homedir();
 }
 
-function resolveProjectRoot(): string {
-  const fromEnv = process.env.CLAUDE_PROJECT_DIR;
-  if (fromEnv) return fromEnv;
-  try {
-    const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-    if (root) return root;
-  } catch {
-    // not in a git repo
-  }
-  return "global";
-}
-
-function instinctsDir(home: string): string {
-  const hash = hashProjectRoot(resolveProjectRoot());
-  return join(home, ".claude", "instincts", hash);
+function instinctsDir(home: string, payload: Payload): string {
+  const hash = hashProjectRoot(resolveProjectRoot(payload));
+  return join(resolveInstinctsRoot(home), hash);
 }
 
 function readObservations(dir: string): RecallObservation[] {
@@ -158,7 +144,7 @@ function main(): void {
   const sessionKey = typeof payload.session_id === "string" && payload.session_id ? payload.session_id : "no-session";
 
   const home = resolveHome();
-  const dir = instinctsDir(home);
+  const dir = instinctsDir(home, payload);
   const state = readState(dir);
   const alreadyBriefed = Object.prototype.hasOwnProperty.call(state.briefed, sessionKey);
 

@@ -9,7 +9,7 @@
  * (skip non-TS repos, skip TS repos with no changed TS file, prefer the npm
  * `typecheck` script) and adds the block mechanism of goal-drift-stop.mts.
  *
- * Mode via CLAUDE_TYPECHECK_GATE: "off" (default) | "warn" | "block".
+ * Mode via CLAUDE_TYPECHECK_GATE (alias CI_TYPECHECK_GATE): "off" (default) | "warn" | "block".
  *   off   : no-op (the global script's advisory systemMessage stays the default
  *           layer; this hook is the opt-in enforcement layer — zero regression).
  *   warn  : one-line stderr notice; never blocks.
@@ -23,22 +23,16 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { readKnob } from "../lib/agent-env.mjs";
+import { GLOBAL_PROJECT_ROOT, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { decideTypecheckAction, formatTypecheckReason, hasChangedTsFile, parseChangedFiles, pickTypecheckKind, resolveTypecheckMode, } from "../lib/typecheck-gate.mjs";
 const SPAWN_TIMEOUT_MS = 25_000;
-function resolveProjectRoot() {
-    const fromEnv = process.env.CLAUDE_PROJECT_DIR;
-    if (fromEnv && fromEnv.trim())
-        return fromEnv.trim();
-    try {
-        const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
-            encoding: "utf8",
-            stdio: ["ignore", "pipe", "ignore"],
-        }).trim();
-        return root || null;
-    }
-    catch {
-        return null;
-    }
+// This hook never reads stdin, so the root comes from the env and git only.
+// Trimmed, as this hook has always trimmed CLAUDE_PROJECT_DIR; no root at all
+// is null, never the "global" bucket name.
+function projectRoot() {
+    const root = resolveProjectRoot().trim();
+    return root === GLOBAL_PROJECT_ROOT ? null : root;
 }
 function collectChangedFiles(root) {
     const run = (args) => {
@@ -93,10 +87,10 @@ function runTypecheck(root) {
     return { ran: true, rc: result.status, output: `${result.stdout ?? ""}${result.stderr ?? ""}` };
 }
 function main() {
-    const mode = resolveTypecheckMode(process.env.CLAUDE_TYPECHECK_GATE);
+    const mode = resolveTypecheckMode(readKnob("CLAUDE_TYPECHECK_GATE"));
     if (mode === "off")
         return;
-    const root = resolveProjectRoot();
+    const root = projectRoot();
     if (!root || !existsSync(join(root, "tsconfig.json")))
         return; // not a TS project
     if (!hasChangedTsFile(collectChangedFiles(root)))
