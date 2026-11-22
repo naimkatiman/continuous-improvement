@@ -1105,3 +1105,12 @@ describe("hooks/config-guard.mjs: other agents' files and CLI verbs", () => {
     assert.match(r.stderr, /CI_CONFIG_GUARD_ALLOW=true let Bash touch devin mcp remove/);
   });
 });
+
+// PR 19: Grok 1.0.85 ships `grok mcp remove [-s user|project] <NAME>` (probe: "Removed MCP server ... from user config").
+describe("config-guard: grok mcp remove", () => {
+  it("flags grok mcp remove, with or without --scope", () => {
+    for (const command of ["grok mcp remove continuous-improvement --scope user", "grok mcp remove -s project ci", "grok mcp remove ci"]) {
+      assert.deepEqual(classifyMutation("Bash", { command }), { target: "grok mcp remove", pattern: "grok-cli", via: "agent-cli" }, command);
+    }
+  });
+});

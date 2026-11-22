@@ -26,7 +26,7 @@ The guard is `hooks/gateguard.mjs` (destructive shell commands and blind edits),
 | Qwen Code | full | yes | yes | `npx continuous-improvement install --target qwen --hooks` | `$ARGUMENTS` is not substituted in commands. The prompt hook also fires on tool results. |
 | Cursor | full | yes (3.x) | yes | `npx continuous-improvement install --target cursor --hooks` | Cloud agents run no session hooks. 2.5.26 has no prompt context. Stray output from a hook stops every tool call on 3.x. The Cursor CLI is not covered. |
 | GitHub Copilot CLI | full | yes | yes | `npx continuous-improvement install --target copilot --hooks` | Prompt hook output is dropped, so the prompt hooks are not wired. A hook that times out fails open. The cloud agent reads only .github/hooks, and disableAllHooks turns every hook off. |
-| Grok CLI | partial | yes, in a trusted folder | rules file | `npx continuous-improvement install --target grok --hooks` | No session or prompt context, so lessons need the rules file. No `mcp remove`, so the MCP undo is a config edit. |
+| Grok CLI | partial | yes, in a trusted folder | rules file | `npx continuous-improvement install --target grok --hooks` | No session or prompt context, so lessons need the rules file. |
 | Devin Local | full | yes, outside Restricted Mode | yes | `npx continuous-improvement install --target devin --hooks` | Restricted Mode runs no hooks. Hooks it imports from ~/.claude can fire twice. Plugin hooks fail open. |
 | Kiro CLI and IDE | full | yes (exit 2) | yes | `npx continuous-improvement install --target kiro --hooks` | CLI sessions on the V2 harness read agent-profile hooks, not this file. A hook crash exits 1, which Kiro CLI allows, and the IDE docs disagree on what that exit means. |
 | Factory Droid | full | yes | yes | `npx continuous-improvement install --target droid --hooks` | Context printed at PreToolUse is ignored. SubagentStop cannot send a turn back. |
@@ -39,7 +39,7 @@ The guard is `hooks/gateguard.mjs` (destructive shell commands and blind edits),
 | Zed | rules only | no | rules file | `npx continuous-improvement install --target zed` | Zed has no hooks, so nothing is blocked. This package installs no MCP server or skills for Zed yet. |
 | Aider | rules only | no | rules file | `npx continuous-improvement install --target aider` | Aider has no hooks, MCP client or skills, so nothing is blocked. |
 
-`--target <id>` without `--hooks` still writes only the rules file. Add `--scope user` to write the agent's user-level config, `--dry-run` to see every write first, `--run` to run the vendor `mcp add` command, and `--fail-closed` to set the agent's fail-closed option where it has one. `npx continuous-improvement install --uninstall --target <id>` removes what `--hooks` recorded.
+`--target <id>` without `--hooks` still writes only the rules file. Add `--scope user` to write the agent's user-level config, `--dry-run` to see every write first, `--run` to run the vendor `mcp add` command, and `--fail-closed` to set the agent's fail-closed option where it has one. `npx continuous-improvement install --uninstall --target <id>` removes what `--hooks` recorded. A vendor `mcp add` it did not undo (run without `--run`, or a failed undo) keeps the agent recorded, and its runtime copy kept, until `--uninstall --target <id> --run` undoes it; an undo that fails twice is taken as removed by hand, and the uninstall says so.
 
 ## Per agent
 
@@ -129,7 +129,7 @@ The guard is `hooks/gateguard.mjs` (destructive shell commands and blind edits),
 - Checked against: installed binary
 - Install: `npx continuous-improvement install --target grok --hooks`
 - Then: Run the printed `grok mcp add` step. For the lessons, run `npx -p continuous-improvement ci lessons --format grok --write`.
-- Cannot: No session or prompt context, so lessons need the rules file. No `mcp remove`, so the MCP undo is a config edit.
+- Cannot: No session or prompt context, so lessons need the rules file.
 - Source: Research Grok Build 1.0.85 hook_pre_tool (skeptic: confirmed, fail-open on unknown tool names reproduced and fixed), systemMessage-only session output, Stop reason end_turn; matrix row Grok 1.0.85.
 
 ### Devin Local

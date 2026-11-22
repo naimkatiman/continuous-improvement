@@ -9,6 +9,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { HOOK_AGENT_IDS, emptyLedger, parseHookArgs, parseInstallScope, parseLedger, planAgentInstall, recordInstall, removeOwnedConfig, renderAgentHooks, resolveHookAgent, runtimesInUse, } from "../lib/agent-install-plans.mjs";
+import { planSkillExport } from "../lib/skill-export.mjs";
 const RT = "/home/u/.claude/instincts/runtime/9.9.9";
 const HOME = "/home/u";
 const ROOT = "/work/repo";
@@ -373,5 +374,68 @@ describe("the install ledger", () => {
         assert.deepEqual(removeOwnedConfig(null, file), { kind: "missing" });
         assert.equal(removeOwnedConfig("{oops", file).kind, "error");
         assert.equal(removeOwnedConfig("[]", file).kind, "error");
+    });
+});
+// PR 19 (docs/plans/2026-11-21-all-agents.md): exact install and uninstall.
+describe("PR 19: the planner and the ledger match what the agents read and what the uninstall can undo", () => {
+    it("grok: `grok mcp remove <name> --scope <scope>` undoes the MCP step in either scope, and no note says Grok has none", () => {
+        // Probe on Grok 1.0.85: `grok mcp remove continuous-improvement --scope user` printed
+        // "Removed MCP server 'continuous-improvement' from user config" (scratchpad probe.json, probe 29).
+        for (const scope of ["project", "user"]) {
+            const plan = planAgentInstall("grok", ctx({ scope }));
+            assert.deepEqual(plan.runs[0].undo, ["grok", "mcp", "remove", "continuous-improvement", "--scope", scope]);
+            assert.ok(!plan.notes.some((note) => /no `mcp remove`/.test(note)), plan.notes.join("\n"));
+            assert.ok(plan.notes.some((note) => note.includes("grok mcp remove continuous-improvement") && note.includes("--run")), plan.notes.join("\n"));
+            assert.ok(!plan.notes.some((note) => /which the uninstall would then remove/.test(note)), plan.notes.join("\n"));
+        }
+    });
+    it("qwen user scope follows an absolute QWEN_HOME, as Qwen's getGlobalQwenDir() does; project scope and a relative value do not", () => {
+        assert.equal(only(planAgentInstall("qwen", ctx({ scope: "user", env: { QWEN_HOME: "/q" } }))).path, "/q/settings.json");
+        assert.equal(only(planAgentInstall("qwen", ctx({ scope: "user", env: { QWEN_HOME: "rel/q" } }))).path, `${HOME}/.qwen/settings.json`);
+        assert.equal(only(planAgentInstall("qwen", ctx({ env: { QWEN_HOME: "/q" } }))).path, `${ROOT}/.qwen/settings.json`);
+        const skills = (env) => planSkillExport("qwen", { scope: "user", runtimeDir: RT, projectRoot: ROOT, home: HOME, env, read: () => null }, { skills: [], commands: [] }).dir;
+        assert.equal(skills({ QWEN_HOME: "/q" }), "/q/skills");
+        assert.equal(skills({}), `${HOME}/.qwen/skills`);
+    });
+    it("gemini user scope follows an absolute GEMINI_CLI_HOME, under its .gemini dir, for settings and skills", () => {
+        assert.equal(only(planAgentInstall("gemini", ctx({ scope: "user", env: { GEMINI_CLI_HOME: "C:\\g" } }))).path, "C:/g/.gemini/settings.json");
+        assert.equal(only(planAgentInstall("gemini", ctx({ scope: "user", env: { GEMINI_CLI_HOME: " " } }))).path, `${HOME}/.gemini/settings.json`);
+        assert.equal(only(planAgentInstall("gemini", ctx({ env: { GEMINI_CLI_HOME: "/g" } }))).path, `${ROOT}/.gemini/settings.json`);
+        const skills = (env) => planSkillExport("gemini", { scope: "user", runtimeDir: RT, projectRoot: ROOT, home: HOME, env, read: () => null }, { skills: [], commands: [] }).dir;
+        assert.equal(skills({ GEMINI_CLI_HOME: "/g" }), "/g/.gemini/skills");
+        assert.equal(skills({}), `${HOME}/.gemini/skills`);
+    });
+    const BEGIN = "<!-- continuous-improvement:begin (managed block — reinstall via `npx continuous-improvement install --target <name>`; edits inside are overwritten) -->";
+    const END = "<!-- continuous-improvement:end -->";
+    const block = `${BEGIN}\nbody\n${END}`;
+    const rulesFile = (created) => ({ path: `${ROOT}/AGENTS.md`, created, hooksAt: null, hookCommands: [], mcpAt: null, mcp: null, managedBlock: true });
+    it("removeOwnedConfig takes out only our managed block of a rules file, and deletes the file only when we created it and nothing else is left", () => {
+        assert.deepEqual(removeOwnedConfig(`${block}\n`, rulesFile(true)), { kind: "delete" });
+        assert.deepEqual(removeOwnedConfig(`${block}\n`, rulesFile(false)), { kind: "write", content: "" });
+        assert.deepEqual(removeOwnedConfig(`# Mine\n\nKeep.\n\n${block}\n`, rulesFile(false)), { kind: "write", content: "# Mine\n\nKeep.\n" });
+        assert.deepEqual(removeOwnedConfig(`# Top\n\n${block}\n\n# Bottom\n`, rulesFile(true)), { kind: "write", content: "# Top\n\n# Bottom\n" });
+        assert.deepEqual(removeOwnedConfig(`${block}\n\nAdded later.\n`, rulesFile(true)), { kind: "write", content: "Added later.\n" });
+        assert.deepEqual(removeOwnedConfig(null, rulesFile(true)), { kind: "missing" });
+        assert.deepEqual(removeOwnedConfig("# Mine, no block\n", rulesFile(true)), { kind: "missing" });
+        // An unpaired or reversed marker is not ours to cut.
+        for (const text of [`${BEGIN}\nbody\n`, `${END}\n${BEGIN}\n`, `${block}\n${block}\n`])
+            assert.equal(removeOwnedConfig(text, rulesFile(true)).kind, "error", text);
+    });
+    it("parseLedger takes a pending entry and a managed-block file, and refuses either with a wrong type", () => {
+        const good = { target: "codex", scope: "user", project: null, version: "9.9.9", runtime: RT, installedAt: "t", files: [rulesFile(false)], runs: [], pending: true };
+        const parsed = parseLedger(JSON.stringify({ version: 1, entries: [good], runtimes: [RT] }));
+        assert.equal(parsed?.entries[0]?.pending, true);
+        assert.equal(parsed?.entries[0]?.files[0]?.managedBlock, true);
+        for (const bad of [{ ...good, pending: "yes" }, { ...good, files: [{ ...rulesFile(false), managedBlock: "yes" }] }]) {
+            assert.equal(parseLedger(JSON.stringify({ version: 1, entries: [bad], runtimes: [RT] })), null);
+        }
+    });
+    it("parseLedger takes a run whose undo failed, and refuses an undoFailed of any other value", () => {
+        const run = { argv: ["codex", "mcp", "add", "continuous-improvement"], undo: ["codex", "mcp", "remove", "continuous-improvement"], ran: true, cwd: null };
+        const entry = (runs) => ({ target: "codex", scope: "user", project: null, version: "9.9.9", runtime: RT, installedAt: "t", files: [], runs, pending: true });
+        assert.equal(parseLedger(JSON.stringify({ version: 1, entries: [entry([{ ...run, undoFailed: true }])], runtimes: [RT] }))?.entries[0]?.runs[0]?.undoFailed, true);
+        for (const undoFailed of [false, "yes", 1, null]) {
+            assert.equal(parseLedger(JSON.stringify({ version: 1, entries: [entry([{ ...run, undoFailed }])], runtimes: [RT] })), null, String(undoFailed));
+        }
     });
 });

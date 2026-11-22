@@ -99,7 +99,7 @@ import { posix } from "node:path";
 
 import { AGENT_PROFILES, type ToolKind } from "./agent-profiles.mjs";
 import { pluginMark } from "./hook-bridge.mjs";
-import { TARGET_IDS } from "./install-targets.mjs";
+import { MANAGED_BEGIN, MANAGED_END, TARGET_IDS } from "./install-targets.mjs";
 import { PACKAGE_NAME, getPluginHooksConfig } from "./plugin-metadata.mjs";
 import { renderAmpPlugin } from "./plugin-shim-amp.mjs";
 import { renderOpenCodePlugin } from "./plugin-shim-opencode.mjs";
@@ -169,6 +169,11 @@ export interface LedgerFile {
   script?: { sha256: string };
   /** An exported SKILL.md (always with `script`): the skill's name. Its dir goes with it on uninstall. */
   skill?: string;
+  /**
+   * A rules file (AGENTS.md, GEMINI.md) the hooks install also wrote: we own only the block between
+   * MANAGED_BEGIN and MANAGED_END, and the file only when we created it and nothing else is left.
+   */
+  managedBlock?: true;
 }
 
 export interface ConfigWrite extends LedgerFile {
@@ -204,8 +209,16 @@ export interface LedgerEntry {
   runtime: string;
   installedAt: string;
   files: LedgerFile[];
-  /** `cwd`: where the command ran (the project root at project scope), and so where its undo runs. */
-  runs: Array<PlannedRun & { ran: boolean; cwd: string | null }>;
+  /**
+   * `cwd`: where the command ran (the project root at project scope), and so where its undo runs.
+   * `undoFailed`: an uninstall ran the undo and it failed; the next uninstall takes the run as removed by hand.
+   */
+  runs: Array<PlannedRun & { ran: boolean; cwd: string | null; undoFailed?: true }>;
+  /**
+   * Set by an uninstall that removed the files but not a vendor registration (an undo not run, failed or
+   * missing): `runs` then holds only those, and the entry keeps its runtime until they are undone.
+   */
+  pending?: true;
 }
 
 export interface Ledger {
@@ -261,6 +274,11 @@ function absEnv(ctx: PlanContext, key: string): string | null {
 }
 
 const base = (ctx: PlanContext, dir: string): string => (ctx.scope === "user" ? join(ctx.home, dir) : join(ctx.projectRoot, dir));
+// The user dirs Qwen and Gemini read when their home variable is set (PR 19, probe defects 4 and 5):
+// Qwen Code 0.28.0 Storage.getGlobalQwenDir() returns QWEN_HOME, else ~/.qwen; Gemini CLI 0.41.2
+// homedir() returns GEMINI_CLI_HOME, else the OS home, and adds .gemini (docs/reference/configuration.md).
+const qwenDir = (ctx: PlanContext): string => (ctx.scope === "user" ? (absEnv(ctx, "QWEN_HOME") ?? join(ctx.home, ".qwen")) : join(ctx.projectRoot, ".qwen"));
+const geminiDir = (ctx: PlanContext): string => join(ctx.scope === "user" ? (absEnv(ctx, "GEMINI_CLI_HOME") ?? ctx.home) : ctx.projectRoot, ".gemini");
 const mcpArgv = (mcp: McpEntry): string[] => [mcp.command, ...mcp.args];
 
 const SPECS: Readonly<Record<string, AgentSpec>> = {
@@ -288,8 +306,8 @@ const SPECS: Readonly<Record<string, AgentSpec>> = {
     events: ALL_EVENTS,
     matcher: "list",
     failClosed: null,
-    hooksFile: (ctx) => ({ path: join(base(ctx, ".qwen"), "settings.json"), hooksAt: ["hooks"] }),
-    mcpFile: (ctx) => ({ path: join(base(ctx, ".qwen"), "settings.json"), mcpAt: ["mcpServers"] }),
+    hooksFile: (ctx) => ({ path: join(qwenDir(ctx), "settings.json"), hooksAt: ["hooks"] }),
+    mcpFile: (ctx) => ({ path: join(qwenDir(ctx), "settings.json"), mcpAt: ["mcpServers"] }),
     notes: (ctx) => (ctx.scope === "project" ? ["Qwen Code withholds project hooks until you approve them in Qwen Code or trust the folder."] : []),
     importsClaude: null,
   },
@@ -302,12 +320,14 @@ const SPECS: Readonly<Record<string, AgentSpec>> = {
       path: join(ctx.scope === "user" ? (absEnv(ctx, "GROK_HOME") ?? join(ctx.home, ".grok")) : join(ctx.projectRoot, ".grok"), "hooks", `${MCP_NAME}.json`),
       hooksAt: ["hooks"],
     }),
-    mcpRun: (ctx, mcp) => ({ argv: ["grok", "mcp", "add", MCP_NAME, "--scope", ctx.scope, "--", ...mcpArgv(mcp)], undo: null }),
+    // Grok 1.0.85 ships `grok mcp remove [-s user|project] <NAME>`; the PR 19 probe ran it with the
+    // install's scope ("Removed MCP server 'continuous-improvement' from user config"). The research
+    // listed only add, list, doctor and enable|disable.
+    mcpRun: (ctx, mcp) => ({ argv: ["grok", "mcp", "add", MCP_NAME, "--scope", ctx.scope, "--", ...mcpArgv(mcp)], undo: ["grok", "mcp", "remove", MCP_NAME, "--scope", ctx.scope] }),
     notes: (ctx) => [
       "Grok loads hook files only in a trusted folder.",
       "Grok has no session or prompt context: run `ci lessons --format grok --write` for the lessons rules file.",
       ...(ctx.scope === "user" ? ["The Grok TUI reads its own home: run this again with GROK_HOME set to it (for example ~/.grok-tui)."] : []),
-      `Grok has no \`mcp remove\`: to undo the MCP step, delete [mcp_servers.${MCP_NAME}] from its config.toml.`,
     ],
     importsClaude: "settings+plugins",
   },
@@ -343,8 +363,8 @@ const SPECS: Readonly<Record<string, AgentSpec>> = {
     matcher: "regex",
     failClosed: null,
     timeout: { key: "timeout", ms: true },
-    hooksFile: (ctx) => ({ path: join(base(ctx, ".gemini"), "settings.json"), hooksAt: ["hooks"] }),
-    mcpFile: (ctx) => ({ path: join(base(ctx, ".gemini"), "settings.json"), mcpAt: ["mcpServers"] }),
+    hooksFile: (ctx) => ({ path: join(geminiDir(ctx), "settings.json"), hooksAt: ["hooks"] }),
+    mcpFile: (ctx) => ({ path: join(geminiDir(ctx), "settings.json"), mcpAt: ["mcpServers"] }),
     notes: () => ["Gemini CLI runs no settings.json hooks in an untrusted folder, user-level ones included: trust the folder in Gemini CLI."],
     importsClaude: null,
   },
@@ -786,8 +806,11 @@ function planScripts(ctx: PlanContext, agent: string, dir: string, hooks: HooksM
 
 /** The ledger record of a planned write: what the uninstall needs, without the content. */
 export function toLedgerFile(file: ConfigWrite): LedgerFile {
-  const { path, created, hooksAt, hookCommands, mcpAt, mcp, layout, script, skill } = file;
-  return { path, created, hooksAt, hookCommands, mcpAt, mcp, ...(layout ? { layout } : {}), ...(script ? { script } : {}), ...(skill === undefined ? {} : { skill }) };
+  const { path, created, hooksAt, hookCommands, mcpAt, mcp, layout, script, skill, managedBlock } = file;
+  return {
+    path, created, hooksAt, hookCommands, mcpAt, mcp,
+    ...(layout ? { layout } : {}), ...(script ? { script } : {}), ...(skill === undefined ? {} : { skill }), ...(managedBlock ? { managedBlock } : {}),
+  };
 }
 
 // A hook command of ours in a Claude settings file this agent also loads.
@@ -896,11 +919,20 @@ function planPluginInstall(agent: string, spec: PluginSpec, ctx: PlanContext): I
   const run = spec.mcpRun?.(ctx, mcp) ?? null;
   if (run) {
     plan.runs.push(run);
-    plan.notes.push(`\`${run.argv.slice(0, 3).join(" ")}\` may replace an MCP server already named ${MCP_NAME}, which the uninstall would then remove: check \`${run.argv[0]} mcp list\` first.`);
+    plan.notes.push(replaceNote(agent, ctx, run));
   }
   const printed = spec.mcpPrinted(ctx, mcp);
   if (printed) plan.printed.push(printed);
   return plan;
+}
+
+// A vendor `mcp add` overwrites a server of the same name, so the one the uninstall
+// later removes may have been the user's: the note names the command that does it.
+function replaceNote(agent: string, ctx: PlanContext, run: PlannedRun): string {
+  const add = `\`${run.argv.slice(0, 3).join(" ")}\` may replace an MCP server already named ${MCP_NAME}: check \`${run.argv[0]} mcp list\` first.`;
+  if (run.undo === null) return `${add} ${run.argv[0]} has no command that removes it, so the uninstall cannot either.`;
+  const flags = `--uninstall --target ${agent}${ctx.scope === "user" ? " --scope user" : ""} --run`;
+  return `${add} \`${flags}\` removes it again with \`${run.undo.join(" ")}\`.`;
 }
 
 /** What installing `agent`'s hooks and MCP server in `ctx.scope` writes, runs and prints. */
@@ -925,7 +957,7 @@ export function planAgentInstall(agent: string, ctx: PlanContext): InstallPlan {
   const run = spec.mcpRun?.(ctx, mcp) ?? null;
   if (run) {
     plan.runs.push(run);
-    plan.notes.push(`\`${run.argv.slice(0, 3).join(" ")}\` may replace an MCP server already named ${MCP_NAME}, which the uninstall would then remove: check \`${run.argv[0]} mcp list\` first.`);
+    plan.notes.push(replaceNote(agent, ctx, run));
   }
   const printed = spec.mcpPrinted?.(ctx, mcp) ?? null;
   if (printed) plan.printed.push(printed);
@@ -943,6 +975,7 @@ export type RemoveResult = { kind: "write"; content: string } | { kind: "delete"
 
 /** The file with exactly the hooks and MCP entry the ledger recorded taken out. */
 export function removeOwnedConfig(text: string | null, file: LedgerFile): RemoveResult {
+  if (file.managedBlock) return removeManagedBlock(text, file);
   if (file.script) {
     if (text === null) return { kind: "missing" };
     return sha256(text) === file.script.sha256
@@ -984,6 +1017,28 @@ export function removeOwnedConfig(text: string | null, file: LedgerFile): Remove
   return file.created && left.length === 0 ? { kind: "delete" } : { kind: "write", content: write(root) };
 }
 
+const count = (text: string, part: string): number => text.split(part).length - 1;
+
+// The rules file with our one managed block cut out (install-targets mergeManagedBlock
+// put it there). A file with neither marker is already clean; an unpaired, reversed
+// or repeated marker is not ours to cut, so the uninstall stops.
+function removeManagedBlock(text: string | null, file: LedgerFile): RemoveResult {
+  if (text === null) return { kind: "missing" };
+  const begins = count(text, MANAGED_BEGIN);
+  const ends = count(text, MANAGED_END);
+  if (begins === 0 && ends === 0) return { kind: "missing" };
+  const beginAt = text.indexOf(MANAGED_BEGIN);
+  const endAt = text.indexOf(MANAGED_END);
+  if (begins !== 1 || ends !== 1 || endAt < beginAt) {
+    return { kind: "error", message: `${file.path}: the continuous-improvement block markers are unpaired or repeated; remove the block by hand.` };
+  }
+  const before = text.slice(0, beginAt).trimEnd();
+  const after = text.slice(endAt + MANAGED_END.length).trim();
+  const rest = [before, after].filter((part) => part !== "").join("\n\n");
+  if (rest === "" && file.created) return { kind: "delete" };
+  return { kind: "write", content: rest === "" ? "" : `${rest}\n` };
+}
+
 function lookup(root: Json, path: readonly string[]): Json | null {
   let node: unknown = root;
   for (const key of path) node = isObject(node) ? node[key] : undefined;
@@ -1009,9 +1064,10 @@ function isEntry(value: unknown): value is LedgerEntry {
       && (file.hooksAt === null || isStrings(file.hooksAt)) && isStrings(file.hookCommands) && (file.mcpAt === null || isStrings(file.mcpAt))
       && (file.layout === undefined || file.layout === "flat" || file.layout === "kiro")
       && (file.script === undefined || (isObject(file.script) && typeof file.script.sha256 === "string"))
-      && (file.skill === undefined || typeof file.skill === "string"))
+      && (file.skill === undefined || typeof file.skill === "string") && (file.managedBlock === undefined || file.managedBlock === true))
+    && (value.pending === undefined || value.pending === true)
     && Array.isArray(value.runs) && value.runs.every((run) => isObject(run) && isStrings(run.argv) && (run.undo === null || isStrings(run.undo)) && typeof run.ran === "boolean"
-      && (run.cwd === undefined || run.cwd === null || typeof run.cwd === "string"));
+      && (run.cwd === undefined || run.cwd === null || typeof run.cwd === "string") && (run.undoFailed === undefined || run.undoFailed === true));
 }
 
 /** The ledger, an empty one when there is no file, or null when it is corrupt (nothing is then changed). */

@@ -511,7 +511,8 @@ const CLAUDE_CLI_MUTATIONS = {
 //   skeptic: approve|reject act on pending servers) and plugin_or_extension_packaging (`qwen extensions install|link`,
 //   "Also uninstall/update/enable/disable/new/settings/sources"; of those, uninstall, update, enable and disable
 //   change which extensions load).
-// - grok: research Grok mcp_servers (`grok mcp add`, `grok mcp enable|disable`) and
+// - grok: research Grok mcp_servers (`grok mcp add`, `grok mcp enable|disable`; `grok mcp remove` from the PR 19
+//   probe on Grok 1.0.85, which the research missed) and
 //   plugin_or_extension_packaging (`grok plugin install`, `grok plugin enable|disable|update|uninstall`,
 //   `grok plugin marketplace add`; skeptic: `grok plugin --help` lists them).
 // - copilot: research Copilot mcp_servers (`copilot mcp add`; skeptic: `remove`, `disable` and `enable` also exist)
@@ -533,7 +534,7 @@ const AGENT_CLI_MUTATIONS = new Map(Object.entries({
     grok: {
         plugin: ["install", "uninstall", "update", "enable", "disable"],
         "plugin marketplace": ["add"],
-        mcp: ["add", "enable", "disable"],
+        mcp: ["add", "remove", "enable", "disable"],
     },
     copilot: {
         plugin: ["install", "add", "uninstall", "remove", "rm", "update", "enable", "disable"],
