@@ -4,7 +4,7 @@ Install the plugin, watch one guard refuse a command, look at what it logged, ch
 
 You need Claude Code and `node` 18 or newer on your `PATH`. The hooks are Node scripts. Without `node` none of them runs and nothing is denied.
 
-This walkthrough uses Claude Code. On another coding agent, the same guard hook (`hooks/gateguard.mjs`) installs with `--target <agent> --hooks`, for example `--target codex --hooks`, from a clone of this repository until the release after 3.27.0 ([README → Install](README.md#install)). Which agents it blocks on, the step each one needs after the install, and what each one cannot do are in [docs/AGENT-SUPPORT.md](docs/AGENT-SUPPORT.md).
+This walkthrough uses Claude Code. On another coding agent, the same guard hook (`hooks/gateguard.mjs`) installs with `npx continuous-improvement install --target <agent> --hooks`, for example `--target codex --hooks` ([README → Install](README.md#install)). Which agents it blocks on, the step each one needs after the install, and what each one cannot do are in [docs/AGENT-SUPPORT.md](docs/AGENT-SUPPORT.md).
 
 ## 1. Install
 

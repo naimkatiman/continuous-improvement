@@ -17,27 +17,24 @@ You need `node` 18 or newer on your `PATH`. The hooks are Node scripts and need 
 | Agent | Install |
 |---|---|
 | Claude Code | `/plugin marketplace add naimkatiman/continuous-improvement`, then `/plugin install continuous-improvement@continuous-improvement`, then restart Claude Code once |
-| Codex CLI, Gemini CLI, Cursor, GitHub Copilot CLI and 11 more | Clone this repository once, then in your project run `node $HOME/continuous-improvement/bin/install.mjs install --target <agent> --hooks` and the one step it prints (such as trusting the hooks) |
+| Codex CLI, Gemini CLI, Cursor, GitHub Copilot CLI and 11 more | In your project, run `npx continuous-improvement install --target <agent> --hooks` and the one step it prints (such as trusting the hooks) |
 
 ```bash
-git clone https://github.com/naimkatiman/continuous-improvement "$HOME/continuous-improvement"
 cd your-project
 # --dry-run lists every write and writes nothing; run it again without --dry-run to install
-node $HOME/continuous-improvement/bin/install.mjs install --target codex --hooks --dry-run
+npx continuous-improvement install --target codex --hooks --dry-run
 ```
 
-`<agent>` is the `--target` id in the [agent table](#works-with-these-agents), such as `codex`, `gemini`, `cursor` or `copilot`. The install copies the hooks to a stable place under your home directory, so the guard keeps working if the clone moves.
-
-> **Not on npm yet.** npm `latest` is 3.27.0, which predates the agent installs. There, `--target <agent> --hooks` wires no guard: it writes a rules file for the agents that have one, even with `--dry-run`, and rejects the other ids; `--uninstall --target <agent>` removes a Claude Code npm install instead; and `ci doctor` and `ci lessons` do not exist. Run them from the clone until the next release. In this README, `ci <command>` means `node $HOME/continuous-improvement/bin/unified-cli.mjs <command>` until then, and `npx -p continuous-improvement ci <command>` after. The Claude Code plugin installs from this repository and is not affected.
+`<agent>` is the `--target` id in the [agent table](#works-with-these-agents), such as `codex`, `gemini`, `cursor` or `copilot`. The install copies the hooks to a stable place under your home directory, so the guard keeps working after npx clears its cache. The agent installs, `ci doctor` and `ci lessons` need 3.28.0 or later. In this README, `ci <command>` means `npx -p continuous-improvement ci <command>`, or `ci <command>` after `npm i -g continuous-improvement`.
 
 <details>
 <summary><b>What <code>--dry-run</code> prints</b></summary>
 
-<p><img src="assets/readme/demo-install-dry-run.svg" width="640" alt="The installer dry run for Gemini CLI, run from a clone, lists the runtime copy, the settings.json, the GEMINI.md file and the 28 skills it would write, notes that Gemini CLI runs no hooks in an untrusted folder and copies no commands, and ends with nothing written."></p>
+<p><img src="assets/readme/demo-install-dry-run.svg" width="640" alt="The installer dry run for Gemini CLI, run through npx, lists the runtime copy, the settings.json, the GEMINI.md file and the 28 skills it would write, notes that Gemini CLI runs no hooks in an untrusted folder and copies no commands, and ends with nothing written."></p>
 
 </details>
 
-**Turn it off.** Claude Code: `claude plugin disable continuous-improvement@continuous-improvement` switches the whole plugin off without removing it, and `claude plugin enable continuous-improvement@continuous-improvement` turns it back on. Any other agent: in the same project, `node $HOME/continuous-improvement/bin/install.mjs install --uninstall --target <agent>` removes what `--hooks` recorded. Removing Claude Code's install is under [Two install paths](#two-install-paths).
+**Turn it off.** Claude Code: `claude plugin disable continuous-improvement@continuous-improvement` switches the whole plugin off without removing it, and `claude plugin enable continuous-improvement@continuous-improvement` turns it back on. Any other agent: in the same project, `npx continuous-improvement install --uninstall --target <agent>` removes what `--hooks` recorded. Removing Claude Code's install is under [Two install paths](#two-install-paths).
 
 For Claude Code, `npx continuous-improvement install` without `--target` installs skills and commands but no guards. Use the plugin ([Two install paths](#two-install-paths)).
 
@@ -62,7 +59,7 @@ Matched rule: rm-recursive-force
 Destructive Bash gates EVERY call — clearance is not cached.
 ```
 
-The three numbered items ask the model to explain itself to you. Answering them does not unlock the command: a retry is refused again. If the command runs instead, no hook ran. Check that `node` is on your `PATH` and that the install came from the clone or the plugin (npm 3.27.0 has no `--hooks`), then restart the agent.
+The three numbered items ask the model to explain itself to you. Answering them does not unlock the command: a retry is refused again. If the command runs instead, no hook ran. Check that `node` is on your `PATH` and that the install came from the plugin or from `install --target <agent> --hooks` on 3.28.0 or later (3.27.0 has no `--hooks`), then restart the agent.
 
 **Check the wiring.** The probe above works on every agent. To list what an agent loaded, run `ci doctor --agent <agent>` in the project; it uses only that agent's own listing commands. On Claude Code, `/verify-install` checks from inside a session: ask it to run `git status` first so the log has a row. It confirms the commands loaded, sends `git rev-parse @{u}` with the ref unquoted (the guard refuses that and prints the quoted command), and reads the log for a row. A wired install ends with this line:
 
@@ -488,7 +485,7 @@ Also read: `CI_INSTINCTS_HOME` (the instincts root, default `~/.claude/instincts
 <details>
 <summary><b>Command-line tools in the npm package</b></summary>
 
-Run them after `npm i -g continuous-improvement`, or as `npx -p continuous-improvement <command>`. The agent installs and `ci doctor` and `ci lessons` are in the release after 3.27.0; until then run them from a clone ([Install](#install)).
+Run them after `npm i -g continuous-improvement`, or as `npx -p continuous-improvement <command>`. The agent installs, `ci doctor` and `ci lessons` need 3.28.0 or later.
 
 | Command | What it does |
 |---|---|
