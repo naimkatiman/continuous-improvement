@@ -17,7 +17,9 @@
  *   - The rows themselves agree: a blocking row has a pre-tool hook install,
  *     and its "blocks" cell says yes; a non-blocking row says no or "not
  *     claimed". A row whose verified matrix verdict is anything but yes (the
- *     Kiro IDE is partial) claims no blocking, by the flag or by its cell. A
+ *     Kiro IDE is partial) claims no blocking, by the flag or by its cell,
+ *     except a conditional one (Junie, Early Access only) whose cell names the
+ *     condition. A non-blocking row rated partial has a hook install. A
  *     variant row names a base row of the same `--target`.
  *
  * Fail-closed: a missing file, a missing or repeated marker, and a row whose
@@ -86,9 +88,19 @@ export function supportViolations(rows) {
             else if (base.variantOf !== undefined)
                 out.push(`${at}: variant of ${row.variantOf}, which is itself a variant`);
         }
-        // Fail closed: only the literal verdict "yes" lets a row claim blocking.
-        if (row.preToolVerdict !== "yes" && (blocksPreTool(row) || /^yes\b/i.test(row.blocks))) {
+        // Fail closed: only the literal verdict "yes", or "conditional" with the
+        // condition in the blocks cell, lets a row claim blocking.
+        const claimsBlocking = blocksPreTool(row) || /^yes\b/i.test(row.blocks);
+        if (claimsBlocking && row.preToolVerdict === "conditional") {
+            if (!/^yes, \S/.test(row.blocks))
+                out.push(`${at}: the verified matrix rates its pre-tool block conditional, but the blocks cell names no condition ("${row.blocks}")`);
+        }
+        else if (claimsBlocking && row.preToolVerdict !== "yes") {
             out.push(`${at}: the verified matrix rates its pre-tool block ${JSON.stringify(row.preToolVerdict)}, but the row claims blocking ("${row.blocks}")`);
+        }
+        // A partial row is published as "hooks run", so it needs a hook install too.
+        if (!blocksPreTool(row) && row.preToolVerdict === "partial" && !HOOK_INSTALLS.has(row.variantOf ?? row.id)) {
+            out.push(`${at}: rated partial (its hooks run) but the installer has no hook install for it`);
         }
         if (blocksPreTool(row)) {
             if (!HOOK_INSTALLS.has(row.variantOf ?? row.id))

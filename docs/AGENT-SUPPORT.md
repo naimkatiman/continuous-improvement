@@ -208,7 +208,7 @@ A blind edit is an edit of an existing file that this conversation's tool-call l
 - Install: `npx continuous-improvement install --target junie --hooks --scope user`
 - Then: A project .junie/config.json loads only with --config-location, so install at user scope. For the lessons, run `npx -p continuous-improvement ci lessons --format junie --write`.
 - Cannot: Stable builds run no hooks. SessionStart context is ignored. The documented tool event names no session; if a real one has none, every edit of an existing file needs the clear command the deny prints.
-- Source: Research [Junie] hook_pre_tool (skeptic: corrected; hooks are an Early Access feature, project config.json ignored by default); matrix row Junie CLI.
+- Source: Research [Junie] hook_pre_tool (skeptic: corrected; hooks are an Early Access feature, project config.json ignored by default); matrix row Junie CLI, whose pre-tool cell is partial (Early Access only).
 
 ### Cline
 

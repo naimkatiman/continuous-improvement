@@ -26,13 +26,18 @@ export type LessonRoute = "hook" | "rules file" | "none";
 export type Evidence = "tested" | "local" | "docs";
 export type SupportTier = "full" | "partial" | "rules only";
 /**
- * The "Pre-tool block" cell of the verified capability matrix for one surface.
- * partial means the research could not settle that a deny blocks there (the
- * Kiro IDE: its two hook docs disagree on exit codes). A block that holds only
- * under a stated condition (Codex after /hooks trust, Junie on the Early Access
- * build) is yes, and the blocks cell states the condition.
+ * The "Pre-tool block" cell of the verified capability matrix for one surface,
+ * copied by hand (nothing reads the plan's matrix to check it).
+ * yes: the matrix cell is yes, also when it carries a setup step the Blocks
+ *   cell states (Codex: "yes H (after /hooks trust)").
+ * conditional: the matrix cell is partial only because the block holds on one
+ *   build or setting (Junie: "partial H (Early Access only)"). The row may
+ *   claim blocking, and its Blocks cell must name the condition ("yes, on ...").
+ * partial: the research could not settle that a deny blocks there (the Kiro
+ *   IDE: its two hook docs disagree on exit codes). No blocking is claimed.
+ * no: no pre-tool hook.
  */
-export type PreToolVerdict = "yes" | "partial" | "no";
+export type PreToolVerdict = "yes" | "conditional" | "partial" | "no";
 
 export interface AgentSupport {
   /** The `--target` id; for a variant row, its own id (the .cloudplugin compatibleWith list carries it). */
@@ -45,7 +50,7 @@ export interface AgentSupport {
   compat: readonly string[];
   /** The guard (hooks/gateguard.mjs) blocks a destructive command before it runs. Anything but true counts as false. */
   canBlockPreTool: boolean;
-  /** The verified matrix verdict. canBlockPreTool may be true, and the blocks cell may say yes, only when this is "yes". */
+  /** The verified matrix verdict. canBlockPreTool may be true, and the blocks cell may say yes, only when this is "yes", or "conditional" with the condition in the blocks cell. */
   preToolVerdict: PreToolVerdict;
   /** The "blocks" cell: "no" when canBlockPreTool is false, else "yes" plus its condition. */
   blocks: string;
@@ -267,7 +272,7 @@ export const AGENT_SUPPORT: readonly AgentSupport[] = [
     names: ["Junie CLI", "Junie"],
     compat: [],
     canBlockPreTool: true,
-    preToolVerdict: "yes",
+    preToolVerdict: "conditional",
     blocks: "yes, on the Early Access build",
     lessons: "rules file",
     stopGate: false,
@@ -276,7 +281,7 @@ export const AGENT_SUPPORT: readonly AgentSupport[] = [
     install: [`${NPX} --target junie --hooks --scope user`],
     then: `A project .junie/config.json loads only with --config-location, so install at user scope. ${LESSONS("junie")}`,
     cannot: "Stable builds run no hooks. SessionStart context is ignored. The documented tool event names no session; if a real one has none, every edit of an existing file needs the clear command the deny prints.",
-    source: "Research [Junie] hook_pre_tool (skeptic: corrected; hooks are an Early Access feature, project config.json ignored by default); matrix row Junie CLI.",
+    source: "Research [Junie] hook_pre_tool (skeptic: corrected; hooks are an Early Access feature, project config.json ignored by default); matrix row Junie CLI, whose pre-tool cell is partial (Early Access only).",
   },
   {
     id: "cline",

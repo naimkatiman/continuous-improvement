@@ -385,12 +385,6 @@ describe("Kiro CLI and Kiro IDE, and the pre-tool verdict", () => {
         assert.ok(ide.install.every((cmd) => cmd.includes("--target kiro --hooks")));
         assert.match(ide.cannot, /disagree/);
     });
-    it("carries the verified matrix verdict on every row: no for Zed and Aider, partial for the Kiro IDE, yes elsewhere", () => {
-        for (const r of AGENT_SUPPORT) {
-            const want = r.id === "zed" || r.id === "aider" ? "no" : r.id === "kiro-ide" ? "partial" : "yes";
-            assert.equal(r.preToolVerdict, want, r.id);
-        }
-    });
     it("flags a row rated partial that claims blocking, through the flag or a Blocks: yes cell", () => {
         assert.match(supportViolations([row({ id: "kiro", preToolVerdict: "partial" })]).join("\n"), /rates .*partial/);
         const variant = (over) => [
@@ -446,5 +440,49 @@ describe("the blind-edit claim in the support doc", () => {
             const r = AGENT_SUPPORT.find((x) => x.id === id);
             assert.match(r?.cannot ?? "", /blind-edit gate/, id);
         }
+    });
+});
+// PR 20 review fixes. (1) Junie's matrix cell is "partial H (Early Access
+// only)", but the row was hand-encoded "yes", so the check that a partial
+// verdict claims no blocking passed it unseen. The cell now reads
+// "conditional": the matrix rates it partial because the block holds only on
+// a build or setting, and a conditional row may claim blocking only when its
+// Blocks cell states that condition. (2) A non-blocking row rated partial is
+// published as "hooks run", so it needs a hook install like a blocking row.
+// (3) kiro-ide is in compatibleWith, so `--target kiro-ide` installs the Kiro
+// hooks instead of saying there is no hook install.
+describe("the conditional verdict, a partial row's hook install, and the variant target", () => {
+    it("records Junie's matrix cell, partial on the Early Access build only, as conditional", () => {
+        const junie = AGENT_SUPPORT.find((r) => r.id === "junie");
+        assert.equal(junie?.preToolVerdict, "conditional");
+        assert.equal(blocksPreTool(junie), true);
+        assert.equal(junie.blocks, "yes, on the Early Access build");
+        assert.deepEqual(supportViolations(AGENT_SUPPORT), []);
+    });
+    it("copies the matrix cell on every row: no for Zed and Aider, partial for the Kiro IDE, conditional for Junie, yes elsewhere", () => {
+        const want = { zed: "no", aider: "no", "kiro-ide": "partial", junie: "conditional" };
+        for (const r of AGENT_SUPPORT)
+            assert.equal(r.preToolVerdict, want[r.id] ?? "yes", r.id);
+    });
+    it("lets a conditional row claim blocking only when its Blocks cell states the condition", () => {
+        const junie = (blocks) => row({ id: "junie", preToolVerdict: "conditional", blocks });
+        assert.deepEqual(supportViolations([junie("yes, on the Early Access build")]), []);
+        for (const blocks of ["yes", "yes (exit 2)", "yes,", "yes, "]) {
+            assert.match(supportViolations([junie(blocks)]).join("\n"), /conditional.*names no condition/, blocks);
+        }
+        assert.deepEqual(supportViolations([row({ id: "junie", canBlockPreTool: false, blocks: "no", preToolVerdict: "conditional" })]), []);
+    });
+    it("flags a non-blocking row rated partial that has no hook install, by its own id or its base id", () => {
+        const zed = row({ id: "zed", canBlockPreTool: false, blocks: "not claimed (no hooks)", preToolVerdict: "partial" });
+        assert.match(supportViolations([zed]).join("\n"), /zed: rated partial .*no hook install/);
+        const ide = row({ id: "kiro-ide", variantOf: "kiro", canBlockPreTool: false, blocks: "not claimed", preToolVerdict: "partial" });
+        assert.deepEqual(supportViolations([row({ id: "kiro" }), ide]), []);
+        assert.deepEqual(supportViolations([row({ id: "zed", canBlockPreTool: false, blocks: "no", preToolVerdict: "no" })]), []);
+    });
+    it("installs every variant row through its own id as well as its base target", () => {
+        const variants = AGENT_SUPPORT.filter((r) => r.variantOf !== undefined);
+        assert.ok(variants.length > 0);
+        for (const r of variants)
+            assert.equal(resolveHookAgent(r.id), r.variantOf, r.id);
     });
 });
