@@ -21,7 +21,8 @@
  * because `tsc` is slower; on the internal timeout it fails open.
  *
  * The hook is: decide (lib/typecheck-gate.mjs), encode for the agent
- * (lib/hook-io.mjs). It reads no stdin.
+ * (lib/hook-io.mjs). It reads stdin only for the Stop loop guard
+ * (skipsStopGate) and the agent sniff; the root comes from the env and git.
  */
 
 import { execFileSync, spawnSync } from "node:child_process";
@@ -30,7 +31,7 @@ import { join } from "node:path";
 
 import { readKnob } from "../lib/agent-env.mjs";
 import { GLOBAL_PROJECT_ROOT, resolveProjectRoot } from "../lib/agent-paths.mjs";
-import { emit, encode, hookAgent, type Decision } from "../lib/hook-io.mjs";
+import { emit, encode, hookAgent, normalizeEvent, parsePayload, readStdin, settleHook, skipsStopGate, type Decision } from "../lib/hook-io.mjs";
 
 import {
   decideTypecheckAction,
@@ -46,7 +47,7 @@ const SPAWN_TIMEOUT_MS = 25_000;
 const EVENT = "Stop";
 const ALLOW: Decision = { kind: "allow" };
 
-// This hook never reads stdin, so the root comes from the env and git only.
+// The root comes from the env and git only, never the payload.
 // Trimmed, as this hook has always trimmed CLAUDE_PROJECT_DIR; no root at all
 // is null, never the "global" bucket name.
 function projectRoot(): string | null {
@@ -119,6 +120,11 @@ function decideTypecheck(): Decision {
   const mode: TypecheckMode = resolveTypecheckMode(readKnob("CLAUDE_TYPECHECK_GATE"));
   if (mode === "off") return ALLOW;
 
+  // Another agent's repeat Stop fire, or Grok's session-end fire: no new turn
+  // end to check. The payload is read for this guard (and the agent sniff) only.
+  const parsed = parsePayload(readStdin());
+  if (skipsStopGate(normalizeEvent(hookAgent(), EVENT, parsed.ok ? parsed.value : undefined))) return ALLOW;
+
   const root = projectRoot();
   if (!root || !existsSync(join(root, "tsconfig.json"))) return ALLOW; // not a TS project
 
@@ -143,5 +149,4 @@ function main(): Decision {
   }
 }
 
-const decision = main();
-emit(encode(hookAgent(), EVENT, decision));
+emit(await settleHook(() => encode(hookAgent(), EVENT, main()), hookAgent));

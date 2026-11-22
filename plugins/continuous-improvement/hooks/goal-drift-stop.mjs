@@ -25,7 +25,7 @@ import { readKnob } from "../lib/agent-env.mjs";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { evaluateGoalDrift } from "../lib/goal-drift-gate.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
-import { emit, encode, hookAgent, readStdin } from "../lib/hook-io.mjs";
+import { emit, encode, hookAgent, normalizeEvent, readStdin, settleHook, skipsStopGate } from "../lib/hook-io.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 const EVENT = "Stop";
 const ALLOW = { kind: "allow" };
@@ -134,6 +134,9 @@ function decideGoalDrift() {
     const payload = safeJsonParse(stdin);
     if (!payload)
         return ALLOW;
+    // Another agent's repeat Stop fire, or Grok's session-end fire: no new turn end to score.
+    if (skipsStopGate(normalizeEvent(hookAgent(), EVENT, payload)))
+        return ALLOW;
     const home = resolveHomeDir();
     if (!home)
         return ALLOW;
@@ -166,5 +169,4 @@ function main() {
         return ALLOW;
     }
 }
-const decision = main();
-emit(encode(hookAgent(), EVENT, decision));
+emit(await settleHook(() => encode(hookAgent(), EVENT, main()), hookAgent));

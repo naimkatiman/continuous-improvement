@@ -31,7 +31,7 @@ import { join } from "node:path";
 import { readKnob } from "../lib/agent-env.mjs";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
-import { emit, encode, hookAgent } from "../lib/hook-io.mjs";
+import { emit, encode, hookAgent, settleHook } from "../lib/hook-io.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 import { workflowRunFromObservations } from "../lib/skill-distill.mjs";
 const EVENT = "Stop";
@@ -147,5 +147,4 @@ function main() {
         return ALLOW;
     }
 }
-const decision = main();
-emit(encode(hookAgent(), EVENT, decision));
+emit(await settleHook(() => encode(hookAgent(), EVENT, main()), hookAgent));

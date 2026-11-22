@@ -28,7 +28,7 @@
  * (lib/config-guard-gate.mjs), encode for the agent.
  */
 import { classifyMutation, decide, parseMode } from "../lib/config-guard-gate.mjs";
-import { emit, encode, hookAgent, normalizeEvent, parsePayload, readStdin, } from "../lib/hook-io.mjs";
+import { emit, encode, hookAgent, normalizeEvent, parsePayload, readStdin, settleHook, } from "../lib/hook-io.mjs";
 const EVENT = "PreToolUse";
 const ALLOW = { kind: "allow" };
 function buildReason(toolName, hit, mode) {
@@ -79,5 +79,4 @@ function main() {
         return ALLOW;
     }
 }
-const decision = main();
-emit(encode(hookAgent(), EVENT, decision));
+emit(await settleHook(() => encode(hookAgent(), EVENT, main()), hookAgent, EVENT));

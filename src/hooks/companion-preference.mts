@@ -35,6 +35,9 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
+import { emit, hookAgent, settleHook } from "../lib/hook-io.mjs";
+
+const EVENT = "PreToolUse";
 
 interface Override {
   companion: string;
@@ -167,7 +170,7 @@ function writeTelemetry(home: string, payload: Payload, event: TelemetryEvent): 
   }
 }
 
-function main(): void {
+async function main(): Promise<never> {
   const raw = readStdin();
   let payload: Payload;
   try {
@@ -224,4 +227,9 @@ function main(): void {
   );
 }
 
-main();
+// Every path through main exits on its own. main() is called here, not inside
+// settleHook, so a Claude Code crash's stack names main and this module only
+// (golden companion-preference/null-stdin); for every other agent settleHook
+// ends a crash as a non-zero PreToolUse exit.
+const pending = main();
+emit(await settleHook(() => pending, hookAgent, EVENT));

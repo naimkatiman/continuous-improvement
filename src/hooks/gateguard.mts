@@ -58,7 +58,7 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { decideGateguard, readGateguardConfig } from "../lib/gateguard-decide.mjs";
-import { emit, encode, hookAgent, normalizeEvent, parsePayload, readStdin, type EncodedOutput } from "../lib/hook-io.mjs";
+import { emit, encode, hookAgent, normalizeEvent, parsePayload, readStdin, settleHook, type EncodedOutput } from "../lib/hook-io.mjs";
 
 const EVENT = "PreToolUse";
 
@@ -78,12 +78,14 @@ async function main(): Promise<EncodedOutput> {
   if (!parsed.ok) return encode(agent, EVENT, { kind: "allow" }); // fail-open
   const payload = parsed.value as { tool_name?: unknown };
   // The hook read payload.tool_name here before the move, so JSON null stdin
-  // crashed with exit 1 and a TypeError stack (golden gateguard/null-stdin).
-  // This read keeps that crash. Wrapping the entry point in runHook ends it as
-  // exit 0 instead, a Claude change that plan PR 9 makes and declares.
+  // crashes with a TypeError. settleHook keeps that a non-zero PreToolUse exit
+  // on every agent (Claude Code: the v3.27.0 exit 1, golden gateguard/null-stdin).
   void payload.tool_name;
   const event = normalizeEvent(agent, EVENT, payload);
   return encode(agent, EVENT, await decideGateguard(event, CONFIG));
 }
 
-emit(await main());
+// main() is called here, not inside settleHook, so a Claude Code crash's stack
+// names main and this module only, as the golden pins.
+const pending = main();
+emit(await settleHook(() => pending, hookAgent, EVENT));

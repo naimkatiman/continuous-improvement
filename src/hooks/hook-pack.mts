@@ -54,6 +54,7 @@ import {
   normalizeEvent,
   parsePayload,
   readStdin,
+  settleHook,
   type Decision,
   type EncodedOutput,
 } from "../lib/hook-io.mjs";
@@ -184,4 +185,4 @@ function main(): EncodedOutput {
   return decision.kind === "deny" && agent === "claude" ? withoutFinalNewline(output) : output;
 }
 
-emit(main());
+emit(await settleHook(main, hookAgent, EVENT));

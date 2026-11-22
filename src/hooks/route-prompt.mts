@@ -49,7 +49,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
-import { emit, encode, hookAgent, parsePayload, readStdin, type Decision } from "../lib/hook-io.mjs";
+import { emit, encode, hookAgent, parsePayload, readStdin, settleHook, type Decision } from "../lib/hook-io.mjs";
 
 const EVENT = "UserPromptSubmit";
 const ALLOW: Decision = { kind: "allow" };
@@ -156,14 +156,14 @@ function buildContext(row: RouteRow): string {
   return `<system-reminder>\nPrompt-router suggestion: ${reason}\n</system-reminder>`;
 }
 
-function main(): Decision {
+async function main(): Promise<Decision> {
   if (!isRouterEnabled() || isRouterDisabled()) return ALLOW;
   const parsed = parsePayload(readStdin());
   if (!parsed.ok) return ALLOW;
   const payload = parsed.value as Payload;
-  // JSON null stdin crashes here with exit 1 and a TypeError stack (golden
-  // route-prompt/null-stdin), as it did before the move. Plan PR 9 ends it as
-  // exit 0 and declares the change.
+  // JSON null stdin crashes here with a TypeError, as it did before the move.
+  // settleHook ends that as exit 0 for every agent but Claude Code, which keeps
+  // the v3.27.0 exit 1 (golden route-prompt/null-stdin).
   const prompt = payload.prompt;
   if (typeof prompt !== "string" || prompt.length === 0) return ALLOW;
   const table = loadRouteTable();
@@ -189,5 +189,7 @@ function main(): Decision {
   return { kind: "context", text: buildContext(match.row) };
 }
 
-const decision = main();
-emit(encode(hookAgent(), EVENT, decision));
+// main() is called here, not inside settleHook, so a Claude Code crash's stack
+// names main and this module only, as the golden pins.
+const pending = main();
+emit(await settleHook(async () => encode(hookAgent(), EVENT, await pending), hookAgent));

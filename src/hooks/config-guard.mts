@@ -36,6 +36,7 @@ import {
   normalizeEvent,
   parsePayload,
   readStdin,
+  settleHook,
   type Decision,
 } from "../lib/hook-io.mjs";
 
@@ -93,5 +94,4 @@ function main(): Decision {
   }
 }
 
-const decision = main();
-emit(encode(hookAgent(), EVENT, decision));
+emit(await settleHook(() => encode(hookAgent(), EVENT, main()), hookAgent, EVENT));
