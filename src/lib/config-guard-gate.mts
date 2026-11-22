@@ -116,6 +116,11 @@ const AGENT_PATTERNS: readonly string[] = [
 
 export const PROTECTED_PATTERNS: readonly string[] = [...CLAUDE_PATTERNS, ...AGENT_PATTERNS];
 
+// Each pattern beside its lowercase form, computed once: matchProtected runs
+// once per argument part, so a long expression would otherwise lowercase every
+// pattern for every part.
+const PROTECTED_LOWER: ReadonlyArray<readonly [string, string]> = PROTECTED_PATTERNS.map((pattern) => [pattern, pattern.toLowerCase()]);
+
 const ALLOW: ConfigGuardDecision = { action: "allow", reason: "" };
 
 export function parseMode(raw: string | undefined): ConfigGuardMode {
@@ -134,8 +139,7 @@ function normalizePath(p: string): string {
 function matchProtected(filePath: string, directoryItself: boolean): string | null {
   if (typeof filePath !== "string" || filePath === "") return null;
   const n = normalizePath(filePath);
-  for (const pattern of PROTECTED_PATTERNS) {
-    const lp = pattern.toLowerCase();
+  for (const [pattern, lp] of PROTECTED_LOWER) {
     if (lp.endsWith("/")) {
       const dir = lp.slice(0, -1);
       if (n.includes(lp) || (directoryItself && (n === dir || n.endsWith(`/${dir}`)))) return pattern;
@@ -283,7 +287,9 @@ function protectedIn(arg: string, directoryItself: boolean): { target: string; p
   if (whole) return { target: plain, pattern: whole };
   if (!isExpression(arg)) return null;
   const parts = plain.split(/[\s()'",;]+/).filter((part) => part !== "");
-  for (const candidate of [...parts, parts.join("/")]) {
+  // A repeated part gets the same answer as its first copy, so each is checked once:
+  // `(a(a(a…` of 200 KB is 100,000 parts and one distinct one.
+  for (const candidate of new Set([...parts, parts.join("/")])) {
     const pattern = matchProtected(candidate, directoryItself);
     if (pattern) return { target: candidate, pattern };
   }
