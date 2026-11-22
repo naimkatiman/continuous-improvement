@@ -55,11 +55,46 @@ outside thre..put the one working only".
 - The 3.27.0 tarball has no `--hooks` install and no `lib/hook-io.mjs`: the
   other-agent guard ships in the next release. The README says so.
 
+## Review pass (2026-11-22)
+
+A README review found the npm route broken for every agent but Claude Code
+and the images unreadable on a phone. Closed on this branch:
+
+- **npm is not the install route yet.** npm 3.27.0 ignores `--hooks` (and
+  writes a rules file under `--dry-run`), runs its Claude Code uninstall for
+  `--uninstall --target`, and has no `ci doctor` or `ci lessons`. The README
+  installs, removes and checks from a clone (`node
+  $HOME/continuous-improvement/bin/install.mjs ...`), with one "Not on npm
+  yet" note; `ci <command>` is defined there. The dry-run capture's run line
+  is the clone command.
+- **Agent-neutral reference.** The MCP server has its own section; the
+  wiring check, the hook table and the env table (`CI_*` first) are written
+  for every agent; Claude Code's process count, `/mcp` naming and native
+  comparison sit under Claude Code. Terms are defined at first use.
+- **README table.** `--target` id, tier, Blocks, lessons, MCP, and a link to
+  the agent's AGENT-SUPPORT section. The Install and Cannot cells stay in
+  AGENT-SUPPORT, which the link reaches.
+- **Images.** 640 wide, no font under 18, so 10px or more on a 390px phone
+  (`smallestPhonePx` test). No in-image capture version (a test pins the
+  capture version to `package.json`, and RELEASING step 1 recaptures). Bold
+  Markdown drawn without asterisks; monospace only for commands, paths and
+  output. `memory-parts.svg` replaces the memory chain with two tracks. The
+  agents map is name chips under the tier meanings. Dark accent `#58a6ff`;
+  a test checks every palette pair at 4.5:1 in both schemes.
+- **Dark mode in `<img>`.** Checked in Edge: an SVG inside `<img>` follows
+  the embedding page's `color-scheme`, not the OS preference, so on GitHub,
+  which sets `color-scheme` per theme, the images follow the GitHub theme.
+  Not checked on github.com itself, so no `<picture>` split.
+- **Installer wording.** The rules-file note and `install --help` no longer
+  say "Claude Code-only"; they name `--target <id> --hooks` (Zed and Aider:
+  no usable hook).
+
 ## Follow-ups, not in this pass
 
 - `docs/landing/index.html` still says "Claude Code first" in its head tags
-  and footer.
-- `install --help` still says hooks and MCP stay Claude Code only for non-Claude
-  targets (`src/bin/install.mts`, `src/lib/install-targets.mts`).
+  and kicker, and its table keeps all 19 rows (the agent-matrix test pins
+  that). A landing pass should decide both.
+- `llms.txt` still shows `npx continuous-improvement install --target <agent>
+  --hooks` with no note that it needs the next release.
 - The images must be merged to `main` before the next npm publish: npm loads
   relative images from the GitHub default branch, not from the tarball.
