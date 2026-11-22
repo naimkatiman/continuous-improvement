@@ -7,10 +7,12 @@ continuous-improvement is guardrails for coding agents, built for Claude Code fi
 ## What the tiers mean
 
 - **full**: the guard blocks a destructive command before it runs, saved lessons reach the model at session start through a hook, and a Stop hook can send the turn back.
-- **partial**: the guard blocks, and one of the other two is missing.
+- **partial**: the guard blocks, and one of the other two is missing. A surface whose hooks run but whose deny the research could not confirm is partial too, and no blocking is claimed for it.
 - **rules only**: the agent has no hook this package can use, so nothing is blocked. It gets the 7 Laws rules file, and the lessons through `ci lessons`.
 
 The guard is `hooks/gateguard.mjs` (destructive shell commands and blind edits), with `hooks/hook-pack.mjs` (protected-branch pushes, opt-in) and `hooks/config-guard.mjs` (guardrail config edits, opt-in). Lessons come from `hooks/session.mjs`. The Stop gate is `hooks/typecheck-stop.mjs` and `hooks/goal-drift-stop.mjs`, both off or warn-only until you switch them on (`CI_TYPECHECK_GATE=block`, `CI_GOAL_DRIFT_GATE=block`). The tool-call log is `bin/observe.mjs` and the MCP server is `bin/mcp-server.mjs`. `lib/hook-io.mjs` writes each answer in the format the agent reads, and OpenCode and Amp run the same hook files through `lib/hook-bridge.mjs`.
+
+A blind edit is an edit of an existing file that this conversation's tool-call log shows no read of; with no log yet, every edit passes. A shell command that names the file counts as a read on every hook agent, and so does a file tool whose path key the research documents. Copilot, Devin and Auggie document none for their file-read tools, so a read through `view` never counts and a read through `read` counts only when it names the file as `path`: read the file through the shell, or run the clear command the deny prints. A tool event from another agent that names no session gets that deny for every edit of an existing file.
 
 "Blocks" means the agent stops the tool call when the hook runs and answers deny. An agent that fails open on a hook crash or timeout, or a setting that turns hooks off (Codex trust, Gemini and Qwen folder trust, Devin Restricted Mode, Copilot `disableAllHooks`), lets the call through. `npx -p continuous-improvement ci doctor --agent <id>` shows what an installed agent loaded, using only its own listing commands.
 
@@ -25,13 +27,14 @@ The guard is `hooks/gateguard.mjs` (destructive shell commands and blind edits),
 | Gemini CLI | full | yes | yes | `npx continuous-improvement install --target gemini --hooks` | A malformed hooks.json is dropped silently. No CLI lists the hooks. |
 | Qwen Code | full | yes | yes | `npx continuous-improvement install --target qwen --hooks` | `$ARGUMENTS` is not substituted in commands. The prompt hook also fires on tool results. |
 | Cursor | full | yes (3.x) | yes | `npx continuous-improvement install --target cursor --hooks` | Cloud agents run no session hooks. 2.5.26 has no prompt context. Stray output from a hook stops every tool call on 3.x. The Cursor CLI is not covered. |
-| GitHub Copilot CLI | full | yes | yes | `npx continuous-improvement install --target copilot --hooks` | Prompt hook output is dropped, so the prompt hooks are not wired. A hook that times out fails open. The cloud agent reads only .github/hooks, and disableAllHooks turns every hook off. |
+| GitHub Copilot CLI | full | yes | yes | `npx continuous-improvement install --target copilot --hooks` | Prompt hook output is dropped, so the prompt hooks are not wired. A hook that times out fails open. The cloud agent reads only .github/hooks, and disableAllHooks turns every hook off. A read through `view` does not clear the blind-edit gate, so read the file through the shell first. |
 | Grok CLI | partial | yes, in a trusted folder | rules file | `npx continuous-improvement install --target grok --hooks` | No session or prompt context, so lessons need the rules file. |
-| Devin Local | full | yes, outside Restricted Mode | yes | `npx continuous-improvement install --target devin --hooks` | Restricted Mode runs no hooks. Hooks it imports from ~/.claude can fire twice. Plugin hooks fail open. |
-| Kiro CLI and IDE | full | yes (exit 2) | yes | `npx continuous-improvement install --target kiro --hooks` | CLI sessions on the V2 harness read agent-profile hooks, not this file. A hook crash exits 1, which Kiro CLI allows, and the IDE docs disagree on what that exit means. |
+| Devin Local | full | yes, outside Restricted Mode | yes | `npx continuous-improvement install --target devin --hooks` | Restricted Mode runs no hooks. Hooks it imports from ~/.claude can fire twice. Plugin hooks fail open. A read through `read` may not clear the blind-edit gate (its path key is undocumented), so read the file through the shell first. |
+| Kiro CLI | full | yes (exit 2) | yes | `npx continuous-improvement install --target kiro --hooks` | CLI sessions on the V2 harness read agent-profile hooks, not this file. A hook crash exits 1, which Kiro CLI allows. |
+| Kiro IDE | partial | not claimed (its hook docs disagree on exit codes) | yes | `npx continuous-improvement install --target kiro --hooks` | The IDE's two hook pages disagree on what a non-zero exit does, and no IDE run was captured, so no blocking is claimed here. The same hooks answer with exit 2 on a deny. The IDE reads only the workspace .kiro/hooks, so install at project scope. |
 | Factory Droid | full | yes | yes | `npx continuous-improvement install --target droid --hooks` | Context printed at PreToolUse is ignored. SubagentStop cannot send a turn back. |
-| Auggie | partial | yes | rules file | `npx continuous-improvement install --target auggie --hooks` | Only the tool-call hooks act. Session, Stop and prompt hooks run in the background, so only the guards and the log are wired. |
-| Junie CLI | partial | yes, on the Early Access build | rules file | `npx continuous-improvement install --target junie --hooks --scope user` | Stable builds run no hooks. SessionStart context is ignored. |
+| Auggie | partial | yes | rules file | `npx continuous-improvement install --target auggie --hooks` | Only the tool-call hooks act. Session, Stop and prompt hooks run in the background, so only the guards and the log are wired. A read through `view` does not clear the blind-edit gate, and one through `read` only when it names the file as `path`, so read the file through the shell first. |
+| Junie CLI | partial | yes, on the Early Access build | rules file | `npx continuous-improvement install --target junie --hooks --scope user` | Stable builds run no hooks. SessionStart context is ignored. The documented tool event names no session; if a real one has none, every edit of an existing file needs the clear command the deny prints. |
 | Cline | partial | yes, while Enable Hooks is on | no | `npx continuous-improvement install --target cline --hooks` | No Stop gate and no session lessons. A hook error fails open. |
 | Goose | partial | yes | rules file | `npx continuous-improvement install --target goose --hooks` | Post-tool, session and prompt hooks only observe. Hook commands run through sh -c, unverified on Windows. |
 | OpenCode | partial | yes, through a local plugin file | yes | `npx continuous-improvement install --target opencode --hooks` | 1.x has no Stop gate (2.x continues a turn through experimental.idle). A deny reaches the model as a failed tool call and the turn goes on. OPENCODE_PURE turns plugins off. |
@@ -116,7 +119,7 @@ The guard is `hooks/gateguard.mjs` (destructive shell commands and blind edits),
 - MCP server: yes
 - Checked against: vendor docs
 - Install: `npx continuous-improvement install --target copilot --hooks`
-- Cannot: Prompt hook output is dropped, so the prompt hooks are not wired. A hook that times out fails open. The cloud agent reads only .github/hooks, and disableAllHooks turns every hook off.
+- Cannot: Prompt hook output is dropped, so the prompt hooks are not wired. A hook that times out fails open. The cloud agent reads only .github/hooks, and disableAllHooks turns every hook off. A read through `view` does not clear the blind-edit gate, so read the file through the shell first.
 - Source: Research GitHub Copilot hook_pre_tool (skeptic: corrected; exit 2 deny, fail-closed on errors, fail-open on timeouts), additionalContext, 8-block Stop cap; matrix row Copilot CLI.
 
 ### Grok CLI
@@ -142,10 +145,10 @@ The guard is `hooks/gateguard.mjs` (destructive shell commands and blind edits),
 - Checked against: installed binary
 - Install: `npx continuous-improvement install --target devin --hooks`
 - Then: Run the printed `devin mcp add` step. `--target windsurf --hooks` is the same install.
-- Cannot: Restricted Mode runs no hooks. Hooks it imports from ~/.claude can fire twice. Plugin hooks fail open.
+- Cannot: Restricted Mode runs no hooks. Hooks it imports from ~/.claude can fire twice. Plugin hooks fail open. A read through `read` may not clear the blind-edit gate (its path key is undocumented), so read the file through the shell first.
 - Source: Research Windsurf / Devin Local 3000.14 hook_pre_tool (skeptic: corrected; exit 2 or decision block, other non-zero exits fail open), JSON session context; matrix row Devin Local 3000.14.
 
-### Kiro CLI and IDE
+### Kiro CLI
 
 - Tier: full
 - Blocks a destructive command: yes (exit 2)
@@ -154,8 +157,20 @@ The guard is `hooks/gateguard.mjs` (destructive shell commands and blind edits),
 - MCP server: yes
 - Checked against: vendor docs
 - Install: `npx continuous-improvement install --target kiro --hooks`
-- Cannot: CLI sessions on the V2 harness read agent-profile hooks, not this file. A hook crash exits 1, which Kiro CLI allows, and the IDE docs disagree on what that exit means.
-- Source: Research Kiro hook_pre_tool (skeptic: corrected; exit 2 blocks on every surface, IDE non-zero exit docs contradict each other); matrix rows Kiro CLI V3 and Kiro IDE 1.x.
+- Cannot: CLI sessions on the V2 harness read agent-profile hooks, not this file. A hook crash exits 1, which Kiro CLI allows.
+- Source: Research Kiro hook_pre_tool (skeptic: corrected; on the CLI exit 0 allows, exit 2 blocks with stderr sent to the model, other codes warn and allow); matrix row Kiro CLI V3 (pre-tool block yes, exit 2).
+
+### Kiro IDE
+
+- Tier: partial
+- Blocks a destructive command: not claimed (its hook docs disagree on exit codes)
+- Lessons at session start: yes
+- Stop gate: yes
+- MCP server: yes
+- Checked against: vendor docs
+- Install: `npx continuous-improvement install --target kiro --hooks`
+- Cannot: The IDE's two hook pages disagree on what a non-zero exit does, and no IDE run was captured, so no blocking is claimed here. The same hooks answer with exit 2 on a deny. The IDE reads only the workspace .kiro/hooks, so install at project scope.
+- Source: Research Kiro hook_pre_tool (skeptic: corrected; hooks/actions.md says any non-zero exit blocks, ide/whats-new-v1/hooks.md says other non-zero exits are errors, not blocks); matrix row Kiro IDE 1.x, whose pre-tool cell is partial; the user-scope install note in lib/agent-install-plans.mjs.
 
 ### Factory Droid
 
@@ -179,7 +194,7 @@ The guard is `hooks/gateguard.mjs` (destructive shell commands and blind edits),
 - Checked against: vendor docs
 - Install: `npx continuous-improvement install --target auggie --hooks`
 - Then: Run the printed `auggie mcp add --project` step. For the lessons, run `npx -p continuous-improvement ci lessons --format auggie --write`.
-- Cannot: Only the tool-call hooks act. Session, Stop and prompt hooks run in the background, so only the guards and the log are wired.
+- Cannot: Only the tool-call hooks act. Session, Stop and prompt hooks run in the background, so only the guards and the log are wired. A read through `view` does not clear the blind-edit gate, and one through `read` only when it names the file as `path`, so read the file through the shell first.
 - Source: Research [Auggie] hook_pre_tool (skeptic: confirmed; JSON read only on exit 0) and the background session, Stop and prompt hooks; matrix row Auggie 1.2.2.
 
 ### Junie CLI
@@ -192,8 +207,8 @@ The guard is `hooks/gateguard.mjs` (destructive shell commands and blind edits),
 - Checked against: vendor docs
 - Install: `npx continuous-improvement install --target junie --hooks --scope user`
 - Then: A project .junie/config.json loads only with --config-location, so install at user scope. For the lessons, run `npx -p continuous-improvement ci lessons --format junie --write`.
-- Cannot: Stable builds run no hooks. SessionStart context is ignored.
-- Source: Research [Junie] hook_pre_tool (skeptic: corrected; hooks are an Early Access feature, project config.json ignored by default); matrix row Junie CLI.
+- Cannot: Stable builds run no hooks. SessionStart context is ignored. The documented tool event names no session; if a real one has none, every edit of an existing file needs the clear command the deny prints.
+- Source: Research [Junie] hook_pre_tool (skeptic: corrected; hooks are an Early Access feature, project config.json ignored by default); matrix row Junie CLI, whose pre-tool cell is partial (Early Access only).
 
 ### Cline
 

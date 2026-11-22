@@ -44,6 +44,7 @@ const row = (over: Partial<AgentSupport>): AgentSupport => ({
   names: ["Xagent"],
   compat: [],
   canBlockPreTool: true,
+  preToolVerdict: "yes",
   blocks: "yes",
   lessons: "hook",
   stopGate: true,
@@ -106,7 +107,7 @@ describe("agent support table", () => {
   it("claims blocking only for claude and the agents the installer wires a pre-tool hook for", () => {
     const wired = new Set(["claude", ...HOOK_AGENT_IDS, ...PLUGIN_AGENT_IDS]);
     for (const r of AGENT_SUPPORT.filter(blocksPreTool)) assert.ok(wired.has(r.id), `${r.id} blocks but has no hook install`);
-    assert.deepEqual(AGENT_SUPPORT.filter((r) => !blocksPreTool(r)).map((r) => r.id), ["zed", "aider"]);
+    assert.deepEqual(AGENT_SUPPORT.filter((r) => !blocksPreTool(r)).map((r) => r.id), ["kiro-ide", "zed", "aider"]);
   });
 
   it("derives the tier from the flags", () => {
@@ -129,7 +130,7 @@ describe("agent support table", () => {
     const tiers = Object.fromEntries(AGENT_SUPPORT.map((r) => [r.id, supportTier(r)]));
     assert.deepEqual(tiers, {
       claude: "full", codex: "full", gemini: "full", qwen: "full", cursor: "full", copilot: "full", grok: "partial",
-      devin: "full", kiro: "full", droid: "full", auggie: "partial", junie: "partial", cline: "partial",
+      devin: "full", kiro: "full", "kiro-ide": "partial", droid: "full", auggie: "partial", junie: "partial", cline: "partial",
       goose: "partial", opencode: "partial", amp: "full", zed: "rules only", aider: "rules only",
     });
   });
@@ -418,5 +419,146 @@ describe("root AGENTS.md references", () => {
       .filter((p) => top.has(p.split("/")[0]!))
       .filter((p) => !existsSync(join(REPO_ROOT, p)));
     assert.deepEqual(missing, []);
+  });
+});
+
+// PR 20 (closeout, critic gap 8): one "Kiro CLI and IDE" row claimed exit-2
+// blocking for both, while the verified matrix rates the IDE's pre-tool block
+// partial (its two hook docs disagree on exit codes). verify:agent-matrix could
+// not see it, because the row's canBlockPreTool was true. Each row now carries
+// the matrix verdict for its surface, and a row rated anything but yes cannot
+// claim blocking.
+describe("Kiro CLI and Kiro IDE, and the pre-tool verdict", () => {
+  const cli = AGENT_SUPPORT.find((r) => r.names[0] === "Kiro CLI");
+  const ide = AGENT_SUPPORT.find((r) => r.names[0] === "Kiro IDE");
+
+  it("rates Kiro CLI full, blocking with exit 2", () => {
+    assert.equal(cli?.id, "kiro");
+    assert.equal(cli?.preToolVerdict, "yes");
+    assert.equal(blocksPreTool(cli!), true);
+    assert.match(cli!.blocks, /^yes \(exit 2\)$/);
+    assert.equal(supportTier(cli!), "full");
+  });
+
+  it("rates Kiro IDE partial, a variant of --target kiro that claims no blocking", () => {
+    assert.equal(ide?.id, "kiro-ide");
+    assert.equal(ide?.variantOf, "kiro");
+    assert.equal(ide?.preToolVerdict, "partial");
+    assert.equal(blocksPreTool(ide!), false);
+    assert.doesNotMatch(ide!.blocks, /^yes\b/i);
+    assert.equal(supportTier(ide!), "partial");
+    assert.ok(ide!.install.every((cmd) => cmd.includes("--target kiro --hooks")));
+    assert.match(ide!.cannot, /disagree/);
+  });
+
+  it("flags a row rated partial that claims blocking, through the flag or a Blocks: yes cell", () => {
+    assert.match(supportViolations([row({ id: "kiro", preToolVerdict: "partial" })]).join("\n"), /rates .*partial/);
+    const variant = (over: Partial<AgentSupport>): AgentSupport[] => [
+      row({ id: "kiro" }),
+      row({ id: "kiro-ide", variantOf: "kiro", names: ["Kiro IDE"], canBlockPreTool: false, preToolVerdict: "partial", blocks: "not claimed", ...over }),
+    ];
+    assert.deepEqual(supportViolations(variant({})), []);
+    assert.match(supportViolations(variant({ blocks: "yes (exit 2)" })).join("\n"), /kiro-ide.*partial/);
+    assert.match(supportViolations(variant({ canBlockPreTool: true, blocks: "yes" })).join("\n"), /kiro-ide.*partial/);
+  });
+
+  it("fails closed on a missing or malformed verdict: a blocking row must say yes", () => {
+    for (const value of [undefined, null, "Yes", "partial ", 1]) {
+      const out = supportViolations([row({ id: "codex", preToolVerdict: value as unknown as AgentSupport["preToolVerdict"] })]);
+      assert.match(out.join("\n"), /rates/, String(value));
+    }
+    for (const value of [undefined, "Partial", "no"]) {
+      const bad = row({ canBlockPreTool: false, blocks: "no", preToolVerdict: value as unknown as AgentSupport["preToolVerdict"] });
+      assert.equal(supportTier(bad), "rules only", String(value));
+    }
+    assert.equal(supportTier(row({ canBlockPreTool: false, blocks: "not claimed", preToolVerdict: "partial" })), "partial");
+  });
+
+  it("flags a variant of an id with no base row, and a variant of a variant", () => {
+    const ide = row({ id: "kiro-ide", variantOf: "kiro", canBlockPreTool: false, preToolVerdict: "partial", blocks: "not claimed" });
+    assert.match(supportViolations([ide]).join("\n"), /variant of kiro, which has no row/);
+    const nested = row({ id: "kiro-web", variantOf: "kiro-ide", canBlockPreTool: false, preToolVerdict: "partial", blocks: "not claimed" });
+    assert.match(supportViolations([row({ id: "kiro" }), ide, nested]).join("\n"), /kiro-web: variant of kiro-ide/);
+  });
+
+  it("flags a hand-written blocking claim for the Kiro IDE, and none for the Kiro CLI", () => {
+    assert.equal(findBlockingClaims("README.md", "The guard blocks force pushes in the Kiro IDE.", AGENT_SUPPORT).length, 1);
+    assert.deepEqual(findBlockingClaims("README.md", "Kiro CLI blocks force pushes with exit 2.", AGENT_SUPPORT), []);
+    assert.deepEqual(findBlockingClaims("README.md", "The Kiro IDE: no blocking is claimed.", AGENT_SUPPORT), []);
+  });
+
+  it("lists the Kiro IDE in compatibleWith right after kiro", () => {
+    const ids = compatibleWith();
+    assert.ok(ids.includes("kiro-ide"));
+    assert.equal(ids.indexOf("kiro-ide"), ids.indexOf("kiro") + 1);
+  });
+});
+
+// PR 20 (closeout, critic doc claim 2): the support doc said the guard covers
+// blind edits on every hook agent. A read through a file tool whose path key
+// the research does not document (Copilot and Auggie view, and Devin and
+// Auggie read unless it names the file as `path`) leaves an empty row, so it
+// never clears the gate; the doc says so.
+describe("the blind-edit claim in the support doc", () => {
+  const doc = renderSupportDoc(AGENT_SUPPORT);
+
+  it("says which reads count and which file tools do not", () => {
+    assert.match(doc, /A shell command that names the file counts as a read on every hook agent/);
+    assert.match(doc, /Copilot, Devin and Auggie document none for their file-read tools, so a read through `view` never counts/);
+    assert.match(doc, /names no session/);
+  });
+
+  it("names the shell read in the Copilot, Devin and Auggie rows", () => {
+    for (const id of ["copilot", "devin", "auggie"]) {
+      const r = AGENT_SUPPORT.find((x) => x.id === id);
+      assert.match(r?.cannot ?? "", /blind-edit gate/, id);
+    }
+  });
+});
+
+// PR 20 review fixes. (1) Junie's matrix cell is "partial H (Early Access
+// only)", but the row was hand-encoded "yes", so the check that a partial
+// verdict claims no blocking passed it unseen. The cell now reads
+// "conditional": the matrix rates it partial because the block holds only on
+// a build or setting, and a conditional row may claim blocking only when its
+// Blocks cell states that condition. (2) A non-blocking row rated partial is
+// published as "hooks run", so it needs a hook install like a blocking row.
+// (3) kiro-ide is in compatibleWith, so `--target kiro-ide` installs the Kiro
+// hooks instead of saying there is no hook install.
+describe("the conditional verdict, a partial row's hook install, and the variant target", () => {
+  it("records Junie's matrix cell, partial on the Early Access build only, as conditional", () => {
+    const junie = AGENT_SUPPORT.find((r) => r.id === "junie");
+    assert.equal(junie?.preToolVerdict, "conditional");
+    assert.equal(blocksPreTool(junie!), true);
+    assert.equal(junie!.blocks, "yes, on the Early Access build");
+    assert.deepEqual(supportViolations(AGENT_SUPPORT), []);
+  });
+
+  it("copies the matrix cell on every row: no for Zed and Aider, partial for the Kiro IDE, conditional for Junie, yes elsewhere", () => {
+    const want: Record<string, string> = { zed: "no", aider: "no", "kiro-ide": "partial", junie: "conditional" };
+    for (const r of AGENT_SUPPORT) assert.equal(r.preToolVerdict, want[r.id] ?? "yes", r.id);
+  });
+
+  it("lets a conditional row claim blocking only when its Blocks cell states the condition", () => {
+    const junie = (blocks: string): AgentSupport => row({ id: "junie", preToolVerdict: "conditional", blocks });
+    assert.deepEqual(supportViolations([junie("yes, on the Early Access build")]), []);
+    for (const blocks of ["yes", "yes (exit 2)", "yes,", "yes, "]) {
+      assert.match(supportViolations([junie(blocks)]).join("\n"), /conditional.*names no condition/, blocks);
+    }
+    assert.deepEqual(supportViolations([row({ id: "junie", canBlockPreTool: false, blocks: "no", preToolVerdict: "conditional" })]), []);
+  });
+
+  it("flags a non-blocking row rated partial that has no hook install, by its own id or its base id", () => {
+    const zed = row({ id: "zed", canBlockPreTool: false, blocks: "not claimed (no hooks)", preToolVerdict: "partial" });
+    assert.match(supportViolations([zed]).join("\n"), /zed: rated partial .*no hook install/);
+    const ide = row({ id: "kiro-ide", variantOf: "kiro", canBlockPreTool: false, blocks: "not claimed", preToolVerdict: "partial" });
+    assert.deepEqual(supportViolations([row({ id: "kiro" }), ide]), []);
+    assert.deepEqual(supportViolations([row({ id: "zed", canBlockPreTool: false, blocks: "no", preToolVerdict: "no" })]), []);
+  });
+
+  it("installs every variant row through its own id as well as its base target", () => {
+    const variants = AGENT_SUPPORT.filter((r) => r.variantOf !== undefined);
+    assert.ok(variants.length > 0);
+    for (const r of variants) assert.equal(resolveHookAgent(r.id), r.variantOf, r.id);
   });
 });
