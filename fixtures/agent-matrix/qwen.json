@@ -56,5 +56,12 @@
       "stdin": { "session_id": "qwen-session", "transcript_path": "<HOME>/qwen.jsonl", "cwd": "<PROJECT>", "hook_event_name": "Stop", "timestamp": "2026-11-21T10:00:00.000Z", "permission_mode": "default", "stop_hook_active": false, "last_assistant_message": "done", "background_tasks": [], "crons": [] }
     }
   },
+  "evidence": {
+    "source": "Qwen hook_payload_example base fields with read_file and edit (research tool_names, input file_path); hook_post_tool adds tool_response and tool_use_id",
+    "checked": "2026-11-22",
+    "unverified": ["tool_response"],
+    "read": { "session_id": "<SESSION>", "transcript_path": "<HOME>/qwen.jsonl", "cwd": "<PROJECT>", "hook_event_name": "PostToolUse", "timestamp": "2026-11-21T10:00:01.000Z", "permission_mode": "default", "tool_name": "read_file", "tool_input": { "file_path": "<FILE>" }, "tool_use_id": "toolu_read", "tool_response": "a" },
+    "edit": { "session_id": "<SESSION>", "transcript_path": "<HOME>/qwen.jsonl", "cwd": "<PROJECT>", "hook_event_name": "PreToolUse", "timestamp": "2026-11-21T10:00:02.000Z", "permission_mode": "default", "prompt_id": "p1", "tool_name": "edit", "tool_input": { "file_path": "<FILE>", "old_string": "a", "new_string": "b" }, "tool_use_id": "toolu_edit", "tool_call_id": "call_edit" }
+  },
   "absent": {}
 }

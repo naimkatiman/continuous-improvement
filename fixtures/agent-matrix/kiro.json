@@ -57,5 +57,12 @@
       "stdin": { "hook_event_name": "Stop", "cwd": "<PROJECT>", "session_id": "kiro-session" }
     }
   },
+  "evidence": {
+    "source": "Kiro hook_payload_example (hooks/types.md: read_file with tool_input.path) and hook_post_tool (tool_response {success, result}); fs_write takes path (research tool_names)",
+    "checked": "2026-11-22",
+    "unverified": ["fs_write tool_input keys"],
+    "read": { "hook_event_name": "PostToolUse", "cwd": "<PROJECT>", "session_id": "<SESSION>", "tool_name": "read_file", "tool_input": { "path": "<FILE>" }, "tool_response": { "success": true, "result": ["a"] } },
+    "edit": { "hook_event_name": "PreToolUse", "cwd": "<PROJECT>", "session_id": "<SESSION>", "tool_name": "fs_write", "tool_input": { "path": "<FILE>", "command": "str_replace", "old_str": "a", "new_str": "b" } }
+  },
   "absent": {}
 }

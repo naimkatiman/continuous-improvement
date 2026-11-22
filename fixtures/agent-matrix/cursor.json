@@ -57,5 +57,12 @@
       "stdin": { "conversation_id": "cursor-conv", "generation_id": "gen-1", "hook_event_name": "stop", "cursor_version": "3.20.17", "workspace_roots": ["<PROJECT>"], "status": "completed", "loop_count": 0 }
     }
   },
+  "evidence": {
+    "source": "Cursor hook_payload_example (tool events carry conversation_id, no session_id) and hook_post_tool (postToolUse tool_name, tool_input, tool_output, tool_use_id, cwd, duration); Read and Write take file_path (2.5.26 bundle)",
+    "checked": "2026-11-22",
+    "unverified": [],
+    "read": { "conversation_id": "<SESSION>", "generation_id": "gen-1", "hook_event_name": "postToolUse", "cursor_version": "3.20.17", "workspace_roots": ["<PROJECT>"], "tool_name": "Read", "tool_input": { "file_path": "<FILE>" }, "tool_output": "a", "tool_use_id": "cursor-read", "cwd": "<PROJECT>", "duration": 3 },
+    "edit": { "conversation_id": "<SESSION>", "generation_id": "gen-1", "model": "claude-opus-4-7-thinking-max", "hook_event_name": "preToolUse", "cursor_version": "3.20.17", "workspace_roots": ["<PROJECT>"], "tool_name": "Write", "tool_input": { "file_path": "<FILE>", "content": "b" }, "tool_use_id": "cursor-edit", "cwd": "<PROJECT>" }
+  },
   "absent": {}
 }

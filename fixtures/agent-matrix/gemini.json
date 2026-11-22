@@ -57,5 +57,12 @@
       "stdin": { "session_id": "gemini-session", "transcript_path": "<HOME>/gemini-session.json", "cwd": "<PROJECT>", "hook_event_name": "AfterAgent", "timestamp": "2026-11-21T11:08:00.000Z", "prompt": "run the tests", "prompt_response": "done", "stop_hook_active": false }
     }
   },
+  "evidence": {
+    "source": "Gemini hook_payload_example (BeforeTool) and hook_post_tool (AfterTool adds tool_response {llmContent, returnDisplay}); read_file and replace take file_path (file-system.md)",
+    "checked": "2026-11-22",
+    "unverified": [],
+    "read": { "session_id": "<SESSION>", "transcript_path": "<HOME>/gemini-session.json", "cwd": "<PROJECT>", "hook_event_name": "AfterTool", "timestamp": "2026-11-21T11:08:01.000Z", "tool_name": "read_file", "tool_input": { "file_path": "<FILE>" }, "tool_response": { "llmContent": "a", "returnDisplay": "" } },
+    "edit": { "session_id": "<SESSION>", "transcript_path": "<HOME>/gemini-session.json", "cwd": "<PROJECT>", "hook_event_name": "BeforeTool", "timestamp": "2026-11-21T11:08:02.000Z", "tool_name": "replace", "tool_input": { "file_path": "<FILE>", "old_string": "a", "new_string": "b" } }
+  },
   "absent": {}
 }

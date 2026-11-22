@@ -58,5 +58,12 @@
       "stdin": { "transcriptPath": "<HOME>/copilot-transcript.jsonl", "stopReason": "end_turn", "stop_hook_active": false }
     }
   },
+  "evidence": {
+    "source": "Copilot hook_payload_example (camelCase sessionId, cwd, toolName, toolArgs as a JSON string) and hook_post_tool (toolResult {resultType, textResultForLlm}); bash toolArgs carry command; the edit tool's argument keys are not documented",
+    "checked": "2026-11-22",
+    "unverified": ["edit toolArgs.path"],
+    "read": { "sessionId": "<SESSION>", "timestamp": 1763712000001, "cwd": "<PROJECT>", "toolName": "bash", "toolArgs": "{\"command\":\"cat <FILE>\"}", "toolResult": { "resultType": "success", "textResultForLlm": "a" } },
+    "edit": { "sessionId": "<SESSION>", "timestamp": 1763712000002, "cwd": "<PROJECT>", "toolName": "edit", "toolArgs": "{\"path\":\"<FILE>\",\"old_str\":\"a\",\"new_str\":\"b\"}" }
+  },
   "absent": {}
 }

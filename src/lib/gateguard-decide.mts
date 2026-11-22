@@ -318,6 +318,13 @@ function buildUnreadReason(unread: string[], stateFilePath: string, clearCliPath
   ].join("\n");
 }
 
+function buildNoSessionReason(unread: string[], stateFilePath: string, clearCliPath: string): string {
+  return [
+    `This hook payload names no session, so no read in the observation log can be matched to this edit of ${unread.join(", ")}.`,
+    `Clear the gate and retry: node ${quotePath(clearCliPath)} --state ${quotePath(stateFilePath)} ${unread.map((p) => quotePath(p)).join(" ")}`,
+  ].join("\n");
+}
+
 // --- Unquoted brace-ref detector (RISA 3 / G1) -----------------------------
 // An unquoted @{u} / @{upstream} / @{push} / @{0} git ref makes Claude Code's
 // built-in Bash parser trip on the braces and block the call post-hoc, costing a
@@ -528,10 +535,17 @@ export async function decideGateguard(event: NeutralEvent, config: GateguardConf
     // No observation log: the observer is not installed or has never run, so
     // nothing can show a read. The gate cannot judge.
     if (seen === null) return allow();
+    // Another agent's payload that names no session: a row with session "" may
+    // be any conversation's or any agent's, so no read counts and the clear CLI
+    // is the route. Claude Code always sends session_id; its path is unchanged.
+    const anonymous = event.agent !== "claude" && !sessionId;
+    if (anonymous) seen.clear();
     state = rememberEvidence(sessionDir, state, pending.filter((path) => seen.has(path)));
     const unread = pending.filter((path) => !seen.has(path));
     if (unread.length === 0) return allow();
-    if (!factsFlagged) return deny(buildUnreadReason(unread, stateFilePath, config.clearCliPath));
+    if (!factsFlagged) {
+      return deny(anonymous ? buildNoSessionReason(unread, stateFilePath, config.clearCliPath) : buildUnreadReason(unread, stateFilePath, config.clearCliPath));
+    }
     // _gateguard_facts_presented, on a harness that forwards it: the attested
     // clearance below, cap included.
   }

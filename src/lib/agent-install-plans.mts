@@ -90,7 +90,8 @@
 //   matcher; skeptic: the VS Code extension scans ~/Documents/Cline/Hooks and
 //   <root>/.clinerules/hooks only, runs only <Name>.ps1 on Windows and only an
 //   extensionless executable elsewhere; {"cancel":true} denies; errors fail
-//   open), hook_stop (no equivalent), mcp_servers (`cline mcp add <name> --yes
+//   open), hook_post_tool (PostToolUse, same file naming; skeptic: confirmed;
+//   feeds the observer), hook_stop (no equivalent), mcp_servers (`cline mcp add <name> --yes
 //   -- <command...>`, `cline mcp remove`, no project MCP file).
 
 import { createHash } from "node:crypto";
@@ -445,7 +446,7 @@ const SPECS: Readonly<Record<string, AgentSpec>> = {
   },
   cline: {
     label: "Cline",
-    events: ["PreToolUse"],
+    events: ["PreToolUse", "PostToolUse"],
     matcher: "none",
     failClosed: null,
     hooksFile: (ctx) => ({ path: clineDir(ctx), hooksAt: [] }),
@@ -491,7 +492,7 @@ function clineUserNotes(ctx: PlanContext): string[] {
   const hooks = join(dir, "Cline", "Hooks");
   const notes = [`The Cline VS Code extension and the Cline CLI both read user hooks from Documents/Cline/Hooks; only the CLI also reads ~/.cline/hooks.`];
   if (documents === null) {
-    notes.push(`The Windows Documents folder could not be resolved, so PreToolUse.ps1 goes to ${hooks}. If Documents is redirected (OneDrive), copy PreToolUse.ps1 by hand into <Documents>\\Cline\\Hooks, or install with --scope project (.clinerules/hooks).`);
+    notes.push(`The Windows Documents folder could not be resolved, so PreToolUse.ps1 and PostToolUse.ps1 go to ${hooks}. If Documents is redirected (OneDrive), copy PreToolUse.ps1 and PostToolUse.ps1 by hand into <Documents>\\Cline\\Hooks, or install with --scope project (.clinerules/hooks).`);
   } else if (dir.toLowerCase() !== join(ctx.home, "Documents").toLowerCase()) {
     notes.push(`Documents resolves to ${dir}, not ~/Documents (a OneDrive Known Folder Move, for example): the VS Code extension reads ${hooks}, but the Cline CLI's hook lookup has no OneDrive candidate and may not see it. --scope project (.clinerules/hooks) reaches both.`);
   }

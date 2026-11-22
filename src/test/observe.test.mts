@@ -451,3 +451,93 @@ describe("observe.mjs keeps secrets out of observations.jsonl", () => {
     }
   }
 });
+
+// Plan PR 18 (Architecture item 9 and the owner decisions on the optional
+// `agent` field and the (session, tool_use_id) dedupe).
+describe("observe.mjs: other agents' rows", () => {
+  const homes: string[] = [];
+  after(() => {
+    for (const home of homes) rmSync(home, { recursive: true, force: true });
+  });
+
+  function freshHome(): string {
+    const home = mkdtempSync(join(tmpdir(), "ci-observe-agent-"));
+    homes.push(home);
+    return home;
+  }
+
+  function observeAs(home: string, args: string[], payload: unknown, bin = OBSERVE_BIN) {
+    const env: NodeJS.ProcessEnv = { ...process.env, HOME: home, USERPROFILE: home, CLAUDE_PROJECT_DIR: "/tmp/test-project-agents" };
+    delete env.CI_AGENT;
+    delete env.CI_INSTINCTS_HOME;
+    const result = spawnSync("node", [bin, ...args], { input: JSON.stringify(payload), env, encoding: "utf8", timeout: 5000 });
+    if (result.error) throw result.error;
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, "", result.stderr);
+    // The observer catches every throw and exits 0, so a crash shows only here.
+    assert.equal(result.stderr, "");
+  }
+
+  const rows =(home: string): Array<Record<string, unknown>> => readObservations(home) as unknown as Array<Record<string, unknown>>;
+  const cursorRead = { conversation_id: "c1", hook_event_name: "postToolUse", cursor_version: "3.20.17", tool_name: "Read", tool_input: { file_path: "/p/a.txt" }, tool_output: "x", tool_use_id: "u1", cwd: "/p" };
+
+  it("names the agent and the call id on a non-Claude row, after the Claude fields", () => {
+    for (const bin of [OBSERVE_BIN, BUNDLED_OBSERVE_BIN]) {
+      const home = freshHome();
+      observeAs(home, ["--agent", "cursor"], cursorRead, bin);
+      const [row] = rows(home);
+      assert.deepEqual(Object.keys(row!), ["ts", "event", "session", "tool", "input_summary", "output_summary", "project_id", "project_name", "agent", "tool_use_id"], bin);
+      assert.equal(row!.agent, "cursor");
+      assert.equal(row!.tool_use_id, "u1");
+      assert.equal(row!.session, "c1");
+      assert.equal(row!.event, "tool_complete");
+    }
+  });
+
+  it("leaves a Claude row's fields as they were, with or without --agent claude", () => {
+    for (const args of [[], ["--agent", "claude"]]) {
+      const home = freshHome();
+      observeAs(home, args, { session_id: "s", hook_event_name: "PostToolUse", tool_name: "Read", tool_input: { file_path: "/p/a.txt" }, tool_response: "x", tool_use_id: "toolu_1" });
+      assert.deepEqual(Object.keys(rows(home)[0]!), ["ts", "event", "session", "tool", "input_summary", "output_summary", "project_id", "project_name"]);
+    }
+  });
+
+  it("writes a call once when it fires twice with the same session, call id and event", () => {
+    const home = freshHome();
+    observeAs(home, ["--agent", "cursor"], cursorRead);
+    observeAs(home, ["--agent", "cursor"], cursorRead);
+    assert.equal(rows(home).length, 1);
+  });
+
+  it("writes both rows when the session, the call id or the event differs, or there is no call id", () => {
+    const home = freshHome();
+    observeAs(home, ["--agent", "cursor"], cursorRead);
+    observeAs(home, ["--agent", "cursor"], { ...cursorRead, conversation_id: "c2" });
+    observeAs(home, ["--agent", "cursor"], { ...cursorRead, tool_use_id: "u2" });
+    observeAs(home, ["--agent", "cursor"], { ...cursorRead, hook_event_name: "preToolUse", tool_output: undefined });
+    const goose = { event: "PostToolUse", session_id: "g", tool_name: "shell", tool_input: { command: "cat a.txt" } };
+    observeAs(home, ["--agent", "goose"], goose);
+    observeAs(home, ["--agent", "goose"], goose);
+    assert.deepEqual(rows(home).map((row) => [row.session, row.tool_use_id, row.event]), [
+      ["c1", "u1", "tool_complete"], ["c2", "u1", "tool_complete"], ["c1", "u2", "tool_complete"], ["c1", "u1", "tool_start"],
+      ["g", undefined, "tool_complete"], ["g", undefined, "tool_complete"],
+    ]);
+  });
+
+  it("a Claude-selected fire of a call another agent's row already holds is not written again", () => {
+    const home = freshHome();
+    const grok = { hookEventName: "post_tool_use", hook_event_name: "PostToolUse", session_id: "g1", tool_name: "read_file", tool_input: { file_path: "/p/a.txt" }, tool_use_id: "call-1", tool_response: "x" };
+    observeAs(home, ["--agent", "grok"], grok);
+    observeAs(home, [], { ...grok, hookEventName: undefined });
+    assert.equal(rows(home).length, 1);
+  });
+
+  it("writes no row for Copilot or Cline payloads with no tool name, and a row labelled unknown for an unidentified agent", () => {
+    const home = freshHome();
+    observeAs(home, ["--agent", "copilot"], { sessionId: "c", toolArgs: "{}" });
+    observeAs(home, ["--agent", "cline"], { hookName: "PostToolUse", taskId: "t", postToolUse: {} });
+    assert.equal(existsSync(join(instinctsDirOf(home))) ? rows(home).length : 0, 0);
+    observeAs(home, [], { event: "PostToolUse", session_id: "g", tool_name: "shell", tool_input: { command: "ls" } });
+    assert.deepEqual(rows(home).map((row) => [row.agent, row.event]), [["unknown", "tool_complete"]]);
+  });
+});

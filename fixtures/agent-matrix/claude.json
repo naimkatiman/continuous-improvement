@@ -58,5 +58,12 @@
       "stdin": { "session_id": "claude-session", "transcript_path": "<HOME>/transcript.jsonl", "cwd": "<PROJECT>", "permission_mode": "default", "hook_event_name": "Stop", "stop_hook_active": false }
     }
   },
+  "evidence": {
+    "source": "Claude Code PostToolUse Read and PreToolUse Edit, the shapes of fixtures/agent-hooks/claude.json gateguard/evidence-observed-read-then-edit-allow (local check)",
+    "checked": "2026-11-22",
+    "unverified": [],
+    "read": { "session_id": "<SESSION>", "transcript_path": "<HOME>/transcript.jsonl", "cwd": "<PROJECT>", "permission_mode": "default", "hook_event_name": "PostToolUse", "tool_name": "Read", "tool_use_id": "toolu_read", "tool_input": { "file_path": "<FILE>" }, "tool_response": { "type": "text" } },
+    "edit": { "session_id": "<SESSION>", "transcript_path": "<HOME>/transcript.jsonl", "cwd": "<PROJECT>", "permission_mode": "default", "hook_event_name": "PreToolUse", "tool_name": "Edit", "tool_use_id": "toolu_edit", "tool_input": { "file_path": "<FILE>", "old_string": "a", "new_string": "b" } }
+  },
   "absent": {}
 }

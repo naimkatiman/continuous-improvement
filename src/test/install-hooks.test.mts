@@ -451,8 +451,10 @@ describe("install --hooks for the PR 13 agents (gemini, cursor, copilot, kiro, a
     const out = run(b, ["install", "--target", AGENTS, "--hooks"]);
     assert.equal(out.status, 0, out.stderr);
     const clineHook = process.platform === "win32" ? ".clinerules/hooks/PreToolUse.ps1" : ".clinerules/hooks/PreToolUse";
+    // PR 18: Cline also gets the PostToolUse observer script.
+    const clineObserver = process.platform === "win32" ? ".clinerules/hooks/PostToolUse.ps1" : ".clinerules/hooks/PostToolUse";
     const written = [
-      ".agents/plugins/continuous-improvement/hooks/hooks.json", ".augment/settings.json", clineHook, ".cursor/hooks.json", ".cursor/mcp.json",
+      ".agents/plugins/continuous-improvement/hooks/hooks.json", ".augment/settings.json", clineHook, clineObserver, ".cursor/hooks.json", ".cursor/mcp.json",
       ".gemini/settings.json", ".github/hooks/continuous-improvement.json", ".github/mcp.json", ".junie/config.json", ".junie/mcp/mcp.json",
       ".kiro/hooks/continuous-improvement.json", ".kiro/settings/mcp.json",
     ];

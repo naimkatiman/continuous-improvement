@@ -15,7 +15,7 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -320,13 +320,13 @@ describe("goose", () => {
 });
 
 describe("cline", () => {
-  it("writes exactly one PreToolUse script for the platform: an executable sh file, or PreToolUse.ps1 on win32", () => {
+  it("writes one PreToolUse and one PostToolUse script for the platform: executable sh files, or .ps1 files on win32", () => {
     const linux = ok(planAgentInstall("cline", ctx()));
-    assert.deepEqual(linux.writes.map((write) => write.path), [`${ROOT}/.clinerules/hooks/PreToolUse`]);
+    assert.deepEqual(linux.writes.map((write) => write.path), [`${ROOT}/.clinerules/hooks/PreToolUse`, `${ROOT}/.clinerules/hooks/PostToolUse`]);
     assert.equal(linux.writes[0]!.mode, 0o755);
     assert.match(linux.writes[0]!.content, /^#!\/bin\/sh\n/);
     const win = ok(planAgentInstall("cline", ctx({ platform: "win32" })));
-    assert.deepEqual(win.writes.map((write) => write.path), [`${ROOT}/.clinerules/hooks/PreToolUse.ps1`]);
+    assert.deepEqual(win.writes.map((write) => write.path), [`${ROOT}/.clinerules/hooks/PreToolUse.ps1`, `${ROOT}/.clinerules/hooks/PostToolUse.ps1`]);
     assert.equal(win.writes[0]!.mode, undefined);
     for (const write of [linux.writes[0]!, win.writes[0]!]) {
       for (const hook of ["gateguard", "hook-pack", "config-guard"]) assert.ok(write.content.includes(`${RT}/hooks/${hook}.mjs`), hook);
@@ -377,7 +377,7 @@ describe("cline user scope: the Documents folder", () => {
 
   it("on win32 writes into the Documents folder Windows reports, a OneDrive-redirected one included, and says the CLI may miss it", () => {
     const plan = ok(winUser(() => "C:\\Users\\u\\OneDrive\\Documents"));
-    assert.deepEqual(plan.writes.map((write) => write.path), ["C:/Users/u/OneDrive/Documents/Cline/Hooks/PreToolUse.ps1"]);
+    assert.deepEqual(plan.writes.map((write) => write.path), ["C:/Users/u/OneDrive/Documents/Cline/Hooks/PreToolUse.ps1", "C:/Users/u/OneDrive/Documents/Cline/Hooks/PostToolUse.ps1"]);
     const note = plan.notes.find((line) => line.includes("OneDrive")) ?? "";
     assert.ok(note.includes("C:/Users/u/OneDrive/Documents"), note);
     assert.match(note, /--scope project/);
@@ -385,14 +385,14 @@ describe("cline user scope: the Documents folder", () => {
 
   it("on win32 an unredirected Documents folder (other slashes and case) gets no redirect note", () => {
     const plan = ok(winUser(() => "c:\\users\\u\\Documents\\"));
-    assert.deepEqual(plan.writes.map((write) => write.path), ["c:/users/u/Documents/Cline/Hooks/PreToolUse.ps1"]);
+    assert.deepEqual(plan.writes.map((write) => write.path), ["c:/users/u/Documents/Cline/Hooks/PreToolUse.ps1", "c:/users/u/Documents/Cline/Hooks/PostToolUse.ps1"]);
     assert.ok(!plan.notes.some((line) => /OneDrive|redirect|by hand/i.test(line)), plan.notes.join("\n"));
   });
 
   it("on win32 an unresolved, empty, relative or multi-line Documents path falls back to ~/Documents and says to copy the script by hand", () => {
     for (const value of [null, "", "   ", "Documents", "C:\\Users\\u\\Documents\nC:\\Other", "\\\\?\\"]) {
       const plan = ok(winUser(() => value));
-      assert.deepEqual(plan.writes.map((write) => write.path), [`${WIN_HOME}/Documents/Cline/Hooks/PreToolUse.ps1`], JSON.stringify(value));
+      assert.deepEqual(plan.writes.map((write) => write.path), [`${WIN_HOME}/Documents/Cline/Hooks/PreToolUse.ps1`, `${WIN_HOME}/Documents/Cline/Hooks/PostToolUse.ps1`], JSON.stringify(value));
       assert.ok(plan.notes.some((line) => /by hand/.test(line) && line.includes("PreToolUse.ps1")), `${JSON.stringify(value)}: ${plan.notes.join("\n")}`);
     }
   });
@@ -474,5 +474,40 @@ describe("cline: the rendered script, spawned", () => {
     assert.equal((JSON.parse(denied.stdout) as Json).cancel, true, denied.stdout);
     const allowed = runClineScript(plan.writes[0]!.content, payload("git status"), env);
     assert.equal(allowed.stdout.trim(), "", allowed.stderr);
+  });
+});
+
+// Cline's PostToolUse hook (research Cline hook_post_tool, skeptic: confirmed)
+// feeds the observer, so a Cline read is evidence for the blind-edit gate
+// (plan PR 18, Architecture item 9).
+describe("cline: the PostToolUse observer script", () => {
+  it("runs only the observer, with --agent cline", () => {
+    for (const platform of ["linux", "win32"]) {
+      const post = ok(planAgentInstall("cline", ctx({ platform }))).writes[1]!;
+      assert.match(post.path, /\/PostToolUse(\.ps1)?$/);
+      assert.ok(post.content.includes(`${RT}/bin/observe.mjs`), post.content);
+      assert.doesNotMatch(post.content, /gateguard|hook-pack|config-guard|companion-preference/);
+      assert.match(post.content, /--agent\W+cline/);
+    }
+  });
+
+  it("with the real observer, a Cline read writes a tool_complete row under the task id and replies nothing", () => {
+    const home = realpathSync(mkdtempSync(join(tmpdir(), "ci-cline-obs-")));
+    roots.push(home);
+    const plan = ok(planAgentInstall("cline", ctx({ runtimeDir: REPO_ROOT, platform: process.platform })));
+    const payload = JSON.stringify({
+      clineVersion: "4.1.27", hookName: "PostToolUse", timestamp: "1763712000001", workspaceRoots: [home], taskId: "cline-task",
+      postToolUse: { toolName: "read_file", parameters: { path: "notes.txt" }, result: "a", success: true, executionTimeMs: 3 },
+    });
+    const instincts = join(home, "instincts");
+    const env: NodeJS.ProcessEnv = { ...process.env, HOME: home, USERPROFILE: home, CI_INSTINCTS_HOME: instincts, CLAUDE_PROJECT_DIR: home };
+    const out = runClineScript(plan.writes[1]!.content, payload, env);
+    assert.equal(out.status, 0, out.stderr);
+    assert.equal(out.stdout.trim(), "", out.stderr);
+    const rows = readdirSync(instincts)
+      .filter((dir) => existsSync(join(instincts, dir, "observations.jsonl")))
+      .flatMap((dir) => readFileSync(join(instincts, dir, "observations.jsonl"), "utf8").trim().split("\n"))
+      .map((line) => JSON.parse(line) as Json);
+    assert.deepEqual(rows.map((row) => [row.event, row.session, row.tool, row.input_summary, row.agent]), [["tool_complete", "cline-task", "read_file", "notes.txt", "cline"]]);
   });
 });

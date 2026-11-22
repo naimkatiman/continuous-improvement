@@ -57,5 +57,12 @@
       "stdin": { "hook_event_name": "Stop", "conversation_id": "auggie-conv", "workspace_roots": ["<PROJECT>"], "agent_stop_cause": "end_turn" }
     }
   },
+  "evidence": {
+    "source": "Auggie hook_payload_example (conversation_id, workspace_roots, bash tool_input.command) and hook_post_tool (tool_output, tool_error, tool_result, tool_is_error, file_changes); the edit tool's input keys are not documented",
+    "checked": "2026-11-22",
+    "unverified": ["edit tool_input.path"],
+    "read": { "hook_event_name": "PostToolUse", "conversation_id": "<SESSION>", "workspace_roots": ["<PROJECT>"], "tool_name": "bash", "tool_input": { "command": "cat <FILE>" }, "tool_output": "a", "tool_error": null, "tool_result": "a", "tool_is_error": false, "file_changes": [] },
+    "edit": { "hook_event_name": "PreToolUse", "conversation_id": "<SESSION>", "workspace_roots": ["<PROJECT>"], "tool_name": "edit", "tool_input": { "path": "<FILE>", "old_str": "a", "new_str": "b" } }
+  },
   "absent": {}
 }

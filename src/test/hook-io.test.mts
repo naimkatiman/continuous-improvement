@@ -22,6 +22,8 @@ import {
   encode,
   normalizeEvent,
   parsePayload,
+  payloadSessionId,
+  payloadToolCall,
   runHook,
   selectAgent,
   type Decision,
@@ -711,4 +713,34 @@ describe("hooks pick their agent through hookAgent", () => {
       assert.doesNotMatch(source, /AGENT\s*=\s*"claude"/);
     });
   }
+});
+
+// Plan PR 18: the session each verified payload names, so gateguard's clearance
+// and evidence are per conversation (research hook_payload_example per agent).
+describe("normalizeEvent: the session of every hook agent", () => {
+  const session = (payload: unknown, agent = "claude") => normalizeEvent(agent, "PreToolUse", payload).sessionId;
+
+  it("reads session_id, Copilot's sessionId, Cursor's and Auggie's conversation_id and Cline's taskId", () => {
+    assert.equal(session({ session_id: "s1", tool_name: "Bash" }), "s1");
+    assert.equal(session({ sessionId: "c1", toolName: "bash" }, "copilot"), "c1");
+    assert.equal(session({ conversation_id: "cur", hook_event_name: "preToolUse", tool_name: "Shell" }, "cursor"), "cur");
+    assert.equal(session({ conversation_id: "aug", hook_event_name: "PreToolUse", tool_name: "bash" }, "auggie"), "aug");
+    assert.equal(session({ taskId: "task", hookName: "PreToolUse", preToolUse: { toolName: "read_file" } }, "cline"), "task");
+  });
+
+  it("prefers session_id, so a Claude payload names the same session as before", () => {
+    assert.equal(session({ session_id: "claude", sessionId: "x", conversation_id: "y", taskId: "z" }), "claude");
+    assert.equal(payloadSessionId({ sessionId: "x", conversation_id: "y" }), "x");
+  });
+
+  it("names no session for a payload with none, or with a non-string id", () => {
+    for (const payload of [{}, { session_id: 3 }, { conversation_id: null }, { taskId: ["t"] }, null, []]) {
+      assert.equal(session(payload, "goose"), undefined, JSON.stringify(payload));
+    }
+  });
+
+  it("reads Cline's nested postToolUse call as well as preToolUse", () => {
+    assert.deepEqual(payloadToolCall({ postToolUse: { toolName: "read_file", parameters: { path: "a" } } }), { name: "read_file", input: { path: "a" } });
+    assert.deepEqual(payloadToolCall({ postToolUse: { toolName: 1 } }), { name: "", input: {} });
+  });
 });

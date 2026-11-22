@@ -57,5 +57,12 @@
       "stdin": { "session_id": "droid-session", "transcript_path": "<HOME>/droid-session.jsonl", "cwd": "<PROJECT>", "permission_mode": "off", "hook_event_name": "Stop", "stop_hook_active": false, "tool_execution_count": 1, "elapsed_time": 10 }
     }
   },
+  "evidence": {
+    "source": "Droid hook_payload_example (session_id, cwd, tool_name, tool_input.file_path on Create) and hook_post_tool (adds tool_response); Read and Edit are Droid tool names (research tool_names)",
+    "checked": "2026-11-22",
+    "unverified": ["Read and Edit tool_input.file_path", "tool_response"],
+    "read": { "session_id": "<SESSION>", "transcript_path": "<HOME>/droid-session.jsonl", "cwd": "<PROJECT>", "permission_mode": "off", "hook_event_name": "PostToolUse", "tool_name": "Read", "tool_input": { "file_path": "<FILE>" }, "tool_response": "a" },
+    "edit": { "session_id": "<SESSION>", "transcript_path": "<HOME>/droid-session.jsonl", "cwd": "<PROJECT>", "permission_mode": "off", "hook_event_name": "PreToolUse", "tool_name": "Edit", "tool_input": { "file_path": "<FILE>", "old_str": "a", "new_str": "b" } }
+  },
   "absent": {}
 }

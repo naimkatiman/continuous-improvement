@@ -57,5 +57,12 @@
       "stdin": { "session_id": "codex-session", "transcript_path": null, "cwd": "<PROJECT>", "hook_event_name": "Stop", "model": "gpt-5.5", "permission_mode": "default", "turn_id": "turn-1", "stop_hook_active": false, "last_assistant_message": "done" }
     }
   },
+  "evidence": {
+    "source": "Codex hook_post_tool (Bash read with tool_response, tool_use_id) and the plan's Codex apply_patch gate (tool_input.command holds the patch; skeptic hook_pre_tool: names and tool_input.command hold)",
+    "checked": "2026-11-22",
+    "unverified": ["tool_response"],
+    "read": { "session_id": "<SESSION>", "transcript_path": null, "cwd": "<PROJECT>", "hook_event_name": "PostToolUse", "model": "gpt-5.5", "permission_mode": "default", "turn_id": "turn-1", "tool_name": "Bash", "tool_use_id": "call_read", "tool_input": { "command": "cat <FILE>" }, "tool_response": "a" },
+    "edit": { "session_id": "<SESSION>", "transcript_path": null, "cwd": "<PROJECT>", "hook_event_name": "PreToolUse", "model": "gpt-5.5", "permission_mode": "default", "turn_id": "turn-1", "tool_name": "apply_patch", "tool_use_id": "call_edit", "tool_input": { "command": "*** Begin Patch\n*** Update File: <FILE>\n@@\n-a\n+b\n*** End Patch" } }
+  },
   "absent": {}
 }
