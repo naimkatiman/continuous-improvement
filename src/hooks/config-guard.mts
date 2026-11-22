@@ -70,7 +70,7 @@ function decideConfigGuard(): Decision {
   if (!parsed.ok) return ALLOW;
   const event = normalizeEvent(hookAgent(), EVENT, parsed.value);
 
-  const hit = classifyMutation(event.toolName, event.toolInput);
+  const hit = classifyMutation(event.toolName, event.toolInput, event.agent);
   if (!hit) return ALLOW;
 
   if (String(process.env.CI_CONFIG_GUARD_ALLOW ?? "").trim().toLowerCase() === "true") {

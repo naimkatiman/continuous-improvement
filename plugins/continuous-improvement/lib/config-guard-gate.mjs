@@ -13,7 +13,7 @@
 // Idea ported from karanb192/claude-code-hooks `config-guard` (MIT); the code
 // and the pattern list are ours. Fail-open by construction: an unrecognized mode
 // resolves to warn, and a call that names no protected path is always allowed.
-import { inboundCommand, inboundPaths, resolveInboundTool } from "./agent-profiles.mjs";
+import { inboundCommand, inboundPathKeys, inboundPaths, pathRequiredFor, profileInboundTool, resolveInboundTool } from "./agent-profiles.mjs";
 /**
  * Path patterns, matched case-insensitively on the forward-slash form.
  * A trailing "/" means a directory: anything inside it, and the directory
@@ -694,10 +694,22 @@ function classifyBashSegment(segment) {
     }
     return null;
 }
-/** Decide whether a tool call would mutate a guardrail-wiring file. Pure. */
-export function classifyMutation(toolName, toolInput) {
+/**
+ * Decide whether a tool call would mutate a guardrail-wiring file. Pure.
+ * `agent` is the hook's selected agent (lib/hook-io.mjs): a Claude-named write
+ * tool of another agent (Grok's Write) is also read with that agent's path
+ * keys, and a file or patch tool whose keys are unverified for it must name a
+ * file (lib/agent-profiles.mjs pathRequiredFor). The default, claude, reads as
+ * before.
+ */
+export function classifyMutation(toolName, toolInput, agent = "claude") {
     if (FILE_MUTATING_TOOLS.has(toolName)) {
-        for (const p of fileToolPaths(toolInput)) {
+        const own = profileInboundTool(agent, toolName);
+        const claudeNamed = own?.kind === "file-write" ? own : null;
+        const paths = [...fileToolPaths(toolInput), ...(claudeNamed ? inboundPaths(claudeNamed, toolInput) : [])];
+        if (paths.length === 0 && claudeNamed !== null && pathRequiredFor(agent, toolName))
+            return noPathMutation(claudeNamed);
+        for (const p of paths) {
             const pattern = matchProtectedPath(p);
             if (pattern)
                 return { target: p, pattern, via: "file" };
@@ -707,7 +719,10 @@ export function classifyMutation(toolName, toolInput) {
     if (SHELL_TOOLS.has(toolName) && typeof toolInput.command === "string" && toolInput.command.trim() !== "") {
         return classifyShellCommand(toolInput.command);
     }
-    return classifyAliasMutation(toolName, toolInput);
+    return classifyAliasMutation(toolName, toolInput, agent);
+}
+function noPathMutation(tool) {
+    return { target: inboundPathKeys(tool).join(", "), pattern: "no-path", via: "no-path" };
 }
 function classifyShellCommand(command) {
     for (const segment of allSimpleCommands(command)) {
@@ -720,14 +735,15 @@ function classifyShellCommand(command) {
 // Another agent's tool name (lib/agent-profiles.mjs, never a Claude Code one):
 // a file or patch tool is judged by the paths it names (a patch's come from its
 // *** File headers, a Delete included), a shell by the shell rules above. A
-// file tool whose path keys are unverified (agent-profiles pathRequired) that
-// names no file may be writing a guarded one, so it is reported, not passed.
-function classifyAliasMutation(toolName, toolInput) {
+// file or patch tool whose keys are unverified (agent-profiles
+// pathRequiredFor) that names no file may be writing a guarded one, so it is
+// reported, not passed.
+function classifyAliasMutation(toolName, toolInput, agent) {
     const alias = resolveInboundTool(toolName);
     if (alias?.kind === "file-write" || alias?.kind === "patch") {
         const paths = inboundPaths(alias, toolInput);
-        if (paths.length === 0 && alias.pathRequired)
-            return { target: alias.input.path.join(", "), pattern: "no-path", via: "no-path" };
+        if (paths.length === 0 && pathRequiredFor(agent, toolName))
+            return noPathMutation(alias);
         for (const p of paths) {
             const pattern = matchProtectedPath(p);
             if (pattern)

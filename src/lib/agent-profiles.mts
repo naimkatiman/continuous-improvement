@@ -15,8 +15,11 @@
 // another agent also uses it, so every hook keeps its Claude path for it and
 // Claude Code behaviour does not change. profileTool() gives a hook that knows
 // its agent (lib/hook-io.mjs selectAgent) that agent's own reading of a name,
-// Claude names included: Codex's Bash has an unknown flavor. Capability flags
-// come in a later PR of the train. Pure: no I/O.
+// Claude names included: Codex's Bash has an unknown flavor, and Grok's Write
+// reads Grok's path keys (profileInboundTool). A file or patch tool whose keys
+// the research does not document must name a file, or the guards deny it
+// (pathRequiredFor). Capability flags come in a later PR of the train. Pure:
+// no I/O.
 
 import { parsePatchPaths } from "./patch-paths.mjs";
 
@@ -30,11 +33,16 @@ export interface ToolSpec {
   flavor?: ShellFlavor;
   /**
    * File tools whose path key the research does not document: the keys read
-   * in place of the profile's, and a call that names a file at none of them is
-   * a write the guard cannot see, which gateguard and config-guard deny
-   * instead of allowing (InboundTool.pathRequired).
+   * in place of the profile's.
    */
   pathKeys?: readonly string[];
+  /**
+   * A file or patch tool whose input keys the research does not document: a
+   * call that names a file at none of the keys read is a write the guard
+   * cannot see, which gateguard and config-guard deny instead of allowing
+   * (pathRequiredFor).
+   */
+  pathRequired?: true;
 }
 
 export interface InputKeys {
@@ -63,9 +71,8 @@ export interface InboundTool {
   agents: string[];
   input: InputKeys;
   /**
-   * A file tool of an agent whose path keys are unverified (ToolSpec.pathKeys):
-   * a call that names no file at any of input.path is denied by the blind-edit
-   * gate and reported by config-guard, never allowed as a write of nothing.
+   * Some agent's reading of this name must name a file (ToolSpec.pathRequired).
+   * The guards ask pathRequiredFor, which reads the event's own agent first.
    */
   pathRequired: boolean;
 }
@@ -86,7 +93,12 @@ const PATCH_KEYS_UNVERIFIED: readonly string[] = ["command", "patch", "input"];
 // common keys, in this order. Unverified; the citing source says so. A call
 // naming none of them fails closed (ToolSpec.pathKeys).
 const PATH_KEYS_UNVERIFIED: readonly string[] = ["path", "file_path", "filePath", "target_file"];
-const WRITE_PATH_UNVERIFIED: ToolSpec = { kind: "file-write", pathKeys: PATH_KEYS_UNVERIFIED };
+const WRITE_PATH_UNVERIFIED: ToolSpec = { kind: "file-write", pathKeys: PATH_KEYS_UNVERIFIED, pathRequired: true };
+// A notebook edit also tries notebook_path, the key a Claude-shaped payload uses.
+const NOTEBOOK_PATH_UNVERIFIED: ToolSpec = { kind: "file-write", pathKeys: [...PATH_KEYS_UNVERIFIED, "notebook_path"], pathRequired: true };
+// A patch tool read under PATCH_KEYS_UNVERIFIED: a patch that names no file at
+// them (no *** File header, or the text under another key) fails closed.
+const PATCH_UNVERIFIED: ToolSpec = { kind: "patch", pathRequired: true };
 
 /**
  * The Claude Code tool names: the ones this repo's hooks route and match
@@ -146,9 +158,9 @@ export const AGENT_PROFILES: readonly AgentProfile[] = [
   },
   {
     id: "devin",
-    source: "Devin Local 3000.14 (Windsurf), research tool_names (skeptic: confirmed) + hook_payload_example (exec tool_input {command, shell_id}). The input keys of edit, write and read are not documented. The Windows default shell is PowerShell and exec_shell can pick bash, so the flavor is unknown. apply_patch's input key is not documented: patch keys command, patch and input are unverified candidates.",
+    source: "Devin Local 3000.14 (Windsurf), research tool_names (skeptic: confirmed) + hook_payload_example (exec tool_input {command, shell_id}). The input keys of edit, write and read are not documented. The Windows default shell is PowerShell and exec_shell can pick bash, so the flavor is unknown. apply_patch's input key is not documented: patch keys command, patch and input are unverified candidates, and a patch naming no file at them is denied. edit, write and notebook_edit name no argument keys in the research: their path keys path, file_path, filePath and target_file (notebook_edit also notebook_path) are unverified candidates, and a call naming none of them is denied, not allowed.",
     tools: {
-      exec: SHELL, shell_command: SHELL, edit: WRITE, write: WRITE, apply_patch: PATCH, notebook_edit: WRITE,
+      exec: SHELL, shell_command: SHELL, edit: WRITE_PATH_UNVERIFIED, write: WRITE_PATH_UNVERIFIED, apply_patch: PATCH_UNVERIFIED, notebook_edit: NOTEBOOK_PATH_UNVERIFIED,
       read: READ, notebook_read: READ, grep: SEARCH, glob: SEARCH, find_file_by_name: SEARCH,
       webfetch: OTHER, skill: OTHER, todo_write: OTHER, run_subagent: OTHER,
     },
@@ -156,9 +168,9 @@ export const AGENT_PROFILES: readonly AgentProfile[] = [
   },
   {
     id: "droid",
-    source: "Factory Droid 1.17, research tool_names + hook_payload_example (Create tool_input {file_path, content}). Claude matchers Bash and Write select Execute and Create; the payload reports the Droid name. Execute's input key is not documented. ApplyPatch's input key is not documented: patch keys command, patch and input are unverified candidates.",
+    source: "Factory Droid 1.17, research tool_names + hook_payload_example (Create tool_input {file_path, content}). Claude matchers Bash and Write select Execute and Create; the payload reports the Droid name. Execute's input key is not documented. ApplyPatch's input key is not documented: patch keys command, patch and input are unverified candidates, and a patch naming no file at them is denied.",
     tools: {
-      Execute: SHELL, Edit: WRITE, Create: WRITE, ApplyPatch: PATCH, Read: READ, LS: SEARCH, Glob: SEARCH, Grep: SEARCH,
+      Execute: SHELL, Edit: WRITE, Create: WRITE, ApplyPatch: PATCH_UNVERIFIED, Read: READ, LS: SEARCH, Glob: SEARCH, Grep: SEARCH,
       Task: OTHER, FetchUrl: OTHER, WebSearch: OTHER,
     },
     input: { command: ["command"], path: ["file_path"], patch: PATCH_KEYS_UNVERIFIED },
@@ -177,27 +189,27 @@ export const AGENT_PROFILES: readonly AgentProfile[] = [
   },
   {
     id: "copilot",
-    source: "Copilot CLI, research tool_names (cli-hooks-reference tool table; skeptic: powershell maps to Bash under PascalCase events). Shell args carry command. Camel-case payloads use toolName/toolArgs (lib/hook-io.mjs reads them). Under PascalCase events powershell is reported as Bash, so Copilot's Bash has an unknown flavor. apply_patch's input key is not documented: patch keys command, patch and input are unverified candidates. str_replace_editor and create name no argument keys in the research (tool_names: `edit` (also `str_replace_editor`, `apply_patch`), `create` (file write)): their path keys path, file_path, filePath and target_file are unverified candidates, and a call naming none of them is denied, not allowed.",
+    source: "Copilot CLI, research tool_names (cli-hooks-reference tool table; skeptic: powershell maps to Bash under PascalCase events). Shell args carry command. Camel-case payloads use toolName/toolArgs (lib/hook-io.mjs reads them). Under PascalCase events powershell is reported as Bash, so Copilot's Bash has an unknown flavor. apply_patch's input key is not documented: patch keys command, patch and input are unverified candidates, and a patch naming no file at them is denied. edit, str_replace_editor and create name no argument keys in the research (tool_names: `edit` (also `str_replace_editor`, `apply_patch`), `create` (file write)): their path keys path, file_path, filePath and target_file are unverified candidates, and a call naming none of them is denied, not allowed.",
     tools: {
-      Bash: SHELL, bash: sh("posix"), powershell: sh("powershell"), edit: WRITE, str_replace_editor: WRITE_PATH_UNVERIFIED, apply_patch: PATCH,
+      Bash: SHELL, bash: sh("posix"), powershell: sh("powershell"), edit: WRITE_PATH_UNVERIFIED, str_replace_editor: WRITE_PATH_UNVERIFIED, apply_patch: PATCH_UNVERIFIED,
       create: WRITE_PATH_UNVERIFIED, view: READ, grep: SEARCH, rg: SEARCH, glob: SEARCH, web_fetch: OTHER, web_search: OTHER,
     },
     input: { command: ["command"], path: NONE, patch: PATCH_KEYS_UNVERIFIED },
   },
   {
     id: "auggie",
-    source: "Auggie 1.2.2, research tool_names (bash, read, edit, write, grep, find; legacy 0.x launch-process, view, str-replace-editor, save-file) + hook_payload_example (bash tool_input {command}). The legacy str-replace-editor and save-file name no argument keys in the research: their path keys path, file_path, filePath and target_file are unverified candidates, and a call naming none of them is denied, not allowed.",
+    source: "Auggie 1.2.2, research tool_names (bash, read, edit, write, grep, find; legacy 0.x launch-process, view, str-replace-editor, save-file) + hook_payload_example (bash tool_input {command}). edit and write and the legacy str-replace-editor and save-file name no argument keys in the research: their path keys path, file_path, filePath and target_file are unverified candidates, and a call naming none of them is denied, not allowed.",
     tools: {
-      bash: sh("posix"), "launch-process": SHELL, read: READ, view: READ, edit: WRITE, write: WRITE,
+      bash: sh("posix"), "launch-process": SHELL, read: READ, view: READ, edit: WRITE_PATH_UNVERIFIED, write: WRITE_PATH_UNVERIFIED,
       "str-replace-editor": WRITE_PATH_UNVERIFIED, "save-file": WRITE_PATH_UNVERIFIED, grep: SEARCH, find: SEARCH, "web-fetch": OTHER, "web-search": OTHER,
     },
     input: { command: ["command"], path: NONE, patch: NONE },
   },
   {
     id: "junie",
-    source: "Junie CLI (Early Access hooks), research tool_names: Bash or powershell, Write, Read, Edit, Glob, Grep, apply_patch (not matched by Edit|Write) + hook_payload_example (Bash tool_input {command}). apply_patch's input key is not documented: patch keys command, patch and input are unverified candidates.",
+    source: "Junie CLI (Early Access hooks), research tool_names: Bash or powershell, Write, Read, Edit, Glob, Grep, apply_patch (not matched by Edit|Write) + hook_payload_example (Bash tool_input {command}). apply_patch's input key is not documented: patch keys command, patch and input are unverified candidates, and a patch naming no file at them is denied. Write and Edit name no argument keys in the research (only Bash's tool_input is shown): under --agent junie their path keys path, file_path, filePath and target_file are unverified candidates, read beside the Claude keys, and a call naming none of them is denied, not allowed.",
     tools: {
-      Bash: sh("posix"), powershell: sh("powershell"), Write: WRITE, Edit: WRITE, apply_patch: PATCH,
+      Bash: sh("posix"), powershell: sh("powershell"), Write: WRITE_PATH_UNVERIFIED, Edit: WRITE_PATH_UNVERIFIED, apply_patch: PATCH_UNVERIFIED,
       Read: READ, Glob: SEARCH, Grep: SEARCH,
     },
     input: { command: ["command"], path: NONE, patch: PATCH_KEYS_UNVERIFIED },
@@ -210,9 +222,9 @@ export const AGENT_PROFILES: readonly AgentProfile[] = [
   },
   {
     id: "cline",
-    source: "Cline 4.1.27 / CLI 3.0.75, research tool_names (docs.cline.bot/sdk/tools.md: run_commands reads commands/command/cmd, read_files reads files/path/paths/file_paths) + skeptic legacy names. Payloads use preToolUse.toolName and parameters (lib/hook-io.mjs reads them). apply_patch's input key is not documented: patch keys command, patch and input are unverified candidates.",
+    source: "Cline 4.1.27 / CLI 3.0.75, research tool_names (docs.cline.bot/sdk/tools.md: run_commands reads commands/command/cmd, read_files reads files/path/paths/file_paths) + skeptic legacy names. Payloads use preToolUse.toolName and parameters (lib/hook-io.mjs reads them). apply_patch's input key is not documented: patch keys command, patch and input are unverified candidates, and a patch naming no file at them is denied.",
     tools: {
-      run_commands: SHELL, execute_command: SHELL, editor: WRITE, apply_patch: PATCH, replace_in_file: WRITE,
+      run_commands: SHELL, execute_command: SHELL, editor: WRITE, apply_patch: PATCH_UNVERIFIED, replace_in_file: WRITE,
       write_to_file: WRITE, delete_file: WRITE, read_files: READ, read_file: READ, list_files: SEARCH,
       search_codebase: SEARCH, search_files: SEARCH, list_code_definition_names: SEARCH, spawn_agent: OTHER,
     },
@@ -231,6 +243,10 @@ function inputFor(profile: AgentProfile, spec: ToolSpec): InputKeys {
   return spec.pathKeys === undefined ? profile.input : { ...profile.input, path: spec.pathKeys };
 }
 
+function readingOf(profile: AgentProfile, name: string, spec: ToolSpec): InboundTool {
+  return { name, kind: spec.kind, flavor: spec.flavor ?? "unknown", agents: [profile.id], input: inputFor(profile, spec), pathRequired: spec.pathRequired === true };
+}
+
 function buildInbound(): ReadonlyMap<string, InboundTool> {
   const inbound = new Map<string, InboundTool>();
   for (const profile of AGENT_PROFILES) {
@@ -239,7 +255,7 @@ function buildInbound(): ReadonlyMap<string, InboundTool> {
       const flavor = spec.flavor ?? "unknown";
       const seen = inbound.get(name);
       if (seen === undefined) {
-        inbound.set(name, { name, kind: spec.kind, flavor, agents: [profile.id], input: inputFor(profile, spec), pathRequired: spec.pathKeys !== undefined });
+        inbound.set(name, readingOf(profile, name, spec));
         continue;
       }
       const input = inputFor(profile, spec);
@@ -255,7 +271,7 @@ function buildInbound(): ReadonlyMap<string, InboundTool> {
           path: union(seen.input.path, input.path),
           patch: union(seen.input.patch, input.patch),
         },
-        pathRequired: seen.pathRequired || spec.pathKeys !== undefined,
+        pathRequired: seen.pathRequired || spec.pathRequired === true,
       });
     }
   }
@@ -281,6 +297,38 @@ const PROFILES_BY_ID: ReadonlyMap<string, AgentProfile> = new Map(AGENT_PROFILES
 export function profileTool(agent: string, name: string): ToolSpec | null {
   const tools = PROFILES_BY_ID.get(agent)?.tools;
   return tools !== undefined && Object.hasOwn(tools, name) ? tools[name]! : null;
+}
+
+/**
+ * `agent`'s own reading of a tool name as one agent's InboundTool, Claude names
+ * included (Grok's Write reads Grok's path keys), or null (no profile, a name
+ * the profile does not list).
+ */
+export function profileInboundTool(agent: string, name: string): InboundTool | null {
+  const profile = PROFILES_BY_ID.get(agent);
+  const spec = profileTool(agent, name);
+  return profile === undefined || spec === null ? null : readingOf(profile, name, spec);
+}
+
+/**
+ * Whether a file or patch call through `name` that names no file must be
+ * denied, not allowed as a write of nothing. The event's own agent decides
+ * when its profile lists the name (Codex's apply_patch key is documented,
+ * Devin's is not). An event no profile answers for (Claude-selected, or an
+ * agent that does not list the name) reads the merged alias: a file write
+ * that any agent marks needs its path, and a patch keeps the notice, since
+ * Codex sends apply_patch through the unchanged Claude plugin.
+ */
+export function pathRequiredFor(agent: string, name: string): boolean {
+  const own = profileInboundTool(agent, name);
+  if (own !== null) return own.pathRequired;
+  const alias = resolveInboundTool(name);
+  return alias?.kind === "file-write" && alias.pathRequired;
+}
+
+/** The input keys a file or patch tool's paths are read from, for a reason that names them. */
+export function inboundPathKeys(tool: InboundTool): readonly string[] {
+  return tool.kind === "patch" ? tool.input.patch : tool.input.path;
 }
 
 /** A shell tool's command string, or null when the tool is no shell or the key is missing. */
@@ -311,3 +359,4 @@ export function classifierShells(flavor: ShellFlavor, platform: string = process
   if (flavor === "powershell") return ["PowerShell"];
   return platform === "win32" ? ["Bash", "PowerShell"] : ["Bash"];
 }
+
