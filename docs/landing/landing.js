@@ -242,7 +242,7 @@
     "  vec2 p = vW.xz;",
     "  float dist = length(vW - uCam);",
     "  float g1 = grid(p, 1.0, 1.0) * 0.05; float g5 = grid(p, 5.0, 1.4) * 0.07;",
-    "  float fade = exp(-dist * 0.05);",
+    "  float fade = exp(-dist * 0.05) * exp(-pow(length(p - uSpot.xy) / (uSpot.z * 1.5), 2.0));",
     "  vec3 c = uBase + (g1 + g5) * fade * vec3(0.8, 0.82, 0.86);",
     "  float sp = exp(-pow(length(p - uSpot.xy) / uSpot.z, 2.0)) * uSpot.w;",
     "  c += uSpotCol * sp;",
@@ -461,14 +461,14 @@
   // looks toward -z), lens, and the screen rectangle [x0, y0, x1, y1] (0..1, y down) it may fill.
   var DESK = [0.5, 0.14, 0.95, 0.88], PHONE = [0.07, 0.1, 0.93, 0.5];
   var SECT = {
-    hero:     { box: [[-2.4, 0, -1.6], [5.7, 3.25, 1.6]], yaw: -57, pitch: 19, fov: 28, spot: [0.6, 0.0, 4.5, 0.08], dim: 0, rect: [0.47, 0.1, 0.95, 0.84], phone: [-72, 15] },
-    native:   { box: [[-2.6, 0, -1.7], [5.9, 6.1, 1.7]], yaw: -128, pitch: 21, fov: 28, spot: [1.5, 0, 5, 0.07], dim: 0, rect: [0.5, 0.12, 0.97, 0.88] },
-    installs: { box: [[RING[0] - RR - 0.9, 0, RING[2] - RR - 0.9], [RING[0] + RR + 0.9, 2.0, RING[2] + RR + 0.9]], yaw: 34, pitch: 40, fov: 30, spot: [RING[0], RING[2], 7.5, 0.05], dim: 0, rect: [0.44, 0.06, 0.99, 0.97] },
-    exhibits: { box: [[-1.4, 0, -1.7], [5.9, 3.3, 1.7]], yaw: -62, pitch: 14, fov: 28, spot: [1.5, 0, 5, 0.05], dim: 0.25, rect: [0.62, 0.16, 0.97, 0.84] },
-    cost:     { box: [[COST[0] - 4.8, 0, COST[2] - 0.6], [COST[0] + 4.8, 3.4, COST[2] + 2.0]], yaw: -16, pitch: 13, fov: 24, spot: [COST[0], COST[2], 7, 0.06], dim: 0, rect: [0.12, 0.42, 0.88, 0.9] },
-    local:    { rect: [0.46, 0.16, 0.84, 0.86], box: [[LOG[0] - 1.7, 0, -1.4], [LOG[0] + 1.7, 2.5, 1.4]], yaw: 62, pitch: 20, fov: 28, spot: [LOG[0], 0, 5.5, 0.06], dim: 0 },
-    limits:   { box: [[-4.4, 0, -1.4], [3.2, 3.2, 2.4]], yaw: -26, pitch: 36, fov: 30, spot: [0, 1, 6, 0.05], dim: 0, rect: [0.5, 0.12, 0.97, 0.88] },
-    off:      { box: [[-0.6, 0, -1.7], [5.6, 3.5, 1.7]], yaw: -68, pitch: 8, fov: 26, spot: [0, 0, 4.5, 0.08], dim: 0, rect: [0.58, 0.16, 0.9, 0.86] },
+    hero:     { box: [[-1.9, 0, -1.5], [5.6, 3.25, 1.5]], yaw: -57, pitch: 19, fov: 28, spot: [0.6, 0.0, 4.5, 0.08], dim: 0, rect: [0.47, 0.1, 0.95, 0.84], phone: [-72, 15] },
+    native:   { box: [[-1.0, 0, -1.7], [1.0, 6.1, 1.7]], yaw: -118, pitch: 14, fov: 24, spot: [1.5, 0, 5, 0.07], dim: 0, rect: [0.5, 0.12, 0.97, 0.88] },
+    installs: { box: [[RING[0] - RR - 0.9, 0, RING[2] - RR - 0.9], [RING[0] + RR + 0.9, 2.0, RING[2] + RR + 0.9]], yaw: 20, pitch: 60, fov: 30, spot: [RING[0], RING[2], 7.5, 0.05], dim: 0, rect: [0.46, 0.1, 0.93, 0.93] },
+    exhibits: { box: [[-1.5, 0, -1.7], [0.45, 3.25, 1.7]], yaw: -30, pitch: 4, fov: 20, spot: [1.5, 0, 5, 0.05], dim: 0.25, rect: [0.63, 0.14, 0.94, 0.86] },
+    cost:     { box: [[COST[0] - 4.8, 0, COST[2] - 0.6], [COST[0] + 4.8, 3.4, COST[2] + 2.0]], yaw: 0, pitch: 5, fov: 18, spot: [COST[0], COST[2], 7, 0.06], dim: 0, rect: [0.12, 0.42, 0.88, 0.9] },
+    local:    { rect: [0.46, 0.16, 0.84, 0.86], box: [[LOG[0] - 1.7, 0, -1.4], [LOG[0] + 1.7, 2.5, 1.4]], yaw: 40, pitch: 7, fov: 22, spot: [LOG[0], 0, 5.5, 0.06], dim: 0 },
+    limits:   { box: [[-3.6, 0, -1.4], [3.2, 3.2, 2.3]], yaw: -34, pitch: 36, fov: 28, spot: [0, 1, 6, 0.05], dim: 0, rect: [0.45, 0.16, 0.84, 0.8] },
+    off:      { box: [[-2.8, 0, -1.3], [5.6, 3.4, 1.3]], yaw: 30, pitch: 11, fov: 22, spot: [1.2, 0, 4.5, 0.08], dim: 0, rect: [0.47, 0.16, 0.97, 0.8] },
     why:      { box: [[-12, 0, -32], [24, 3, 3]], yaw: -30, pitch: 34, fov: 34, spot: [0, -6, 14, 0.02], dim: 0.6, rect: [0.1, 0.1, 0.9, 0.9] },
   };
   SECT.installs.pts = [];
@@ -566,8 +566,8 @@
   var laneLabel = null, selLabel = null, offLabel = null, plusLabel = null, partLabel = null;
   if (hud) {
     stations.forEach(function (s) {
-      var lp = [RING[0] + Math.cos(s.a) * (RR + 1.25), 0.02, RING[2] + Math.sin(s.a) * (RR + 1.25)];
-      hudEl("ev", "<span>" + EVENT_LABEL[s.ev] + "</span>", "installs", lp, { desktopOnly: true });
+      var lp = [RING[0] + Math.cos(s.a) * (RR + 2.05), 0.02, RING[2] + Math.sin(s.a) * (RR + 2.05)];
+      hudEl(Math.sin(s.a) < -0.2 ? "ev far" : "ev", "<span>" + EVENT_LABEL[s.ev] + "</span>", "installs", lp, { desktopOnly: true });
     });
     hooks.forEach(function (h) {
       var o = hudEl("pin " + h.st, "<span class=\"vh\">" + h.file + ", " + h.st + "</span>", "installs", [h.p[0], h.height * 2 + 0.36, h.p[2]], { button: true });
@@ -588,7 +588,7 @@
     plusLabel = hudEl("plus", "+1 row", "hero", [LOG[0], 1.6, 0], { until: true });
     partLabel = hudEl("part", "", "native", [0, 3.7, 0], { part: true });
     offLabel = hudEl("offl", "<b>Enabled</b> refused before it runs", "off", [0, 3.75, 0]);
-    laneLabel = hudEl("lane", "<code>src/price.ts</code><span>written by echo, around the gate</span>", "limits", [BYPASS_END[0] + 0.55, 0.02, BYPASS_END[1]]);
+    laneLabel = hudEl("lane", "<code>src/price.ts</code><span>written by echo, around the gate</span>", "limits", [BYPASS_END[0] + 0.55, 0.5, BYPASS_END[1]]);
   }
   var hookCard = d.getElementById("hook-card"), scrim = d.getElementById("scrim");
   var leader = null;
@@ -623,6 +623,8 @@
     select(i);
     if (byUser) lastUser = tNow;
     events.forEach(function (e) { if (!e.done) e.t0 -= 20; });
+    // a new call starts clean: the previous verdict's light does not bleed into it
+    curtain = 0; railHold = 0; flash = 0; railPass = 0;
     events.push({ c: c, t0: tNow, done: false, shown: false, mode: powerTarget < 0.5 ? "pass" : c.verdict });
     if (events.length > 6) events.shift();
     if (state.reduced) showVerdict(c);
@@ -708,12 +710,19 @@
       box([-0.322, 3.07 * gs, 0], [0.004, 0.085 * gs, 1.28], { col: C.ink, r: 0.004, gloss: 0.2 });
       var lineCol = mix3(C.paper, curtainCol, clamp(curtain, 0, 1));
       box([-0.326, 3.07 * gs, 0], [0.004, 0.012, 1.0], { col: C.ink, r: 0.003, emi: scl(lineCol, (0.5 + 0.5 * armed + curtain * 4 + partHi.seam * 7) * pf) });
-      if (scan < 1) box([0, (2.78 - scan * 2.5) * gs, 0], [0.04, 0.022, 0.96], { col: C.ink, r: 0.01, emi: scl(C.paper, 4.5 * (1 - scan * 0.6) * pf) });
+      if (scan < 1) box([0, (2.78 - scan * 2.5) * gs, 0], [0.04, 0.026, 0.98], { col: C.ink, r: 0.01, emi: scl(C.paper, 6 * (1 - scan * 0.5) * pf) });
       var ch = 1.32 * openK * gs + 0.001;
       // in the comparison section the rules (the curtain) lift out of the hook frame Claude Code ships
       var lift = ease(liftS);
       glass([0, 2.84 * gs - ch + lift * 2.75, 0], [0.03, ch, 0.97], { emi: mix3(scl(curtainCol, curtain * 1.25 * pf), scl(C.signal, 0.9), Math.max(partHi.gate * 0.8, lift * 0.45)), alpha: 0.05 + 0.06 * pf + lift * 0.05, col: C.glass });
-      if (lift > 0.02) [0.985, -0.985].forEach(function (z) { box([0, 2.84 * gs - ch + lift * 2.75, z], [0.012, ch, 0.008], { col: C.ink, r: 0.004, emi: scl(C.signal, 1.4 * lift) }); });
+      if (lift > 0.02) {
+        var py = 2.84 * gs - ch + lift * 2.75;
+        [0.985, -0.985].forEach(function (z) { box([0, py, z], [0.012, ch, 0.008], { col: C.ink, r: 0.004, emi: scl(C.signal, 1.4 * lift) }); });
+        // the rules as engraved lines on both faces of the lifted panel
+        for (var rl = 0; rl < 7; rl++) [-0.036, 0.036].forEach(function (x) {
+          box([x, py + ch * (0.72 - rl * 0.22), -0.12 * (rl % 3)], [0.003, 0.009, 0.78 - 0.12 * (rl % 3)], { col: C.ink, r: 0.003, emi: scl(C.signal, 1.1 * lift) });
+        });
+      }
     }
     scan = Math.min(1, scan + dt * 2.6);
 
@@ -777,7 +786,7 @@
         if (k < arrive) {
           var x = lerp(startX, 2.5, easeInOutQ(k / arrive));
           p = [x, 0.38, 0];
-          if (!e.shown && x > -0.4) { e.shown = true; showVerdict(c); curtainCol = c.note ? C.warn : C.paper; curtain = 0.95; railPass = 1; scan = 0; }
+          if (!e.shown && x > -0.4) { e.shown = true; showVerdict(c); curtainCol = c.note ? C.warn : C.paper; curtain = 0.3; railPass = 1; scan = 0; }
         } else {
           var u = ease((k - arrive) / (land - arrive));
           p = [lerp(2.5, LOG[0], u), lerp(0.38, topY, u) + Math.sin(u * Math.PI) * 1.1, 0];
@@ -811,7 +820,7 @@
       // the route around the gate: along the rail, out past the left post, and into a file
       for (var di = 0; di < BYPASS_LEN; di += 0.34) {
         var dp = bypassAt(di / BYPASS_LEN);
-        box([dp[0], 0.012, dp[1]], [0.07 * a, 0.006, 0.035 * a], { rot: -dp[2], col: C.ink, r: 0.004, emi: scl(C.warn, 0.35 * a) });
+        box([dp[0], 0.012, dp[1]], [0.09 * a, 0.006, 0.045 * a], { rot: -dp[2], col: C.ink, r: 0.004, emi: scl(C.warn, 0.9 * a) });
       }
       laneT = state.reduced ? 0.7 : (laneT + dt * 0.16) % 1.15;
       var bp = bypassAt(Math.min(1, laneT));
@@ -826,6 +835,11 @@
       var b = ease(wlc * 1.3);
       var bx = 1.55 * b + 0.01, by = 1.2 * b + 0.01, bz = 1.25 * b + 0.01;
       glass([LOG[0], 0.07 + by, 0], [bx, by, bz], { alpha: 0.09, r: 0.18, col: C.glass, emi: scl(C.glass, 0.015 * b) });
+      // two studio-light streaks on the front faces so the case reads as glass
+      [[-0.62, 0.05], [-0.44, 0.016]].forEach(function (st) {
+        glass([LOG[0] + st[0] * bx, 0.07 + by * 1.04, bz + 0.004], [st[1] * b, by * 0.86, 0.002], { alpha: 0.05, r: 0.002, col: C.glass, emi: scl(C.paper, 0.22 * b) });
+        glass([LOG[0] + bx + 0.004, 0.07 + by * 1.04, -st[0] * bz], [0.002, by * 0.86, st[1] * b], { alpha: 0.05, r: 0.002, col: C.glass, emi: scl(C.paper, 0.16 * b) });
+      });
       // the seal: a lit seam where the case meets its base
       box([LOG[0], 0.05, 0], [bx + 0.06, 0.05, bz + 0.06], { col: scl(C.graphite, 0.6), metal: true, gloss: 0.5, r: 0.04 });
       [1, -1].forEach(function (q) {
@@ -894,7 +908,7 @@
           var s = ease((costBuild - order) * 4);
           if (s <= 0.001) continue;
           var topc = k === c.n - 1;
-          box([cx, 0.12 + 0.29 + k * 0.62, COST[2] + 0.4], [0.29 * s, 0.29 * s, 0.29 * s], { col: topc ? C.paper : C.paper2, r: 0.06, gloss: 0.45, emi: topc ? scl(C.paper, 0.18 * s) : null });
+          box([cx, 0.12 + 0.29 + k * 0.62, COST[2] + 0.4], [0.29 * s, 0.29 * s, 0.29 * s], { col: C.paper, r: 0.07, gloss: 0.55 });
         }
       });
     }
