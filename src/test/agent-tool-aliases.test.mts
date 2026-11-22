@@ -41,6 +41,7 @@ interface Expect {
 
 interface Step {
   hook: string;
+  args?: string[];
   env?: Record<string, string>;
   stdin: unknown;
   expect: Expect;
@@ -107,7 +108,7 @@ function runStep(step: Step, dirs: Dirs): { stdout: string; stderr: string; stat
     GIT_CONFIG_NOSYSTEM: "1",
     ...step.env,
   });
-  const result = spawnSync(process.execPath, [join(REPO_ROOT, step.hook)], {
+  const result = spawnSync(process.execPath, [join(REPO_ROOT, step.hook), ...(step.args ?? [])], {
     cwd: dirs.project,
     env,
     input: JSON.stringify(substitute(step.stdin, dirs)),
@@ -234,18 +235,18 @@ describe("config-guard classifyMutation over inbound aliases", () => {
 
 describe("Codex Bash on Windows", () => {
   // Codex reports its shell as "Bash", a Claude name, and runs PowerShell on
-  // Windows (verified research, Codex tool_names). Classifying it both ways
-  // needs agent selection (--agent, CI_AGENT or the sniff, plan PR 8); doing it
-  // for every Bash on win32 would change the Claude goldens. Logged in
-  // docs/deferred.md. Remove the todo when PR 8 lands.
+  // Windows (verified research, Codex tool_names). With --agent codex (plan
+  // PR 8) the Codex profile gives that Bash an unknown flavor, so on win32 the
+  // command is classified both ways. A Bash with no agent stays POSIX, so the
+  // Claude goldens do not change.
   it(
     "denies a recursive rm through Codex's Bash on win32, where it is Remove-Item -Recurse",
-    { todo: "needs agent selection (plan PR 8)" },
+    { skip: process.platform === "win32" ? false : "win32 only" },
     () => {
-      if (process.platform !== "win32") return;
       const dirs = prepare({ id: "codex-bash-win32", steps: [] });
       const step: Step = {
         hook: "hooks/gateguard.mjs",
+        args: ["--agent", "codex"],
         stdin: {
           session_id: "codex-session", cwd: "<PROJECT>", hook_event_name: "PreToolUse", model: "gpt-5.5",
           permission_mode: "default", turn_id: "turn-1", tool_name: "Bash", tool_use_id: "call_1",

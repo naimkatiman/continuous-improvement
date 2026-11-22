@@ -1,0 +1,61 @@
+{
+  "agent": "codex",
+  "checked": "2026-11-21",
+  "source": "Verified research, Codex CLI 0.171.0 entry: hook_payload_example from codex-rs/hooks/schema/generated/*.command.input.schema.json at rust-v0.171.0, and https://learn.chatgpt.com/docs/hooks (skeptic verdicts hook_pre_tool, hook_session_start, hook_stop, hook_user_prompt).",
+  "selection": {
+    "sniff": null,
+    "sniffNote": "The verified research names no Codex-only env var for hooks, so Codex is picked by --agent codex or CI_AGENT. Its payload is Claude-shaped and the claude bytes block on Codex.",
+    "bare": "claude"
+  },
+  "expect": {
+    "deny": {
+      "source": "Codex hook_pre_tool: exit 0 with hookSpecificOutput.permissionDecision deny (skeptic: holds).",
+      "exitCode": 0,
+      "json": { "hookSpecificOutput": { "hookEventName": "PreToolUse", "permissionDecision": "deny" } },
+      "reasonAt": [["hookSpecificOutput", "permissionDecisionReason"]]
+    },
+    "context": {
+      "source": "Codex hook_session_start: plain stdout becomes developer context (https://learn.chatgpt.com/docs/hooks; skeptic: holds).",
+      "plain": true
+    }
+  },
+  "events": {
+    "PreToolUse": {
+      "source": "Codex hook_payload_example, pre-tool-use.command.input.schema.json required keys",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "session_id": "codex-session", "transcript_path": null, "cwd": "<PROJECT>", "hook_event_name": "PreToolUse", "model": "gpt-5.5", "permission_mode": "default", "turn_id": "turn-1", "tool_name": "Bash", "tool_use_id": "call_1", "tool_input": { "command": "<COMMAND>" } }
+    },
+    "PostToolUse": {
+      "source": "Codex hook_post_tool (research capability), same base keys plus tool_response",
+      "checked": "2026-11-21",
+      "unverified": ["tool_response"],
+      "stdin": { "session_id": "codex-session", "transcript_path": null, "cwd": "<PROJECT>", "hook_event_name": "PostToolUse", "model": "gpt-5.5", "permission_mode": "default", "turn_id": "turn-1", "tool_name": "Bash", "tool_use_id": "call_1", "tool_input": { "command": "<COMMAND>" }, "tool_response": "" }
+    },
+    "UserPromptSubmit": {
+      "source": "Codex hook_user_prompt skeptic: user-prompt-submit.command.input schema requires prompt and turn_id",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "session_id": "codex-session", "transcript_path": null, "cwd": "<PROJECT>", "hook_event_name": "UserPromptSubmit", "model": "gpt-5.5", "permission_mode": "default", "turn_id": "turn-1", "prompt": "run the tests" }
+    },
+    "SessionStart": {
+      "source": "Codex hook_session_start skeptic: session-start.command.input schema requires cwd, hook_event_name, model, permission_mode, session_id, source, transcript_path",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "session_id": "codex-session", "transcript_path": null, "cwd": "<PROJECT>", "hook_event_name": "SessionStart", "model": "gpt-5.5", "permission_mode": "default", "source": "startup" }
+    },
+    "SessionEnd": {
+      "source": "Codex hook_session_start: SessionEnd exists (timeout clamped to 3s); its input keys are not in the verified research",
+      "checked": "2026-11-21",
+      "unverified": ["reason"],
+      "stdin": { "session_id": "codex-session", "transcript_path": null, "cwd": "<PROJECT>", "hook_event_name": "SessionEnd", "reason": "exit" }
+    },
+    "Stop": {
+      "source": "Codex hook_stop skeptic: stop.command.input schema requires last_assistant_message, stop_hook_active and turn_id",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "session_id": "codex-session", "transcript_path": null, "cwd": "<PROJECT>", "hook_event_name": "Stop", "model": "gpt-5.5", "permission_mode": "default", "turn_id": "turn-1", "stop_hook_active": false, "last_assistant_message": "done" }
+    }
+  },
+  "absent": {}
+}

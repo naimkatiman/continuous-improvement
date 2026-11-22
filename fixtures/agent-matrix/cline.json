@@ -1,0 +1,53 @@
+{
+  "agent": "cline",
+  "checked": "2026-11-21",
+  "source": "Verified research, Cline 4.1.27 / CLI 3.0.75 entry: cline/cline source apps/vscode/src/core/hooks/hook-factory.ts, apps/vscode/src/sdk/hooks-adapter.ts and sdk/packages/core/src/hooks/hook-file-hooks.ts (skeptic: hook_pre_tool, hook_session_start, hook_user_prompt and hook_payload_example corrected, hook_stop confirmed).",
+  "selection": {
+    "sniff": null,
+    "sniffNote": "The verified research names no Cline hook env var (CLINE_VERSION is read by the CLI process, not documented as set for hooks), so Cline is picked by --agent cline or CI_AGENT.",
+    "bare": "fallback",
+    "bareNote": "A Cline payload (hookName, nested preToolUse) is not Claude-shaped, so with no flag the deny is exit 2 on stderr. Cline's VS Code adapter fails open on a non-zero exit with no JSON, so the installer must render --agent cline."
+  },
+  "expect": {
+    "deny": {
+      "source": "Cline hook_pre_tool (skeptic: contract right): print {cancel: true, errorMessage}; valid JSON is honoured whatever the exit code.",
+      "exitCode": 0,
+      "json": { "cancel": true },
+      "reasonAt": [["errorMessage"]]
+    },
+    "context": {
+      "source": "Cline hook_session_start: in the VS Code extension the TaskStart contextModification is injected (skeptic: once per submitted turn).",
+      "jsonAt": ["contextModification"]
+    }
+  },
+  "events": {
+    "PreToolUse": {
+      "source": "Cline hook_payload_example: the VS Code extension payload assembled from hook-factory.ts completeParams() and hooks-adapter.ts beforeTool; parameters values are strings, so commands is a JSON-encoded array",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "clineVersion": "4.1.27", "hookName": "PreToolUse", "timestamp": "1763712000000", "workspaceRoots": ["<PROJECT>"], "userId": "cline-user", "taskId": "cline-task", "model": { "provider": "unknown", "slug": "unknown" }, "preToolUse": { "toolName": "run_commands", "parameters": { "commands": "[\"<COMMAND>\"]" } } }
+    },
+    "PostToolUse": {
+      "source": "Cline hook_post_tool: the payload adds postToolUse {toolName, parameters, result, success, executionTimeMs}",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "clineVersion": "4.1.27", "hookName": "PostToolUse", "timestamp": "1763712000001", "workspaceRoots": ["<PROJECT>"], "userId": "cline-user", "taskId": "cline-task", "postToolUse": { "toolName": "run_commands", "parameters": { "commands": "[\"<COMMAND>\"]" }, "result": "", "success": true, "executionTimeMs": 12 } }
+    },
+    "UserPromptSubmit": {
+      "source": "Cline hook_user_prompt: userPromptSubmit {prompt, attachments[]} (skeptic: attachments is always [])",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "clineVersion": "4.1.27", "hookName": "UserPromptSubmit", "timestamp": "1763712000000", "workspaceRoots": ["<PROJECT>"], "userId": "cline-user", "taskId": "cline-task", "userPromptSubmit": { "prompt": "run the tests", "attachments": [] } }
+    },
+    "SessionStart": {
+      "source": "Cline hook_session_start: TaskStart is the nearest match; hooks-adapter.ts runTaskStart builds taskStart {taskMetadata {taskId, ulid: \"\", initialTask}}",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "clineVersion": "4.1.27", "hookName": "TaskStart", "timestamp": "1763712000000", "workspaceRoots": ["<PROJECT>"], "userId": "cline-user", "taskId": "cline-task", "taskStart": { "taskMetadata": { "taskId": "cline-task", "ulid": "", "initialTask": "run the tests" } } }
+    }
+  },
+  "absent": {
+    "Stop": "Cline hook_stop (skeptic: confirmed): TaskComplete and TaskCancel are notification-only and cannot re-prompt, so the Stop hooks are not wired on Cline.",
+    "SessionEnd": "Cline hook_stop: SessionShutdown is CLI/SDK only and the VS Code adapter does not wire it, so session.mjs is not wired to a session end on Cline."
+  }
+}

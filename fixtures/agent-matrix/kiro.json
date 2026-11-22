@@ -1,0 +1,61 @@
+{
+  "agent": "kiro",
+  "checked": "2026-11-21",
+  "source": "Verified research, Kiro CLI V3 / IDE 1.x entry: https://kiro.dev/docs/hooks/types/ (code blocks recovered from the rendered HTML) and https://kiro.dev/docs/cli/v3/hooks-migration.md; the skeptic re-fetched every page on 2026-11-21 (hook_pre_tool, hook_session_start, hook_stop corrected).",
+  "selection": {
+    "sniff": null,
+    "sniffNote": "The verified research names no Kiro hook env var (the IDE sets USER_PROMPT only on prompt hooks), so Kiro is picked by --agent kiro or CI_AGENT.",
+    "bare": "claude",
+    "bareNote": "Kiro's PreToolUse payload is Claude-shaped. Kiro CLI 3.4.0+ honours the Claude hookSpecificOutput.permissionDecision deny at exit 0 (hooks/types.md); older CLIs and the IDE need --agent kiro for the exit 2 deny."
+  },
+  "expect": {
+    "deny": {
+      "source": "Kiro hook_pre_tool (skeptic): exit exactly 2 to deny on every surface; the CLI sends STDERR to the LLM.",
+      "exitCode": 2,
+      "stderrReason": true
+    },
+    "context": {
+      "source": "Kiro hook_session_start: exit 0 and plain STDOUT is added to the agent's context.",
+      "plain": true
+    }
+  },
+  "events": {
+    "PreToolUse": {
+      "source": "Kiro hook_payload_example, verbatim from hooks/types.md, with the shell tool execute_bash; the doc example is read_file, so execute_bash's command key is not documented",
+      "checked": "2026-11-21",
+      "unverified": ["tool_input.command"],
+      "stdin": { "hook_event_name": "PreToolUse", "cwd": "<PROJECT>", "session_id": "kiro-session", "tool_name": "execute_bash", "tool_input": { "command": "<COMMAND>" } }
+    },
+    "PostToolUse": {
+      "source": "Kiro hook_post_tool: PostToolUse adds tool_response, e.g. {success, result}",
+      "checked": "2026-11-21",
+      "unverified": ["tool_input.command"],
+      "stdin": { "hook_event_name": "PostToolUse", "cwd": "<PROJECT>", "session_id": "kiro-session", "tool_name": "execute_bash", "tool_input": { "command": "<COMMAND>" }, "tool_response": { "success": true, "result": [] } }
+    },
+    "UserPromptSubmit": {
+      "source": "Kiro hook_user_prompt: verbatim code block from hooks/types.md",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "hook_event_name": "UserPromptSubmit", "cwd": "<PROJECT>", "session_id": "kiro-session", "prompt": "run the tests" }
+    },
+    "SessionStart": {
+      "source": "Kiro hook_session_start: verbatim code block {hook_event_name: agentSpawn, cwd, session_id}; V3 accepts AgentSpawn and agentSpawn",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "hook_event_name": "agentSpawn", "cwd": "<PROJECT>", "session_id": "kiro-session" }
+    },
+    "SessionEnd": {
+      "source": "Kiro hook_session_start: SessionEnd exists on CLI V3 only; its input keys are not documented",
+      "checked": "2026-11-21",
+      "unverified": ["hook_event_name", "cwd", "session_id"],
+      "stdin": { "hook_event_name": "SessionEnd", "cwd": "<PROJECT>", "session_id": "kiro-session" }
+    },
+    "Stop": {
+      "source": "Kiro hook_stop: verbatim code block {hook_event_name: Stop, cwd, session_id}",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "hook_event_name": "Stop", "cwd": "<PROJECT>", "session_id": "kiro-session" }
+    }
+  },
+  "absent": {}
+}

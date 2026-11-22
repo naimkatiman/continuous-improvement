@@ -13,8 +13,10 @@
 // The inbound aliases built from the table are the names no Claude Code tool
 // uses. A Claude name (Bash, Write, Edit, Read, ...) resolves to null even when
 // another agent also uses it, so every hook keeps its Claude path for it and
-// Claude Code behaviour does not change. Agent selection, output encoders and
-// capability flags come in later PRs of the train. Pure: no I/O.
+// Claude Code behaviour does not change. profileTool() gives a hook that knows
+// its agent (lib/hook-io.mjs selectAgent) that agent's own reading of a name,
+// Claude names included: Codex's Bash has an unknown flavor. Capability flags
+// come in a later PR of the train. Pure: no I/O.
 import { parsePatchPaths } from "./patch-paths.mjs";
 const sh = (flavor) => ({ kind: "shell", flavor });
 const SHELL = sh("unknown");
@@ -116,9 +118,9 @@ export const AGENT_PROFILES = [
     },
     {
         id: "copilot",
-        source: "Copilot CLI, research tool_names (cli-hooks-reference tool table; skeptic: powershell maps to Bash under PascalCase events). Shell args carry command. Camel-case payloads use toolName/toolArgs, which these hooks do not read yet. apply_patch's input key is not documented: patch keys command, patch and input are unverified candidates.",
+        source: "Copilot CLI, research tool_names (cli-hooks-reference tool table; skeptic: powershell maps to Bash under PascalCase events). Shell args carry command. Camel-case payloads use toolName/toolArgs (lib/hook-io.mjs reads them). Under PascalCase events powershell is reported as Bash, so Copilot's Bash has an unknown flavor. apply_patch's input key is not documented: patch keys command, patch and input are unverified candidates.",
         tools: {
-            bash: sh("posix"), powershell: sh("powershell"), edit: WRITE, str_replace_editor: WRITE, apply_patch: PATCH,
+            Bash: SHELL, bash: sh("posix"), powershell: sh("powershell"), edit: WRITE, str_replace_editor: WRITE, apply_patch: PATCH,
             create: WRITE, view: READ, grep: SEARCH, rg: SEARCH, glob: SEARCH, web_fetch: OTHER, web_search: OTHER,
         },
         input: { command: ["command"], path: NONE, patch: PATCH_KEYS_UNVERIFIED },
@@ -149,7 +151,7 @@ export const AGENT_PROFILES = [
     },
     {
         id: "cline",
-        source: "Cline 4.1.27 / CLI 3.0.75, research tool_names (docs.cline.bot/sdk/tools.md: run_commands reads commands/command/cmd, read_files reads files/path/paths/file_paths) + skeptic legacy names. Payloads use preToolUse.toolName, which these hooks do not read yet. apply_patch's input key is not documented: patch keys command, patch and input are unverified candidates.",
+        source: "Cline 4.1.27 / CLI 3.0.75, research tool_names (docs.cline.bot/sdk/tools.md: run_commands reads commands/command/cmd, read_files reads files/path/paths/file_paths) + skeptic legacy names. Payloads use preToolUse.toolName and parameters (lib/hook-io.mjs reads them). apply_patch's input key is not documented: patch keys command, patch and input are unverified candidates.",
         tools: {
             run_commands: SHELL, execute_command: SHELL, editor: WRITE, apply_patch: PATCH, replace_in_file: WRITE,
             write_to_file: WRITE, delete_file: WRITE, read_files: READ, read_file: READ, list_files: SEARCH,
@@ -201,6 +203,12 @@ function stringsAt(input, keys) {
         return [];
     const fields = input;
     return keys.map((key) => (Object.hasOwn(fields, key) ? fields[key] : undefined)).filter((v) => typeof v === "string");
+}
+const PROFILES_BY_ID = new Map(AGENT_PROFILES.map((profile) => [profile.id, profile]));
+/** How `agent`'s own profile reads a tool name, Claude names included, or null (no profile, unknown name). */
+export function profileTool(agent, name) {
+    const tools = PROFILES_BY_ID.get(agent)?.tools;
+    return tools !== undefined && Object.hasOwn(tools, name) ? tools[name] : null;
 }
 /** A shell tool's command string, or null when the tool is no shell or the key is missing. */
 export function inboundCommand(tool, input) {

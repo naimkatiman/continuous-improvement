@@ -17,7 +17,7 @@
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { resolveInstinctsRoot, resolveProjectRoot } from "./agent-paths.mjs";
-import { classifierShells, inboundCommand, inboundPaths, resolveInboundTool, type InboundTool } from "./agent-profiles.mjs";
+import { classifierShells, inboundCommand, inboundPaths, resolveInboundTool, type InboundTool, type ShellFlavor } from "./agent-profiles.mjs";
 import { classifyDestructiveBash } from "./destructive-bash.mjs";
 import {
   MAX_CLEARED_FILES,
@@ -86,11 +86,23 @@ function destructiveShellFor(command: string, alias: InboundTool): "Bash" | "Pow
   return classifierShells(alias.flavor).find((shell) => isDestructiveBash(command, shell)) ?? null;
 }
 
-function classifyTool(toolName: string, toolInput: ToolInput): GateType {
+// The classifier readings of a Claude-named shell. Claude Code's own flavor
+// keeps the tool name, so its rules do not change; another agent that reports
+// the name with an unknown flavor (Codex's Bash runs PowerShell on Windows) is
+// read both ways on Windows (plan Architecture item 8).
+function claudeShellReadings(toolName: string, flavor: ShellFlavor | null): string[] {
+  return flavor === "unknown" ? classifierShells(flavor) : [toolName];
+}
+
+function destructiveClaudeShell(command: string, toolName: string, flavor: ShellFlavor | null): string | null {
+  return claudeShellReadings(toolName, flavor).find((shell) => isDestructiveBash(command, shell)) ?? null;
+}
+
+function classifyTool(toolName: string, toolInput: ToolInput, flavor: ShellFlavor | null): GateType {
   const route = TOOL_ROUTE[toolName] ?? "allow";
   if (route !== "allow") return route;
   if (SHELL_TOOLS.has(toolName) && typeof toolInput.command === "string") {
-    if (isDestructiveBash(toolInput.command, toolName)) return "destructive-bash";
+    if (destructiveClaudeShell(toolInput.command, toolName, flavor) !== null) return "destructive-bash";
   }
   // Other agents' tool names, never a Claude Code one (lib/agent-profiles.mjs).
   const alias = resolveInboundTool(toolName);
@@ -438,7 +450,7 @@ export async function decideGateguard(event: NeutralEvent, config: GateguardConf
   const deny = (reason: string): Decision => ({ kind: "deny", reason, notices });
   const { toolName, payload } = event;
   const toolInput: ToolInput = event.toolInput;
-  const gate = classifyTool(toolName, toolInput);
+  const gate = classifyTool(toolName, toolInput, event.shellFlavor);
 
   // Unquoted @{…} refs trip the built-in Bash parser — catch them first, for
   // both routine and destructive commands, so the quoted fix surfaces before the
@@ -459,7 +471,7 @@ export async function decideGateguard(event: NeutralEvent, config: GateguardConf
       return deny(buildDestructiveBashReason(cmd, destructiveShellFor(cmd, alias) ?? "Bash"));
     }
     const cmd = typeof toolInput.command === "string" ? toolInput.command : "";
-    return deny(buildDestructiveBashReason(cmd, toolName));
+    return deny(buildDestructiveBashReason(cmd, destructiveClaudeShell(cmd, toolName, event.shellFlavor) ?? toolName));
   }
 
   // mutating-file — scope state to THIS session so the clearance cap never

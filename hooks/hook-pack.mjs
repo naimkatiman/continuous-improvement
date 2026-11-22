@@ -37,8 +37,7 @@ import { homedir } from "node:os";
 import { readKnob } from "../lib/agent-env.mjs";
 import { classifierShells } from "../lib/agent-profiles.mjs";
 import { COMMIT_FILE_LIMIT, classifyCommand, decide, evaluateCommitSize, evaluatePush, parseMode, } from "../lib/hook-pack-gate.mjs";
-import { emit, encode, normalizeEvent, parsePayload, readStdin, } from "../lib/hook-io.mjs";
-const AGENT = "claude";
+import { emit, encode, hookAgent, normalizeEvent, parsePayload, readStdin, } from "../lib/hook-io.mjs";
 const EVENT = "PreToolUse";
 // A directory as the command line wrote it, as a value `git -C` can enter. `~`
 // is the home directory. Git Bash writes a drive as /d/repo; git.exe started
@@ -109,7 +108,7 @@ function compute() {
     const parsed = parsePayload(readStdin());
     if (!parsed.ok)
         return ALLOW;
-    const event = normalizeEvent(AGENT, EVENT, parsed.value);
+    const event = normalizeEvent(hookAgent(), EVENT, parsed.value);
     if (event.kind !== "shell" || event.shellFlavor === null)
         return ALLOW;
     // A Claude shell call whose command is not a string is read as the empty
@@ -151,7 +150,8 @@ function withoutFinalNewline(output) {
 }
 function main() {
     const decision = toDecision(compute());
-    const output = encode(AGENT, EVENT, decision);
-    return decision.kind === "deny" && AGENT === "claude" ? withoutFinalNewline(output) : output;
+    const agent = hookAgent();
+    const output = encode(agent, EVENT, decision);
+    return decision.kind === "deny" && agent === "claude" ? withoutFinalNewline(output) : output;
 }
 emit(main());

@@ -56,8 +56,7 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { decideGateguard, readGateguardConfig } from "../lib/gateguard-decide.mjs";
-import { emit, encode, normalizeEvent, parsePayload, readStdin } from "../lib/hook-io.mjs";
-const AGENT = "claude";
+import { emit, encode, hookAgent, normalizeEvent, parsePayload, readStdin } from "../lib/hook-io.mjs";
 const EVENT = "PreToolUse";
 // Resolved from the hook's own location at load time. The block reason must
 // print a command the agent can run in its OWN shell, where ${CLAUDE_PLUGIN_ROOT}
@@ -69,15 +68,16 @@ const CLEAR_CLI_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "bin"
 const CONFIG = readGateguardConfig(process.env, CLEAR_CLI_PATH);
 async function main() {
     const parsed = parsePayload(readStdin());
+    const agent = hookAgent();
     if (!parsed.ok)
-        return encode(AGENT, EVENT, { kind: "allow" }); // fail-open
+        return encode(agent, EVENT, { kind: "allow" }); // fail-open
     const payload = parsed.value;
     // The hook read payload.tool_name here before the move, so JSON null stdin
     // crashed with exit 1 and a TypeError stack (golden gateguard/null-stdin).
     // This read keeps that crash. Wrapping the entry point in runHook ends it as
     // exit 0 instead, a Claude change that plan PR 9 makes and declares.
     void payload.tool_name;
-    const event = normalizeEvent(AGENT, EVENT, payload);
-    return encode(AGENT, EVENT, await decideGateguard(event, CONFIG));
+    const event = normalizeEvent(agent, EVENT, payload);
+    return encode(agent, EVENT, await decideGateguard(event, CONFIG));
 }
 emit(await main());

@@ -1,0 +1,62 @@
+{
+  "agent": "claude",
+  "checked": "2026-11-21",
+  "source": "Claude Code hook payloads as fixtures/agent-hooks/claude.json records them against the v3.27.0 hooks (local check), and https://code.claude.com/docs/en/hooks.",
+  "about": "Read by src/test/agent-matrix.test.mts. events holds one stdin per Claude Code hook event the plugin wires; <COMMAND> is the shell command under test, <HOME> and <PROJECT> the per-run temp home and project. unverified lists the payload keys the cited source does not document. selection.sniff is the env that, with this payload, picks the agent without --agent (null when the agent has none); selection.bare is what a run with no flag and no agent env encodes as: claude (the payload reads as Claude's) or fallback (exit 2 with the reason on stderr).",
+  "selection": {
+    "sniff": null,
+    "sniffNote": "Claude Code is the default: no flag, no CI_AGENT and a Claude payload select claude.",
+    "bare": "claude"
+  },
+  "expect": {
+    "deny": {
+      "source": "src/hooks/gateguard.mts emitDeny as fixtures/agent-hooks/claude.json pins it (local check).",
+      "exitCode": 0,
+      "json": { "hookSpecificOutput": { "hookEventName": "PreToolUse", "permissionDecision": "deny" } },
+      "reasonAt": [["hookSpecificOutput", "permissionDecisionReason"]]
+    },
+    "context": {
+      "source": "session/start-loads-lessons in fixtures/agent-hooks/claude.json: SessionStart plain stdout (local check).",
+      "plain": true
+    }
+  },
+  "events": {
+    "PreToolUse": {
+      "source": "fixtures/agent-hooks/claude.json gateguard cases (local check)",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "session_id": "claude-session", "transcript_path": "<HOME>/transcript.jsonl", "cwd": "<PROJECT>", "permission_mode": "default", "hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_use_id": "toolu_1", "tool_input": { "command": "<COMMAND>" } }
+    },
+    "PostToolUse": {
+      "source": "fixtures/agent-hooks/claude.json bin/observe.mjs cases (local check)",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "session_id": "claude-session", "transcript_path": "<HOME>/transcript.jsonl", "cwd": "<PROJECT>", "permission_mode": "default", "hook_event_name": "PostToolUse", "tool_name": "Bash", "tool_use_id": "toolu_1", "tool_input": { "command": "<COMMAND>" }, "tool_response": { "stdout": "", "stderr": "", "interrupted": false } }
+    },
+    "UserPromptSubmit": {
+      "source": "fixtures/agent-hooks/claude.json route-prompt and recall-briefing cases (local check)",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "session_id": "claude-session", "transcript_path": "<HOME>/transcript.jsonl", "cwd": "<PROJECT>", "permission_mode": "default", "hook_event_name": "UserPromptSubmit", "prompt": "run the tests" }
+    },
+    "SessionStart": {
+      "source": "fixtures/agent-hooks/claude.json session/start-loads-lessons (local check)",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "session_id": "claude-session", "transcript_path": "<HOME>/transcript.jsonl", "cwd": "<PROJECT>", "permission_mode": "default", "hook_event_name": "SessionStart", "source": "startup" }
+    },
+    "SessionEnd": {
+      "source": "fixtures/agent-hooks/claude.json session cases (local check)",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "session_id": "claude-session", "transcript_path": "<HOME>/transcript.jsonl", "cwd": "<PROJECT>", "hook_event_name": "SessionEnd", "reason": "exit" }
+    },
+    "Stop": {
+      "source": "fixtures/agent-hooks/claude.json Stop hook cases (local check)",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "session_id": "claude-session", "transcript_path": "<HOME>/transcript.jsonl", "cwd": "<PROJECT>", "permission_mode": "default", "hook_event_name": "Stop", "stop_hook_active": false }
+    }
+  },
+  "absent": {}
+}

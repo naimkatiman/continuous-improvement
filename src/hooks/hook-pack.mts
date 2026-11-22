@@ -50,15 +50,14 @@ import {
 import {
   emit,
   encode,
+  hookAgent,
   normalizeEvent,
   parsePayload,
   readStdin,
-  type AgentId,
   type Decision,
   type EncodedOutput,
 } from "../lib/hook-io.mjs";
 
-const AGENT: AgentId = "claude";
 const EVENT = "PreToolUse";
 
 // A directory as the command line wrote it, as a value `git -C` can enter. `~`
@@ -130,7 +129,7 @@ function compute(): HookPackDecision {
 
   const parsed = parsePayload(readStdin());
   if (!parsed.ok) return ALLOW;
-  const event = normalizeEvent(AGENT, EVENT, parsed.value);
+  const event = normalizeEvent(hookAgent(), EVENT, parsed.value);
   if (event.kind !== "shell" || event.shellFlavor === null) return ALLOW;
   // A Claude shell call whose command is not a string is read as the empty
   // command, which gates nothing.
@@ -180,8 +179,9 @@ function withoutFinalNewline(output: EncodedOutput): EncodedOutput {
 
 function main(): EncodedOutput {
   const decision = toDecision(compute());
-  const output = encode(AGENT, EVENT, decision);
-  return decision.kind === "deny" && AGENT === "claude" ? withoutFinalNewline(output) : output;
+  const agent = hookAgent();
+  const output = encode(agent, EVENT, decision);
+  return decision.kind === "deny" && agent === "claude" ? withoutFinalNewline(output) : output;
 }
 
 emit(main());

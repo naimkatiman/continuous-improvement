@@ -4,12 +4,11 @@ import { join } from "node:path";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot, projectYamlFiles, yamlFiles } from "../lib/gateguard-state.mjs";
 import { flatten, parseYamlInstinct } from "../lib/instinct-yaml.mjs";
-import { emit, encode, parsePayload, readStdin, type AgentId, type Decision } from "../lib/hook-io.mjs";
+import { claudeEventName, emit, encode, hookAgent, parsePayload, readStdin, type Decision } from "../lib/hook-io.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 // The hook is: read stdin, decide (the lesson block and status line below),
 // encode for the agent (lib/hook-io.mjs). The claude encoder prints a
 // SessionStart context as plain stdout and every notice on stderr.
-const AGENT: AgentId = "claude";
 type SessionEvent = "SessionStart" | "SessionEnd" | "unknown";
 interface Lesson {
   body: string;
@@ -58,6 +57,7 @@ function readHead(path: string): string {
     }
   }
 }
+const COPILOT_START_SOURCES: ReadonlySet<string> = new Set(["startup", "resume", "new"]);
 // The payload comes back too: its working directory picks the project root
 // when no agent sets a project-dir env var.
 function readPayload(): { event: SessionEvent; payload: Record<string, unknown> } | null {
@@ -65,7 +65,13 @@ function readPayload(): { event: SessionEvent; payload: Record<string, unknown> 
   if (!parsed.ok) return null;
   const payload = parsed.value as Record<string, unknown> | null;
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
-  const event = payload.hook_event_name ?? payload.hook_type ?? payload.event_type;
+  // Cursor and Copilot say sessionStart, Kiro agentSpawn, Cline (hookName) TaskStart.
+  const name = payload.hook_event_name ?? payload.hook_type ?? payload.event_type ?? payload.hookName;
+  // Copilot's camelCase sessionStart stdin names no event: it is sessionId,
+  // timestamp, cwd, optional initialPrompt and a source of startup, resume or new.
+  const event = name === undefined && !("hookEventName" in payload) && !("event" in payload) && COPILOT_START_SOURCES.has(String(payload.source))
+    ? "SessionStart"
+    : claudeEventName(name);
   return { event: event === "SessionStart" || event === "SessionEnd" ? event : "unknown", payload };
 }
 // Each trigger and body goes through flatten (src/lib/instinct-yaml.mts), so a
@@ -187,4 +193,4 @@ function main(): { event: SessionEvent; decision: Decision } {
 const { event, decision } = main();
 // A closed stdout must not crash the hook after the decision is made.
 process.stdout.on("error", () => { });
-emit(encode(AGENT, event, decision));
+emit(encode(hookAgent(), event, decision));

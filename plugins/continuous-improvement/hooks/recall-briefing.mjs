@@ -34,8 +34,7 @@ import { DEFAULT_MAX_HITS, decideBriefing } from "../lib/recall-briefing.mjs";
 import { readKnob } from "../lib/agent-env.mjs";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
-import { emit, encode, normalizeEvent, parsePayload, readStdin } from "../lib/hook-io.mjs";
-const AGENT = "claude";
+import { emit, encode, hookAgent, normalizeEvent, parsePayload, readStdin } from "../lib/hook-io.mjs";
 const EVENT = "UserPromptSubmit";
 const ALLOW = { kind: "allow" };
 const ENABLED_VALUES = new Set(["1", "on", "true", "yes"]);
@@ -105,7 +104,7 @@ function decideRecall() {
     const parsed = parsePayload(readStdin());
     if (!parsed.ok)
         return ALLOW;
-    const event = normalizeEvent(AGENT, EVENT, parsed.value);
+    const event = normalizeEvent(hookAgent(), EVENT, parsed.value);
     const prompt = event.prompt ?? "";
     if (prompt.length === 0)
         return ALLOW;
@@ -132,4 +131,5 @@ function main() {
         return ALLOW;
     }
 }
-emit(encode(AGENT, EVENT, main()));
+const decision = main();
+emit(encode(hookAgent(), EVENT, decision));

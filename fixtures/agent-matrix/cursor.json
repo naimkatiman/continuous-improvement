@@ -1,0 +1,61 @@
+{
+  "agent": "cursor",
+  "checked": "2026-11-21",
+  "source": "Verified research, Cursor entry: https://cursor.com/docs/hooks and the local 2.5.26 agent-exec bundle; skeptic checked the 3.20.17 per-user install (hook_pre_tool, hook_session_start and hook_stop corrected).",
+  "selection": {
+    "sniff": { "env": { "CURSOR_VERSION": "3.20.17" }, "source": "Cursor hook_pre_tool: hook env vars CURSOR_PROJECT_DIR, CLAUDE_PROJECT_DIR (alias), CURSOR_VERSION, CURSOR_TRANSCRIPT_PATH; imported Claude hooks still get Cursor payloads (hook_event_name preToolUse, tool_name Shell)." },
+    "bare": "fallback",
+    "bareNote": "preToolUse is not a Claude event, so with no flag and no Cursor env the deny is exit 2, which Cursor documents as equivalent to permission deny."
+  },
+  "expect": {
+    "deny": {
+      "source": "Cursor hook_pre_tool: exit 0 with {permission: deny, user_message, agent_message}; 2.5.26 does not parse hookSpecificOutput (skeptic: 3.20.17 does, only when the flat keys are absent).",
+      "exitCode": 0,
+      "json": { "permission": "deny" },
+      "reasonAt": [["user_message"], ["agent_message"]]
+    },
+    "context": {
+      "source": "Cursor hook_session_start: {additional_context} on sessionStart (local 2.5.26 validator; skeptic: shape right).",
+      "jsonAt": ["additional_context"]
+    }
+  },
+  "events": {
+    "PreToolUse": {
+      "source": "Cursor hook_payload_example: the docs preToolUse example with the 2.5.26 bundle's Shell input {command, cwd}",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "conversation_id": "cursor-conv", "generation_id": "gen-1", "model": "claude-opus-4-7-thinking-max", "hook_event_name": "preToolUse", "cursor_version": "3.20.17", "workspace_roots": ["<PROJECT>"], "user_email": "user@example.invalid", "transcript_path": "<HOME>/cursor-transcript.jsonl", "tool_name": "Shell", "tool_input": { "command": "<COMMAND>", "cwd": "<PROJECT>" }, "tool_use_id": "abc123", "cwd": "<PROJECT>", "agent_message": "Running a command" }
+    },
+    "PostToolUse": {
+      "source": "Cursor hook_post_tool: postToolUse input tool_name, tool_input, tool_output, tool_use_id, cwd, duration",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "conversation_id": "cursor-conv", "generation_id": "gen-1", "hook_event_name": "postToolUse", "cursor_version": "3.20.17", "workspace_roots": ["<PROJECT>"], "tool_name": "Shell", "tool_input": { "command": "<COMMAND>", "cwd": "<PROJECT>" }, "tool_output": "", "tool_use_id": "abc123", "cwd": "<PROJECT>", "duration": 12 }
+    },
+    "UserPromptSubmit": {
+      "source": "Cursor hook_user_prompt: beforeSubmitPrompt input prompt and attachments",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "conversation_id": "cursor-conv", "generation_id": "gen-1", "hook_event_name": "beforeSubmitPrompt", "cursor_version": "3.20.17", "workspace_roots": ["<PROJECT>"], "prompt": "run the tests", "attachments": [] }
+    },
+    "SessionStart": {
+      "source": "Cursor hook_session_start: sessionStart input session_id, is_background_agent, composer_mode plus the common fields",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "conversation_id": "cursor-conv", "hook_event_name": "sessionStart", "cursor_version": "3.20.17", "workspace_roots": ["<PROJECT>"], "session_id": "cursor-session", "is_background_agent": false, "composer_mode": "agent" }
+    },
+    "SessionEnd": {
+      "source": "Cursor hook_pre_tool: the bundle maps SessionEnd to sessionEnd; its input keys are not in the verified research",
+      "checked": "2026-11-21",
+      "unverified": ["session_id", "reason"],
+      "stdin": { "conversation_id": "cursor-conv", "hook_event_name": "sessionEnd", "cursor_version": "3.20.17", "workspace_roots": ["<PROJECT>"], "session_id": "cursor-session", "reason": "exit" }
+    },
+    "Stop": {
+      "source": "Cursor hook_stop: stop input status (completed|aborted|error) and loop_count",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "conversation_id": "cursor-conv", "generation_id": "gen-1", "hook_event_name": "stop", "cursor_version": "3.20.17", "workspace_roots": ["<PROJECT>"], "status": "completed", "loop_count": 0 }
+    }
+  },
+  "absent": {}
+}

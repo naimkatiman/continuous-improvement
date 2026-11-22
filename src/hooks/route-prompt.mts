@@ -49,9 +49,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
-import { emit, encode, parsePayload, readStdin, type AgentId, type Decision } from "../lib/hook-io.mjs";
+import { emit, encode, hookAgent, parsePayload, readStdin, type Decision } from "../lib/hook-io.mjs";
 
-const AGENT: AgentId = "claude";
 const EVENT = "UserPromptSubmit";
 const ALLOW: Decision = { kind: "allow" };
 
@@ -190,4 +189,5 @@ function main(): Decision {
   return { kind: "context", text: buildContext(match.row) };
 }
 
-emit(encode(AGENT, EVENT, main()));
+const decision = main();
+emit(encode(hookAgent(), EVENT, decision));

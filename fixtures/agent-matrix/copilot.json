@@ -1,0 +1,62 @@
+{
+  "agent": "copilot",
+  "checked": "2026-11-21",
+  "source": "Verified research, GitHub Copilot entry: https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-hooks-reference, https://docs.github.com/en/copilot/reference/hooks-reference, https://docs.github.com/en/copilot/tutorials/copilot-cli-hooks, and the SDK index.js embedded in VS Code 1.139.0 (skeptic: hook_pre_tool corrected, hook_session_start and hook_stop confirmed).",
+  "selection": {
+    "sniff": null,
+    "sniffNote": "The verified research names no Copilot hook env var, so Copilot is picked by --agent copilot or CI_AGENT.",
+    "bare": "fallback",
+    "bareNote": "A camelCase payload (toolName, no hook_event_name) is not Claude-shaped, so with no flag the deny is exit 2, which Copilot documents as a deny even when stdout says allow."
+  },
+  "expect": {
+    "deny": {
+      "source": "Copilot hook_payload_example: exact deny output from the tutorial, {permissionDecision: deny, permissionDecisionReason}.",
+      "exitCode": 0,
+      "json": { "permissionDecision": "deny" },
+      "reasonAt": [["permissionDecisionReason"]]
+    },
+    "context": {
+      "source": "Copilot hook_session_start (skeptic: confirmed): only additionalContext is consumed for sessionStart, as top-level JSON.",
+      "jsonAt": ["additionalContext"]
+    }
+  },
+  "events": {
+    "PreToolUse": {
+      "source": "Copilot hook_payload_example: the documented camelCase preToolUse test input, toolArgs as a JSON-encoded string, plus sessionId, timestamp (ms) and cwd",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "sessionId": "copilot-session", "timestamp": 1763712000000, "cwd": "<PROJECT>", "toolName": "bash", "toolArgs": "{\"command\":\"<COMMAND>\"}" }
+    },
+    "PostToolUse": {
+      "source": "Copilot hook_post_tool: postToolUse stdin toolName, toolArgs, toolResult {resultType, textResultForLlm}",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "sessionId": "copilot-session", "timestamp": 1763712000001, "cwd": "<PROJECT>", "toolName": "bash", "toolArgs": "{\"command\":\"<COMMAND>\"}", "toolResult": { "resultType": "success", "textResultForLlm": "" } }
+    },
+    "UserPromptSubmit": {
+      "source": "Copilot hook_user_prompt: userPromptSubmitted stdin prompt (output dropped for command hooks)",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "sessionId": "copilot-session", "timestamp": 1763712000000, "cwd": "<PROJECT>", "prompt": "run the tests" }
+    },
+    "SessionStart": {
+      "source": "Copilot hook_session_start (skeptic: confirmed): the camelCase sessionStart stdin is source (startup, resume or new), optional initialPrompt, sessionId, timestamp and cwd, with no event-name key",
+      "checked": "2026-11-22",
+      "unverified": [],
+      "stdin": { "sessionId": "copilot-session", "timestamp": 1763712000000, "cwd": "<PROJECT>", "source": "new", "initialPrompt": "run the tests" }
+    },
+    "SessionEnd": {
+      "source": "Copilot hook_pre_tool lists sessionEnd among the events; its input keys are not in the verified research",
+      "checked": "2026-11-21",
+      "unverified": ["reason"],
+      "stdin": { "sessionId": "copilot-session", "timestamp": 1763712000000, "cwd": "<PROJECT>", "reason": "exit" }
+    },
+    "Stop": {
+      "source": "Copilot hook_stop (skeptic: confirmed): the SDK fires agentStop with {transcriptPath, stopReason: end_turn, stop_hook_active}",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "transcriptPath": "<HOME>/copilot-transcript.jsonl", "stopReason": "end_turn", "stop_hook_active": false }
+    }
+  },
+  "absent": {}
+}

@@ -1,0 +1,60 @@
+{
+  "agent": "grok",
+  "checked": "2026-11-21",
+  "source": "Verified research, Grok Build 1.0.85 entry: ~/.grok/docs/user-guide/10-hooks.md (hook_payload_example, lines 388-398 and 678; skeptic verdicts hook_session_start and hook_stop confirmed).",
+  "selection": {
+    "sniff": { "env": { "GROK_SESSION_ID": "grok-session" }, "source": "Grok hook_payload_example: hooks get GROK_HOOK_EVENT, GROK_HOOK_NAME, GROK_SESSION_ID and GROK_WORKSPACE_ROOT, and the payload carries the camelCase hookEventName beside hook_event_name." },
+    "bare": "claude"
+  },
+  "expect": {
+    "deny": {
+      "source": "Grok hook_payload_example: the Claude hookSpecificOutput.permissionDecision form is accepted and wins over decision.",
+      "exitCode": 0,
+      "json": { "hookSpecificOutput": { "hookEventName": "PreToolUse", "permissionDecision": "deny" } },
+      "reasonAt": [["hookSpecificOutput", "permissionDecisionReason"]]
+    },
+    "context": {
+      "source": "Grok hook_session_start (skeptic: confirmed): SessionStart reads only a top-level systemMessage, shown to the user; no channel reaches the model, so lessons go to a rules file (plan PR 11).",
+      "none": true
+    }
+  },
+  "events": {
+    "PreToolUse": {
+      "source": "Grok hook_payload_example, 10-hooks.md lines 388-398 plus the snake_case aliases of line 678",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "hookEventName": "pre_tool_use", "hook_event_name": "PreToolUse", "sessionId": "grok-session", "session_id": "grok-session", "cwd": "<PROJECT>", "workspaceRoot": "<PROJECT>", "permissionMode": "default", "permission_mode": "default", "toolName": "run_terminal_command", "tool_name": "run_terminal_command", "toolInput": { "command": "<COMMAND>" }, "tool_input": { "command": "<COMMAND>" }, "toolUseId": "grok-call-1", "tool_use_id": "grok-call-1", "toolInputTruncated": false, "timestamp": "2026-04-14T12:00:00Z" }
+    },
+    "PostToolUse": {
+      "source": "Grok hook_payload_example line 678: tool_response is one of the snake_case aliases; its shape is not documented",
+      "checked": "2026-11-21",
+      "unverified": ["hookEventName value post_tool_use", "tool_response"],
+      "stdin": { "hookEventName": "post_tool_use", "hook_event_name": "PostToolUse", "session_id": "grok-session", "cwd": "<PROJECT>", "tool_name": "run_terminal_command", "tool_input": { "command": "<COMMAND>" }, "tool_use_id": "grok-call-1", "tool_response": "" }
+    },
+    "UserPromptSubmit": {
+      "source": "Grok hook_user_prompt: UserPromptSubmit maps to Claude's; the prompt key is not shown in the verified research",
+      "checked": "2026-11-21",
+      "unverified": ["hookEventName value user_prompt_submit", "prompt"],
+      "stdin": { "hookEventName": "user_prompt_submit", "hook_event_name": "UserPromptSubmit", "session_id": "grok-session", "cwd": "<PROJECT>", "prompt": "run the tests" }
+    },
+    "SessionStart": {
+      "source": "Grok hook_session_start: the matcher tests the source new or load",
+      "checked": "2026-11-21",
+      "unverified": ["hookEventName value session_start"],
+      "stdin": { "hookEventName": "session_start", "hook_event_name": "SessionStart", "session_id": "grok-session", "cwd": "<PROJECT>", "source": "new" }
+    },
+    "SessionEnd": {
+      "source": "Grok hook_stop skeptic: SessionEnd runs for at most 1.5s; its input keys are not documented",
+      "checked": "2026-11-21",
+      "unverified": ["hookEventName value session_end", "reason"],
+      "stdin": { "hookEventName": "session_end", "hook_event_name": "SessionEnd", "session_id": "grok-session", "cwd": "<PROJECT>", "reason": "shutdown" }
+    },
+    "Stop": {
+      "source": "Grok hook_stop: input has stopHookActive/stop_hook_active, lastAssistantMessage/last_assistant_message and reason (end_turn)",
+      "checked": "2026-11-21",
+      "unverified": ["hookEventName value stop"],
+      "stdin": { "hookEventName": "stop", "hook_event_name": "Stop", "session_id": "grok-session", "cwd": "<PROJECT>", "stopHookActive": false, "stop_hook_active": false, "last_assistant_message": "done", "reason": "end_turn" }
+    }
+  },
+  "absent": {}
+}

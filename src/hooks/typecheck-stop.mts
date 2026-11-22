@@ -30,7 +30,7 @@ import { join } from "node:path";
 
 import { readKnob } from "../lib/agent-env.mjs";
 import { GLOBAL_PROJECT_ROOT, resolveProjectRoot } from "../lib/agent-paths.mjs";
-import { emit, encode, type AgentId, type Decision } from "../lib/hook-io.mjs";
+import { emit, encode, hookAgent, type Decision } from "../lib/hook-io.mjs";
 
 import {
   decideTypecheckAction,
@@ -43,7 +43,6 @@ import {
 } from "../lib/typecheck-gate.mjs";
 
 const SPAWN_TIMEOUT_MS = 25_000;
-const AGENT: AgentId = "claude";
 const EVENT = "Stop";
 const ALLOW: Decision = { kind: "allow" };
 
@@ -144,4 +143,5 @@ function main(): Decision {
   }
 }
 
-emit(encode(AGENT, EVENT, main()));
+const decision = main();
+emit(encode(hookAgent(), EVENT, decision));

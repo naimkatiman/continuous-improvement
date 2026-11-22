@@ -1,0 +1,61 @@
+{
+  "agent": "gemini",
+  "checked": "2026-11-21",
+  "source": "Verified research, Gemini CLI 0.41.2 entry: bundled bundle/docs/hooks/reference.md and the installed source chunk-6DSAZLFF.js (hook_payload_example assembled from createBaseInput and fireBeforeToolEvent; skeptic verdicts: hook_pre_tool corrected, hook_session_start, hook_stop and hook_user_prompt confirmed).",
+  "selection": {
+    "sniff": { "env": { "GEMINI_SESSION_ID": "gemini-session" }, "source": "Gemini hook_pre_tool: the hook env gets GEMINI_PROJECT_DIR, GEMINI_CWD, GEMINI_SESSION_ID, GEMINI_PLANS_DIR and CLAUDE_PROJECT_DIR. GEMINI_PROJECT_DIR is not used: Qwen sets it too. The payload names Gemini's own events (BeforeTool, AfterAgent, ...)." },
+    "bare": "fallback",
+    "bareNote": "BeforeTool is not a Claude event, so with no flag and no Gemini env the deny is exit 2 with the reason on stderr; the skeptic found Gemini denies on non-JSON text with an exit code other than 0 or 1."
+  },
+  "expect": {
+    "deny": {
+      "source": "Gemini hook_pre_tool: exit 0 with a top-level {decision: deny, reason}; hookSpecificOutput.permissionDecision is ignored (skeptic: grep finds 0 hits).",
+      "exitCode": 0,
+      "json": { "decision": "deny" },
+      "reasonAt": [["reason"]]
+    },
+    "context": {
+      "source": "Gemini hook_session_start (skeptic: confirmed): hookSpecificOutput.additionalContext; plain stdout becomes a user-facing systemMessage.",
+      "jsonAt": ["hookSpecificOutput", "additionalContext"]
+    }
+  },
+  "events": {
+    "PreToolUse": {
+      "source": "Gemini hook_payload_example (BeforeTool), assembled from the installed 0.41.2 source",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "session_id": "gemini-session", "transcript_path": "<HOME>/gemini-session.json", "cwd": "<PROJECT>", "hook_event_name": "BeforeTool", "timestamp": "2026-11-21T11:08:00.000Z", "tool_name": "run_shell_command", "tool_input": { "command": "<COMMAND>", "description": "run", "dir_path": "." } }
+    },
+    "PostToolUse": {
+      "source": "Gemini hook_post_tool: AfterTool adds tool_response {llmContent, returnDisplay, error?}",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "session_id": "gemini-session", "transcript_path": "<HOME>/gemini-session.json", "cwd": "<PROJECT>", "hook_event_name": "AfterTool", "timestamp": "2026-11-21T11:08:01.000Z", "tool_name": "run_shell_command", "tool_input": { "command": "<COMMAND>" }, "tool_response": { "llmContent": "", "returnDisplay": "" } }
+    },
+    "UserPromptSubmit": {
+      "source": "Gemini hook_user_prompt: BeforeAgent adds prompt",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "session_id": "gemini-session", "transcript_path": "<HOME>/gemini-session.json", "cwd": "<PROJECT>", "hook_event_name": "BeforeAgent", "timestamp": "2026-11-21T11:08:00.000Z", "prompt": "run the tests" }
+    },
+    "SessionStart": {
+      "source": "Gemini hook_session_start: SessionStart with source startup|resume|clear",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "session_id": "gemini-session", "transcript_path": "<HOME>/gemini-session.json", "cwd": "<PROJECT>", "hook_event_name": "SessionStart", "timestamp": "2026-11-21T11:08:00.000Z", "source": "startup" }
+    },
+    "SessionEnd": {
+      "source": "Gemini hook_stop: SessionEnd with reason exit|clear|logout|prompt_input_exit|other",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "session_id": "gemini-session", "transcript_path": "<HOME>/gemini-session.json", "cwd": "<PROJECT>", "hook_event_name": "SessionEnd", "timestamp": "2026-11-21T11:08:00.000Z", "reason": "exit" }
+    },
+    "Stop": {
+      "source": "Gemini hook_stop (skeptic: confirmed): AfterAgent adds prompt, prompt_response and stop_hook_active",
+      "checked": "2026-11-21",
+      "unverified": [],
+      "stdin": { "session_id": "gemini-session", "transcript_path": "<HOME>/gemini-session.json", "cwd": "<PROJECT>", "hook_event_name": "AfterAgent", "timestamp": "2026-11-21T11:08:00.000Z", "prompt": "run the tests", "prompt_response": "done", "stop_hook_active": false }
+    }
+  },
+  "absent": {}
+}

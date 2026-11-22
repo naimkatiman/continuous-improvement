@@ -25,9 +25,8 @@ import { readKnob } from "../lib/agent-env.mjs";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { evaluateGoalDrift } from "../lib/goal-drift-gate.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
-import { emit, encode, readStdin } from "../lib/hook-io.mjs";
+import { emit, encode, hookAgent, readStdin } from "../lib/hook-io.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
-const AGENT = "claude";
 const EVENT = "Stop";
 const ALLOW = { kind: "allow" };
 function safeJsonParse(text) {
@@ -167,4 +166,5 @@ function main() {
         return ALLOW;
     }
 }
-emit(encode(AGENT, EVENT, main()));
+const decision = main();
+emit(encode(hookAgent(), EVENT, decision));

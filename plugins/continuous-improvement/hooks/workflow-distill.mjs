@@ -31,10 +31,9 @@ import { join } from "node:path";
 import { readKnob } from "../lib/agent-env.mjs";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
-import { emit, encode } from "../lib/hook-io.mjs";
+import { emit, encode, hookAgent } from "../lib/hook-io.mjs";
 import { resolveHomeDir } from "../lib/resolve-home-dir.mjs";
 import { workflowRunFromObservations } from "../lib/skill-distill.mjs";
-const AGENT = "claude";
 const EVENT = "Stop";
 const ALLOW = { kind: "allow" };
 function safeJsonParse(text) {
@@ -148,4 +147,5 @@ function main() {
         return ALLOW;
     }
 }
-emit(encode(AGENT, EVENT, main()));
+const decision = main();
+emit(encode(hookAgent(), EVENT, decision));

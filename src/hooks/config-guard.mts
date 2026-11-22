@@ -32,14 +32,13 @@ import { classifyMutation, decide, parseMode, type ConfigMutation } from "../lib
 import {
   emit,
   encode,
+  hookAgent,
   normalizeEvent,
   parsePayload,
   readStdin,
-  type AgentId,
   type Decision,
 } from "../lib/hook-io.mjs";
 
-const AGENT: AgentId = "claude";
 const EVENT = "PreToolUse";
 const ALLOW: Decision = { kind: "allow" };
 
@@ -63,7 +62,7 @@ function decideConfigGuard(): Decision {
 
   const parsed = parsePayload(readStdin());
   if (!parsed.ok) return ALLOW;
-  const event = normalizeEvent(AGENT, EVENT, parsed.value);
+  const event = normalizeEvent(hookAgent(), EVENT, parsed.value);
 
   const hit = classifyMutation(event.toolName, event.toolInput);
   if (!hit) return ALLOW;
@@ -94,4 +93,5 @@ function main(): Decision {
   }
 }
 
-emit(encode(AGENT, EVENT, main()));
+const decision = main();
+emit(encode(hookAgent(), EVENT, decision));
