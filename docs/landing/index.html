@@ -106,6 +106,7 @@ code { overflow-wrap: anywhere; }
 .leader.show { opacity: 1; }
 .hud.ev { translate: -50% 6px; text-align: center; font-size: 13.5px; color: var(--soft); line-height: 1.25; text-shadow: 0 1px 8px #0b0b0c, 0 0 2px #0b0b0c; }
 .hud.ev span { display: block; font-weight: 600; color: var(--text); }
+.hud.ev.far { translate: -50% calc(-100% - 6px); }
 .hud.ev small { font: 11.5px var(--mono); color: var(--muted); }
 .hud.pin { pointer-events: auto; translate: -50% -50%; width: 26px; height: 26px; border-radius: 50%; border: 0; background: transparent; cursor: pointer; padding: 0; }
 .hud.pin::after { content: ""; position: absolute; inset: 8px; border-radius: 50%; background: var(--text); box-shadow: 0 0 0 4px rgba(15, 13, 12, 0.55); transition: transform 0.2s var(--ease); }
@@ -126,9 +127,9 @@ code { overflow-wrap: anywhere; }
 .hud.offl b { color: var(--text); margin-right: 6px; }
 .hud.col b { display: block; font: 600 22px var(--sans); color: var(--text); }
 .hud.file::before { content: ""; position: absolute; right: calc(100% + 6px); top: 50%; width: 64px; height: 1px; background: rgba(255, 255, 255, 0.35); }
-.hud.file { translate: 72px -50%; font: 12.5px var(--mono); color: var(--soft); padding-left: 14px; border-left: 1px solid var(--line-2); }
-.hud.lane { translate: -50% 26px; font-size: 13px; color: var(--amber); text-align: center; white-space: nowrap; }
-.hud.lane::before { content: ""; position: absolute; left: 50%; bottom: 100%; width: 1px; height: 18px; background: var(--amber); opacity: 0.7; }
+.hud.file { translate: 72px -50%; font: 13px var(--mono); color: var(--text); padding-left: 14px; border-left: 1px solid var(--line-2); }
+.hud.lane { translate: 34px -50%; font-size: 13.5px; color: var(--amber); text-align: left; white-space: nowrap; background: rgba(11, 11, 12, 0.85); border: 1px solid var(--line-2); border-radius: 10px; padding: 7px 12px; }
+.hud.lane::before { content: ""; position: absolute; right: 100%; top: 50%; width: 22px; height: 1px; background: var(--amber); opacity: 0.7; }
 .hud.lane code { display: block; color: var(--text); font-size: 12.5px; }
 
 /* ---------- header ---------- */
@@ -353,6 +354,7 @@ td { color: var(--soft); }
 .power > div { min-width: 0; }
 .power code { display: block; font-size: 12.5px; color: var(--soft); white-space: nowrap; overflow-x: auto; scrollbar-width: none; }
 .power-state { font-weight: 600; font-size: 14px; }
+.power-to { display: block; font-size: 12.5px; color: var(--muted); margin-top: 6px; }
 .steps { margin: 24px 0 0; padding: 0; list-style: none; counter-reset: s; display: grid; gap: 8px; max-width: 560px; }
 .step-code { display: block; width: fit-content; max-width: 100%; margin-top: 6px; padding: 4px 8px; border-radius: 6px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); color: var(--text); white-space: pre; overflow-x: auto; }
 .steps li > span { min-width: 0; }
@@ -1078,7 +1080,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
       </ol>
       <div class="power">
         <button class="switch" id="power" type="button" role="switch" aria-checked="true" aria-labelledby="power-label"></button>
-        <div id="power-label"><span class="power-state" id="power-state">Enabled</span><code>claude plugin disable <span class="nb">continuous-improvement</span><wbr>@<span class="nb">continuous-improvement</span></code></div>
+        <div id="power-label"><span class="power-state" id="power-state">Enabled</span><span class="power-to">Off switch</span><code>claude plugin disable <span class="nb">continuous-improvement</span><wbr>@<span class="nb">continuous-improvement</span></code></div>
       </div>
       <details class="more">
         <summary>Verify, remove, update, and other install paths</summary>
