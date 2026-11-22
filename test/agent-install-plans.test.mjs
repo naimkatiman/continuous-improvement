@@ -12,6 +12,8 @@ import { HOOK_AGENT_IDS, emptyLedger, parseHookArgs, parseInstallScope, parseLed
 const RT = "/home/u/.claude/instincts/runtime/9.9.9";
 const HOME = "/home/u";
 const ROOT = "/work/repo";
+// The PR 12 planner agents; the PR 13 ones are in agent-install-variants.test.mts.
+const PR12_AGENTS = ["codex", "qwen", "grok", "devin", "droid"];
 function ctx(over = {}, files = {}, dirs = {}) {
     return {
         scope: "project",
@@ -23,6 +25,7 @@ function ctx(over = {}, files = {}, dirs = {}) {
         failClosed: false,
         read: (path) => (Object.hasOwn(files, path) ? files[path] : null),
         listDir: (path) => dirs[path] ?? [],
+        documentsDir: () => null,
         ...over,
     };
 }
@@ -37,11 +40,11 @@ function commands(hooks) {
     return Object.values(hooks).flatMap((groups) => groups.flatMap((group) => (Array.isArray(group?.hooks) ? group.hooks.map((hook) => String(hook.command)) : [])));
 }
 describe("hook agents and scopes", () => {
-    it("names the five planner agents, maps windsurf to devin and rejects anything else", () => {
-        assert.deepEqual([...HOOK_AGENT_IDS], ["codex", "qwen", "grok", "devin", "droid"]);
+    it("names the planner agents, maps windsurf to devin and rejects anything else", () => {
+        assert.deepEqual([...HOOK_AGENT_IDS].slice(0, 5), [...PR12_AGENTS]);
         assert.equal(resolveHookAgent("windsurf"), "devin");
         assert.equal(resolveHookAgent("devin"), "devin");
-        for (const bad of ["", "claude", "gemini", "Codex", "unknown", "codex "])
+        for (const bad of ["", "claude", "zed", "Codex", "unknown", "codex "])
             assert.equal(resolveHookAgent(bad), null, bad);
     });
     it("takes only the exact lowercase scopes", () => {
@@ -51,13 +54,13 @@ describe("hook agents and scopes", () => {
             assert.equal(parseInstallScope(bad), null, String(bad));
     });
     it("throws for an agent with no planner", () => {
-        assert.throws(() => planAgentInstall("gemini", ctx()), /no hook planner/);
+        assert.throws(() => planAgentInstall("zed", ctx()), /no hook planner/);
         assert.throws(() => planAgentInstall("unknown", ctx()), /no hook planner/);
     });
 });
 describe("parseHookArgs", () => {
     it("leaves every invocation without a new flag to the existing installer", () => {
-        for (const args of [[], ["install"], ["install", "--target", "codex"], ["--uninstall"], ["install", "--mode", "expert"], ["--uninstall", "--target", "claude"], ["--uninstall", "--target", "gemini,cursor"]]) {
+        for (const args of [[], ["install"], ["install", "--target", "codex"], ["--uninstall"], ["install", "--mode", "expert"], ["--uninstall", "--target", "claude"], ["--uninstall", "--target", "zed,aider"]]) {
             assert.deepEqual(parseHookArgs(args), { mode: "none" }, args.join(" "));
         }
     });
@@ -88,7 +91,7 @@ describe("parseHookArgs", () => {
             [["install", "--target", "codex", "--run"], /needs --hooks/],
             [["install", "--target", "codex", "--fail-closed"], /needs --hooks/],
             [["install", "--target", "qwen"], /needs --hooks/],
-            [["install", "--target", "gemini", "--hooks"], /gemini/],
+            [["install", "--target", "zed", "--hooks"], /zed/],
             [["install", "--target", "claude,codex", "--hooks"], /claude/],
             [["install", "--target", "mystery", "--hooks"], /mystery/],
         ];
@@ -101,7 +104,7 @@ describe("parseHookArgs", () => {
 });
 describe("renderAgentHooks", () => {
     it("points every command at the runtime with --agent, drops the Claude-only Skill hook, and never names the plugin root", () => {
-        for (const agent of HOOK_AGENT_IDS) {
+        for (const agent of PR12_AGENTS) {
             const all = commands(renderAgentHooks(agent, "C:\\Users\\u\\.claude\\instincts\\runtime\\9.9.9", false));
             assert.ok(all.length > 0, agent);
             for (const command of all) {
@@ -138,7 +141,7 @@ describe("renderAgentHooks", () => {
         const field = {
             codex: null, qwen: null, grok: ["failClosed", true], devin: ["fail_closed", true], droid: ["onFailure", "block"],
         };
-        for (const agent of HOOK_AGENT_IDS) {
+        for (const agent of PR12_AGENTS) {
             const open = renderAgentHooks(agent, RT, false);
             const closed = renderAgentHooks(agent, RT, true);
             for (const hook of Object.values(open).flat().flatMap((group) => group.hooks)) {

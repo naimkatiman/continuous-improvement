@@ -43,14 +43,66 @@
 //   split by |), mcp_servers (~/.factory/mcp.json and .factory/mcp.json
 //   `mcpServers`; `droid mcp add` always writes the user file, so the file is
 //   written instead), plus SessionEnd in the skeptic's event set.
+//
+// PR 13 (same source, same rules):
+// - gemini: hook_pre_tool (settings.json `hooks`, ~/.gemini and project
+//   .gemini; BeforeTool, timeout in ms; skeptic: matchers are unanchored
+//   regexes, so anchored here; in an untrusted folder no settings hook runs),
+//   hook_post_tool (AfterTool), hook_user_prompt (BeforeAgent), hook_stop
+//   (AfterAgent; SessionEnd best effort), mcp_servers (settings.json
+//   `mcpServers`). Not an extension: `extensions install|link` asks for consent.
+// - cursor: hook_pre_tool (.cursor/hooks.json and ~/.cursor/hooks.json,
+//   {"version":1,"hooks":{"<event>":[{command,type,timeout(s),matcher,
+//   failClosed}]}}, a JS regex on Shell/Write/Delete; Claude settings hooks are
+//   imported), hook_post_tool, hook_session_start (sessionStart; skeptic:
+//   sessionEnd too), hook_stop (stop), hook_user_prompt (beforeSubmitPrompt),
+//   mcp_servers (.cursor/mcp.json, ~/.cursor/mcp.json, `type: "stdio"`
+//   required), plugin_or_extension_packaging (Claude-installed plugins imported).
+// - copilot: hook_pre_tool (.github/hooks/*.json and ~/.copilot/hooks/*.json or
+//   $COPILOT_HOME/hooks, flat {"version":1,"hooks":{"preToolUse":[{type,command,
+//   timeoutSec,matcher}]}}, matcher anchored by Copilot, repo .claude/settings
+//   hooks also read, errors deny and timeouts fail open), hook_session_start,
+//   hook_stop (agentStop), hook_user_prompt (output dropped, so not wired),
+//   mcp_servers (`copilot mcp add NAME -- CMD` writes ~/.copilot/mcp-config.json;
+//   project .github/mcp.json `mcpServers`, entries typed "local"; skeptic: `mcp remove`).
+// - kiro: hook_pre_tool (.kiro/hooks/<any>.json, ~/.kiro/hooks (KIRO_HOME) in
+//   CLI V3 only, {"version":"v1","hooks":[{name,trigger,matcher,action:{type:
+//   "command",command},timeout(s),enabled}]}; skeptic: a matcher is an
+//   unanchored regex), hook_post_tool, hook_session_start, hook_user_prompt,
+//   hook_stop, mcp_servers (.kiro/settings/mcp.json and ~/.kiro/settings/mcp.json).
+// - auggie: [Auggie] hook_pre_tool (settings.json `hooks`, ~/.augment and
+//   project .augment, Claude shape, timeout in ms, only PreToolUse blocks),
+//   hook_session_start / hook_stop / hook_user_prompt (run in the background,
+//   so not wired), mcp_servers (`mcpServers` in ~/.augment/settings.json;
+//   project scope only through `auggie mcp add --project`).
+// - junie: [Junie] hook_pre_tool (~/.junie/config.json `hooks`, Claude shape,
+//   timeout in s, blockOnError; a project .junie/config.json is read only with
+//   --config-location; skeptic: Early Access builds only), hook_session_start
+//   (context ignored, so not wired), mcp_servers (.junie/mcp/mcp.json and
+//   ~/.junie/mcp/mcp.json).
+// - goose: [Goose] hook_pre_tool (a plugin's hooks/hooks.json under
+//   ~/.agents/plugins/<name>/ or <project>/.agents/plugins/<name>/, Claude
+//   shape, on_failure block, unanchored regex; skeptic: only PreToolUse and
+//   Stop act), plugin_or_extension_packaging (hook-only plugins need no
+//   manifest; no MCP in a plugin), mcp_servers (config.yaml `extensions:`,
+//   %APPDATA%\Block\goose\config\config.yaml on Windows; printed).
+// - cline: hook_pre_tool (one script per hook name, no JSON config and no
+//   matcher; skeptic: the VS Code extension scans ~/Documents/Cline/Hooks and
+//   <root>/.clinerules/hooks only, runs only <Name>.ps1 on Windows and only an
+//   extensionless executable elsewhere; {"cancel":true} denies; errors fail
+//   open), hook_stop (no equivalent), mcp_servers (`cline mcp add <name> --yes
+//   -- <command...>`, `cline mcp remove`, no project MCP file).
 
+import { createHash } from "node:crypto";
 import { posix } from "node:path";
 
 import { AGENT_PROFILES, type ToolKind } from "./agent-profiles.mjs";
 import { TARGET_IDS } from "./install-targets.mjs";
 import { PACKAGE_NAME, getPluginHooksConfig } from "./plugin-metadata.mjs";
 
-export const HOOK_AGENT_IDS: readonly string[] = ["codex", "qwen", "grok", "devin", "droid"];
+export const HOOK_AGENT_IDS: readonly string[] = [
+  "codex", "qwen", "grok", "devin", "droid", "gemini", "cursor", "copilot", "kiro", "auggie", "junie", "goose", "cline",
+];
 const ALIASES: Readonly<Record<string, string>> = { windsurf: "devin" };
 export const INSTALL_SCOPES = ["project", "user"] as const;
 export type InstallScope = (typeof INSTALL_SCOPES)[number];
@@ -69,12 +121,27 @@ export interface PlanContext {
   read: (path: string) => string | null;
   /** A directory's entry names, or [] when it does not exist. */
   listDir: (path: string) => string[];
+  /**
+   * The Documents folder Windows reports (OneDrive Known Folder Move can move
+   * it off ~/Documents), or null when it cannot be resolved. Asked only on
+   * win32, for Cline's user-scope hooks dir.
+   */
+  documentsDir: () => string | null;
 }
 
 export interface McpEntry {
+  /** Only where the agent requires it (Cursor "stdio", Copilot "local"). */
+  type?: string;
   command: string;
   args: string[];
 }
+
+/**
+ * How the hooks sit under `hooksAt`: Claude's event map of {matcher, hooks}
+ * groups (absent), an event map of flat handlers that carry their own matcher
+ * (Cursor, Copilot), or one list of {trigger, action} rows (Kiro).
+ */
+export type HookLayout = "flat" | "kiro";
 
 /** One config file: where our hooks and MCP entry sit in it, and what we own there. */
 export interface LedgerFile {
@@ -85,10 +152,15 @@ export interface LedgerFile {
   hookCommands: string[];
   mcpAt: string[] | null;
   mcp: McpEntry | null;
+  layout?: HookLayout;
+  /** A hook script we own whole (Cline): removed only while it still hashes to this. */
+  script?: { sha256: string };
 }
 
 export interface ConfigWrite extends LedgerFile {
   content: string;
+  /** File mode for a script the agent executes directly (Cline's sh hook). */
+  mode?: number;
 }
 
 export interface PlannedRun {
@@ -138,17 +210,30 @@ export type HooksMap = Record<string, Group[]>;
 
 interface AgentSpec {
   label: string;
+  /** The Claude Code events wired, in the plugin's order. */
   events: readonly string[];
-  matcher: "regex" | "list";
+  /** The agent's own name for a Claude event, where it differs. */
+  eventNames?: Readonly<Record<string, string>>;
+  /** `none`: the agent has no matcher (Cline); the group is still dropped when no tool of its kind exists. */
+  matcher: "regex" | "list" | "none";
   failClosed: [string, unknown] | null;
+  /** Default: the handler's `timeout`, in seconds. */
+  timeout?: { key: string; ms: boolean };
+  layout?: HookLayout;
+  /** A `version` the file root must carry. */
+  version?: string | number;
+  /** The config file, or for a `script` agent the dir its hook scripts go in. */
   hooksFile: (ctx: PlanContext) => { path: string; hooksAt: string[] };
+  /** Cline: one script per hook name instead of a JSON config. */
+  script?: true;
   /** A JSON file the MCP entry is merged into (same path = same file). */
-  mcpFile?: (ctx: PlanContext) => { path: string; mcpAt: string[] };
+  mcpFile?: (ctx: PlanContext) => { path: string; mcpAt: string[] } | null;
+  mcpType?: string;
   mcpRun?: (ctx: PlanContext, mcp: McpEntry) => PlannedRun | null;
   mcpPrinted?: (ctx: PlanContext, mcp: McpEntry) => string | null;
   notes: (ctx: PlanContext) => string[];
-  /** Imports ~/.claude and .claude settings hooks (and, for grok, Claude plugins). */
-  importsClaude: "settings" | "settings+plugins" | null;
+  /** Imports ~/.claude and .claude settings hooks (and Claude plugins), or only the project's .claude settings. */
+  importsClaude: "settings" | "settings+plugins" | "project-settings" | null;
 }
 
 const ALL_EVENTS = ["PreToolUse", "PostToolUse", "UserPromptSubmit", "SessionStart", "SessionEnd", "Stop"] as const;
@@ -237,7 +322,168 @@ const SPECS: Readonly<Record<string, AgentSpec>> = {
     notes: () => [],
     importsClaude: null,
   },
+  gemini: {
+    label: "Gemini CLI",
+    events: ALL_EVENTS,
+    eventNames: { PreToolUse: "BeforeTool", PostToolUse: "AfterTool", UserPromptSubmit: "BeforeAgent", Stop: "AfterAgent" },
+    matcher: "regex",
+    failClosed: null,
+    timeout: { key: "timeout", ms: true },
+    hooksFile: (ctx) => ({ path: join(base(ctx, ".gemini"), "settings.json"), hooksAt: ["hooks"] }),
+    mcpFile: (ctx) => ({ path: join(base(ctx, ".gemini"), "settings.json"), mcpAt: ["mcpServers"] }),
+    notes: () => ["Gemini CLI runs no settings.json hooks in an untrusted folder, user-level ones included: trust the folder in Gemini CLI."],
+    importsClaude: null,
+  },
+  cursor: {
+    label: "Cursor",
+    events: ALL_EVENTS,
+    eventNames: { PreToolUse: "preToolUse", PostToolUse: "postToolUse", UserPromptSubmit: "beforeSubmitPrompt", SessionStart: "sessionStart", SessionEnd: "sessionEnd", Stop: "stop" },
+    matcher: "regex",
+    failClosed: ["failClosed", true],
+    layout: "flat",
+    version: 1,
+    hooksFile: (ctx) => ({ path: join(base(ctx, ".cursor"), "hooks.json"), hooksAt: ["hooks"] }),
+    mcpFile: (ctx) => ({ path: join(base(ctx, ".cursor"), "mcp.json"), mcpAt: ["mcpServers"] }),
+    mcpType: "stdio",
+    notes: () => ["Cursor cloud agents run no session hooks."],
+    importsClaude: "settings+plugins",
+  },
+  copilot: {
+    label: "GitHub Copilot CLI",
+    events: ["PreToolUse", "PostToolUse", "SessionStart", "Stop"],
+    eventNames: { PreToolUse: "preToolUse", PostToolUse: "postToolUse", SessionStart: "sessionStart", Stop: "agentStop" },
+    matcher: "list",
+    failClosed: null,
+    timeout: { key: "timeoutSec", ms: false },
+    layout: "flat",
+    version: 1,
+    hooksFile: (ctx) => ({
+      path: join(ctx.scope === "user" ? (absEnv(ctx, "COPILOT_HOME") ?? join(ctx.home, ".copilot")) : join(ctx.projectRoot, ".github"), "hooks", `${MCP_NAME}.json`),
+      hooksAt: ["hooks"],
+    }),
+    mcpFile: (ctx) => (ctx.scope === "project" ? { path: join(ctx.projectRoot, ".github", "mcp.json"), mcpAt: ["mcpServers"] } : null),
+    mcpType: "local",
+    mcpRun: (ctx, mcp) => (ctx.scope === "user" ? { argv: ["copilot", "mcp", "add", MCP_NAME, "--", ...mcpArgv(mcp)], undo: ["copilot", "mcp", "remove", MCP_NAME] } : null),
+    notes: () => [
+      "Copilot drops the output of userPromptSubmitted hooks, so the prompt hooks are not wired.",
+      "A Copilot hook that times out fails open, and the cloud agent reads only .github/hooks.",
+    ],
+    importsClaude: "project-settings",
+  },
+  kiro: {
+    label: "Kiro",
+    events: ["PreToolUse", "PostToolUse", "UserPromptSubmit", "SessionStart", "Stop"],
+    matcher: "regex",
+    failClosed: null,
+    layout: "kiro",
+    version: "v1",
+    hooksFile: (ctx) => ({ path: join(kiroBase(ctx), "hooks", `${MCP_NAME}.json`), hooksAt: ["hooks"] }),
+    mcpFile: (ctx) => ({ path: join(kiroBase(ctx), "settings", "mcp.json"), mcpAt: ["mcpServers"] }),
+    notes: (ctx) => [
+      "Kiro CLI sessions on the V2 harness read agent-profile hooks, not this file.",
+      ...(ctx.scope === "user" ? ["Only Kiro CLI V3 reads ~/.kiro/hooks; the Kiro IDE reads the workspace .kiro/hooks."] : []),
+    ],
+    importsClaude: null,
+  },
+  auggie: {
+    label: "Auggie",
+    events: ["PreToolUse", "PostToolUse"],
+    matcher: "regex",
+    failClosed: null,
+    timeout: { key: "timeout", ms: true },
+    hooksFile: (ctx) => ({ path: join(base(ctx, ".augment"), "settings.json"), hooksAt: ["hooks"] }),
+    mcpFile: (ctx) => (ctx.scope === "user" ? { path: join(ctx.home, ".augment", "settings.json"), mcpAt: ["mcpServers"] } : null),
+    mcpPrinted: (ctx, mcp) => (ctx.scope === "project"
+      ? `Register the MCP server for this project with \`auggie mcp add --project ${MCP_NAME}\` (its command and args flags: \`auggie mcp add --help\`), command ${mcp.command}, args ${JSON.stringify(mcp.args)}; --scope user writes it into ~/.augment/settings.json instead.`
+      : null),
+    notes: () => ["Auggie runs SessionStart, Stop and prompt hooks in the background, so only the guards and the observer are wired: for the lessons, run `ci lessons --format auggie --write`."],
+    importsClaude: null,
+  },
+  junie: {
+    label: "Junie",
+    events: ["PreToolUse", "PostToolUse", "UserPromptSubmit", "Stop"],
+    matcher: "regex",
+    failClosed: ["blockOnError", true],
+    hooksFile: (ctx) => ({ path: join(base(ctx, ".junie"), "config.json"), hooksAt: ["hooks"] }),
+    mcpFile: (ctx) => ({ path: join(base(ctx, ".junie"), "mcp", "mcp.json"), mcpAt: ["mcpServers"] }),
+    notes: (ctx) => [
+      "Junie runs hooks only in its Early Access build, and ignores SessionStart context: for the lessons, run `ci lessons --format junie --write`.",
+      ...(ctx.scope === "project" ? ["Junie reads a project .junie/config.json only when started with --config-location .junie/config.json."] : []),
+    ],
+    importsClaude: null,
+  },
+  goose: {
+    label: "Goose",
+    events: ["PreToolUse", "PostToolUse", "Stop"],
+    matcher: "regex",
+    failClosed: ["on_failure", "block"],
+    hooksFile: (ctx) => ({ path: join(base(ctx, ".agents"), "plugins", MCP_NAME, "hooks", "hooks.json"), hooksAt: ["hooks"] }),
+    mcpPrinted: (ctx, mcp) => {
+      const config = ctx.platform === "win32"
+        ? join(absEnv(ctx, "APPDATA") ?? join(ctx.home, "AppData", "Roaming"), "Block", "goose", "config", "config.yaml")
+        : join(ctx.home, ".config", "goose", "config.yaml");
+      return `Add the MCP server to ${config} (a Goose plugin cannot carry one):\nextensions:\n  ${MCP_NAME}:\n    type: stdio\n    name: ${MCP_NAME}\n    enabled: true\n    cmd: ${mcp.command}\n    args: ${JSON.stringify(mcp.args)}`;
+    },
+    notes: () => [
+      "Goose acts only on PreToolUse and Stop hooks, and a Stop hook stays fail-open: for the lessons, run `ci lessons --format goose --write`.",
+      "Goose runs hook commands with sh -c; on Windows that is unverified.",
+    ],
+    importsClaude: null,
+  },
+  cline: {
+    label: "Cline",
+    events: ["PreToolUse"],
+    matcher: "none",
+    failClosed: null,
+    hooksFile: (ctx) => ({ path: clineDir(ctx), hooksAt: [] }),
+    script: true,
+    mcpRun: (ctx, mcp) => (ctx.scope === "user" ? { argv: ["cline", "mcp", "add", MCP_NAME, "--yes", "--", ...mcpArgv(mcp)], undo: ["cline", "mcp", "remove", MCP_NAME] } : null),
+    mcpPrinted: (ctx, mcp) => [
+      ...(ctx.scope === "project" ? [`Cline has no project MCP file. For the Cline CLI, run \`cline mcp add ${MCP_NAME} --yes -- ${mcpArgv(mcp).join(" ")}\` (or install with --scope user --run).`] : []),
+      `In the Cline VS Code extension, add to cline_mcp_settings.json (MCP Servers > Configure MCP Servers): ${JSON.stringify({ mcpServers: { [MCP_NAME]: { command: mcp.command, args: mcp.args } } })}`,
+    ].join("\n"),
+    notes: (ctx) => [
+      "Cline runs hooks only while Enable Hooks is on, and a hook error fails open.",
+      ...(ctx.scope === "user" ? clineUserNotes(ctx) : []),
+    ],
+    importsClaude: null,
+  },
 };
+
+function kiroBase(ctx: PlanContext): string {
+  return ctx.scope === "user" ? (absEnv(ctx, "KIRO_HOME") ?? join(ctx.home, ".kiro")) : join(ctx.projectRoot, ".kiro");
+}
+
+// The VS Code extension's global hooks dir is join(getDocumentsPath(), "Cline",
+// "Hooks"), and on Windows getDocumentsPath() follows OneDrive Known Folder
+// Move, so it is not always %USERPROFILE%\Documents (skeptic verdict,
+// hook_pre_tool). The SDK (CLI) searches resolveDocumentsExtensionPath("Hooks")
+// and ~/.cline/hooks, with OneDrive candidates for rules only, not for hooks.
+// `documents` is null when win32 gave no usable absolute path: the script
+// then goes to ~/Documents and a note says to copy it by hand.
+function clineDocuments(ctx: PlanContext): { dir: string; documents: string | null } {
+  const fallback = join(ctx.home, "Documents");
+  if (ctx.platform !== "win32") return { dir: fallback, documents: fallback };
+  const reported = ctx.documentsDir()?.trim() ?? "";
+  const documents = /^[A-Za-z]:[\\/]/.test(reported) && !/[\r\n]/.test(reported) ? join(reported).replace(/(?<!^[A-Za-z]:)\/+$/, "") : null;
+  return { dir: documents ?? fallback, documents };
+}
+
+function clineDir(ctx: PlanContext): string {
+  return ctx.scope === "user" ? join(clineDocuments(ctx).dir, "Cline", "Hooks") : join(ctx.projectRoot, ".clinerules", "hooks");
+}
+
+function clineUserNotes(ctx: PlanContext): string[] {
+  const { dir, documents } = clineDocuments(ctx);
+  const hooks = join(dir, "Cline", "Hooks");
+  const notes = [`The Cline VS Code extension and the Cline CLI both read user hooks from Documents/Cline/Hooks; only the CLI also reads ~/.cline/hooks.`];
+  if (documents === null) {
+    notes.push(`The Windows Documents folder could not be resolved, so PreToolUse.ps1 goes to ${hooks}. If Documents is redirected (OneDrive), copy PreToolUse.ps1 by hand into <Documents>\\Cline\\Hooks, or install with --scope project (.clinerules/hooks).`);
+  } else if (dir.toLowerCase() !== join(ctx.home, "Documents").toLowerCase()) {
+    notes.push(`Documents resolves to ${dir}, not ~/Documents (a OneDrive Known Folder Move, for example): the VS Code extension reads ${hooks}, but the Cline CLI's hook lookup has no OneDrive candidate and may not see it. --scope project (.clinerules/hooks) reaches both.`);
+  }
+  return notes;
+}
 
 export function resolveHookAgent(targetId: string): string | null {
   if (HOOK_AGENT_IDS.includes(targetId)) return targetId;
@@ -254,7 +500,8 @@ export function parseInstallScope(value: unknown): InstallScope | null {
 const FILE_TOOLS = new Set(["Edit", "MultiEdit", "Write", "NotebookEdit"]);
 const SHELL_TOOLS = new Set(["Bash", "PowerShell", "Monitor"]);
 
-function nativeMatcher(agent: string, spec: AgentSpec, claudeMatcher: string): string | null {
+// The native matcher, undefined for an agent with none, or null when the agent has no tool of the group's kinds.
+function nativeMatcher(agent: string, spec: AgentSpec, claudeMatcher: string): string | null | undefined {
   const names = claudeMatcher.split("|");
   const kinds: ReadonlySet<ToolKind> = names.some((name) => FILE_TOOLS.has(name))
     ? new Set<ToolKind>(["shell", "file-write", "patch"])
@@ -262,10 +509,16 @@ function nativeMatcher(agent: string, spec: AgentSpec, claudeMatcher: string): s
   const profile = AGENT_PROFILES.find((entry) => entry.id === agent)!;
   const tools = Object.entries(profile.tools).filter(([, tool]) => kinds.has(tool.kind)).map(([name]) => name);
   if (tools.length === 0) return null;
+  if (spec.matcher === "none") return undefined;
   return spec.matcher === "regex" ? `^(${tools.join("|")})$` : tools.join("|");
 }
 
-/** The agent's hooks map: the plugin's events and scripts, its native matchers, commands at the runtime. */
+/**
+ * The agent's hooks map: the plugin's events and scripts under the agent's
+ * event names, its native matchers and timeout field, commands at the runtime.
+ * Always Claude's {matcher, hooks} groups; a flat or Kiro layout is made from
+ * it when the file is planned.
+ */
 export function renderAgentHooks(agent: string, runtimeDir: string, failClosed: boolean): HooksMap {
   const spec = specFor(agent);
   const rt = slash(runtimeDir);
@@ -278,17 +531,18 @@ export function renderAgentHooks(agent: string, runtimeDir: string, failClosed: 
       const matcher = group.matcher === undefined ? undefined : nativeMatcher(agent, spec, group.matcher);
       if (matcher === null) continue;
       const hooks = group.hooks.map((hook) => {
+        const seconds = hook.timeout ?? 30;
         const handler: Handler = {
           type: "command",
           command: `${hook.command.replace("${CLAUDE_PLUGIN_ROOT}", () => rt)} --agent ${agent}`,
-          timeout: hook.timeout ?? 30,
+          [spec.timeout?.key ?? "timeout"]: spec.timeout?.ms ? seconds * 1000 : seconds,
         };
         if (failClosed && event === "PreToolUse" && spec.failClosed) handler[spec.failClosed[0]] = spec.failClosed[1];
         return handler;
       });
       groups.push(matcher === undefined ? { hooks } : { matcher, hooks });
     }
-    if (groups.length > 0) out[event] = groups;
+    if (groups.length > 0) out[spec.eventNames?.[event] ?? event] = groups;
   }
   return out;
 }
@@ -322,9 +576,11 @@ function objectAt(root: Json, path: readonly string[], file: string): Json {
   return node;
 }
 
-/** Our MCP entry from any runtime version: exactly the {command, args} planAgentInstall renders. */
+/** Our MCP entry from any runtime version: exactly the {command, args} planAgentInstall renders, plus the agent's `type` where it needs one. */
 function isOurMcp(value: unknown): boolean {
-  if (!isObject(value) || Object.keys(value).sort().join(",") !== "args,command" || value.command !== "node") return false;
+  if (!isObject(value) || value.command !== "node") return false;
+  const keys = Object.keys(value).sort().join(",");
+  if (keys !== "args,command" && !(keys === "args,command,type" && typeof value.type === "string")) return false;
   const args = value.args;
   return isStrings(args) && args.length === 3 && /\/runtime\/[^"/]+\/bin\/mcp-server\.mjs$/.test(args[0]!) && args[1] === "--mode" && args[2] === "expert";
 }
@@ -334,15 +590,23 @@ function isOurCommand(agent: string, command: unknown): boolean {
   return typeof command === "string" && new RegExp(`^node "[^"]*/runtime/[^"/]+/(?:hooks|bin)/[\\w-]+\\.mjs" --agent ${agent}$`).test(command);
 }
 
+type Drop = (command: unknown) => boolean;
+
 // Drops the handlers `drop` matches, hook by hook. A group or event list we
-// empty goes; malformed rows and foreign handlers stay verbatim.
-function stripHooks(hooks: Json, drop: (command: unknown) => boolean, file: string): boolean {
+// empty goes; malformed rows and foreign handlers stay verbatim. In the flat
+// layout an event's list holds the handlers themselves.
+function stripHooks(hooks: Json, drop: Drop, file: string, layout?: HookLayout): boolean {
   let changed = false;
   for (const [event, groups] of Object.entries(hooks)) {
     if (!Array.isArray(groups)) throw new Error(`${file}: hooks.${event} is not a list; fix it and rerun.`);
     const kept: unknown[] = [];
     let touched = false;
     for (const group of groups) {
+      if (layout === "flat") {
+        if (isObject(group) && drop(group.command)) touched = true;
+        else kept.push(group);
+        continue;
+      }
       const handlers = isObject(group) ? group.hooks : undefined;
       if (!Array.isArray(handlers)) {
         kept.push(group);
@@ -364,20 +628,53 @@ function stripHooks(hooks: Json, drop: (command: unknown) => boolean, file: stri
   return changed;
 }
 
+// Kiro keeps one list of rows, each naming its trigger, with the command under `action`.
+const stripRows = (rows: readonly unknown[], drop: Drop): unknown[] => rows.filter((row) => !(isObject(row) && isObject(row.action) && drop(row.action.command)));
+
+function flatHandlers(groups: readonly Group[]): Json[] {
+  return groups.flatMap((group) => group.hooks.map((hook) => (group.matcher === undefined ? { ...hook } : { ...hook, matcher: group.matcher })));
+}
+
+function kiroRows(hooks: HooksMap): Json[] {
+  return Object.entries(hooks).flatMap(([trigger, groups]) => groups.flatMap((group) => group.hooks.map(({ type, command, ...rest }) => ({
+    // One name per row, from the script and its trigger, so no two rows share one.
+    name: `${MCP_NAME} ${/\/([\w-]+)\.mjs"/.exec(command)?.[1] ?? "hook"} ${trigger}`,
+    trigger,
+    ...(group.matcher === undefined ? {} : { matcher: group.matcher }),
+    action: { type, command },
+    ...rest,
+    enabled: true,
+  }))));
+}
+
 const write = (root: Json): string => `${JSON.stringify(root, null, 2)}\n`;
 
 function planFile(
-  ctx: PlanContext, agent: string, path: string, hooksAt: string[] | null, hooks: HooksMap | null, mcpAt: string[] | null, mcp: McpEntry | null,
+  ctx: PlanContext, spec: AgentSpec, agent: string, path: string, hooksAt: string[] | null, hooks: HooksMap | null, mcpAt: string[] | null, mcp: McpEntry | null,
 ): ConfigWrite {
   const existing = parseObject(ctx.read(path));
   if (existing === "bad") throw new Error(`${path} is not a JSON object; fix or move it and rerun.`);
   const root = existing ?? {};
+  const layout = hooksAt && hooks ? spec.layout : undefined;
   if (hooksAt && hooks) {
-    const map = objectAt(root, hooksAt, path);
-    stripHooks(map, (command) => isOurCommand(agent, command), path);
-    for (const [event, groups] of Object.entries(hooks)) {
-      if (map[event] !== undefined && !Array.isArray(map[event])) throw new Error(`${path}: hooks.${event} is not a list; fix it and rerun.`);
-      map[event] = [...((map[event] as unknown[] | undefined) ?? []), ...groups];
+    if (spec.version !== undefined) {
+      if (root.version === undefined) root.version = spec.version;
+      else if (root.version !== spec.version) throw new Error(`${path}: \`version\` is ${JSON.stringify(root.version)}, not ${JSON.stringify(spec.version)}; fix or move it and rerun.`);
+    }
+    const drop: Drop = (command) => isOurCommand(agent, command);
+    if (layout === "kiro") {
+      const parent = objectAt(root, hooksAt.slice(0, -1), path);
+      const key = hooksAt[hooksAt.length - 1]!;
+      const rows = parent[key] ?? [];
+      if (!Array.isArray(rows)) throw new Error(`${path}: \`${hooksAt.join(".")}\` is not a list; fix it and rerun.`);
+      parent[key] = [...stripRows(rows, drop), ...kiroRows(hooks)];
+    } else {
+      const map = objectAt(root, hooksAt, path);
+      stripHooks(map, drop, path, layout);
+      for (const [event, groups] of Object.entries(hooks)) {
+        if (map[event] !== undefined && !Array.isArray(map[event])) throw new Error(`${path}: hooks.${event} is not a list; fix it and rerun.`);
+        map[event] = [...((map[event] as unknown[] | undefined) ?? []), ...(layout === "flat" ? flatHandlers(groups) : groups)];
+      }
     }
   }
   if (mcpAt && mcp) {
@@ -388,8 +685,95 @@ function planFile(
     }
     servers[MCP_NAME] = mcp;
   }
-  const hookCommands = hooks ? Object.values(hooks).flatMap((groups) => groups.flatMap((group) => group.hooks.map((hook) => hook.command))) : [];
-  return { path, content: write(root), created: existing === null, hooksAt, hookCommands, mcpAt, mcp };
+  return { path, content: write(root), created: existing === null, hooksAt, hookCommands: commandsOf(hooks), mcpAt, mcp, ...(layout ? { layout } : {}) };
+}
+
+function commandsOf(hooks: HooksMap | null): string[] {
+  return hooks ? Object.values(hooks).flatMap((groups) => groups.flatMap((group) => group.hooks.map((hook) => hook.command))) : [];
+}
+
+const sha256 = (text: string): string => createHash("sha256").update(text).digest("hex");
+
+// In every hook script this installer writes; a script without it is the user's.
+const SCRIPT_MARK = "continuous-improvement hook, written by `install --target cline --hooks`; `--uninstall --target cline` removes it.";
+
+// Cline runs one script per hook name and has no matcher, so the script runs
+// each guard on the same stdin and answers with the first reply (a
+// {"cancel":true} deny); a guard passes a tool it does not gate. The Windows
+// extension runs only <Name>.ps1 (with powershell -File), elsewhere only an
+// extensionless executable, so exactly one of the two is written.
+function clineScript(paths: readonly string[], platform: string): string {
+  if (platform === "win32") {
+    const list = paths.map((path) => `'${path.replace(/'/g, "''")}'`).join(", ");
+    // The bytes reach each node process through files, unchanged: a
+    // PowerShell pipe or a .NET stdin writer re-encodes them, and Windows
+    // PowerShell 5.1 then puts a BOM in front of the JSON.
+    return [
+      `# ${SCRIPT_MARK}`,
+      "# Each guard reads the same stdin; the first one that replies answers Cline.",
+      "$inFile = [System.IO.Path]::GetTempFileName()",
+      "$outFile = [System.IO.Path]::GetTempFileName()",
+      "try {",
+      "  $file = [System.IO.File]::Create($inFile)",
+      "  [Console]::OpenStandardInput().CopyTo($file)",
+      "  $file.Close()",
+      "  $status = 0",
+      `  foreach ($hook in @(${list})) {`,
+      "    $proc = Start-Process -FilePath 'node' -ArgumentList @(('\"' + $hook + '\"'), '--agent', 'cline') -RedirectStandardInput $inFile -RedirectStandardOutput $outFile -NoNewWindow -Wait -PassThru",
+      "    if ($proc.ExitCode -ne 0) { $status = $proc.ExitCode }",
+      "    $reply = [System.IO.File]::ReadAllBytes($outFile)",
+      "    if ([System.Text.Encoding]::UTF8.GetString($reply).Trim() -ne '') {",
+      "      [Console]::OpenStandardOutput().Write($reply, 0, $reply.Length)",
+      "      exit 0",
+      "    }",
+      "  }",
+      "  exit $status",
+      "} finally {",
+      "  Remove-Item -LiteralPath $inFile, $outFile -Force -ErrorAction SilentlyContinue",
+      "}",
+      "",
+    ].join("\r\n");
+  }
+  const list = paths.map((path) => `'${path.replace(/'/g, "'\\''")}'`).join(" ");
+  return [
+    "#!/bin/sh",
+    `# ${SCRIPT_MARK}`,
+    "# Each guard reads the same stdin; the first one that replies answers Cline.",
+    "payload=$(cat)",
+    "status=0",
+    `for hook in ${list}; do`,
+    `  out=$(printf '%s' "$payload" | node "$hook" --agent cline) || status=$?`,
+    `  if [ -n "$out" ]; then`,
+    `    printf '%s\\n' "$out"`,
+    "    exit 0",
+    "  fi",
+    "done",
+    `exit "$status"`,
+    "",
+  ].join("\n");
+}
+
+function planScripts(ctx: PlanContext, agent: string, dir: string, hooks: HooksMap): ConfigWrite[] {
+  return Object.entries(hooks).map(([event, groups]) => {
+    const path = join(dir, ctx.platform === "win32" ? `${event}.ps1` : event);
+    const commands = commandsOf({ [event]: groups });
+    const paths = commands.map((command) => new RegExp(`^node "(.+)" --agent ${agent}$`).exec(command)?.[1]).filter((script): script is string => script !== undefined);
+    const existing = ctx.read(path);
+    if (existing !== null && !existing.includes(SCRIPT_MARK)) {
+      throw new Error(`${path} exists and this installer did not write it; ${agent} runs one ${event} script per directory, so merge or move yours and rerun.`);
+    }
+    const content = clineScript(paths, ctx.platform);
+    return {
+      path, content, created: existing === null, hooksAt: null, hookCommands: commands, mcpAt: null, mcp: null,
+      script: { sha256: sha256(content) }, ...(ctx.platform === "win32" ? {} : { mode: 0o755 }),
+    };
+  });
+}
+
+/** The ledger record of a planned write: what the uninstall needs, without the content. */
+export function toLedgerFile(file: ConfigWrite): LedgerFile {
+  const { path, created, hooksAt, hookCommands, mcpAt, mcp, layout, script } = file;
+  return { path, created, hooksAt, hookCommands, mcpAt, mcp, ...(layout ? { layout } : {}), ...(script ? { script } : {}) };
 }
 
 // A hook command of ours in a Claude settings file this agent also loads.
@@ -397,7 +781,8 @@ function claudeImportWarnings(spec: AgentSpec, ctx: PlanContext): string[] {
   if (spec.importsClaude === null) return [];
   const warnings: string[] = [];
   const claudeDir = join(ctx.home, ".claude");
-  const files = [join(claudeDir, "settings.json"), join(claudeDir, "settings.local.json"), join(ctx.projectRoot, ".claude", "settings.json"), join(ctx.projectRoot, ".claude", "settings.local.json")];
+  const projectFiles = [join(ctx.projectRoot, ".claude", "settings.json"), join(ctx.projectRoot, ".claude", "settings.local.json")];
+  const files = spec.importsClaude === "project-settings" ? projectFiles : [join(claudeDir, "settings.json"), join(claudeDir, "settings.local.json"), ...projectFiles];
   for (const file of files) {
     let text: string | null;
     try {
@@ -424,14 +809,16 @@ function claudeImportWarnings(spec: AgentSpec, ctx: PlanContext): string[] {
 export function planAgentInstall(agent: string, ctx: PlanContext): InstallPlan {
   const spec = specFor(agent);
   const plan: InstallPlan = { agent, scope: ctx.scope, writes: [], runs: [], printed: [], notes: spec.notes(ctx), warnings: claudeImportWarnings(spec, ctx) };
-  const mcp: McpEntry = { command: "node", args: [`${slash(ctx.runtimeDir)}/bin/mcp-server.mjs`, "--mode", "expert"] };
+  const args = [`${slash(ctx.runtimeDir)}/bin/mcp-server.mjs`, "--mode", "expert"];
+  const mcp: McpEntry = spec.mcpType === undefined ? { command: "node", args } : { type: spec.mcpType, command: "node", args };
   try {
     const hooksFile = spec.hooksFile(ctx);
     const mcpFile = spec.mcpFile?.(ctx) ?? null;
     const sameFile = mcpFile !== null && mcpFile.path === hooksFile.path;
     const hooks = renderAgentHooks(agent, ctx.runtimeDir, ctx.failClosed);
-    plan.writes.push(planFile(ctx, agent, hooksFile.path, hooksFile.hooksAt, hooks, sameFile ? mcpFile.mcpAt : null, sameFile ? mcp : null));
-    if (mcpFile !== null && !sameFile) plan.writes.push(planFile(ctx, agent, mcpFile.path, null, null, mcpFile.mcpAt, mcp));
+    if (spec.script) plan.writes.push(...planScripts(ctx, agent, hooksFile.path, hooks));
+    else plan.writes.push(planFile(ctx, spec, agent, hooksFile.path, hooksFile.hooksAt, hooks, sameFile ? mcpFile.mcpAt : null, sameFile ? mcp : null));
+    if (mcpFile !== null && !sameFile) plan.writes.push(planFile(ctx, spec, agent, mcpFile.path, null, null, mcpFile.mcpAt, mcp));
   } catch (error) {
     return { ...plan, writes: [], error: error instanceof Error ? error.message : String(error) };
   }
@@ -456,14 +843,30 @@ export type RemoveResult = { kind: "write"; content: string } | { kind: "delete"
 
 /** The file with exactly the hooks and MCP entry the ledger recorded taken out. */
 export function removeOwnedConfig(text: string | null, file: LedgerFile): RemoveResult {
+  if (file.script) {
+    if (text === null) return { kind: "missing" };
+    return sha256(text) === file.script.sha256
+      ? { kind: "delete" }
+      : { kind: "error", message: `${file.path} changed since it was installed; delete it by hand if you no longer want it.` };
+  }
   const root = parseObject(text);
   if (root === null) return { kind: "missing" };
   if (root === "bad") return { kind: "error", message: `${file.path} is not a JSON object; remove the continuous-improvement entries by hand.` };
   try {
     if (file.hooksAt) {
-      const map = file.hooksAt.length === 0 ? root : lookup(root, file.hooksAt);
-      if (map && stripHooks(map, (command) => typeof command === "string" && file.hookCommands.includes(command), file.path) && file.hooksAt.length > 0 && Object.keys(map).length === 0) {
-        dropAt(root, file.hooksAt);
+      const drop: Drop = (command) => typeof command === "string" && file.hookCommands.includes(command);
+      if (file.layout === "kiro" && file.hooksAt.length > 0) {
+        const parent = lookup(root, file.hooksAt.slice(0, -1));
+        const key = file.hooksAt[file.hooksAt.length - 1]!;
+        const rows = parent?.[key];
+        if (parent && Array.isArray(rows)) {
+          const kept = stripRows(rows, drop);
+          if (kept.length > 0) parent[key] = kept;
+          else if (rows.length > 0) delete parent[key];
+        }
+      } else {
+        const map = file.hooksAt.length === 0 ? root : lookup(root, file.hooksAt);
+        if (map && stripHooks(map, drop, file.path, file.layout) && file.hooksAt.length > 0 && Object.keys(map).length === 0) dropAt(root, file.hooksAt);
       }
     }
     if (file.mcpAt && file.mcp) {
@@ -476,7 +879,9 @@ export function removeOwnedConfig(text: string | null, file: LedgerFile): Remove
   } catch (error) {
     return { kind: "error", message: error instanceof Error ? error.message : String(error) };
   }
-  return file.created && Object.keys(root).length === 0 ? { kind: "delete" } : { kind: "write", content: write(root) };
+  // In a flat or Kiro file we created, the `version` we set goes with our hooks.
+  const left = Object.keys(root).filter((key) => !(file.layout && key === "version"));
+  return file.created && left.length === 0 ? { kind: "delete" } : { kind: "write", content: write(root) };
 }
 
 function lookup(root: Json, path: readonly string[]): Json | null {
@@ -501,7 +906,9 @@ function isEntry(value: unknown): value is LedgerEntry {
   return typeof value.target === "string" && parseInstallScope(value.scope) !== null && (value.project === null || typeof value.project === "string")
     && typeof value.version === "string" && typeof value.runtime === "string" && typeof value.installedAt === "string"
     && Array.isArray(value.files) && value.files.every((file) => isObject(file) && typeof file.path === "string" && typeof file.created === "boolean"
-      && (file.hooksAt === null || isStrings(file.hooksAt)) && isStrings(file.hookCommands) && (file.mcpAt === null || isStrings(file.mcpAt)))
+      && (file.hooksAt === null || isStrings(file.hooksAt)) && isStrings(file.hookCommands) && (file.mcpAt === null || isStrings(file.mcpAt))
+      && (file.layout === undefined || file.layout === "flat" || file.layout === "kiro")
+      && (file.script === undefined || (isObject(file.script) && typeof file.script.sha256 === "string")))
     && Array.isArray(value.runs) && value.runs.every((run) => isObject(run) && isStrings(run.argv) && (run.undo === null || isStrings(run.undo)) && typeof run.ran === "boolean"
       && (run.cwd === undefined || run.cwd === null || typeof run.cwd === "string"));
 }

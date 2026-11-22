@@ -11,7 +11,7 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join, relative } from "node:path";
 import { after, describe, it } from "node:test";
@@ -305,7 +305,7 @@ describe("install --hooks", () => {
     for (const args of [
       ["install", "--hooks"],
       ["install", "--target", "qwen"],
-      ["install", "--target", "gemini", "--hooks"],
+      ["install", "--target", "zed", "--hooks"],
       ["install", "--target", "codex", "--hooks", "--scope", "global"],
       ["install", "--target", "codex", "--dry-run"],
       ["install", "--target", "claude", "--hooks"],
@@ -426,5 +426,47 @@ describe("install --uninstall --target", () => {
     const before = tree(b.root);
     assert.equal(run(b, ["--uninstall", "--target", "grok", "--dry-run"]).status, 0);
     assert.deepEqual(tree(b.root), before);
+  });
+});
+
+describe("install --hooks for the PR 13 agents (gemini, cursor, copilot, kiro, auggie, junie, goose, cline)", () => {
+  const AGENTS = "gemini,cursor,copilot,kiro,auggie,junie,goose,cline";
+
+  it("a dry run writes nothing anywhere, in either scope", () => {
+    for (const scope of ["project", "user"]) {
+      const b = box();
+      const out = run(b, ["install", "--target", AGENTS, "--hooks", "--dry-run", "--scope", scope, "--run", "--fail-closed"]);
+      assert.equal(out.status, 0, out.stderr);
+      assert.deepEqual(tree(b.home), [], scope);
+      assert.deepEqual(tree(b.project), [], scope);
+      assert.match(out.stdout, /Dry run: nothing was written/);
+    }
+  });
+
+  it("installs each agent's config in the project, and the uninstall leaves the project as it was apart from the rules files", () => {
+    const b = box();
+    mkdirSync(join(b.project, ".cursor"), { recursive: true });
+    const foreign = JSON.stringify({ version: 1, hooks: { afterFileEdit: [{ command: "./mine.sh" }] } }, null, 2);
+    writeFileSync(join(b.project, ".cursor", "hooks.json"), foreign);
+    const out = run(b, ["install", "--target", AGENTS, "--hooks"]);
+    assert.equal(out.status, 0, out.stderr);
+    const clineHook = process.platform === "win32" ? ".clinerules/hooks/PreToolUse.ps1" : ".clinerules/hooks/PreToolUse";
+    const written = [
+      ".agents/plugins/continuous-improvement/hooks/hooks.json", ".augment/settings.json", clineHook, ".cursor/hooks.json", ".cursor/mcp.json",
+      ".gemini/settings.json", ".github/hooks/continuous-improvement.json", ".github/mcp.json", ".junie/config.json", ".junie/mcp/mcp.json",
+      ".kiro/hooks/continuous-improvement.json", ".kiro/settings/mcp.json",
+    ];
+    const rules = planTargetWrites("gemini", readFileSync(join(REPO_ROOT, "SKILL.md"), "utf8"), () => null).writes.map((write) => write.relPath)
+      .concat([".cursor/rules/continuous-improvement.mdc", ".github/copilot-instructions.md"]);
+    assert.deepEqual(tree(b.project), [...written, ...rules].sort());
+    const cursor = JSON.parse(readFileSync(join(b.project, ".cursor", "hooks.json"), "utf8")) as { hooks: Record<string, Array<{ command: string }>> };
+    assert.equal(cursor.hooks.preToolUse![0]!.command, `node "${slash(runtime(b))}/hooks/gateguard.mjs" --agent cursor`);
+    assert.deepEqual(cursor.hooks.afterFileEdit, [{ command: "./mine.sh" }]);
+    if (process.platform !== "win32") assert.equal(statSync(join(b.project, clineHook)).mode & 0o111, 0o111, "the Cline sh hook is executable");
+
+    const removed = run(b, ["--uninstall", "--target", AGENTS]);
+    assert.equal(removed.status, 0, removed.stderr);
+    assert.deepEqual(tree(b.project), [".cursor/hooks.json", ...rules].sort());
+    assert.deepEqual(JSON.parse(readFileSync(join(b.project, ".cursor", "hooks.json"), "utf8")), JSON.parse(foreign));
   });
 });

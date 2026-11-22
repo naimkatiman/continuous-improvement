@@ -14,7 +14,7 @@
 // does the I/O.
 
 import { type SpawnSyncOptionsWithStringEncoding, spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import {
@@ -29,6 +29,7 @@ import {
   recordInstall,
   removeOwnedConfig,
   runtimesInUse,
+  toLedgerFile,
 } from "./agent-install-plans.mjs";
 import { planTargetWrites } from "./install-targets.mjs";
 
@@ -122,6 +123,8 @@ export interface HookRunIo {
   platform: string;
   env: Readonly<Record<string, string | undefined>>;
   instinctsRoot: string;
+  /** resolveDocumentsDir(platform), or a stand-in; asked at most once per install. */
+  documentsDir: () => string | null;
   skillMd: () => string;
   out: (line: string) => void;
   err: (line: string) => void;
@@ -144,6 +147,33 @@ function runVendor(argv: readonly string[], platform: string, cwd: string | null
   return result.status === 0 ? null : `exit ${result.status}: ${(result.stderr || result.stdout || "").trim().split(/\r?\n/)[0] ?? ""}`;
 }
 
+// The Documents folder the way Windows resolves it, which follows a OneDrive
+// Known Folder Move; Cline's VS Code extension finds its global hooks dir the
+// same way (getDocumentsPath()). Off Windows, or when PowerShell fails or
+// reports nothing usable, null: the planner then falls back to ~/Documents and
+// says so. Stdout is forced to UTF-8 so a non-ASCII user name survives.
+export function resolveDocumentsDir(platform: string): string | null {
+  if (platform !== "win32") return null;
+  const result = spawnSync("powershell.exe", [
+    "-NoProfile", "-NonInteractive", "-Command",
+    "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; [Environment]::GetFolderPath('MyDocuments')",
+  ], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 15_000, windowsHide: true });
+  const dir = result.status === 0 ? (result.stdout ?? "").replace(/^﻿/, "").trim() : "";
+  return /^[A-Za-z]:[\\/]/.test(dir) && !/[\r\n]/.test(dir) ? dir : null;
+}
+
+function once<T>(fn: () => T): () => T {
+  let done = false;
+  let value: T;
+  return () => {
+    if (!done) {
+      value = fn();
+      done = true;
+    }
+    return value;
+  };
+}
+
 function ledgerFile(io: HookRunIo): string {
   return join(io.instinctsRoot, "global", "install-ledger.json");
 }
@@ -159,9 +189,11 @@ function saveLedger(io: HookRunIo, ledger: Ledger): void {
   writeFileSync(ledgerFile(io), `${JSON.stringify(ledger, null, 2)}\n`);
 }
 
-function writeFile(path: string, content: string): void {
+// `mode`: a hook script the agent executes directly (Cline's sh hook) needs the exec bit.
+function writeFile(path: string, content: string, mode?: number): void {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, content);
+  if (mode !== undefined) chmodSync(path, mode);
 }
 
 /**
@@ -174,7 +206,7 @@ function writeRecorded(io: HookRunIo, plan: InstallPlan, ledger: Ledger): Ledger
   try {
     for (const write of plan.writes) {
       const previous = readText(write.path);
-      writeFile(write.path, write.content);
+      writeFile(write.path, write.content, write.mode);
       written.push({ path: write.path, previous });
       io.out(`  ✓ ${plan.agent} → ${write.path}`);
     }
@@ -204,9 +236,10 @@ export function runHookInstall(args: ParsedArgs, io: HookRunIo): number {
   const rt = slash(runtimeDir(io.instinctsRoot, io.version));
   const ledger = loadLedger(io);
   if (ledger === null) return 1;
+  const documentsDir = once(io.documentsDir);
   const plans = args.agents.map((agent) => planAgentInstall(agent, {
     scope: args.scope, runtimeDir: rt, projectRoot: io.projectRoot, home: io.home, platform: io.platform, env: io.env,
-    failClosed: args.failClosed, read: readText, listDir,
+    failClosed: args.failClosed, read: readText, listDir, documentsDir,
   }));
   const failed = plans.filter((plan) => plan.error !== undefined);
   if (failed.length > 0) {
@@ -250,7 +283,7 @@ export function runHookInstall(args: ParsedArgs, io: HookRunIo): number {
       const entry: LedgerEntry = {
         target: plan.agent, scope: args.scope, project: args.scope === "project" ? slash(io.projectRoot) : null, version: io.version, runtime: rt,
         installedAt: new Date().toISOString(),
-        files: plan.writes.map(({ path, created, hooksAt, hookCommands, mcpAt, mcp }) => ({ path, created, hooksAt, hookCommands, mcpAt, mcp })),
+        files: plan.writes.map(toLedgerFile),
         runs: plan.runs.map((run: PlannedRun) => ({ ...run, ran: false, cwd: runCwd })),
       };
       // The agent's files and its ledger entry land together: a failure puts its
