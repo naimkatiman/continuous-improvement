@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 618" width="820" height="618" role="img" aria-labelledby="title desc">
+<title id="title">Memory: a log, a search, and lessons</title>
+<desc id="desc">bin/observe.mjs logs one redacted row per tool call. /recall searches it with BM25 through ci_recall. A lesson is a YAML note that starts at 0.6 and ci_reinforce moves by +0.15 or -0.1. hooks/session.mjs prints lessons at 0.5 or higher at the next session start, at most 10 lines. Lessons are notes; nothing applies them.</desc>
+<style>text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif}.mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace}.b{font-weight:600}.bg{fill:#ffffff}.panel{fill:#f6f8fa;stroke:#d0d7de}.rule{stroke:#d0d7de}.tx{fill:#1f2328}.mute{fill:#59636e}.deny{fill:#cf222e}.deny-bg{fill:#ffebe9;stroke:#cf222e}.ok{fill:#1a7f37}.ok-bg{fill:#dafbe1;stroke:#1a7f37}.accent{fill:#0969da}.accent-bg{fill:#ddf4ff;stroke:#0969da}.warn{fill:#9a6700}.warn-bg{fill:#fff8c5;stroke:#9a6700}.arrow{stroke:#59636e;fill:none}.head{fill:#59636e}@media (prefers-color-scheme:dark){.bg{fill:#0d1117}.panel{fill:#161b22;stroke:#3d444d}.rule{stroke:#3d444d}.tx{fill:#f0f6fc}.mute{fill:#9198a1}.deny{fill:#ff7b72}.deny-bg{fill:#3d1214;stroke:#ff7b72}.ok{fill:#3fb950}.ok-bg{fill:#12301c;stroke:#3fb950}.accent{fill:#4493f8}.accent-bg{fill:#0c2d5a;stroke:#4493f8}.warn{fill:#d29922}.warn-bg{fill:#3a2a07;stroke:#d29922}.arrow{stroke:#9198a1;fill:none}.head{fill:#9198a1}}</style>
+<rect x="0" y="0" width="820" height="618" rx="12" class="bg"/>
+<text x="24" y="48" font-size="24" class="tx b" xml:space="preserve">Memory: a log, a search, and lessons</text>
+<rect x="24" y="70" width="772" height="94" rx="8" class="panel"/>
+<text x="40" y="100" font-size="20" class="tx b" xml:space="preserve">Log: one redacted row per tool call</text>
+<text x="40" y="126" font-size="17" class="mute mono" xml:space="preserve">bin/observe.mjs → observations.jsonl</text>
+<text x="40" y="150" font-size="17" class="mute mono" xml:space="preserve">secrets in known shapes are redacted first</text>
+<rect x="24" y="194" width="772" height="94" rx="8" class="panel"/>
+<text x="40" y="224" font-size="20" class="tx b" xml:space="preserve">Search: /recall &lt;words&gt;</text>
+<text x="40" y="250" font-size="17" class="mute mono" xml:space="preserve">ci_recall MCP tool, BM25 over the current log</text>
+<text x="40" y="274" font-size="17" class="mute mono" xml:space="preserve">lexical: no shared word, no result</text>
+<rect x="24" y="318" width="772" height="94" rx="8" class="accent-bg"/>
+<text x="40" y="348" font-size="20" class="accent b" xml:space="preserve">Lesson: a YAML note with a confidence</text>
+<text x="40" y="374" font-size="17" class="mute mono" xml:space="preserve">saved by /continuous-improvement or ci_create_instinct</text>
+<text x="40" y="398" font-size="17" class="mute mono" xml:space="preserve">starts at 0.6 unless set; ci_reinforce +0.15 / -0.1</text>
+<rect x="24" y="442" width="772" height="94" rx="8" class="panel"/>
+<text x="40" y="472" font-size="20" class="tx b" xml:space="preserve">Next session start</text>
+<text x="40" y="498" font-size="17" class="mute mono" xml:space="preserve">hooks/session.mjs prints lessons at 0.5 or higher</text>
+<text x="40" y="522" font-size="17" class="mute mono" xml:space="preserve">at most 10 lines and 1,500 characters</text>
+<line x1="410" y1="166" x2="410" y2="184.8" class="arrow" stroke-width="2"/><polygon points="410,192 406.1,183.9 413.9,183.9" class="head"/>
+<line x1="410" y1="290" x2="410" y2="308.8" class="arrow" stroke-width="2"/><polygon points="410,316 406.1,307.9 413.9,307.9" class="head"/>
+<line x1="410" y1="414" x2="410" y2="432.8" class="arrow" stroke-width="2"/><polygon points="410,440 406.1,431.9 413.9,431.9" class="head"/>
+<rect x="24" y="550" width="772" height="44" rx="8" class="warn-bg"/>
+<text x="410" y="578" font-size="18" class="warn b" text-anchor="middle" xml:space="preserve">Notes, not enforcement: nothing applies a lesson</text>
+</svg>

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 524" width="820" height="524" role="img" aria-labelledby="title desc">
+<title id="title">What --dry-run prints for Gemini CLI</title>
+<desc id="desc">The installer's dry run for --target gemini --hooks: the runtime copy, settings.json, GEMINI.md and 28 skills it would write, two notes on Gemini CLI, and nothing written.</desc>
+<style>text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif}.mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace}.b{font-weight:600}.bg{fill:#ffffff}.panel{fill:#f6f8fa;stroke:#d0d7de}.rule{stroke:#d0d7de}.tx{fill:#1f2328}.mute{fill:#59636e}.deny{fill:#cf222e}.deny-bg{fill:#ffebe9;stroke:#cf222e}.ok{fill:#1a7f37}.ok-bg{fill:#dafbe1;stroke:#1a7f37}.accent{fill:#0969da}.accent-bg{fill:#ddf4ff;stroke:#0969da}.warn{fill:#9a6700}.warn-bg{fill:#fff8c5;stroke:#9a6700}.arrow{stroke:#59636e;fill:none}.head{fill:#59636e}@media (prefers-color-scheme:dark){.bg{fill:#0d1117}.panel{fill:#161b22;stroke:#3d444d}.rule{stroke:#3d444d}.tx{fill:#f0f6fc}.mute{fill:#9198a1}.deny{fill:#ff7b72}.deny-bg{fill:#3d1214;stroke:#ff7b72}.ok{fill:#3fb950}.ok-bg{fill:#12301c;stroke:#3fb950}.accent{fill:#4493f8}.accent-bg{fill:#0c2d5a;stroke:#4493f8}.warn{fill:#d29922}.warn-bg{fill:#3a2a07;stroke:#d29922}.arrow{stroke:#9198a1;fill:none}.head{fill:#9198a1}}</style>
+<rect x="0" y="0" width="820" height="524" rx="12" class="bg"/>
+<text x="24" y="48" font-size="24" class="tx b" xml:space="preserve">What --dry-run prints for Gemini CLI</text>
+<text x="24" y="76" font-size="16" class="mute" xml:space="preserve">Captured on 3.27.0 plus the Unreleased changes: demo/captures/demos.json</text>
+<rect x="24" y="94" width="772" height="406" rx="8" class="panel"/>
+<text x="40" y="134" font-size="18" class="tx mono b" xml:space="preserve">$ npx continuous-improvement install --target gemini --hooks</text>
+<text x="40" y="160" font-size="18" class="tx mono b" xml:space="preserve">  --dry-run</text>
+<line x1="40" y1="174" x2="780" y2="174" class="rule" stroke-width="1"/>
+<text x="40" y="204" font-size="18" class="mute mono" xml:space="preserve">continuous-improvement agent install (scope: project, dry run)</text>
+<text x="40" y="230" font-size="18" class="tx mono" xml:space="preserve">  · would copy the runtime → ~/.claude/instincts/runtime/3.27.0</text>
+<text x="40" y="256" font-size="18" class="tx mono" xml:space="preserve">  · would create ~/project/.gemini/settings.json (gemini)</text>
+<text x="40" y="282" font-size="18" class="tx mono" xml:space="preserve">  · would create ~/project/GEMINI.md (gemini)</text>
+<text x="40" y="308" font-size="18" class="tx mono" xml:space="preserve">  · would write 28 skills to ~/project/.gemini/skills (gemini)</text>
+<text x="40" y="334" font-size="18" class="mute mono" xml:space="preserve">  ℹ Gemini CLI runs no settings.json hooks in an untrusted folder,</text>
+<text x="40" y="360" font-size="18" class="mute mono" xml:space="preserve">    user-level ones included: trust the folder in Gemini CLI.</text>
+<text x="40" y="386" font-size="18" class="mute mono" xml:space="preserve">  ℹ Gemini CLI reads its own command files (.gemini/commands</text>
+<text x="40" y="412" font-size="18" class="mute mono" xml:space="preserve">    (TOML)); the commands are not copied, only the skills.</text>
+<text x="40" y="438" font-size="18" class="ok mono" xml:space="preserve">Dry run: nothing was written.</text>
+<line x1="40" y1="452" x2="780" y2="452" class="rule" stroke-width="1"/>
+<text x="40" y="482" font-size="18" class="ok mono" xml:space="preserve">files in the project afterwards: .git</text>
+</svg>
