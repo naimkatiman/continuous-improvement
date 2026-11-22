@@ -14,6 +14,10 @@ All notable changes to this skill are documented here.
 
 - **`verify:invariant-count` fails on orphan `verify:*` scripts** — a `package.json` script named `verify:*` that is not in the `verify:all` chain is now a violation. #312 only checked the docs against the chain, so a new `verify:foo` could sit in scripts forever and never run. `verify:generated` remains the one deliberate outsider (CI `git diff` gate, not a content invariant).
 
+### Tests
+
+- **Claude Code hook behaviour is pinned byte for byte before the all-agents refactors** — `src/test/agent-claude-golden.test.mts` runs every hook entry point the plugin wires (the 12 `hooks/*.mjs` scripts and `bin/observe.mjs`, on each event `hooks.json` wires them for) over 136 Claude Code payloads in 129 cases in `fixtures/agent-hooks/claude.json`: allows, denies, warnings, context injections, Stop blocks, and stdin that is malformed, empty, `null` or `[]` for every hook (the opt-in Stop and prompt hooks switched on, so their parse path runs). Two v3.27.0 defects are pinned on purpose and logged in `docs/deferred.md`: gateguard ignores NotebookEdit's `notebook_path`, and gateguard, companion-preference and route-prompt exit 1 with a stack trace on `null` stdin. A crash golden keeps the error, the repository frames and the exit code, and drops the Node version, internal frames and line numbers, so it reads the same on Node 18 to 24, Windows and Linux. Each step's stdout, stderr and exit code must equal the golden recorded against v3.27.0. Every case runs in its own temp home and project with an allowlisted env and fixed session ids, so a `CI_*` or `CLAUDE_*` knob in the developer's shell cannot decide a result, and paths and the project hash are normalized before the compare. The suite also fails when `hooks.json` wires a hook or event that no case covers. Plan: `docs/plans/2026-11-21-all-agents.md`, PR 1.
+
 ## [3.27.0] — 2026-11-21
 
 ### Added

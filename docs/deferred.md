@@ -46,3 +46,10 @@ Logged by the four-PR refresh train. Each item is an owner decision or broader t
 - **Gateguard Parallel-Actor Gate is documented but not implemented:** `skills/gateguard.md` (section "Parallel-Actor Gate") and `skills/reconcile.md` say gateguard runs `scripts/git-state-snapshot.sh` on the first mutation of a session. No code in `src/hooks` or `src/lib` does. Implement it or remove the text.
 - **`proceed-with-the-recommendation` trigger claim:** its description says trigger phrases are matched by the companion hook; `hooks/route-table.json` has no proceed row. False before this train.
 - **Root `CLAUDE.md` companion table** still says gateguard "blocks Edit/Write/Bash before grounding", which is now true only under `CI_GATEGUARD_FILE_GATE=strict`.
+
+## 2026-11-21 all-agents train, PR 1 review (`docs/plans/2026-11-21-all-agents.md`)
+
+Pre-existing v3.27.0 defects the Claude hook goldens (`fixtures/agent-hooks/claude.json`) now pin on purpose. Each fix changes Claude behaviour, so it lands as its own PR that names and re-records exactly the goldens listed here.
+
+- **gateguard ignores NotebookEdit's `notebook_path` (MED):** `src/hooks/gateguard.mts:130` takes edit targets only from `tool_input.file_path` and `edits[].file_path`, while NotebookEdit sends `notebook_path` (`src/lib/config-guard-gate.mts:90` already reads it). In the default evidence mode a blind NotebookEdit is allowed where the same blind Edit is denied (fail-open); in strict mode the deny names the target `<unknown>` and its clear command clears `<unknown>`. Pinned by `gateguard/evidence-blind-notebook-edit-allow` and `gateguard/strict-notebook-edit-deny`. Open.
+- **Three hooks crash on JSON `null` stdin (LOW):** gateguard, companion-preference and an enabled route-prompt read a property of the parsed payload without an object check and exit 1 with a TypeError stack on stderr. Claude Code treats exit 1 as a non-blocking error, so the call proceeds. Pinned by `gateguard/null-stdin`, `companion-preference/null-stdin` and `route-prompt/null-stdin`. PR 9's crash-safe `runHook` exit 0 changes these goldens and must declare it as an intended Claude change. Open.
