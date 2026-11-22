@@ -743,10 +743,13 @@ function handleTool(name: string, params: Record<string, unknown>): ToolResult {
       if (rawStatePath) {
         const candidateDir = dirname(resolve(rawStatePath));
         const dirKey = canonicalizeFileKey(candidateDir);
-        const rootKey = canonicalizeFileKey(resolveInstinctsRoot());
+        const instinctsRoot = resolveInstinctsRoot();
+        const rootKey = canonicalizeFileKey(instinctsRoot);
         if (dirKey !== rootKey && !dirKey.startsWith(`${rootKey}/`)) {
+          // Name the root this server resolved (CI_INSTINCTS_HOME or the
+          // default), not a fixed ~/.claude path the override may have moved.
           return error(
-            "state_path must resolve inside ~/.claude/instincts/. Pass it verbatim from the GateGuard block reason.",
+            `state_path must resolve inside the instincts root, ${instinctsRoot}. Pass it verbatim from the GateGuard block reason.`,
           );
         }
         sessionDir = candidateDir;
