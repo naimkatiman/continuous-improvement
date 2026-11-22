@@ -2,7 +2,7 @@
 
 # Agent support
 
-continuous-improvement is guardrails for coding agents, built for Claude Code first. This page is the promise for every other agent: what the guard does there, how saved lessons reach the model, and what the agent cannot do. Nothing here goes beyond what the 2026-11-21 research verified, with the skeptic corrections applied ([plan](plans/2026-11-21-all-agents.md)).
+continuous-improvement is guardrails for coding agents. This page is the promise for each agent: what the guard does there, how saved lessons reach the model, and what the agent cannot do. Nothing here goes beyond what the 2026-11-21 research verified, with the skeptic corrections applied ([plan](plans/2026-11-21-all-agents.md)).
 
 ## What the tiers mean
 

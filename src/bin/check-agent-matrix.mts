@@ -9,7 +9,12 @@
  *
  *   - docs/AGENT-SUPPORT.md is rendered from the rows, whole.
  *   - README.md and docs/landing/index.html carry the tier table between
- *     `<!-- agent-matrix:start -->` and `<!-- agent-matrix:end -->`.
+ *     `<!-- agent-matrix:start -->` and `<!-- agent-matrix:end -->`. The
+ *     README lists only the rows that block a destructive command (the owner's
+ *     2026-11-22 call: the README names the agents it works on); the landing
+ *     table and docs/AGENT-SUPPORT.md keep every row.
+ *   - assets/readme/agents-map.svg, the README's map of those same rows, is
+ *     rendered from them byte for byte.
  *   - .cloudplugin/marketplace.json carries compatibleWith from the rows and
  *     the package.json version (the build writes both).
  *   - No sentence in README.md, QUICKSTART.md, llms.txt, docs/AGENT-SUPPORT.md
@@ -40,8 +45,8 @@
  *   1 — at least one violation
  */
 
-import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { argv, cwd, exit } from "node:process";
 
 import { HOOK_AGENT_IDS, PLUGIN_AGENT_IDS } from "../lib/agent-install-plans.mjs";
@@ -52,9 +57,11 @@ import {
   supportTier,
   type AgentSupport,
 } from "../lib/agent-support.mjs";
+import { IMAGE_WIDTH, PAD, charsFit, rect, svgDocument, text, wrap } from "../lib/readme-svg.mjs";
 
 export const SUPPORT_DOC = "docs/AGENT-SUPPORT.md";
 export const CLOUDPLUGIN = ".cloudplugin/marketplace.json";
+export const AGENT_MAP_SVG = "assets/readme/agents-map.svg";
 export const BLOCK_START = "<!-- agent-matrix:start -->";
 export const BLOCK_END = "<!-- agent-matrix:end -->";
 export const CLAIM_SCAN_FILES: readonly string[] = ["README.md", "QUICKSTART.md", "llms.txt", SUPPORT_DOC, "docs/landing/index.html"];
@@ -387,7 +394,7 @@ export function renderSupportDoc(rows: readonly AgentSupport[] = AGENT_SUPPORT):
     "",
     "# Agent support",
     "",
-    "continuous-improvement is guardrails for coding agents, built for Claude Code first. This page is the promise for every other agent: what the guard does there, how saved lessons reach the model, and what the agent cannot do. Nothing here goes beyond what the 2026-11-21 research verified, with the skeptic corrections applied ([plan](plans/2026-11-21-all-agents.md)).",
+    "continuous-improvement is guardrails for coding agents. This page is the promise for each agent: what the guard does there, how saved lessons reach the model, and what the agent cannot do. Nothing here goes beyond what the 2026-11-21 research verified, with the skeptic corrections applied ([plan](plans/2026-11-21-all-agents.md)).",
     "",
     "## What the tiers mean",
     "",
@@ -435,10 +442,72 @@ function packageVersion(repoRoot: string): string | null {
   }
 }
 
+/** The README tier table: only the rows that block a destructive command. */
+export function renderReadmeTierMarkdown(rows: readonly AgentSupport[] = AGENT_SUPPORT): string {
+  return renderTierMarkdown(rows.filter((row) => blocksPreTool(row)));
+}
+
 const BLOCK_RENDERERS: ReadonlyArray<readonly [string, (rows: readonly AgentSupport[]) => string]> = [
-  ["README.md", renderTierMarkdown],
+  ["README.md", renderReadmeTierMarkdown],
   ["docs/landing/index.html", renderTierHtml],
 ];
+
+const MAP_GROUPS: ReadonlyArray<readonly [ReturnType<typeof supportTier>, string]> = [
+  ["full", "Full: blocks, loads lessons at session start, has a Stop gate"],
+  ["partial", "Partial: blocks; session lessons or the Stop gate are missing"],
+];
+
+/**
+ * assets/readme/agents-map.svg: one tile per row that blocks a destructive
+ * command, grouped by tier, each with its Blocks cell verbatim as the
+ * condition. A conditional row (Junie) gets the warning color.
+ */
+export function renderAgentMapSvg(rows: readonly AgentSupport[] = AGENT_SUPPORT): string {
+  const working = rows.filter((row) => blocksPreTool(row));
+  const gap = 16;
+  const colW = (IMAGE_WIDTH - 2 * PAD - gap) / 2;
+  const inner = colW - 34;
+  const nameSize = 21;
+  const condSize = 19;
+  const condLine = 25;
+  const body: string[] = [];
+  let y = PAD + 26;
+  body.push(text(PAD, y, 26, "tx b", "Where the guard blocks a destructive command"));
+  y += 32;
+  for (const line of wrap(`${working.length} agents, one hook file: hooks/gateguard.mjs. Each tile shows that agent's Blocks cell from src/lib/agent-support.mts.`, charsFit(IMAGE_WIDTH - 2 * PAD, 18, "sans"))) {
+    body.push(text(PAD, y, 18, "mute", line));
+    y += 24;
+  }
+  for (const [tier, heading] of MAP_GROUPS) {
+    const group = working.filter((row) => supportTier(row) === tier);
+    if (group.length === 0) continue;
+    y += 14;
+    body.push(text(PAD, y + 20, 20, "tx b", heading));
+    y += 34;
+    for (let i = 0; i < group.length; i += 2) {
+      const pair = group.slice(i, i + 2).map((row) => ({ row, lines: wrap(row.blocks, charsFit(inner, condSize, "sans")) }));
+      const h = 22 + nameSize + Math.max(...pair.map((p) => p.lines.length)) * condLine;
+      pair.forEach(({ row, lines }, col) => {
+        const x = PAD + col * (colW + gap);
+        const tone = row.preToolVerdict === "conditional" ? "warn" : "ok";
+        body.push(rect(x, y, colW, h, "panel"));
+        body.push(rect(x, y, 6, h, `${tone}-bg`, 3));
+        body.push(text(x + 20, y + 10 + nameSize, nameSize, "tx b", row.names[0] ?? row.id));
+        lines.forEach((line, n) => body.push(text(x + 20, y + 10 + nameSize + condLine * (n + 1) - 2, condSize, tone, line)));
+      });
+      y += h + 12;
+    }
+  }
+  y += 10;
+  body.push(text(PAD, y + 14, 17, "mute", "Every row, including agents where nothing is blocked: docs/AGENT-SUPPORT.md"));
+  y += 14 + PAD;
+  return svgDocument({
+    height: y,
+    title: "Where the guard blocks a destructive command",
+    desc: `${working.length} agents grouped by tier. ${MAP_GROUPS.map(([tier]) => `${tier}: ${working.filter((row) => supportTier(row) === tier).map((row) => `${row.names[0]} (${row.blocks})`).join(", ")}`).join(". ")}.`,
+    body,
+  });
+}
 
 function claimViolation(claim: Claim): string {
   return `${claim.file}:${claim.line}: ${claim.reason ?? "claims blocking for an agent that cannot block"}: "${claim.text}"`;
@@ -462,6 +531,10 @@ export function checkAgentMatrix(repoRoot: string, rows: readonly AgentSupport[]
     if (want === null) out.push(`${file}: needs exactly one ${BLOCK_START} ... ${BLOCK_END} marker pair`);
     else if (want !== text.replace(/\r\n/g, "\n")) out.push(`${file}: the tier table differs from the rows; ${REGENERATE}`);
   }
+
+  const map = read(repoRoot, AGENT_MAP_SVG);
+  if (map === null) out.push(`${AGENT_MAP_SVG}: missing; ${REGENERATE}`);
+  else if (map.replace(/\r\n/g, "\n") !== renderAgentMapSvg(rows)) out.push(`${AGENT_MAP_SVG}: differs from the rows; ${REGENERATE}`);
 
   const version = packageVersion(repoRoot);
   const manifest = read(repoRoot, CLOUDPLUGIN);
@@ -505,6 +578,9 @@ export function writeAgentMatrix(repoRoot: string, rows: readonly AgentSupport[]
     writeFileSync(join(repoRoot, file), next);
     written.push(file);
   }
+  mkdirSync(dirname(join(repoRoot, AGENT_MAP_SVG)), { recursive: true });
+  writeFileSync(join(repoRoot, AGENT_MAP_SVG), renderAgentMapSvg(rows));
+  written.push(AGENT_MAP_SVG);
   const version = packageVersion(repoRoot);
   const manifest = read(repoRoot, CLOUDPLUGIN);
   if (version !== null && manifest !== null) {
@@ -523,7 +599,7 @@ function main(): void {
   }
   const violations = checkAgentMatrix(repoRoot);
   if (violations.length === 0) {
-    console.log(`OK agent-matrix: ${AGENT_SUPPORT.length} rows; ${SUPPORT_DOC}, the README and landing tier tables and ${CLOUDPLUGIN} match the rows, and no scanned doc or ${CHANGELOG_FILE} [Unreleased] lead claims blocking for an agent that cannot block, or leaves out a condition or surface.`);
+    console.log(`OK agent-matrix: ${AGENT_SUPPORT.length} rows; ${SUPPORT_DOC}, the README and landing tier tables, ${AGENT_MAP_SVG} and ${CLOUDPLUGIN} match the rows, and no scanned doc or ${CHANGELOG_FILE} [Unreleased] lead claims blocking for an agent that cannot block, or leaves out a condition or surface.`);
     exit(0);
   }
   console.error(`FAIL agent-matrix: ${violations.length} violation(s).\n`);
