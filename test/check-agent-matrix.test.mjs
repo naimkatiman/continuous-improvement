@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { HOOK_AGENT_IDS, PLUGIN_AGENT_IDS, planAgentInstall, resolveHookAgent } from "../lib/agent-install-plans.mjs";
 import { AGENT_PROFILES } from "../lib/agent-profiles.mjs";
 import { AGENT_SUPPORT, blocksPreTool, compatibleWith, renderCloudplugin, supportTier, } from "../lib/agent-support.mjs";
-import { AGENT_MAP_SVG, BLOCK_END, BLOCK_START, CHANGELOG_FILE, CLAIM_SCAN_FILES, changelogClaims, checkAgentMatrix, findBlockingClaims, renderAgentMapSvg, renderReadmeTierMarkdown, renderSupportDoc, renderTierHtml, renderTierMarkdown, spliceBlock, supportViolations, writeAgentMatrix, } from "../bin/check-agent-matrix.mjs";
+import { AGENT_MAP_SVG, BLOCK_END, BLOCK_START, CHANGELOG_FILE, CLAIM_SCAN_FILES, changelogClaims, checkAgentMatrix, findBlockingClaims, headingAnchor, renderAgentMapSvg, renderReadmeTierMarkdown, renderSupportDoc, renderTierHtml, renderTierMarkdown, spliceBlock, supportViolations, writeAgentMatrix, } from "../bin/check-agent-matrix.mjs";
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const REPO_ROOT = join(__dirname, "..");
 const row = (over) => ({
@@ -633,15 +633,28 @@ describe("the README lists only the agents where the guard blocks", () => {
     it("does not frame the support doc as Claude Code first", () => {
         assert.doesNotMatch(renderSupportDoc(AGENT_SUPPORT), /Claude Code first/);
     });
-    it("draws one tile per blocking row in the agents map, with the condition and the surface named", () => {
+    // The map carries names under the tier meanings; each condition is in the
+    // README table under it and in the image description.
+    it("draws one chip per blocking row in the agents map, names the surface, and keeps each condition in the table and the description", () => {
         const svg = renderAgentMapSvg(AGENT_SUPPORT);
         for (const r of working)
-            assert.ok(svg.includes(`>${r.names[0]}</text>`), `${r.id} tile`);
+            assert.ok(svg.includes(`>${r.names[0]}</text>`), `${r.id} chip`);
         for (const r of blind)
             assert.ok(!svg.includes(r.names[0]), `${r.id} is drawn`);
-        assert.match(svg, /Early Access build/);
         assert.match(svg, />Kiro CLI<\/text>/);
         assert.doesNotMatch(svg, />Kiro<\/text>/);
+        assert.match(/<desc id="desc">[^<]*<\/desc>/.exec(svg)[0], /Early Access build/);
+        assert.match(renderReadmeTierMarkdown(AGENT_SUPPORT), /\| Junie CLI \| `junie` \(add `--scope user`\) \| partial \| yes, on the Early Access build \|/);
+        assert.doesNotMatch(svg, /agent-support\.mts/, "no source-file jargon in the image");
+    });
+    it("links each README row to its section in the support doc", () => {
+        const md = renderReadmeTierMarkdown(AGENT_SUPPORT);
+        const doc = renderSupportDoc(AGENT_SUPPORT);
+        for (const r of working) {
+            const anchor = headingAnchor(r.names[0]);
+            assert.ok(md.includes(`(docs/AGENT-SUPPORT.md#${anchor})`), `${r.id} link`);
+            assert.ok(doc.split("\n").some((line) => line.startsWith("### ") && headingAnchor(line.slice(4)) === anchor), `${r.id} anchor exists`);
+        }
     });
     it("draws an image GitHub and npm can show: a title, a dark scheme, and no script, font or link", () => {
         const svg = renderAgentMapSvg(AGENT_SUPPORT);

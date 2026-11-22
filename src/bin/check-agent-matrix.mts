@@ -57,7 +57,7 @@ import {
   supportTier,
   type AgentSupport,
 } from "../lib/agent-support.mjs";
-import { IMAGE_WIDTH, PAD, charsFit, rect, svgDocument, text, wrap } from "../lib/readme-svg.mjs";
+import { IMAGE_WIDTH, PAD, charsFit, rect, richText, svgDocument, text, wrap } from "../lib/readme-svg.mjs";
 
 export const SUPPORT_DOC = "docs/AGENT-SUPPORT.md";
 export const CLOUDPLUGIN = ".cloudplugin/marketplace.json";
@@ -442,9 +442,32 @@ function packageVersion(repoRoot: string): string | null {
   }
 }
 
-/** The README tier table: only the rows that block a destructive command. */
+/** GitHub's anchor for a heading: lower case, punctuation dropped, spaces to hyphens. */
+export function headingAnchor(heading: string): string {
+  return heading.toLowerCase().replace(/[^\p{L}\p{N} _-]/gu, "").replace(/ /g, "-");
+}
+
+/** The README's `--target` cell: the id and any extra flag the install needs, or the plugin for Claude Code. */
+function targetCell(row: AgentSupport): string {
+  const match = /--target (\S+)(.*)$/.exec(row.install[0] ?? "");
+  if (!match) return "plugin, see [Install](#install)";
+  const extra = match[2]!.replace(/\s*--hooks\b/, "").trim();
+  return `\`${match[1]}\`${extra === "" ? "" : ` (add \`${extra}\`)`}`;
+}
+
+/**
+ * The README tier table: only the rows that block a destructive command. Each
+ * row links to its section in the support doc, which keeps the install
+ * commands, the follow-up step and what the agent cannot do.
+ */
 export function renderReadmeTierMarkdown(rows: readonly AgentSupport[] = AGENT_SUPPORT): string {
-  return renderTierMarkdown(rows.filter((row) => blocksPreTool(row)));
+  const lines = [
+    "| Agent | `--target` | Tier | Blocks a destructive command | Lessons at session start | MCP server | Setup and limits |",
+    "|---|---|---|---|---|---|---|",
+    ...rows.filter((row) => blocksPreTool(row)).map((row) =>
+      `| ${row.names[0]} | ${targetCell(row)} | ${supportTier(row)} | ${row.blocks} | ${LESSONS[row.lessons]} | ${row.mcp ? "yes" : "no"} | [details](${SUPPORT_DOC}#${headingAnchor(row.names[0]!)}) |`),
+  ];
+  return lines.join("\n");
 }
 
 const BLOCK_RENDERERS: ReadonlyArray<readonly [string, (rows: readonly AgentSupport[]) => string]> = [
@@ -452,55 +475,48 @@ const BLOCK_RENDERERS: ReadonlyArray<readonly [string, (rows: readonly AgentSupp
   ["docs/landing/index.html", renderTierHtml],
 ];
 
-const MAP_GROUPS: ReadonlyArray<readonly [ReturnType<typeof supportTier>, string]> = [
-  ["full", "Full: blocks, loads lessons at session start, has a Stop gate"],
-  ["partial", "Partial: blocks; session lessons or the Stop gate are missing"],
+const MAP_GROUPS: ReadonlyArray<readonly [ReturnType<typeof supportTier>, string, string]> = [
+  ["full", "Full", "blocks, loads lessons at session start, has a Stop gate"],
+  ["partial", "Partial", "blocks; session lessons or the Stop gate are missing"],
 ];
 
 /**
- * assets/readme/agents-map.svg: one tile per row that blocks a destructive
- * command, grouped by tier, each with its Blocks cell verbatim as the
- * condition. A conditional row (Junie) gets the warning color.
+ * assets/readme/agents-map.svg: one chip per row that blocks a destructive
+ * command, grouped by tier under the tier's meaning. The chips carry names
+ * only; the README table under the map carries each agent's condition.
  */
 export function renderAgentMapSvg(rows: readonly AgentSupport[] = AGENT_SUPPORT): string {
   const working = rows.filter((row) => blocksPreTool(row));
-  const gap = 16;
-  const colW = (IMAGE_WIDTH - 2 * PAD - gap) / 2;
-  const inner = colW - 34;
-  const nameSize = 21;
-  const condSize = 19;
-  const condLine = 25;
+  const nameSize = 20;
+  const chipH = 42;
+  const gapX = 10;
+  const gapY = 10;
   const body: string[] = [];
-  let y = PAD + 26;
-  body.push(text(PAD, y, 26, "tx b", "Where the guard blocks a destructive command"));
-  y += 32;
-  for (const line of wrap(`${working.length} agents, one hook file: hooks/gateguard.mjs. Each tile shows that agent's Blocks cell from src/lib/agent-support.mts.`, charsFit(IMAGE_WIDTH - 2 * PAD, 18, "sans"))) {
-    body.push(text(PAD, y, 18, "mute", line));
-    y += 24;
-  }
-  for (const [tier, heading] of MAP_GROUPS) {
+  let y = PAD;
+  for (const [tier, heading, meaning] of MAP_GROUPS) {
     const group = working.filter((row) => supportTier(row) === tier);
     if (group.length === 0) continue;
-    y += 14;
-    body.push(text(PAD, y + 20, 20, "tx b", heading));
+    body.push(richText(PAD, y + 20, 20, "tx", [{ text: `${heading}: `, bold: true }, { text: meaning }]));
     y += 34;
-    for (let i = 0; i < group.length; i += 2) {
-      const pair = group.slice(i, i + 2).map((row) => ({ row, lines: wrap(row.blocks, charsFit(inner, condSize, "sans")) }));
-      const h = 22 + nameSize + Math.max(...pair.map((p) => p.lines.length)) * condLine;
-      pair.forEach(({ row, lines }, col) => {
-        const x = PAD + col * (colW + gap);
-        const tone = row.preToolVerdict === "conditional" ? "warn" : "ok";
-        body.push(rect(x, y, colW, h, "panel"));
-        body.push(rect(x, y, 6, h, `${tone}-bg`, 3));
-        body.push(text(x + 20, y + 10 + nameSize, nameSize, "tx b", row.names[0] ?? row.id));
-        lines.forEach((line, n) => body.push(text(x + 20, y + 10 + nameSize + condLine * (n + 1) - 2, condSize, tone, line)));
-      });
-      y += h + 12;
+    let x = PAD;
+    for (const row of group) {
+      const name = row.names[0] ?? row.id;
+      const w = Math.ceil(name.length * nameSize * 0.6) + 32;
+      if (x + w > IMAGE_WIDTH - PAD) {
+        x = PAD;
+        y += chipH + gapY;
+      }
+      body.push(rect(x, y, w, chipH, "ok-bg", 21));
+      body.push(text(x + w / 2, y + 28, nameSize, "tx b", name, "middle"));
+      x += w + gapX;
     }
+    y += chipH + 26;
   }
-  y += 10;
-  body.push(text(PAD, y + 14, 17, "mute", "Every row, including agents where nothing is blocked: docs/AGENT-SUPPORT.md"));
-  y += 14 + PAD;
+  for (const line of wrap("When each one blocks: the table below. Every other agent: docs/AGENT-SUPPORT.md", charsFit(IMAGE_WIDTH - 2 * PAD, 18, "sans"))) {
+    body.push(text(PAD, y + 4, 18, "mute", line));
+    y += 26;
+  }
+  y += PAD - 12;
   return svgDocument({
     height: y,
     title: "Where the guard blocks a destructive command",

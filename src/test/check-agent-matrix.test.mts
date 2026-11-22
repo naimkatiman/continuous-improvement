@@ -31,6 +31,7 @@ import {
   changelogClaims,
   checkAgentMatrix,
   findBlockingClaims,
+  headingAnchor,
   renderAgentMapSvg,
   renderReadmeTierMarkdown,
   renderSupportDoc,
@@ -727,13 +728,27 @@ describe("the README lists only the agents where the guard blocks", () => {
     assert.doesNotMatch(renderSupportDoc(AGENT_SUPPORT), /Claude Code first/);
   });
 
-  it("draws one tile per blocking row in the agents map, with the condition and the surface named", () => {
+  // The map carries names under the tier meanings; each condition is in the
+  // README table under it and in the image description.
+  it("draws one chip per blocking row in the agents map, names the surface, and keeps each condition in the table and the description", () => {
     const svg = renderAgentMapSvg(AGENT_SUPPORT);
-    for (const r of working) assert.ok(svg.includes(`>${r.names[0]}</text>`), `${r.id} tile`);
+    for (const r of working) assert.ok(svg.includes(`>${r.names[0]}</text>`), `${r.id} chip`);
     for (const r of blind) assert.ok(!svg.includes(r.names[0]!), `${r.id} is drawn`);
-    assert.match(svg, /Early Access build/);
     assert.match(svg, />Kiro CLI<\/text>/);
     assert.doesNotMatch(svg, />Kiro<\/text>/);
+    assert.match(/<desc id="desc">[^<]*<\/desc>/.exec(svg)![0], /Early Access build/);
+    assert.match(renderReadmeTierMarkdown(AGENT_SUPPORT), /\| Junie CLI \| `junie` \(add `--scope user`\) \| partial \| yes, on the Early Access build \|/);
+    assert.doesNotMatch(svg, /agent-support\.mts/, "no source-file jargon in the image");
+  });
+
+  it("links each README row to its section in the support doc", () => {
+    const md = renderReadmeTierMarkdown(AGENT_SUPPORT);
+    const doc = renderSupportDoc(AGENT_SUPPORT);
+    for (const r of working) {
+      const anchor = headingAnchor(r.names[0]!);
+      assert.ok(md.includes(`(docs/AGENT-SUPPORT.md#${anchor})`), `${r.id} link`);
+      assert.ok(doc.split("\n").some((line) => line.startsWith("### ") && headingAnchor(line.slice(4)) === anchor), `${r.id} anchor exists`);
+    }
   });
 
   it("draws an image GitHub and npm can show: a title, a dark scheme, and no script, font or link", () => {

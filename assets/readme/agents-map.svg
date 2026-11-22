@@ -1,79 +1,42 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 989" width="820" height="989" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 448" width="640" height="448" role="img" aria-labelledby="title desc">
 <title id="title">Where the guard blocks a destructive command</title>
 <desc id="desc">16 agents grouped by tier. full: Claude Code (yes, in every permission mode), Codex CLI (yes, after you trust each hook in /hooks), Gemini CLI (yes, in a trusted folder), Qwen Code (yes, once you approve the project hooks or trust the folder), Cursor (yes (3.x)), GitHub Copilot CLI (yes), Devin Local (yes, outside Restricted Mode), Kiro CLI (yes (exit 2)), Factory Droid (yes), Amp (yes, through a local plugin file). partial: Grok CLI (yes, in a trusted folder), Auggie (yes), Junie CLI (yes, on the Early Access build), Cline (yes, while Enable Hooks is on), Goose (yes), OpenCode (yes, through a local plugin file).</desc>
-<style>text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif}.mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace}.b{font-weight:600}.bg{fill:#ffffff}.panel{fill:#f6f8fa;stroke:#d0d7de}.rule{stroke:#d0d7de}.tx{fill:#1f2328}.mute{fill:#59636e}.deny{fill:#cf222e}.deny-bg{fill:#ffebe9;stroke:#cf222e}.ok{fill:#1a7f37}.ok-bg{fill:#dafbe1;stroke:#1a7f37}.accent{fill:#0969da}.accent-bg{fill:#ddf4ff;stroke:#0969da}.warn{fill:#9a6700}.warn-bg{fill:#fff8c5;stroke:#9a6700}.arrow{stroke:#59636e;fill:none}.head{fill:#59636e}@media (prefers-color-scheme:dark){.bg{fill:#0d1117}.panel{fill:#161b22;stroke:#3d444d}.rule{stroke:#3d444d}.tx{fill:#f0f6fc}.mute{fill:#9198a1}.deny{fill:#ff7b72}.deny-bg{fill:#3d1214;stroke:#ff7b72}.ok{fill:#3fb950}.ok-bg{fill:#12301c;stroke:#3fb950}.accent{fill:#4493f8}.accent-bg{fill:#0c2d5a;stroke:#4493f8}.warn{fill:#d29922}.warn-bg{fill:#3a2a07;stroke:#d29922}.arrow{stroke:#9198a1;fill:none}.head{fill:#9198a1}}</style>
-<rect x="0" y="0" width="820" height="989" rx="12" class="bg"/>
-<text x="24" y="50" font-size="26" class="tx b" xml:space="preserve">Where the guard blocks a destructive command</text>
-<text x="24" y="82" font-size="18" class="mute" xml:space="preserve">16 agents, one hook file: hooks/gateguard.mjs. Each tile shows that agent's</text>
-<text x="24" y="106" font-size="18" class="mute" xml:space="preserve">Blocks cell from src/lib/agent-support.mts.</text>
-<text x="24" y="164" font-size="20" class="tx b" xml:space="preserve">Full: blocks, loads lessons at session start, has a Stop gate</text>
-<rect x="24" y="178" width="378" height="93" rx="8" class="panel"/>
-<rect x="24" y="178" width="6" height="93" rx="3" class="ok-bg"/>
-<text x="44" y="209" font-size="21" class="tx b" xml:space="preserve">Claude Code</text>
-<text x="44" y="232" font-size="19" class="ok" xml:space="preserve">yes, in every permission mode</text>
-<rect x="418" y="178" width="378" height="93" rx="8" class="panel"/>
-<rect x="418" y="178" width="6" height="93" rx="3" class="ok-bg"/>
-<text x="438" y="209" font-size="21" class="tx b" xml:space="preserve">Codex CLI</text>
-<text x="438" y="232" font-size="19" class="ok" xml:space="preserve">yes, after you trust each hook</text>
-<text x="438" y="257" font-size="19" class="ok" xml:space="preserve">in /hooks</text>
-<rect x="24" y="283" width="378" height="118" rx="8" class="panel"/>
-<rect x="24" y="283" width="6" height="118" rx="3" class="ok-bg"/>
-<text x="44" y="314" font-size="21" class="tx b" xml:space="preserve">Gemini CLI</text>
-<text x="44" y="337" font-size="19" class="ok" xml:space="preserve">yes, in a trusted folder</text>
-<rect x="418" y="283" width="378" height="118" rx="8" class="panel"/>
-<rect x="418" y="283" width="6" height="118" rx="3" class="ok-bg"/>
-<text x="438" y="314" font-size="21" class="tx b" xml:space="preserve">Qwen Code</text>
-<text x="438" y="337" font-size="19" class="ok" xml:space="preserve">yes, once you approve the</text>
-<text x="438" y="362" font-size="19" class="ok" xml:space="preserve">project hooks or trust the</text>
-<text x="438" y="387" font-size="19" class="ok" xml:space="preserve">folder</text>
-<rect x="24" y="413" width="378" height="68" rx="8" class="panel"/>
-<rect x="24" y="413" width="6" height="68" rx="3" class="ok-bg"/>
-<text x="44" y="444" font-size="21" class="tx b" xml:space="preserve">Cursor</text>
-<text x="44" y="467" font-size="19" class="ok" xml:space="preserve">yes (3.x)</text>
-<rect x="418" y="413" width="378" height="68" rx="8" class="panel"/>
-<rect x="418" y="413" width="6" height="68" rx="3" class="ok-bg"/>
-<text x="438" y="444" font-size="21" class="tx b" xml:space="preserve">GitHub Copilot CLI</text>
-<text x="438" y="467" font-size="19" class="ok" xml:space="preserve">yes</text>
-<rect x="24" y="493" width="378" height="68" rx="8" class="panel"/>
-<rect x="24" y="493" width="6" height="68" rx="3" class="ok-bg"/>
-<text x="44" y="524" font-size="21" class="tx b" xml:space="preserve">Devin Local</text>
-<text x="44" y="547" font-size="19" class="ok" xml:space="preserve">yes, outside Restricted Mode</text>
-<rect x="418" y="493" width="378" height="68" rx="8" class="panel"/>
-<rect x="418" y="493" width="6" height="68" rx="3" class="ok-bg"/>
-<text x="438" y="524" font-size="21" class="tx b" xml:space="preserve">Kiro CLI</text>
-<text x="438" y="547" font-size="19" class="ok" xml:space="preserve">yes (exit 2)</text>
-<rect x="24" y="573" width="378" height="68" rx="8" class="panel"/>
-<rect x="24" y="573" width="6" height="68" rx="3" class="ok-bg"/>
-<text x="44" y="604" font-size="21" class="tx b" xml:space="preserve">Factory Droid</text>
-<text x="44" y="627" font-size="19" class="ok" xml:space="preserve">yes</text>
-<rect x="418" y="573" width="378" height="68" rx="8" class="panel"/>
-<rect x="418" y="573" width="6" height="68" rx="3" class="ok-bg"/>
-<text x="438" y="604" font-size="21" class="tx b" xml:space="preserve">Amp</text>
-<text x="438" y="627" font-size="19" class="ok" xml:space="preserve">yes, through a local plugin file</text>
-<text x="24" y="687" font-size="20" class="tx b" xml:space="preserve">Partial: blocks; session lessons or the Stop gate are missing</text>
-<rect x="24" y="701" width="378" height="68" rx="8" class="panel"/>
-<rect x="24" y="701" width="6" height="68" rx="3" class="ok-bg"/>
-<text x="44" y="732" font-size="21" class="tx b" xml:space="preserve">Grok CLI</text>
-<text x="44" y="755" font-size="19" class="ok" xml:space="preserve">yes, in a trusted folder</text>
-<rect x="418" y="701" width="378" height="68" rx="8" class="panel"/>
-<rect x="418" y="701" width="6" height="68" rx="3" class="ok-bg"/>
-<text x="438" y="732" font-size="21" class="tx b" xml:space="preserve">Auggie</text>
-<text x="438" y="755" font-size="19" class="ok" xml:space="preserve">yes</text>
-<rect x="24" y="781" width="378" height="68" rx="8" class="panel"/>
-<rect x="24" y="781" width="6" height="68" rx="3" class="warn-bg"/>
-<text x="44" y="812" font-size="21" class="tx b" xml:space="preserve">Junie CLI</text>
-<text x="44" y="835" font-size="19" class="warn" xml:space="preserve">yes, on the Early Access build</text>
-<rect x="418" y="781" width="378" height="68" rx="8" class="panel"/>
-<rect x="418" y="781" width="6" height="68" rx="3" class="ok-bg"/>
-<text x="438" y="812" font-size="21" class="tx b" xml:space="preserve">Cline</text>
-<text x="438" y="835" font-size="19" class="ok" xml:space="preserve">yes, while Enable Hooks is on</text>
-<rect x="24" y="861" width="378" height="68" rx="8" class="panel"/>
-<rect x="24" y="861" width="6" height="68" rx="3" class="ok-bg"/>
-<text x="44" y="892" font-size="21" class="tx b" xml:space="preserve">Goose</text>
-<text x="44" y="915" font-size="19" class="ok" xml:space="preserve">yes</text>
-<rect x="418" y="861" width="378" height="68" rx="8" class="panel"/>
-<rect x="418" y="861" width="6" height="68" rx="3" class="ok-bg"/>
-<text x="438" y="892" font-size="21" class="tx b" xml:space="preserve">OpenCode</text>
-<text x="438" y="915" font-size="19" class="ok" xml:space="preserve">yes, through a local plugin file</text>
-<text x="24" y="965" font-size="17" class="mute" xml:space="preserve">Every row, including agents where nothing is blocked: docs/AGENT-SUPPORT.md</text>
+<style>text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif}.mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace}.b{font-weight:600}.bg{fill:#ffffff}.panel{fill:#f6f8fa;stroke:#d0d7de}.rule{stroke:#d0d7de}.tx{fill:#1f2328}.mute{fill:#59636e}.deny{fill:#cf222e}.deny-bg{fill:#ffebe9;stroke:#cf222e}.ok{fill:#1a7f37}.ok-bg{fill:#dafbe1;stroke:#1a7f37}.accent{fill:#0969da}.accent-bg{fill:#ddf4ff;stroke:#0969da}.warn{fill:#9a6700}.warn-bg{fill:#fff8c5;stroke:#9a6700}.arrow{stroke:#59636e;fill:none}.head{fill:#59636e}@media (prefers-color-scheme:dark){.bg{fill:#0d1117}.panel{fill:#161b22;stroke:#3d444d}.rule{stroke:#3d444d}.tx{fill:#f0f6fc}.mute{fill:#9198a1}.deny{fill:#ff7b72}.deny-bg{fill:#3d1214;stroke:#ff7b72}.ok{fill:#3fb950}.ok-bg{fill:#12301c;stroke:#3fb950}.accent{fill:#58a6ff}.accent-bg{fill:#0c2d5a;stroke:#58a6ff}.warn{fill:#d29922}.warn-bg{fill:#3a2a07;stroke:#d29922}.arrow{stroke:#9198a1;fill:none}.head{fill:#9198a1}}</style>
+<rect x="0" y="0" width="640" height="448" rx="12" class="bg"/>
+<text x="24" y="44" font-size="20" class="tx" xml:space="preserve"><tspan class="b">Full: </tspan>blocks, loads lessons at session start, has a Stop gate</text>
+<rect x="24" y="58" width="164" height="42" rx="21" class="ok-bg"/>
+<text x="106" y="86" font-size="20" class="tx b" text-anchor="middle" xml:space="preserve">Claude Code</text>
+<rect x="198" y="58" width="140" height="42" rx="21" class="ok-bg"/>
+<text x="268" y="86" font-size="20" class="tx b" text-anchor="middle" xml:space="preserve">Codex CLI</text>
+<rect x="348" y="58" width="152" height="42" rx="21" class="ok-bg"/>
+<text x="424" y="86" font-size="20" class="tx b" text-anchor="middle" xml:space="preserve">Gemini CLI</text>
+<rect x="24" y="110" width="140" height="42" rx="21" class="ok-bg"/>
+<text x="94" y="138" font-size="20" class="tx b" text-anchor="middle" xml:space="preserve">Qwen Code</text>
+<rect x="174" y="110" width="104" height="42" rx="21" class="ok-bg"/>
+<text x="226" y="138" font-size="20" class="tx b" text-anchor="middle" xml:space="preserve">Cursor</text>
+<rect x="288" y="110" width="248" height="42" rx="21" class="ok-bg"/>
+<text x="412" y="138" font-size="20" class="tx b" text-anchor="middle" xml:space="preserve">GitHub Copilot CLI</text>
+<rect x="24" y="162" width="164" height="42" rx="21" class="ok-bg"/>
+<text x="106" y="190" font-size="20" class="tx b" text-anchor="middle" xml:space="preserve">Devin Local</text>
+<rect x="198" y="162" width="128" height="42" rx="21" class="ok-bg"/>
+<text x="262" y="190" font-size="20" class="tx b" text-anchor="middle" xml:space="preserve">Kiro CLI</text>
+<rect x="336" y="162" width="188" height="42" rx="21" class="ok-bg"/>
+<text x="430" y="190" font-size="20" class="tx b" text-anchor="middle" xml:space="preserve">Factory Droid</text>
+<rect x="534" y="162" width="68" height="42" rx="21" class="ok-bg"/>
+<text x="568" y="190" font-size="20" class="tx b" text-anchor="middle" xml:space="preserve">Amp</text>
+<text x="24" y="250" font-size="20" class="tx" xml:space="preserve"><tspan class="b">Partial: </tspan>blocks; session lessons or the Stop gate are missing</text>
+<rect x="24" y="264" width="128" height="42" rx="21" class="ok-bg"/>
+<text x="88" y="292" font-size="20" class="tx b" text-anchor="middle" xml:space="preserve">Grok CLI</text>
+<rect x="162" y="264" width="104" height="42" rx="21" class="ok-bg"/>
+<text x="214" y="292" font-size="20" class="tx b" text-anchor="middle" xml:space="preserve">Auggie</text>
+<rect x="276" y="264" width="140" height="42" rx="21" class="ok-bg"/>
+<text x="346" y="292" font-size="20" class="tx b" text-anchor="middle" xml:space="preserve">Junie CLI</text>
+<rect x="426" y="264" width="92" height="42" rx="21" class="ok-bg"/>
+<text x="472" y="292" font-size="20" class="tx b" text-anchor="middle" xml:space="preserve">Cline</text>
+<rect x="24" y="316" width="92" height="42" rx="21" class="ok-bg"/>
+<text x="70" y="344" font-size="20" class="tx b" text-anchor="middle" xml:space="preserve">Goose</text>
+<rect x="126" y="316" width="128" height="42" rx="21" class="ok-bg"/>
+<text x="190" y="344" font-size="20" class="tx b" text-anchor="middle" xml:space="preserve">OpenCode</text>
+<text x="24" y="388" font-size="18" class="mute" xml:space="preserve">When each one blocks: the table below. Every other agent:</text>
+<text x="24" y="414" font-size="18" class="mute" xml:space="preserve">docs/AGENT-SUPPORT.md</text>
 </svg>

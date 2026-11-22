@@ -1,38 +1,38 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 736" width="820" height="736" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 676" width="640" height="676" role="img" aria-labelledby="title desc">
 <title id="title">One hook file, six agents, the same refusal</title>
 <desc id="desc">git push --force origin main sent through hooks/gateguard.mjs as Claude Code, Codex CLI, Gemini CLI, Cursor, GitHub Copilot CLI, Kiro CLI. Each reply is a deny in that agent's own format naming the rule git-push-force; git status is allowed on all six with no output.</desc>
-<style>text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif}.mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace}.b{font-weight:600}.bg{fill:#ffffff}.panel{fill:#f6f8fa;stroke:#d0d7de}.rule{stroke:#d0d7de}.tx{fill:#1f2328}.mute{fill:#59636e}.deny{fill:#cf222e}.deny-bg{fill:#ffebe9;stroke:#cf222e}.ok{fill:#1a7f37}.ok-bg{fill:#dafbe1;stroke:#1a7f37}.accent{fill:#0969da}.accent-bg{fill:#ddf4ff;stroke:#0969da}.warn{fill:#9a6700}.warn-bg{fill:#fff8c5;stroke:#9a6700}.arrow{stroke:#59636e;fill:none}.head{fill:#59636e}@media (prefers-color-scheme:dark){.bg{fill:#0d1117}.panel{fill:#161b22;stroke:#3d444d}.rule{stroke:#3d444d}.tx{fill:#f0f6fc}.mute{fill:#9198a1}.deny{fill:#ff7b72}.deny-bg{fill:#3d1214;stroke:#ff7b72}.ok{fill:#3fb950}.ok-bg{fill:#12301c;stroke:#3fb950}.accent{fill:#4493f8}.accent-bg{fill:#0c2d5a;stroke:#4493f8}.warn{fill:#d29922}.warn-bg{fill:#3a2a07;stroke:#d29922}.arrow{stroke:#9198a1;fill:none}.head{fill:#9198a1}}</style>
-<rect x="0" y="0" width="820" height="736" rx="12" class="bg"/>
-<text x="24" y="48" font-size="24" class="tx b" xml:space="preserve">One hook file, six agents, the same refusal</text>
-<text x="24" y="76" font-size="17" class="mute" xml:space="preserve">Captured on 3.27.0 plus the Unreleased changes: demo/captures/demos.json</text>
-<rect x="24" y="96" width="772" height="50" rx="8" class="panel"/>
-<text x="40" y="128" font-size="20" class="mute mono" xml:space="preserve">$ </text>
-<text x="64" y="128" font-size="20" class="tx mono b" xml:space="preserve">git push --force origin main</text>
-<rect x="24" y="160" width="772" height="74" rx="8" class="deny-bg"/>
-<text x="40" y="205" font-size="22" class="tx b" xml:space="preserve">Claude Code</text>
-<text x="276" y="191" font-size="21" class="deny mono b" xml:space="preserve">&quot;permissionDecision&quot;:&quot;deny&quot;</text>
-<text x="276" y="219" font-size="21" class="tx mono" xml:space="preserve">Matched rule: git-push-force</text>
-<rect x="24" y="242" width="772" height="74" rx="8" class="deny-bg"/>
-<text x="40" y="287" font-size="22" class="tx b" xml:space="preserve">Codex CLI</text>
-<text x="276" y="273" font-size="21" class="deny mono b" xml:space="preserve">&quot;permissionDecision&quot;:&quot;deny&quot;</text>
-<text x="276" y="301" font-size="21" class="tx mono" xml:space="preserve">Matched rule: git-push-force</text>
-<rect x="24" y="324" width="772" height="74" rx="8" class="deny-bg"/>
-<text x="40" y="369" font-size="22" class="tx b" xml:space="preserve">Gemini CLI</text>
-<text x="276" y="355" font-size="21" class="deny mono b" xml:space="preserve">&quot;decision&quot;:&quot;deny&quot;</text>
-<text x="276" y="383" font-size="21" class="tx mono" xml:space="preserve">Matched rule: git-push-force</text>
-<rect x="24" y="406" width="772" height="74" rx="8" class="deny-bg"/>
-<text x="40" y="451" font-size="22" class="tx b" xml:space="preserve">Cursor</text>
-<text x="276" y="437" font-size="21" class="deny mono b" xml:space="preserve">&quot;permission&quot;:&quot;deny&quot;</text>
-<text x="276" y="465" font-size="21" class="tx mono" xml:space="preserve">Matched rule: git-push-force</text>
-<rect x="24" y="488" width="772" height="74" rx="8" class="deny-bg"/>
-<text x="40" y="533" font-size="22" class="tx b" xml:space="preserve">GitHub Copilot CLI</text>
-<text x="276" y="519" font-size="21" class="deny mono b" xml:space="preserve">&quot;permissionDecision&quot;:&quot;deny&quot;</text>
-<text x="276" y="547" font-size="21" class="tx mono" xml:space="preserve">Matched rule: git-push-force</text>
-<rect x="24" y="570" width="772" height="74" rx="8" class="deny-bg"/>
-<text x="40" y="615" font-size="22" class="tx b" xml:space="preserve">Kiro CLI</text>
-<text x="276" y="601" font-size="21" class="deny mono b" xml:space="preserve">exit 2 (reason on stderr)</text>
-<text x="276" y="629" font-size="21" class="tx mono" xml:space="preserve">Matched rule: git-push-force</text>
-<rect x="24" y="656" width="772" height="56" rx="8" class="ok-bg"/>
-<text x="40" y="692" font-size="21" class="ok b" xml:space="preserve">$ git status</text>
-<text x="276" y="692" font-size="21" class="tx" xml:space="preserve">allowed on all 6: exit 0, no output</text>
+<style>text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif}.mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace}.b{font-weight:600}.bg{fill:#ffffff}.panel{fill:#f6f8fa;stroke:#d0d7de}.rule{stroke:#d0d7de}.tx{fill:#1f2328}.mute{fill:#59636e}.deny{fill:#cf222e}.deny-bg{fill:#ffebe9;stroke:#cf222e}.ok{fill:#1a7f37}.ok-bg{fill:#dafbe1;stroke:#1a7f37}.accent{fill:#0969da}.accent-bg{fill:#ddf4ff;stroke:#0969da}.warn{fill:#9a6700}.warn-bg{fill:#fff8c5;stroke:#9a6700}.arrow{stroke:#59636e;fill:none}.head{fill:#59636e}@media (prefers-color-scheme:dark){.bg{fill:#0d1117}.panel{fill:#161b22;stroke:#3d444d}.rule{stroke:#3d444d}.tx{fill:#f0f6fc}.mute{fill:#9198a1}.deny{fill:#ff7b72}.deny-bg{fill:#3d1214;stroke:#ff7b72}.ok{fill:#3fb950}.ok-bg{fill:#12301c;stroke:#3fb950}.accent{fill:#58a6ff}.accent-bg{fill:#0c2d5a;stroke:#58a6ff}.warn{fill:#d29922}.warn-bg{fill:#3a2a07;stroke:#d29922}.arrow{stroke:#9198a1;fill:none}.head{fill:#9198a1}}</style>
+<rect x="0" y="0" width="640" height="676" rx="12" class="bg"/>
+<text x="24" y="46" font-size="22" class="tx b" xml:space="preserve">One hook file, six agents, the same refusal</text>
+<rect x="24" y="62" width="592" height="48" rx="8" class="panel"/>
+<text x="40" y="93" font-size="20" class="tx mono" xml:space="preserve">$ <tspan class="b">git push --force origin main</tspan></text>
+<text x="40" y="140" font-size="18" class="mute" xml:space="preserve">Agent</text>
+<text x="600" y="140" font-size="18" class="mute" text-anchor="end" xml:space="preserve">How the agent gets the deny</text>
+<rect x="24" y="152" width="592" height="66" rx="8" class="deny-bg"/>
+<text x="40" y="180" font-size="20" class="tx b" xml:space="preserve">Claude Code</text>
+<text x="600" y="180" font-size="18" class="deny mono b" text-anchor="end" xml:space="preserve">&quot;permissionDecision&quot;:&quot;deny&quot;</text>
+<text x="40" y="206" font-size="18" class="tx mono" xml:space="preserve">Matched rule: git-push-force</text>
+<rect x="24" y="226" width="592" height="66" rx="8" class="deny-bg"/>
+<text x="40" y="254" font-size="20" class="tx b" xml:space="preserve">Codex CLI</text>
+<text x="600" y="254" font-size="18" class="deny mono b" text-anchor="end" xml:space="preserve">&quot;permissionDecision&quot;:&quot;deny&quot;</text>
+<text x="40" y="280" font-size="18" class="tx mono" xml:space="preserve">Matched rule: git-push-force</text>
+<rect x="24" y="300" width="592" height="66" rx="8" class="deny-bg"/>
+<text x="40" y="328" font-size="20" class="tx b" xml:space="preserve">Gemini CLI</text>
+<text x="600" y="328" font-size="18" class="deny mono b" text-anchor="end" xml:space="preserve">&quot;decision&quot;:&quot;deny&quot;</text>
+<text x="40" y="354" font-size="18" class="tx mono" xml:space="preserve">Matched rule: git-push-force</text>
+<rect x="24" y="374" width="592" height="66" rx="8" class="deny-bg"/>
+<text x="40" y="402" font-size="20" class="tx b" xml:space="preserve">Cursor</text>
+<text x="600" y="402" font-size="18" class="deny mono b" text-anchor="end" xml:space="preserve">&quot;permission&quot;:&quot;deny&quot;</text>
+<text x="40" y="428" font-size="18" class="tx mono" xml:space="preserve">Matched rule: git-push-force</text>
+<rect x="24" y="448" width="592" height="66" rx="8" class="deny-bg"/>
+<text x="40" y="476" font-size="20" class="tx b" xml:space="preserve">GitHub Copilot CLI</text>
+<text x="600" y="476" font-size="18" class="deny mono b" text-anchor="end" xml:space="preserve">&quot;permissionDecision&quot;:&quot;deny&quot;</text>
+<text x="40" y="502" font-size="18" class="tx mono" xml:space="preserve">Matched rule: git-push-force</text>
+<rect x="24" y="522" width="592" height="66" rx="8" class="deny-bg"/>
+<text x="40" y="550" font-size="20" class="tx b" xml:space="preserve">Kiro CLI</text>
+<text x="600" y="550" font-size="18" class="deny mono b" text-anchor="end" xml:space="preserve">exit 2, reason on stderr</text>
+<text x="40" y="576" font-size="18" class="tx mono" xml:space="preserve">Matched rule: git-push-force</text>
+<rect x="24" y="600" width="592" height="52" rx="8" class="ok-bg"/>
+<text x="40" y="633" font-size="20" class="ok mono b" xml:space="preserve">$ git status</text>
+<text x="600" y="633" font-size="18" class="tx" text-anchor="end" xml:space="preserve">allowed on all 6: exit 0, no output</text>
 </svg>

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 411" width="640" height="411" role="img" aria-labelledby="title desc">
+<title id="title">Memory: a log you can search, and lessons</title>
+<desc id="desc">Two separate parts. bin/observe.mjs writes one redacted row per tool call, and ci_recall searches that log with BM25. Apart from that, ci_create_instinct saves a lesson as a YAML note starting at 0.6, which ci_reinforce moves, and hooks/session.mjs prints lessons at 0.5 or higher when the next session starts. Nothing applies a lesson.</desc>
+<style>text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif}.mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace}.b{font-weight:600}.bg{fill:#ffffff}.panel{fill:#f6f8fa;stroke:#d0d7de}.rule{stroke:#d0d7de}.tx{fill:#1f2328}.mute{fill:#59636e}.deny{fill:#cf222e}.deny-bg{fill:#ffebe9;stroke:#cf222e}.ok{fill:#1a7f37}.ok-bg{fill:#dafbe1;stroke:#1a7f37}.accent{fill:#0969da}.accent-bg{fill:#ddf4ff;stroke:#0969da}.warn{fill:#9a6700}.warn-bg{fill:#fff8c5;stroke:#9a6700}.arrow{stroke:#59636e;fill:none}.head{fill:#59636e}@media (prefers-color-scheme:dark){.bg{fill:#0d1117}.panel{fill:#161b22;stroke:#3d444d}.rule{stroke:#3d444d}.tx{fill:#f0f6fc}.mute{fill:#9198a1}.deny{fill:#ff7b72}.deny-bg{fill:#3d1214;stroke:#ff7b72}.ok{fill:#3fb950}.ok-bg{fill:#12301c;stroke:#3fb950}.accent{fill:#58a6ff}.accent-bg{fill:#0c2d5a;stroke:#58a6ff}.warn{fill:#d29922}.warn-bg{fill:#3a2a07;stroke:#d29922}.arrow{stroke:#9198a1;fill:none}.head{fill:#9198a1}}</style>
+<rect x="0" y="0" width="640" height="411" rx="12" class="bg"/>
+<rect x="24" y="24" width="288" height="119" rx="8" class="panel"/>
+<text x="40" y="54" font-size="20" class="tx b" xml:space="preserve">1. Log</text>
+<text x="40" y="81" font-size="18" class="mute mono" xml:space="preserve">bin/observe.mjs</text>
+<text x="40" y="106" font-size="18" class="mute" xml:space="preserve">one redacted row per tool</text>
+<text x="40" y="131" font-size="18" class="mute" xml:space="preserve">call, on your disk</text>
+<rect x="328" y="24" width="288" height="144" rx="8" class="accent-bg"/>
+<text x="344" y="54" font-size="20" class="accent b" xml:space="preserve">3. Lessons</text>
+<text x="344" y="81" font-size="18" class="mute mono" xml:space="preserve">ci_create_instinct</text>
+<text x="344" y="106" font-size="18" class="mute" xml:space="preserve">a YAML note that starts</text>
+<text x="344" y="131" font-size="18" class="mute" xml:space="preserve">at 0.6; you move it with</text>
+<text x="344" y="156" font-size="18" class="mute" xml:space="preserve">ci_reinforce</text>
+<rect x="24" y="204" width="288" height="119" rx="8" class="panel"/>
+<text x="40" y="234" font-size="20" class="tx b" xml:space="preserve">2. Search</text>
+<text x="40" y="261" font-size="18" class="mute mono" xml:space="preserve">ci_recall</text>
+<text x="40" y="286" font-size="18" class="mute" xml:space="preserve">BM25 over the log; no</text>
+<text x="40" y="311" font-size="18" class="mute" xml:space="preserve">shared word, no result</text>
+<rect x="328" y="204" width="288" height="119" rx="8" class="panel"/>
+<text x="344" y="234" font-size="20" class="tx b" xml:space="preserve">Next session start</text>
+<text x="344" y="261" font-size="18" class="mute mono" xml:space="preserve">hooks/session.mjs</text>
+<text x="344" y="286" font-size="18" class="mute" xml:space="preserve">prints lessons at 0.5 or</text>
+<text x="344" y="311" font-size="18" class="mute" xml:space="preserve">higher, at most 10 lines</text>
+<line x1="168" y1="145" x2="168" y2="194.8" class="arrow" stroke-width="2"/><polygon points="168,202 164.1,193.9 171.9,193.9" class="head"/>
+<line x1="472" y1="170" x2="472" y2="194.8" class="arrow" stroke-width="2"/><polygon points="472,202 468.1,193.9 475.9,193.9" class="head"/>
+<rect x="24" y="343" width="592" height="44" rx="8" class="warn-bg"/>
+<text x="320" y="371" font-size="18" class="warn b" text-anchor="middle" xml:space="preserve">Notes, not enforcement: nothing applies a lesson</text>
+</svg>

@@ -1,37 +1,37 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 724" width="820" height="724" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 673" width="640" height="673" role="img" aria-labelledby="title desc">
 <title id="title">How a tool call goes through</title>
-<desc id="desc">The agent asks to run a tool call. The guard hook, hooks/gateguard.mjs, decides before it runs: a refused call gets a reply naming the rule; an allowed call runs, and bin/observe.mjs writes one redacted log row. Saved lessons load when the next session starts. No model calls and no network calls.</desc>
-<style>text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif}.mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace}.b{font-weight:600}.bg{fill:#ffffff}.panel{fill:#f6f8fa;stroke:#d0d7de}.rule{stroke:#d0d7de}.tx{fill:#1f2328}.mute{fill:#59636e}.deny{fill:#cf222e}.deny-bg{fill:#ffebe9;stroke:#cf222e}.ok{fill:#1a7f37}.ok-bg{fill:#dafbe1;stroke:#1a7f37}.accent{fill:#0969da}.accent-bg{fill:#ddf4ff;stroke:#0969da}.warn{fill:#9a6700}.warn-bg{fill:#fff8c5;stroke:#9a6700}.arrow{stroke:#59636e;fill:none}.head{fill:#59636e}@media (prefers-color-scheme:dark){.bg{fill:#0d1117}.panel{fill:#161b22;stroke:#3d444d}.rule{stroke:#3d444d}.tx{fill:#f0f6fc}.mute{fill:#9198a1}.deny{fill:#ff7b72}.deny-bg{fill:#3d1214;stroke:#ff7b72}.ok{fill:#3fb950}.ok-bg{fill:#12301c;stroke:#3fb950}.accent{fill:#4493f8}.accent-bg{fill:#0c2d5a;stroke:#4493f8}.warn{fill:#d29922}.warn-bg{fill:#3a2a07;stroke:#d29922}.arrow{stroke:#9198a1;fill:none}.head{fill:#9198a1}}</style>
-<rect x="0" y="0" width="820" height="724" rx="12" class="bg"/>
-<text x="24" y="48" font-size="24" class="tx b" xml:space="preserve">How a tool call goes through</text>
-<rect x="64" y="76" width="732" height="70" rx="8" class="panel"/>
-<text x="80" y="106" font-size="20" class="tx b" xml:space="preserve">1. The agent asks to run a tool call</text>
-<text x="80" y="133" font-size="18" class="mute mono" xml:space="preserve">a shell command, an edit, a write</text>
-<rect x="64" y="186" width="732" height="94" rx="8" class="accent-bg"/>
-<text x="80" y="216" font-size="20" class="accent b" xml:space="preserve">2. The guard hook decides before it runs</text>
-<text x="80" y="243" font-size="18" class="mute mono" xml:space="preserve">hooks/gateguard.mjs</text>
-<text x="80" y="267" font-size="18" class="mute mono" xml:space="preserve">answers through lib/hook-io.mjs in the agent's format</text>
-<rect x="64" y="320" width="358" height="94" rx="8" class="deny-bg"/>
-<text x="80" y="350" font-size="20" class="deny b" xml:space="preserve">Refused</text>
-<text x="80" y="377" font-size="18" class="mute mono" xml:space="preserve">the reply names the rule</text>
-<text x="80" y="401" font-size="18" class="mute mono" xml:space="preserve">the call is not logged</text>
-<rect x="438" y="320" width="358" height="94" rx="8" class="ok-bg"/>
-<text x="454" y="350" font-size="20" class="ok b" xml:space="preserve">Allowed</text>
-<text x="454" y="377" font-size="18" class="mute mono" xml:space="preserve">the hook prints nothing</text>
-<text x="454" y="401" font-size="18" class="mute mono" xml:space="preserve">and the call runs</text>
-<rect x="438" y="454" width="358" height="94" rx="8" class="panel"/>
-<text x="454" y="484" font-size="20" class="tx b" xml:space="preserve">3. One log row per call</text>
-<text x="454" y="511" font-size="18" class="mute mono" xml:space="preserve">bin/observe.mjs, redacted,</text>
-<text x="454" y="535" font-size="18" class="mute mono" xml:space="preserve">on your own disk</text>
-<rect x="64" y="588" width="732" height="70" rx="8" class="panel"/>
-<text x="80" y="618" font-size="20" class="tx b" xml:space="preserve">4. Saved lessons load when the next session starts</text>
-<text x="80" y="645" font-size="18" class="mute mono" xml:space="preserve">hooks/session.mjs, at most 10 lines</text>
-<line x1="430" y1="146" x2="430" y2="176.8" class="arrow" stroke-width="2"/><polygon points="430,184 426.1,175.9 433.9,175.9" class="head"/>
-<line x1="243" y1="280" x2="243" y2="310.8" class="arrow" stroke-width="2"/><polygon points="243,318 239.1,309.9 246.9,309.9" class="head"/>
-<line x1="617" y1="280" x2="617" y2="310.8" class="arrow" stroke-width="2"/><polygon points="617,318 613.1,309.9 620.9,309.9" class="head"/>
-<line x1="617" y1="414" x2="617" y2="444.8" class="arrow" stroke-width="2"/><polygon points="617,452 613.1,443.9 620.9,443.9" class="head"/>
-<line x1="617" y1="548" x2="617" y2="578.8" class="arrow" stroke-width="2"/><polygon points="617,586 613.1,577.9 620.9,577.9" class="head"/>
-<path d="M 64 623 H 38 V 111 H 55" class="arrow" stroke-width="2"/>
-<polygon points="64,111 54,105 54,117" class="head"/>
-<text x="410" y="700" font-size="18" class="mute" text-anchor="middle" xml:space="preserve">No model calls  ·  no network calls  ·  Node 18 or newer</text>
+<desc id="desc">The agent asks to run a tool call. The guard hook, hooks/gateguard.mjs, decides before it runs: a refused call gets a reply naming the rule and does not run; an allowed call runs, and bin/observe.mjs writes one redacted log row. Saved lessons load when the next session starts. The hooks make no model or network calls.</desc>
+<style>text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif}.mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace}.b{font-weight:600}.bg{fill:#ffffff}.panel{fill:#f6f8fa;stroke:#d0d7de}.rule{stroke:#d0d7de}.tx{fill:#1f2328}.mute{fill:#59636e}.deny{fill:#cf222e}.deny-bg{fill:#ffebe9;stroke:#cf222e}.ok{fill:#1a7f37}.ok-bg{fill:#dafbe1;stroke:#1a7f37}.accent{fill:#0969da}.accent-bg{fill:#ddf4ff;stroke:#0969da}.warn{fill:#9a6700}.warn-bg{fill:#fff8c5;stroke:#9a6700}.arrow{stroke:#59636e;fill:none}.head{fill:#59636e}@media (prefers-color-scheme:dark){.bg{fill:#0d1117}.panel{fill:#161b22;stroke:#3d444d}.rule{stroke:#3d444d}.tx{fill:#f0f6fc}.mute{fill:#9198a1}.deny{fill:#ff7b72}.deny-bg{fill:#3d1214;stroke:#ff7b72}.ok{fill:#3fb950}.ok-bg{fill:#12301c;stroke:#3fb950}.accent{fill:#58a6ff}.accent-bg{fill:#0c2d5a;stroke:#58a6ff}.warn{fill:#d29922}.warn-bg{fill:#3a2a07;stroke:#d29922}.arrow{stroke:#9198a1;fill:none}.head{fill:#9198a1}}</style>
+<rect x="0" y="0" width="640" height="673" rx="12" class="bg"/>
+<rect x="52" y="24" width="564" height="69" rx="8" class="panel"/>
+<text x="68" y="54" font-size="20" class="tx b" xml:space="preserve">1. The agent asks to run a tool call</text>
+<text x="68" y="81" font-size="18" class="mute" xml:space="preserve">a shell command, an edit, a write</text>
+<rect x="52" y="129" width="564" height="94" rx="8" class="accent-bg"/>
+<text x="68" y="159" font-size="20" class="accent b" xml:space="preserve">2. The guard hook decides first</text>
+<text x="68" y="186" font-size="18" class="mute mono" xml:space="preserve">hooks/gateguard.mjs</text>
+<text x="68" y="211" font-size="18" class="mute" xml:space="preserve">answers in the format the agent reads</text>
+<rect x="52" y="259" width="274" height="94" rx="8" class="deny-bg"/>
+<text x="68" y="289" font-size="20" class="deny b" xml:space="preserve">Refused</text>
+<text x="68" y="316" font-size="18" class="mute" xml:space="preserve">the reply names the rule</text>
+<text x="68" y="341" font-size="18" class="mute" xml:space="preserve">the call does not run</text>
+<rect x="342" y="259" width="274" height="94" rx="8" class="ok-bg"/>
+<text x="358" y="289" font-size="20" class="ok b" xml:space="preserve">Allowed</text>
+<text x="358" y="316" font-size="18" class="mute" xml:space="preserve">the hook prints nothing</text>
+<text x="358" y="341" font-size="18" class="mute" xml:space="preserve">and the call runs</text>
+<rect x="52" y="389" width="564" height="94" rx="8" class="panel"/>
+<text x="68" y="419" font-size="20" class="tx b" xml:space="preserve">3. The call gets one log row</text>
+<text x="68" y="446" font-size="18" class="mute mono" xml:space="preserve">bin/observe.mjs</text>
+<text x="68" y="471" font-size="18" class="mute" xml:space="preserve">redacted, on your own disk</text>
+<rect x="52" y="519" width="564" height="94" rx="8" class="panel"/>
+<text x="68" y="549" font-size="20" class="tx b" xml:space="preserve">4. Lessons load at the next session</text>
+<text x="68" y="576" font-size="18" class="mute mono" xml:space="preserve">hooks/session.mjs</text>
+<text x="68" y="601" font-size="18" class="mute" xml:space="preserve">at most 10 lines</text>
+<line x1="334" y1="95" x2="334" y2="119.8" class="arrow" stroke-width="2"/><polygon points="334,127 330.1,118.9 337.9,118.9" class="head"/>
+<line x1="189" y1="225" x2="189" y2="249.8" class="arrow" stroke-width="2"/><polygon points="189,257 185.1,248.9 192.9,248.9" class="head"/>
+<line x1="479" y1="225" x2="479" y2="249.8" class="arrow" stroke-width="2"/><polygon points="479,257 475.1,248.9 482.9,248.9" class="head"/>
+<line x1="479" y1="355" x2="479" y2="379.8" class="arrow" stroke-width="2"/><polygon points="479,387 475.1,378.9 482.9,378.9" class="head"/>
+<line x1="479" y1="485" x2="479" y2="509.8" class="arrow" stroke-width="2"/><polygon points="479,517 475.1,508.9 482.9,508.9" class="head"/>
+<path d="M 52 566 H 34 V 58.5 H 43" class="arrow" stroke-width="2"/>
+<polygon points="52,58.5 42,52.5 42,64.5" class="head"/>
+<text x="320" y="649" font-size="18" class="mute" text-anchor="middle" xml:space="preserve">The hooks make no model or network calls</text>
 </svg>

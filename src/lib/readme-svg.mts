@@ -17,7 +17,16 @@ export const SANS = `-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Hel
 export const MONO = `ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace`;
 
 /** The width every README image is drawn at; the README shows each one at this width or less. */
-export const IMAGE_WIDTH = 820;
+export const IMAGE_WIDTH = 640;
+/**
+ * The smallest font size any image may use. A 390px phone shows a README image
+ * at most PHONE_WIDTH wide (390 less GitHub's two 16px gutters), so an image
+ * IMAGE_WIDTH wide is scaled by PHONE_WIDTH / IMAGE_WIDTH and 18 becomes 10px.
+ */
+export const MIN_FONT = 18;
+export const PHONE_WIDTH = 358;
+/** The smallest text an image shows on a 390px phone, in CSS pixels. */
+export const MIN_PHONE_PX = 10;
 /** Side padding inside an image. */
 export const PAD = 24;
 
@@ -27,7 +36,7 @@ const MONO_ADVANCE = 0.61;
 const SANS_ADVANCE = 0.56;
 const BOLD_ADVANCE = 0.6;
 
-const LIGHT = {
+export const LIGHT = {
   bg: "#ffffff",
   panel: "#f6f8fa",
   line: "#d0d7de",
@@ -43,7 +52,7 @@ const LIGHT = {
   warnBg: "#fff8c5",
 } as const;
 
-const DARK: Record<keyof typeof LIGHT, string> = {
+export const DARK: Record<keyof typeof LIGHT, string> = {
   bg: "#0d1117",
   panel: "#161b22",
   line: "#3d444d",
@@ -53,7 +62,7 @@ const DARK: Record<keyof typeof LIGHT, string> = {
   denyBg: "#3d1214",
   ok: "#3fb950",
   okBg: "#12301c",
-  accent: "#4493f8",
+  accent: "#58a6ff",
   accentBg: "#0c2d5a",
   warn: "#d29922",
   warnBg: "#3a2a07",
@@ -107,15 +116,29 @@ export function charsFit(width: number, size: number, face: Face): number {
  * so a wrapped capture line can still be found in the capture.
  */
 export function wrap(text: string, max: number): string[] {
-  const out: string[] = [];
-  let rest = text.replace(/\s+$/, "");
-  while (rest.length > max) {
-    const cut = rest.lastIndexOf(" ", max);
-    const at = cut > max / 3 ? cut : max;
-    out.push(rest.slice(0, at).replace(/\s+$/, ""));
-    rest = rest.slice(at).replace(/^ +/, "");
+  return wrapRanges(text, max).map(([start, end]) => text.slice(start, end));
+}
+
+/**
+ * The same breaks as `wrap`, as [start, end) offsets into the text. `restMax`,
+ * when given, is the room on every line after the first (a hanging indent).
+ */
+export function wrapRanges(text: string, max: number, restMax: number = max): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  const stop = text.replace(/\s+$/, "").length;
+  let from = 0;
+  let room = max;
+  while (stop - from > room) {
+    const cut = text.lastIndexOf(" ", from + room);
+    let at = cut - from > room / 3 ? cut : from + room;
+    room = restMax;
+    let end = at;
+    while (end > from && /\s/.test(text[end - 1]!)) end--;
+    out.push([from, end]);
+    while (at < stop && text[at] === " ") at++;
+    from = at;
   }
-  out.push(rest);
+  out.push([from, stop]);
   return out;
 }
 
@@ -123,6 +146,29 @@ export function wrap(text: string, max: number): string[] {
 export function text(x: number, y: number, size: number, cls: string, body: string, anchor: "start" | "middle" | "end" = "start"): string {
   const a = anchor === "start" ? "" : ` text-anchor="${anchor}"`;
   return `<text x="${x}" y="${y}" font-size="${size}" class="${cls}"${a} xml:space="preserve">${esc(body)}</text>`;
+}
+
+/** A run of text inside one line; a bold run is drawn at the bold weight. */
+export interface Span {
+  text: string;
+  bold?: boolean;
+}
+
+/** One line made of runs, so part of it can be bold. */
+export function richText(x: number, y: number, size: number, cls: string, spans: readonly Span[]): string {
+  const body = spans.map((s) => (s.bold ? `<tspan class="b">${esc(s.text)}</tspan>` : esc(s.text))).join("");
+  return `<text x="${x}" y="${y}" font-size="${size}" class="${cls}" xml:space="preserve">${body}</text>`;
+}
+
+/**
+ * The smallest text in an SVG as a 390px phone shows it, in CSS pixels: the
+ * smallest font-size times PHONE_WIDTH over the viewBox width (never scaled up).
+ */
+export function smallestPhonePx(svg: string): number {
+  const width = Number(/viewBox="0 0 ([\d.]+) /.exec(svg)?.[1] ?? NaN);
+  const sizes = [...svg.matchAll(/font-size="([\d.]+)"/g)].map((m) => Number(m[1]));
+  if (!Number.isFinite(width) || sizes.length === 0) return NaN;
+  return Math.min(...sizes) * Math.min(1, PHONE_WIDTH / width);
 }
 
 export function rect(x: number, y: number, w: number, h: number, cls: string, r = 8): string {
