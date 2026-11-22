@@ -1,8 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CLAIM_FILES, parseVerifyAllChain, parseClaims, findViolations, checkInvariantCount, } from "../bin/check-invariant-count.mjs";
+import { CLAIM_FILES, OUTSIDE_CHAIN_VERIFY_SCRIPTS, parseVerifyAllChain, parseClaims, findViolations, findOrphanVerifyScripts, checkInvariantCount, } from "../bin/check-invariant-count.mjs";
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const REPO_ROOT = join(__dirname, "..");
 const chainOf = (...names) => names.map((n) => `npm run ${n}`).join(" && ");
@@ -87,6 +89,57 @@ describe("check-invariant-count — findViolations", () => {
         assert.equal(v.length, 2);
     });
 });
+describe("check-invariant-count — orphan verify:* scripts", () => {
+    const chain = { invariants: ["skill-mirror", "routing-targets"], trailing: ["typecheck"] };
+    it("flags a verify:* script that is not in the verify:all chain", () => {
+        const orphans = findOrphanVerifyScripts({ "verify:all": "npm run verify:skill-mirror", "verify:skill-mirror": "node x", "verify:foo": "node y" }, chain);
+        assert.deepEqual(orphans, ["verify:foo"]);
+    });
+    it("does not flag verify:generated, which is a CI git-diff gate not a content invariant", () => {
+        const orphans = findOrphanVerifyScripts({
+            "verify:all": "npm run verify:skill-mirror",
+            "verify:skill-mirror": "node x",
+            "verify:routing-targets": "node z",
+            "verify:generated": "npm run build && git diff --exit-code",
+        }, chain);
+        assert.deepEqual(orphans, []);
+    });
+    it("does not flag verify:all itself", () => {
+        assert.deepEqual([...OUTSIDE_CHAIN_VERIFY_SCRIPTS], ["verify:all", "verify:generated"]);
+        assert.deepEqual(findOrphanVerifyScripts({ "verify:all": "npm run verify:skill-mirror", "verify:skill-mirror": "node x", "verify:routing-targets": "node z" }, chain), []);
+    });
+    it("reports every orphan, not just the first", () => {
+        const orphans = findOrphanVerifyScripts({ "verify:all": "x", "verify:alpha": "a", "verify:beta": "b", "verify:skill-mirror": "c" }, chain);
+        assert.deepEqual(orphans, ["verify:alpha", "verify:beta"]);
+    });
+    it("checkInvariantCount fails when package.json gains a verify:* script the chain never runs", () => {
+        const root = mkdtempSync(join(tmpdir(), "invariant-count-orphan-"));
+        try {
+            const claim = "(2 content invariants + typecheck: skill-mirror, routing-targets, typecheck) and (2 invariants + typecheck)";
+            writeFileSync(join(root, "package.json"), JSON.stringify({
+                scripts: {
+                    "verify:all": "npm run verify:skill-mirror && npm run verify:routing-targets && npm run typecheck",
+                    "verify:skill-mirror": "node x",
+                    "verify:routing-targets": "node z",
+                    "verify:generated": "npm run build && git diff --exit-code",
+                    "verify:foo": "node y",
+                },
+            }));
+            writeFileSync(join(root, "CLAUDE.md"), claim);
+            writeFileSync(join(root, "AGENTS.md"), claim);
+            mkdirSync(join(root, "docs"));
+            writeFileSync(join(root, "docs", "RELEASING.md"), claim);
+            const { violations } = checkInvariantCount(root);
+            assert.equal(violations.length, 1);
+            assert.match(violations[0], /script "verify:foo"/);
+            assert.match(violations[0], /not in the verify:all chain/);
+            assert.ok(!violations.some((v) => /script "verify:generated"/.test(v)));
+        }
+        finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+});
 describe("check-invariant-count — against the real repo", () => {
     it("scans the three files that carry the claim", () => {
         assert.deepEqual(CLAIM_FILES, ["CLAUDE.md", "AGENTS.md", join("docs", "RELEASING.md")]);
@@ -99,5 +152,10 @@ describe("check-invariant-count — against the real repo", () => {
         assert.ok(chain.invariants.includes("test-count"), "test-count shipped in #306");
         assert.ok(chain.invariants.includes("routing-targets"));
         assert.deepEqual(chain.trailing, ["typecheck"]);
+    });
+    it("every verify:* script is in the verify:all chain, except the documented outsiders", () => {
+        const pkg = JSON.parse(readFileSync(join(REPO_ROOT, "package.json"), "utf8"));
+        const { chain } = checkInvariantCount(REPO_ROOT);
+        assert.deepEqual(findOrphanVerifyScripts(pkg.scripts, chain), []);
     });
 });
