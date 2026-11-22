@@ -162,7 +162,7 @@ function card(file: string, demo: Demo, capture: Capture, title: string, desc: s
   let y = PAD + 24;
   body.push(text(PAD, y, 24, "tx b", title));
   y += 28;
-  body.push(text(PAD, y, 16, "mute", capturedOn(capture)));
+  body.push(text(PAD, y, 17, "mute", capturedOn(capture)));
   y += 18;
   const laid = sections.map((s) => ({ heading: s.heading, lines: layout(s.lines) }));
   const panelTop = y;
@@ -200,30 +200,30 @@ function forcePushCard(capture: Capture): Asset {
   let y = PAD + 24;
   body.push(text(PAD, y, 24, "tx b", title));
   y += 28;
-  body.push(text(PAD, y, 16, "mute", capturedOn(capture)));
+  body.push(text(PAD, y, 17, "mute", capturedOn(capture)));
   y += 20;
   body.push(rect(PAD, y, IMAGE_WIDTH - 2 * PAD, 50, "panel"));
   body.push(text(PAD + 16, y + 32, 20, "mute mono", "$ "));
   body.push(text(PAD + 16 + 24, y + 32, 20, "tx mono b", command));
   y += 64;
-  const nameW = 236;
+  const nameW = 252;
   for (const step of deny.steps) {
     const reply = step.stdout !== "" ? decision(step.stdout) : `exit ${step.exit}`;
     const reason = step.stdout !== "" ? jsonField(step.stdout, ...(step.stdout.includes("hookSpecificOutput") ? ["hookSpecificOutput", "permissionDecisionReason"] : step.stdout.includes("user_message") ? ["user_message"] : step.stdout.includes('"reason"') ? ["reason"] : ["permissionDecisionReason"])) : step.stderr;
     const rule = firstLine(reason, "Matched rule:");
     evidence.push(reply, rule);
-    const h = 68;
+    const h = 74;
     body.push(rect(PAD, y, IMAGE_WIDTH - 2 * PAD, h, "deny-bg"));
-    body.push(text(PAD + 16, y + 42, 20, "tx b", step.label));
-    body.push(text(PAD + nameW, y + 28, LINE.mono, "deny mono b", reply + (step.stdout === "" ? "  (reason on stderr)" : "")));
-    body.push(text(PAD + nameW, y + 54, LINE.mono, "tx mono", rule));
+    body.push(text(PAD + 16, y + 45, 22, "tx b", step.label));
+    body.push(text(PAD + nameW, y + 31, 21, "deny mono b", reply + (step.stdout === "" ? " (reason on stderr)" : "")));
+    body.push(text(PAD + nameW, y + 59, 21, "tx mono", rule));
     y += h + 8;
   }
   y += 4;
   body.push(rect(PAD, y, IMAGE_WIDTH - 2 * PAD, 56, "ok-bg"));
-  body.push(text(PAD + 16, y + 35, 19, "ok b", `$ ${jsonField(allow.steps[0]!.stdin ?? "", "tool_input", "command")}`));
+  body.push(text(PAD + 16, y + 36, 21, "ok b", `$ ${jsonField(allow.steps[0]!.stdin ?? "", "tool_input", "command")}`));
   evidence.push(jsonField(allow.steps[0]!.stdin ?? "", "tool_input", "command"));
-  body.push(text(PAD + nameW, y + 35, 19, "tx", `allowed on all ${allow.steps.length}: exit 0, no output`));
+  body.push(text(PAD + nameW, y + 36, 21, "tx", `allowed on all ${allow.steps.length}: exit 0, no output`));
   y += 56 + PAD;
   return {
     file: `${ASSET_DIR}/demo-force-push.svg`,
@@ -302,7 +302,7 @@ interface Box {
 function drawBox(b: Box): string[] {
   const out: string[] = [rect(b.x, b.y, b.w, b.h, b.cls)];
   out.push(text(b.x + 16, b.y + 30, 20, `${b.titleTone} b`, b.title));
-  b.lines.forEach((line, i) => out.push(text(b.x + 16, b.y + 56 + i * 24, 17, "mute mono", line)));
+  b.lines.forEach((line, i) => out.push(text(b.x + 16, b.y + 57 + i * 24, 18, "mute mono", line)));
   return out;
 }
 

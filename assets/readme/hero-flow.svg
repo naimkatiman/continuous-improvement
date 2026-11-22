@@ -6,26 +6,26 @@
 <text x="24" y="48" font-size="24" class="tx b" xml:space="preserve">How a tool call goes through</text>
 <rect x="64" y="76" width="732" height="70" rx="8" class="panel"/>
 <text x="80" y="106" font-size="20" class="tx b" xml:space="preserve">1. The agent asks to run a tool call</text>
-<text x="80" y="132" font-size="17" class="mute mono" xml:space="preserve">a shell command, an edit, a write</text>
+<text x="80" y="133" font-size="18" class="mute mono" xml:space="preserve">a shell command, an edit, a write</text>
 <rect x="64" y="186" width="732" height="94" rx="8" class="accent-bg"/>
 <text x="80" y="216" font-size="20" class="accent b" xml:space="preserve">2. The guard hook decides before it runs</text>
-<text x="80" y="242" font-size="17" class="mute mono" xml:space="preserve">hooks/gateguard.mjs</text>
-<text x="80" y="266" font-size="17" class="mute mono" xml:space="preserve">answers through lib/hook-io.mjs in the agent's format</text>
+<text x="80" y="243" font-size="18" class="mute mono" xml:space="preserve">hooks/gateguard.mjs</text>
+<text x="80" y="267" font-size="18" class="mute mono" xml:space="preserve">answers through lib/hook-io.mjs in the agent's format</text>
 <rect x="64" y="320" width="358" height="94" rx="8" class="deny-bg"/>
 <text x="80" y="350" font-size="20" class="deny b" xml:space="preserve">Refused</text>
-<text x="80" y="376" font-size="17" class="mute mono" xml:space="preserve">the reply names the rule</text>
-<text x="80" y="400" font-size="17" class="mute mono" xml:space="preserve">the call is not logged</text>
+<text x="80" y="377" font-size="18" class="mute mono" xml:space="preserve">the reply names the rule</text>
+<text x="80" y="401" font-size="18" class="mute mono" xml:space="preserve">the call is not logged</text>
 <rect x="438" y="320" width="358" height="94" rx="8" class="ok-bg"/>
 <text x="454" y="350" font-size="20" class="ok b" xml:space="preserve">Allowed</text>
-<text x="454" y="376" font-size="17" class="mute mono" xml:space="preserve">the hook prints nothing</text>
-<text x="454" y="400" font-size="17" class="mute mono" xml:space="preserve">and the call runs</text>
+<text x="454" y="377" font-size="18" class="mute mono" xml:space="preserve">the hook prints nothing</text>
+<text x="454" y="401" font-size="18" class="mute mono" xml:space="preserve">and the call runs</text>
 <rect x="438" y="454" width="358" height="94" rx="8" class="panel"/>
 <text x="454" y="484" font-size="20" class="tx b" xml:space="preserve">3. One log row per call</text>
-<text x="454" y="510" font-size="17" class="mute mono" xml:space="preserve">bin/observe.mjs, redacted,</text>
-<text x="454" y="534" font-size="17" class="mute mono" xml:space="preserve">on your own disk</text>
+<text x="454" y="511" font-size="18" class="mute mono" xml:space="preserve">bin/observe.mjs, redacted,</text>
+<text x="454" y="535" font-size="18" class="mute mono" xml:space="preserve">on your own disk</text>
 <rect x="64" y="588" width="732" height="70" rx="8" class="panel"/>
 <text x="80" y="618" font-size="20" class="tx b" xml:space="preserve">4. Saved lessons load when the next session starts</text>
-<text x="80" y="644" font-size="17" class="mute mono" xml:space="preserve">hooks/session.mjs, at most 10 lines</text>
+<text x="80" y="645" font-size="18" class="mute mono" xml:space="preserve">hooks/session.mjs, at most 10 lines</text>
 <line x1="430" y1="146" x2="430" y2="176.8" class="arrow" stroke-width="2"/><polygon points="430,184 426.1,175.9 433.9,175.9" class="head"/>
 <line x1="243" y1="280" x2="243" y2="310.8" class="arrow" stroke-width="2"/><polygon points="243,318 239.1,309.9 246.9,309.9" class="head"/>
 <line x1="617" y1="280" x2="617" y2="310.8" class="arrow" stroke-width="2"/><polygon points="617,318 613.1,309.9 620.9,309.9" class="head"/>

@@ -55,6 +55,21 @@ describe("README images", () => {
         }
     });
 });
+describe("the README's use of the images", () => {
+    const readme = readFileSync(join(REPO_ROOT, "README.md"), "utf8");
+    const tags = [...readme.matchAll(/<img\b[^>]*\bsrc="(assets\/readme\/[^"]+)"[^>]*>/g)];
+    it("shows every image under assets/readme, each once, through an HTML img with alt text", () => {
+        const drawn = [...renderReadmeAssets(committed).map((a) => a.file), AGENT_MAP_SVG].sort();
+        assert.deepEqual(tags.map((t) => t[1]).sort(), drawn);
+        for (const [tag] of tags)
+            assert.match(tag, /\balt="[^"]{40,}"/, tag);
+        assert.doesNotMatch(readme, /!\[[^\]]*\]\(assets\/readme\//, "a Markdown image's alt text is read by the claim scan; use <img>");
+    });
+    it("opens with the six-agent demo, right under the badges", () => {
+        const hero = readme.indexOf("assets/readme/demo-force-push.svg");
+        assert.ok(hero > readme.indexOf("img.shields.io") && hero < readme.indexOf("\n## "), "the hero sits above the first section");
+    });
+});
 describe("the demo capture", () => {
     it("holds no path from the machine it ran on", () => {
         const text = readFileSync(join(REPO_ROOT, CAPTURE_FILE), "utf8");
