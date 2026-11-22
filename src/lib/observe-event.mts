@@ -11,6 +11,7 @@
 // summary is passed through redactSecrets before the cut, so the secret shapes
 // it knows are not written to observations.jsonl.
 
+import { inboundCommand, inboundPatchText, inboundPaths, resolveInboundTool } from "./agent-profiles.mjs";
 import { isBareSecretName, isCredentialShaped, isSecretName, redactSecrets } from "./redact-secrets.mjs";
 
 const INPUT_TRUNCATE = 500;
@@ -114,10 +115,25 @@ export function summariseInput(toolName: string, input: unknown): string {
       return pattern === null ? "" : redactedHead(pattern, INPUT_TRUNCATE);
     }
     default:
-      // Unknown tool: stringify input so we record *something* useful for
-      // future analysis. Truncate to keep observations.jsonl row size bounded.
-      return redactedJsonHead(input, INPUT_TRUNCATE);
+      return summariseAliasInput(toolName, input);
   }
+}
+
+/**
+ * Another agent's tool name (lib/agent-profiles.mjs, never a Claude Code one):
+ * a shell by its command, a patch by its text (the headers name its files), a
+ * file tool by its path, as the Claude cases above. A search or other alias,
+ * and an unknown tool, keep the JSON of the input, so we record *something*
+ * useful for future analysis, cut to keep observations.jsonl rows bounded.
+ */
+function summariseAliasInput(toolName: string, input: unknown): string {
+  const alias = resolveInboundTool(toolName);
+  let text: string | null | undefined;
+  if (alias?.kind === "shell") text = inboundCommand(alias, input);
+  else if (alias?.kind === "patch") text = inboundPatchText(alias, input);
+  else if (alias?.kind === "file-read" || alias?.kind === "file-write") text = inboundPaths(alias, input)[0] ?? null;
+  if (text === undefined) return redactedJsonHead(input, INPUT_TRUNCATE);
+  return text === null ? "" : redactedHead(text, INPUT_TRUNCATE);
 }
 
 /**

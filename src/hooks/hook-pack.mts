@@ -34,6 +34,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 
+import { classifierShells, inboundCommand, resolveInboundTool } from "../lib/agent-profiles.mjs";
 import {
   COMMIT_FILE_LIMIT,
   classifyCommand,
@@ -129,14 +130,31 @@ function compute(): HookPackDecision {
   const payload = safeJsonParse(readStdinSync());
   if (!payload || typeof payload !== "object") return ALLOW;
   const obj = payload as { tool_name?: unknown; tool_input?: unknown };
-  if (typeof obj.tool_name !== "string" || !SHELL_TOOLS.has(obj.tool_name)) return ALLOW;
+  if (typeof obj.tool_name !== "string") return ALLOW;
 
   const input = (obj.tool_input && typeof obj.tool_input === "object"
     ? (obj.tool_input as { command?: unknown })
     : {});
-  const command = typeof input.command === "string" ? input.command : "";
+  if (SHELL_TOOLS.has(obj.tool_name)) {
+    return gateCommand(mode, typeof input.command === "string" ? input.command : "", obj.tool_name);
+  }
 
-  const tool = obj.tool_name;
+  // Another agent's shell (lib/agent-profiles.mjs, never a Claude Code name):
+  // read in its flavor, and both ways on Windows when the flavor is unknown.
+  // The first reading that gates decides.
+  const alias = resolveInboundTool(obj.tool_name);
+  const command = alias === null ? null : inboundCommand(alias, input);
+  if (alias === null || command === null) return ALLOW;
+  for (const shell of classifierShells(alias.flavor)) {
+    const decision = gateCommand(mode, command, shell);
+    if (decision.action !== "allow") return decision;
+  }
+  return ALLOW;
+}
+
+// `tool` is the classifier's shell: "PowerShell" reads PowerShell, any other
+// name POSIX (Git Bash on Windows, where /d/repo is rewritten to D:/repo).
+function gateCommand(mode: ReturnType<typeof parseMode>, command: string, tool: string): HookPackDecision {
   const kind = classifyCommand(command, tool);
   if (kind === "push") {
     const res = evaluatePush(command, (dirs, switchedTo) => gitCurrentBranch(dirs, tool, switchedTo), tool);

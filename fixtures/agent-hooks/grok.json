@@ -1,0 +1,234 @@
+{
+  "agent": "grok",
+  "checked": "2026-11-21",
+  "about": "Grok Build 1.0.85 PreToolUse and PostToolUse payloads run through the unchanged Claude plugin hooks. Read by src/test/agent-tool-aliases.test.mts, same case format as codex.json.",
+  "sources": {
+    "payload": "Verified research, Grok entry, hook_payload_example (~/.grok/docs/user-guide/10-hooks.md lines 388-398 and 678): camelCase hookEventName/sessionId/toolName/toolInput plus the Claude snake_case aliases session_id, transcript_path, permission_mode, tool_name, tool_input, tool_response, tool_use_id. Skeptic verdict hook_payload_example: confirmed; hookEventName carries pre_tool_use while hook_event_name carries PreToolUse.",
+    "tool_names": "Verified research, Grok entry, tool_names (skeptic: confirmed): shell run_terminal_command in hook payloads (Shell on the daemon and Cursor route), edit search_replace {file_path, old_string, new_string, replace_all}, write {file_path}, read read_file. The tool_name field holds the Grok name, not the Claude name.",
+    "fail_open": "Skeptic verdict hook_pre_tool: 'The mechanics are confirmed, and so is the fail-open defect' (run_terminal_command with a destructive command gave exit 0 and empty stdout on v3.27.0).",
+    "matcher": "Grok matchers alias Claude names (Bash to run_terminal_command, Edit/Write/MultiEdit to search_replace, Read to read_file), so the Claude matcher selects Grok's shell and edit tools and the hooks fire. Skill has no Grok alias, so companion-preference never fires."
+  },
+  "cases": [
+    {
+      "id": "grok/run-terminal-command-destructive-deny",
+      "note": "The live fail-open this PR fixes.",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "stdin": {
+            "hookEventName": "pre_tool_use",
+            "hook_event_name": "PreToolUse",
+            "sessionId": "grok-session",
+            "session_id": "grok-session",
+            "cwd": "<PROJECT>",
+            "workspaceRoot": "<PROJECT>",
+            "permissionMode": "default",
+            "permission_mode": "default",
+            "toolName": "run_terminal_command",
+            "tool_name": "run_terminal_command",
+            "toolInput": { "command": "git push --force origin main" },
+            "tool_input": { "command": "git push --force origin main" },
+            "toolUseId": "grok-call-1",
+            "tool_use_id": "grok-call-1",
+            "toolInputTruncated": false
+          },
+          "expect": { "decision": "deny", "stdoutIncludes": "git-push-force" }
+        }
+      ]
+    },
+    {
+      "id": "grok/run-terminal-command-routine-allow",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "stdin": {
+            "hook_event_name": "PreToolUse",
+            "session_id": "grok-session",
+            "cwd": "<PROJECT>",
+            "tool_name": "run_terminal_command",
+            "tool_input": { "command": "git status" },
+            "tool_use_id": "grok-call-2"
+          },
+          "expect": { "decision": "allow" }
+        }
+      ]
+    },
+    {
+      "id": "grok/shell-route-destructive-deny",
+      "note": "Shell is the name on Grok's daemon and Cursor route.",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "stdin": {
+            "hook_event_name": "PreToolUse",
+            "session_id": "grok-session",
+            "cwd": "<PROJECT>",
+            "tool_name": "Shell",
+            "tool_input": { "command": "git reset --hard HEAD~3" },
+            "tool_use_id": "grok-call-3"
+          },
+          "expect": { "decision": "deny" }
+        }
+      ]
+    },
+    {
+      "id": "grok/run-terminal-command-push-main-block",
+      "steps": [
+        {
+          "hook": "hooks/hook-pack.mjs",
+          "env": { "CLAUDE_CI_HOOKPACK_GATE": "block" },
+          "stdin": {
+            "hook_event_name": "PreToolUse",
+            "session_id": "grok-session",
+            "cwd": "<PROJECT>",
+            "tool_name": "run_terminal_command",
+            "tool_input": { "command": "git push origin main" },
+            "tool_use_id": "grok-call-4"
+          },
+          "expect": { "decision": "deny", "stdoutIncludes": "protected branch" }
+        }
+      ]
+    },
+    {
+      "id": "grok/search-replace-blind-deny",
+      "setup": {
+        "files": {
+          "<PROJECT>/src/app.ts": "export const answer = 42;\n",
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            { "ts": "2026-11-21T00:00:00Z", "event": "tool_complete", "session": "grok-session", "tool": "run_terminal_command", "input_summary": "git status", "output_summary": "On branch main" }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "stdin": {
+            "hook_event_name": "PreToolUse",
+            "session_id": "grok-session",
+            "cwd": "<PROJECT>",
+            "tool_name": "search_replace",
+            "tool_input": { "file_path": "<PROJECT>/src/app.ts", "old_string": "42", "new_string": "43", "replace_all": false },
+            "tool_use_id": "grok-call-5"
+          },
+          "expect": { "decision": "deny", "stdoutIncludes": "shows no read of" }
+        }
+      ]
+    },
+    {
+      "id": "grok/read-file-then-search-replace-allow",
+      "note": "The observer records read_file by its path, and the evidence gate counts that row as a read.",
+      "setup": {
+        "files": {
+          "<PROJECT>/src/app.ts": "export const answer = 42;\n",
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": []
+        }
+      },
+      "steps": [
+        {
+          "hook": "bin/observe.mjs",
+          "stdin": {
+            "hook_event_name": "PostToolUse",
+            "session_id": "grok-session",
+            "cwd": "<PROJECT>",
+            "tool_name": "read_file",
+            "tool_input": { "file_path": "<PROJECT>/src/app.ts" },
+            "tool_response": "export const answer = 42;",
+            "tool_use_id": "grok-call-6"
+          },
+          "expect": { "decision": "allow" }
+        },
+        {
+          "hook": "hooks/gateguard.mjs",
+          "stdin": {
+            "hook_event_name": "PreToolUse",
+            "session_id": "grok-session",
+            "cwd": "<PROJECT>",
+            "tool_name": "search_replace",
+            "tool_input": { "file_path": "<PROJECT>/src/app.ts", "old_string": "42", "new_string": "43" },
+            "tool_use_id": "grok-call-7"
+          },
+          "expect": { "decision": "allow" }
+        }
+      ]
+    },
+    {
+      "id": "grok/shell-read-then-search-replace-allow",
+      "note": "A run_terminal_command row that names the file counts as a read, as a Bash row does.",
+      "setup": {
+        "files": {
+          "<PROJECT>/src/app.ts": "export const answer = 42;\n",
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": []
+        }
+      },
+      "steps": [
+        {
+          "hook": "bin/observe.mjs",
+          "stdin": {
+            "hook_event_name": "PostToolUse",
+            "session_id": "grok-session",
+            "cwd": "<PROJECT>",
+            "tool_name": "run_terminal_command",
+            "tool_input": { "command": "cat src/app.ts" },
+            "tool_response": "export const answer = 42;",
+            "tool_use_id": "grok-call-8"
+          },
+          "expect": { "decision": "allow" }
+        },
+        {
+          "hook": "hooks/gateguard.mjs",
+          "stdin": {
+            "hook_event_name": "PreToolUse",
+            "session_id": "grok-session",
+            "cwd": "<PROJECT>",
+            "tool_name": "search_replace",
+            "tool_input": { "file_path": "src/app.ts", "old_string": "42", "new_string": "43" },
+            "tool_use_id": "grok-call-9"
+          },
+          "expect": { "decision": "allow" }
+        }
+      ]
+    },
+    {
+      "id": "grok/write-new-file-allow",
+      "setup": {
+        "files": {
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            { "ts": "2026-11-21T00:00:00Z", "event": "tool_complete", "session": "grok-session", "tool": "run_terminal_command", "input_summary": "git status", "output_summary": "" }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "stdin": {
+            "hook_event_name": "PreToolUse",
+            "session_id": "grok-session",
+            "cwd": "<PROJECT>",
+            "tool_name": "write",
+            "tool_input": { "file_path": "<PROJECT>/src/new.ts", "content": "export {};\n" },
+            "tool_use_id": "grok-call-10"
+          },
+          "expect": { "decision": "allow" }
+        }
+      ]
+    },
+    {
+      "id": "grok/write-mcp-json-config-guard-block",
+      "steps": [
+        {
+          "hook": "hooks/config-guard.mjs",
+          "env": { "CI_CONFIG_GUARD": "block" },
+          "stdin": {
+            "hook_event_name": "PreToolUse",
+            "session_id": "grok-session",
+            "cwd": "<PROJECT>",
+            "tool_name": "write",
+            "tool_input": { "file_path": "<PROJECT>/.mcp.json", "content": "{}" },
+            "tool_use_id": "grok-call-11"
+          },
+          "expect": { "decision": "deny", "stdoutIncludes": ".mcp.json" }
+        }
+      ]
+    }
+  ]
+}

@@ -109,9 +109,15 @@ const COMMAND_FILES = [
 // would resolve ../lib beside the link target, where nothing is installed.
 // Keep both lists in step with the imports of src/bin/observe.mts and
 // src/hooks/session.mts, including what those lib modules import in turn
-// (observe-event.mjs imports redact-secrets.mjs); a hook with a missing import
-// dies at module load.
-const OBSERVER_LIB_FILES = ["observe-event.mjs", "redact-secrets.mjs", "gateguard-state.mjs"] as const;
+// (observe-event.mjs imports redact-secrets.mjs and agent-profiles.mjs, which
+// imports patch-paths.mjs); a hook with a missing import dies at module load.
+const OBSERVER_LIB_FILES = [
+  "observe-event.mjs",
+  "redact-secrets.mjs",
+  "agent-profiles.mjs",
+  "patch-paths.mjs",
+  "gateguard-state.mjs",
+] as const;
 const SESSION_LIB_FILES = ["gateguard-state.mjs", "instinct-yaml.mjs", "resolve-home-dir.mjs"] as const;
 const INSTALLED_LIB_FILES: readonly string[] = Array.from(
   new Set<string>([...OBSERVER_LIB_FILES, ...SESSION_LIB_FILES]),

@@ -35,6 +35,12 @@
  * PowerShell tool is a shell tool too and goes through the same classifier,
  * which is told the tool name (`rm -r` is Remove-Item -Recurse there).
  *
+ * Other agents that load this plugin report their own tool names. The ones in
+ * lib/agent-profiles.mjs (never a Claude Code name) are routed by kind: a shell
+ * is classified in its flavor, both ways on Windows when the flavor is unknown;
+ * a file tool is gated on the paths its input keys hold; an apply_patch is
+ * gated on the paths in its *** File headers (lib/patch-paths.mjs).
+ *
  * V1 honest limitations (see src/lib/gateguard-state.mts header):
  *   honor-system flag, state-file deletion, parallel-hook race.
  *
@@ -48,6 +54,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { classifierShells, inboundCommand, inboundPaths, resolveInboundTool, type InboundTool } from "../lib/agent-profiles.mjs";
 import { classifyDestructiveBash } from "../lib/destructive-bash.mjs";
 import {
   MAX_CLEARED_FILES,
@@ -117,11 +124,25 @@ function isDestructiveBash(command: string, toolName: string): boolean {
   return classifyDestructiveBash(command, toolName).destructive;
 }
 
+// Another agent's shell (Grok run_terminal_command, Qwen run_shell_command,
+// Cursor Shell, ...) is read in its flavor, and an unknown flavor on Windows is
+// read both ways. Returns the classifier tool name that flagged the command.
+function destructiveShellFor(command: string, alias: InboundTool): "Bash" | "PowerShell" | null {
+  return classifierShells(alias.flavor).find((shell) => isDestructiveBash(command, shell)) ?? null;
+}
+
 function classifyTool(toolName: string, toolInput: ToolInput): GateType {
   const route = TOOL_ROUTE[toolName] ?? "allow";
   if (route !== "allow") return route;
   if (SHELL_TOOLS.has(toolName) && typeof toolInput.command === "string") {
     if (isDestructiveBash(toolInput.command, toolName)) return "destructive-bash";
+  }
+  // Other agents' tool names, never a Claude Code one (lib/agent-profiles.mjs).
+  const alias = resolveInboundTool(toolName);
+  if (alias?.kind === "file-write" || alias?.kind === "patch") return "mutating-file";
+  if (alias?.kind === "shell") {
+    const command = inboundCommand(alias, toolInput);
+    if (command !== null && destructiveShellFor(command, alias) !== null) return "destructive-bash";
   }
   return "allow";
 }
@@ -422,6 +443,15 @@ function buildDestructiveBashReason(command: string, toolName: string): string {
   ].join("\n");
 }
 
+// An apply_patch whose text has no file header: the gate cannot see what it
+// edits. Strict denies it, evidence warns and lets it through.
+function buildUnreadablePatchReason(toolName: string): string {
+  return (
+    `${toolName} names no file the gate can read: the patch has no *** Add File, *** Update File, ` +
+    "*** Delete File or *** Move to header. Send the patch with its file headers."
+  );
+}
+
 function buildCapReachedReason(): string {
   return [
     `Gateguard clearance cap reached (${MAX_CLEARED_FILES} distinct files this session).`,
@@ -488,7 +518,13 @@ async function main(): Promise<void> {
     return;
   }
 
+  const alias = resolveInboundTool(toolName);
   if (gate === "destructive-bash") {
+    if (alias) {
+      const cmd = inboundCommand(alias, toolInput) ?? "";
+      emitDeny(buildDestructiveBashReason(cmd, destructiveShellFor(cmd, alias) ?? "Bash"));
+      return;
+    }
     const cmd = typeof toolInput.command === "string" ? toolInput.command : "";
     emitDeny(buildDestructiveBashReason(cmd, toolName));
     return;
@@ -501,7 +537,8 @@ async function main(): Promise<void> {
   const sessionDir = resolveSessionDir(sessionId);
   const stateFilePath = join(sessionDir, "gateguard-session.json");
   let state = loadState(sessionDir);
-  const allTargetPaths = extractFilePaths(toolInput);
+  const allTargetPaths = alias ? inboundPaths(alias, toolInput) : extractFilePaths(toolInput);
+  const unreadablePatch = alias?.kind === "patch" && allTargetPaths.length === 0;
   const filePaths = allTargetPaths.filter((path) => !isExcludedPath(path));
   if (allTargetPaths.length > 0 && filePaths.length === 0) {
     // Every target is under a CI_GATEGUARD_EXCLUDE path; skip the gate, but say so.
@@ -531,6 +568,16 @@ async function main(): Promise<void> {
   }
 
   const factsFlagged = toolInput._gateguard_facts_presented === true;
+
+  if (unreadablePatch) {
+    if (FILE_GATE_MODE === "strict" && !factsFlagged) {
+      emitDeny(buildUnreadablePatchReason(toolName));
+      return;
+    }
+    process.stderr.write(`[continuous-improvement] gateguard: ${buildUnreadablePatchReason(toolName)}\n`);
+    emitAllow();
+    return;
+  }
 
   if (FILE_GATE_MODE === "evidence") {
     const cwd = typeof payload.cwd === "string" && payload.cwd !== "" ? payload.cwd : process.cwd();

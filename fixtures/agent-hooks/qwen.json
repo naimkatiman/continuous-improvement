@@ -1,0 +1,214 @@
+{
+  "agent": "qwen",
+  "checked": "2026-11-21",
+  "about": "Qwen Code 0.28.0 PreToolUse payloads run through the unchanged Claude plugin hooks. Read by src/test/agent-tool-aliases.test.mts, same case format as codex.json.",
+  "sources": {
+    "payload": "Verified research, Qwen entry, hook_payload_example: createBaseInput {session_id, transcript_path, cwd, hook_event_name, timestamp, permission_mode, prompt_id} plus {tool_name, tool_input, tool_use_id, tool_call_id}; only the field names are documented, the values are illustrative.",
+    "tool_names": "Verified research, Qwen entry, tool_names: ToolNames enum SHELL run_shell_command {command}, EDIT edit {file_path, old_string, new_string, replace_all}, WRITE_FILE write_file {file_path, content}, READ_FILE read_file {file_path}, GREP grep_search, GLOB glob.",
+    "fail_open": "Skeptic missed-item for Qwen: hook-pack.mjs and gateguard.mjs check SHELL_TOOLS.has(tool_name) and config-guard classifies by tool_name, so on Qwen the destructive-command pack silently fails open.",
+    "matcher": "Qwen matchers accept the Claude aliases exactly (Bash/Shell to run_shell_command, Edit to edit, Write to write_file, NotebookEdit to notebook_edit, Monitor to monitor), so the hooks fire. PowerShell and MultiEdit have no alias and match nothing (skeptic verdict hook_pre_tool (a))."
+  },
+  "cases": [
+    {
+      "id": "qwen/run-shell-command-destructive-deny",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "stdin": {
+            "session_id": "qwen-session",
+            "transcript_path": "<HOME>/transcript.jsonl",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PreToolUse",
+            "timestamp": "2026-11-21T10:00:00.000Z",
+            "permission_mode": "default",
+            "prompt_id": "qwen-prompt",
+            "tool_name": "run_shell_command",
+            "tool_input": { "command": "rm -rf /" },
+            "tool_use_id": "toolu_qwen_1",
+            "tool_call_id": "call_qwen_1"
+          },
+          "expect": { "decision": "deny", "stdoutIncludes": "rm-recursive-force" }
+        }
+      ]
+    },
+    {
+      "id": "qwen/run-shell-command-powershell-recurse-win32-deny",
+      "note": "Qwen's shell on Windows is not pinned to one flavor, so the command is classified as POSIX and as PowerShell. `rm -r` is Remove-Item -Recurse in PowerShell.",
+      "platform": "win32",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "stdin": {
+            "session_id": "qwen-session",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PreToolUse",
+            "permission_mode": "default",
+            "tool_name": "run_shell_command",
+            "tool_input": { "command": "rm -r build" },
+            "tool_use_id": "toolu_qwen_2"
+          },
+          "expect": { "decision": "deny", "stdoutIncludes": "powershell-remove-item" }
+        }
+      ]
+    },
+    {
+      "id": "qwen/run-shell-command-unforced-rm-posix-allow",
+      "note": "Off Windows the unknown flavor is classified as POSIX only, where an unforced rm -r is not on the destructive list.",
+      "platform": "posix",
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "stdin": {
+            "session_id": "qwen-session",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PreToolUse",
+            "permission_mode": "default",
+            "tool_name": "run_shell_command",
+            "tool_input": { "command": "rm -r build" },
+            "tool_use_id": "toolu_qwen_3"
+          },
+          "expect": { "decision": "allow" }
+        }
+      ]
+    },
+    {
+      "id": "qwen/run-shell-command-push-main-block",
+      "steps": [
+        {
+          "hook": "hooks/hook-pack.mjs",
+          "env": { "CLAUDE_CI_HOOKPACK_GATE": "block" },
+          "stdin": {
+            "session_id": "qwen-session",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "run_shell_command",
+            "tool_input": { "command": "git push origin main" },
+            "tool_use_id": "toolu_qwen_4"
+          },
+          "expect": { "decision": "deny", "stdoutIncludes": "protected branch" }
+        }
+      ]
+    },
+    {
+      "id": "qwen/edit-blind-deny",
+      "setup": {
+        "files": {
+          "<PROJECT>/src/app.ts": "export const answer = 42;\n",
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            { "ts": "2026-11-21T00:00:00Z", "event": "tool_complete", "session": "qwen-session", "tool": "run_shell_command", "input_summary": "git status", "output_summary": "" }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "stdin": {
+            "session_id": "qwen-session",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "edit",
+            "tool_input": { "file_path": "<PROJECT>/src/app.ts", "old_string": "42", "new_string": "43", "replace_all": false },
+            "tool_use_id": "toolu_qwen_5"
+          },
+          "expect": { "decision": "deny", "stdoutIncludes": "shows no read of" }
+        }
+      ]
+    },
+    {
+      "id": "qwen/read-file-then-edit-allow",
+      "setup": {
+        "files": {
+          "<PROJECT>/src/app.ts": "export const answer = 42;\n",
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": []
+        }
+      },
+      "steps": [
+        {
+          "hook": "bin/observe.mjs",
+          "stdin": {
+            "session_id": "qwen-session",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "read_file",
+            "tool_input": { "file_path": "<PROJECT>/src/app.ts" },
+            "tool_response": "export const answer = 42;",
+            "tool_use_id": "toolu_qwen_6"
+          },
+          "expect": { "decision": "allow" }
+        },
+        {
+          "hook": "hooks/gateguard.mjs",
+          "stdin": {
+            "session_id": "qwen-session",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "edit",
+            "tool_input": { "file_path": "<PROJECT>/src/app.ts", "old_string": "42", "new_string": "43" },
+            "tool_use_id": "toolu_qwen_7"
+          },
+          "expect": { "decision": "allow" }
+        }
+      ]
+    },
+    {
+      "id": "qwen/write-file-new-allow",
+      "setup": {
+        "files": {
+          "<HOME>/.claude/instincts/<PROJECT_HASH>/observations.jsonl": [
+            { "ts": "2026-11-21T00:00:00Z", "event": "tool_complete", "session": "qwen-session", "tool": "run_shell_command", "input_summary": "git status", "output_summary": "" }
+          ]
+        }
+      },
+      "steps": [
+        {
+          "hook": "hooks/gateguard.mjs",
+          "stdin": {
+            "session_id": "qwen-session",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "write_file",
+            "tool_input": { "file_path": "<PROJECT>/src/new.ts", "content": "export {};\n" },
+            "tool_use_id": "toolu_qwen_8"
+          },
+          "expect": { "decision": "allow" }
+        }
+      ]
+    },
+    {
+      "id": "qwen/edit-settings-config-guard-block",
+      "steps": [
+        {
+          "hook": "hooks/config-guard.mjs",
+          "env": { "CI_CONFIG_GUARD": "block" },
+          "stdin": {
+            "session_id": "qwen-session",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "edit",
+            "tool_input": { "file_path": "<PROJECT>/.claude/settings.json", "old_string": "{}", "new_string": "{\"hooks\":{}}" },
+            "tool_use_id": "toolu_qwen_9"
+          },
+          "expect": { "decision": "deny", "stdoutIncludes": "settings.json" }
+        }
+      ]
+    },
+    {
+      "id": "qwen/run-shell-command-redirect-into-settings-config-guard-block",
+      "steps": [
+        {
+          "hook": "hooks/config-guard.mjs",
+          "env": { "CI_CONFIG_GUARD": "block" },
+          "stdin": {
+            "session_id": "qwen-session",
+            "cwd": "<PROJECT>",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "run_shell_command",
+            "tool_input": { "command": "echo '{}' > .claude/settings.json" },
+            "tool_use_id": "toolu_qwen_10"
+          },
+          "expect": { "decision": "deny", "stdoutIncludes": "settings.json" }
+        }
+      ]
+    }
+  ]
+}
