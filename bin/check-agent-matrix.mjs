@@ -12,8 +12,12 @@
  *   - .cloudplugin/marketplace.json carries compatibleWith from the rows and
  *     the package.json version (the build writes both).
  *   - No sentence in README.md, QUICKSTART.md, llms.txt, docs/AGENT-SUPPORT.md
- *     or docs/landing/index.html names an agent whose row cannot block a tool
- *     call together with a blocking verb, unless the sentence negates it.
+ *     or docs/landing/index.html, nor the bold lead of a CHANGELOG.md
+ *     [Unreleased] entry, names an agent whose row cannot block a tool call
+ *     together with a blocking verb, unless the sentence negates it. A claim
+ *     for a conditional row (Junie) must name its condition, and a short name
+ *     that a non-blocking row's name extends ("Kiro" beside "Kiro IDE") must
+ *     name the surface.
  *   - The rows themselves agree: a blocking row has a pre-tool hook install,
  *     and its "blocks" cell says yes; a non-blocking row says no or "not
  *     claimed". A row whose verified matrix verdict is anything but yes (the
@@ -44,6 +48,11 @@ export const CLOUDPLUGIN = ".cloudplugin/marketplace.json";
 export const BLOCK_START = "<!-- agent-matrix:start -->";
 export const BLOCK_END = "<!-- agent-matrix:end -->";
 export const CLAIM_SCAN_FILES = ["README.md", "QUICKSTART.md", "llms.txt", SUPPORT_DOC, "docs/landing/index.html"];
+// Only the bold lead of each [Unreleased] entry is scanned: the lead is the
+// outcome a reader takes away, released sections are history, and an entry's
+// body walks through mechanism (encoders, exit codes) the sentence heuristic
+// cannot tell from a claim. A repository with no CHANGELOG.md has none to check.
+export const CHANGELOG_FILE = "CHANGELOG.md";
 const REGENERATE = "run `node bin/check-agent-matrix.mjs --write`";
 // A bare "gate" is left out: it is nearly always the noun ("the drift gate").
 const BLOCK_WORDS = /\b(?:block(?:s|ed|ing)?|den(?:y|ies|ied)|refus(?:e|es|ed)|enforc(?:e|es|ed|ing|ement)|stop(?:s|ped|ping)?|prevent(?:s|ed|ing)?|gat(?:es|ed|ing)|guard(?:s|ed|ing)?\s+against)\b/gi;
@@ -69,6 +78,40 @@ const LESSONS = {
     "rules file": "rules file",
     none: "no",
 };
+/**
+ * The condition a conditional row's Blocks cell names, for prose to repeat:
+ * "yes, on the Early Access build" gives "Early Access build". Empty when the
+ * cell names none, and then no sentence can satisfy it (fail closed).
+ */
+function conditionOf(row) {
+    const match = /^yes,\s*(.*)$/i.exec(row.blocks);
+    if (!match)
+        return "";
+    return (match[1] ?? "")
+        .replace(/^(?:on|in|with|while|after|outside|through|when)\s+/i, "")
+        .replace(/^(?:the|a|an)\s+/i, "")
+        .trim();
+}
+/** A name of a blocking row that a non-blocking row's name extends ("Kiro", "Kiro IDE"), matched only where no longer name follows it. */
+function ambiguousNames(rows) {
+    const out = [];
+    for (const row of rows.filter((r) => blocksPreTool(r))) {
+        for (const name of row.names) {
+            const prefix = `${name.toLowerCase()} `;
+            const longer = rows.flatMap((other) => other.names.filter((n) => n.toLowerCase().startsWith(prefix)).map((n) => ({ n, other })));
+            const blind = longer.filter(({ other }) => !blocksPreTool(other));
+            if (blind.length === 0)
+                continue;
+            const rests = longer.map(({ n }) => escapeRegExp(n.slice(prefix.length)).replace(/ /g, "\\s+"));
+            out.push({
+                bare: new RegExp(`\\b${escapeRegExp(name)}\\b(?!\\s+(?:${rests.join("|")})\\b)`, "i"),
+                name,
+                surfaces: `a name of ${row.names[0]} that also covers ${blind.map(({ n }) => n).join(", ")}, which claims no blocking`,
+            });
+        }
+    }
+    return out;
+}
 /** Problems in the rows themselves. */
 export function supportViolations(rows) {
     if (rows.length === 0)
@@ -189,11 +232,16 @@ function negated(sentence, at, verb) {
  * read whole across wrapped lines; the line reported is the verb's.
  */
 export function findBlockingClaims(file, text, rows = AGENT_SUPPORT) {
+    const wordOf = (name) => new RegExp(`\\b${escapeRegExp(name)}\\b`, "i");
     const names = rows
         .filter((row) => !blocksPreTool(row))
         .flatMap((row) => row.names)
-        .map((name) => new RegExp(`\\b${escapeRegExp(name)}\\b`, "i"));
-    if (names.length === 0)
+        .map(wordOf);
+    const conditional = rows
+        .filter((row) => blocksPreTool(row) && row.preToolVerdict === "conditional")
+        .map((row) => row.names.map((name) => ({ name: wordOf(name), agent: row.names[0] ?? row.id, condition: conditionOf(row) })));
+    const ambiguous = ambiguousNames(rows);
+    if (names.length === 0 && conditional.length === 0 && ambiguous.length === 0)
         return [];
     const source = text.replace(/\r/g, " ");
     const claims = [];
@@ -202,16 +250,51 @@ export function findBlockingClaims(file, text, rows = AGENT_SUPPORT) {
         for (const sentence of run.text.split(/(?<=[.!?;])\s+/)) {
             const at = run.text.indexOf(sentence, from);
             from = at + sentence.length;
-            if (!names.some((name) => name.test(sentence)))
+            const blind = names.some((name) => name.test(sentence));
+            const flat = sentence.replace(/\s+/g, " ").toLowerCase();
+            const unmet = conditional.flatMap((agentNames) => {
+                const hit = agentNames.find(({ name }) => name.test(sentence));
+                return hit && (hit.condition === "" || !flat.includes(hit.condition.toLowerCase())) ? [hit] : [];
+            });
+            const bare = ambiguous.filter(({ bare }) => bare.test(sentence));
+            if (!blind && unmet.length === 0 && bare.length === 0)
                 continue;
             const verb = [...sentence.matchAll(BLOCK_WORDS)].find((m) => !negated(sentence, m.index, m[0]));
             if (!verb)
                 continue;
             const line = source.slice(0, run.start + at + verb.index).split("\n").length;
-            claims.push({ file, line, text: sentence.replace(/\s+/g, " ").trim() });
+            const claimText = sentence.replace(/\s+/g, " ").trim();
+            if (blind)
+                claims.push({ file, line, text: claimText });
+            for (const { name, surfaces } of bare) {
+                claims.push({ file, line, text: claimText, reason: `claims blocking for "${name}", ${surfaces}; name the surface` });
+            }
+            for (const { agent, condition } of unmet) {
+                claims.push({ file, line, text: claimText, reason: `claims blocking for ${agent} without its condition (${condition === "" ? "its Blocks cell names none" : JSON.stringify(condition)})` });
+            }
         }
     }
     return claims;
+}
+/**
+ * Blocking claims in the bold lead of each entry under `## [Unreleased]` (up
+ * to the next `## ` heading), reported at the lead's own line. No such
+ * section, or no lead, gives none.
+ */
+export function changelogClaims(text, rows = AGENT_SUPPORT) {
+    const lines = text.replace(/\r/g, "").split("\n");
+    const start = lines.findIndex((line) => /^##\s+\[Unreleased\]/i.test(line));
+    if (start === -1)
+        return [];
+    const next = lines.findIndex((line, i) => i > start && /^##\s/.test(line));
+    const end = next === -1 ? lines.length : next;
+    const leads = lines.map((line, i) => {
+        if (i <= start || i >= end)
+            return "";
+        const lead = /^\s*[-*+]\s+\*\*(.+?)\*\*/.exec(line)?.[1];
+        return lead === undefined ? "" : `- ${lead}`; // kept a list item, so each lead is read on its own
+    });
+    return findBlockingClaims(CHANGELOG_FILE, leads.join("\n"), rows);
 }
 /** The text with the body between the markers replaced, or null when the markers are not one ordered pair. */
 export function spliceBlock(text, body) {
@@ -289,7 +372,7 @@ export function renderSupportDoc(rows = AGENT_SUPPORT) {
         "",
         "The guard is `hooks/gateguard.mjs` (destructive shell commands and blind edits), with `hooks/hook-pack.mjs` (protected-branch pushes, opt-in) and `hooks/config-guard.mjs` (guardrail config edits, opt-in). Lessons come from `hooks/session.mjs`. The Stop gate is `hooks/typecheck-stop.mjs` and `hooks/goal-drift-stop.mjs`, both off or warn-only until you switch them on (`CI_TYPECHECK_GATE=block`, `CI_GOAL_DRIFT_GATE=block`). The tool-call log is `bin/observe.mjs` and the MCP server is `bin/mcp-server.mjs`. `lib/hook-io.mjs` writes each answer in the format the agent reads, and OpenCode and Amp run the same hook files through `lib/hook-bridge.mjs`.",
         "",
-        "A blind edit is an edit of an existing file that this conversation's tool-call log shows no read of; with no log yet, every edit passes. A shell command that names the file counts as a read on every hook agent, and so does a file tool whose path key the research documents. Copilot, Devin and Auggie document none for their file-read tools, so a read through `view` never counts and a read through `read` counts only when it names the file as `path`: read the file through the shell, or run the clear command the deny prints. A tool event from another agent that names no session gets that deny for every edit of an existing file.",
+        "A blind edit is an edit of an existing file that this conversation's tool-call log shows no read of; with no log yet, every edit that names its file passes. A shell command that names the file counts as a read on every hook agent, and so does a file tool whose path key the research documents. Copilot, Devin and Auggie document none for their file-read tools, so a read through `view` never counts and a read through `read` counts only when it names the file as `path`: read the file through the shell, or run the clear command the deny prints. The write tools of Copilot (`edit`, `str_replace_editor`, `create`), Devin (`edit`, `write`, `notebook_edit`), Auggie (`edit`, `write`, `str-replace-editor`, `save-file`) and Junie (`Write`, `Edit`; hooks on its Early Access build) document no path key either: the guard reads `path`, `file_path`, `filePath` and `target_file` for them (unverified; Devin's `notebook_edit` also `notebook_path`), gates the file it finds there like any edit, and denies a write that names a file at none of those keys, log or no log, with the clear command that lets that tool's path-less writes through for the session; config-guard reports such a write too. An `apply_patch` of Devin, Copilot, Cline or Junie (hooks on its Early Access build), or a Droid `ApplyPatch`, whose patch text names no file at `command`, `patch` or `input` gets the same deny (a Codex `apply_patch`, whose key is documented, gets a warning). A Claude-named write tool of another agent is read with that agent's keys too, so a Grok `Write` is gated on `path`, `filePath` and `target_file` as well as `file_path`. Gemini's `save_memory` names no file and always passes. A tool event from another agent that names no session gets that deny for every edit of an existing file.",
         "",
         "\"Blocks\" means the agent stops the tool call when the hook runs and answers deny. An agent that fails open on a hook crash or timeout, or a setting that turns hooks off (Codex trust, Gemini and Qwen folder trust, Devin Restricted Mode, Copilot `disableAllHooks`), lets the call through. `npx -p continuous-improvement ci doctor --agent <id>` shows what an installed agent loaded, using only its own listing commands.",
         "",
@@ -331,6 +414,9 @@ const BLOCK_RENDERERS = [
     ["README.md", renderTierMarkdown],
     ["docs/landing/index.html", renderTierHtml],
 ];
+function claimViolation(claim) {
+    return `${claim.file}:${claim.line}: ${claim.reason ?? "claims blocking for an agent that cannot block"}: "${claim.text}"`;
+}
 /** Every violation, as one line each. Empty means pass. */
 export function checkAgentMatrix(repoRoot, rows = AGENT_SUPPORT) {
     const out = supportViolations(rows);
@@ -378,10 +464,13 @@ export function checkAgentMatrix(repoRoot, rows = AGENT_SUPPORT) {
                 out.push(`${file}: missing, so its claims cannot be checked`);
             continue;
         }
-        for (const claim of findBlockingClaims(file, text, rows)) {
-            out.push(`${claim.file}:${claim.line}: claims blocking for an agent that cannot block: "${claim.text}"`);
-        }
+        for (const claim of findBlockingClaims(file, text, rows))
+            out.push(claimViolation(claim));
     }
+    const changelog = read(repoRoot, CHANGELOG_FILE);
+    if (changelog !== null)
+        for (const claim of changelogClaims(changelog, rows))
+            out.push(claimViolation(claim));
     return out;
 }
 /** Rewrite every rendered surface from the rows. Returns the files written. A file without a marker pair is left alone. */
@@ -415,7 +504,7 @@ function main() {
     }
     const violations = checkAgentMatrix(repoRoot);
     if (violations.length === 0) {
-        console.log(`OK agent-matrix: ${AGENT_SUPPORT.length} rows; ${SUPPORT_DOC}, the README and landing tier tables and ${CLOUDPLUGIN} match the rows, and no scanned doc claims blocking for an agent that cannot block.`);
+        console.log(`OK agent-matrix: ${AGENT_SUPPORT.length} rows; ${SUPPORT_DOC}, the README and landing tier tables and ${CLOUDPLUGIN} match the rows, and no scanned doc or ${CHANGELOG_FILE} [Unreleased] lead claims blocking for an agent that cannot block, or leaves out a condition or surface.`);
         exit(0);
     }
     console.error(`FAIL agent-matrix: ${violations.length} violation(s).\n`);

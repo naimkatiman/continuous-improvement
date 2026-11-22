@@ -17,7 +17,17 @@
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { resolveInstinctsRoot, resolveProjectRoot } from "./agent-paths.mjs";
-import { classifierShells, inboundCommand, inboundPaths, resolveInboundTool, type InboundTool, type ShellFlavor } from "./agent-profiles.mjs";
+import {
+  classifierShells,
+  inboundCommand,
+  inboundPathKeys,
+  inboundPaths,
+  pathRequiredFor,
+  profileInboundTool,
+  resolveInboundTool,
+  type InboundTool,
+  type ShellFlavor,
+} from "./agent-profiles.mjs";
 import { classifyDestructiveBash } from "./destructive-bash.mjs";
 import {
   MAX_CLEARED_FILES,
@@ -417,6 +427,28 @@ function buildUnreadablePatchReason(toolName: string): string {
   );
 }
 
+// A write through a file or patch tool whose keys are unverified
+// (lib/agent-profiles.mjs pathRequiredFor) that names a file at none of them:
+// the gate cannot see what it writes, so it denies in evidence and strict mode
+// instead of allowing a write of nothing. The clearance is the tool's own key
+// (pathlessWriteKey), so clearing it lets this tool's path-less writes through
+// for the session and nothing else.
+function pathlessWriteKey(toolName: string): string {
+  return `no-path:${toolName}`;
+}
+
+function buildPathlessWriteReason(tool: InboundTool, stateFilePath: string, clearCliPath: string): string {
+  const keys = inboundPathKeys(tool).join(", ");
+  const what =
+    tool.kind === "patch"
+      ? `${tool.name} names no file the guard can read: no patch text with an *** Add File, *** Update File, *** Delete File or *** Move to header at any key it reads (${keys}; unverified for this tool), so the blind-edit gate cannot see what it writes. Send the patch with its file headers under one of those keys.`
+      : `${tool.name} names no file at any key the guard reads (${keys}; unverified for this tool), so the blind-edit gate cannot see what it writes. Send the call with the file under one of those keys.`;
+  return [
+    what,
+    `If the tool cannot name it there, read the file first, then clear the gate for ${tool.name}'s path-less writes in this session and retry: node ${quotePath(clearCliPath)} --state ${quotePath(stateFilePath)} ${quotePath(pathlessWriteKey(tool.name))}`,
+  ].join("\n");
+}
+
 function buildCapReachedReason(): string {
   return [
     `Gateguard clearance cap reached (${MAX_CLEARED_FILES} distinct files this session).`,
@@ -488,7 +520,16 @@ export async function decideGateguard(event: NeutralEvent, config: GateguardConf
   const sessionDir = resolveSessionDir(sessionId, payload);
   const stateFilePath = join(sessionDir, "gateguard-session.json");
   let state = loadState(sessionDir);
-  const allTargetPaths = alias ? inboundPaths(alias, toolInput) : extractFilePaths(toolInput);
+  // A Claude-named write tool of another agent (Grok's Write, Junie's Edit) is
+  // read with the Claude keys and its agent's own; a Claude Code event has no
+  // profile, so its reading is unchanged.
+  const ownFile = alias === null ? profileInboundTool(event.agent, toolName) : null;
+  const claudeNamed = ownFile?.kind === "file-write" ? ownFile : null;
+  const allTargetPaths = alias
+    ? inboundPaths(alias, toolInput)
+    : [...new Set([...extractFilePaths(toolInput), ...(claudeNamed ? inboundPaths(claudeNamed, toolInput) : [])])];
+  const reading = alias ?? claudeNamed;
+  const pathlessWrite = reading !== null && allTargetPaths.length === 0 && pathRequiredFor(event.agent, toolName) ? reading : null;
   const unreadablePatch = alias?.kind === "patch" && allTargetPaths.length === 0;
   const filePaths = allTargetPaths.filter((path) => !isExcludedPath(path, config.excludeFragments));
   if (allTargetPaths.length > 0 && filePaths.length === 0) {
@@ -512,6 +553,13 @@ export async function decideGateguard(event: NeutralEvent, config: GateguardConf
   if (config.fileGateMode === "off") return allow();
 
   const factsFlagged = toolInput._gateguard_facts_presented === true;
+
+  // Before the observation log is consulted: with no file there is no read to
+  // look for, and no log is no reason to allow a write the gate cannot see.
+  if (pathlessWrite !== null) {
+    if (isFileCleared(state, pathlessWriteKey(pathlessWrite.name))) return allow();
+    return deny(buildPathlessWriteReason(pathlessWrite, stateFilePath, config.clearCliPath));
+  }
 
   if (unreadablePatch) {
     if (config.fileGateMode === "strict" && !factsFlagged) return deny(buildUnreadablePatchReason(toolName));

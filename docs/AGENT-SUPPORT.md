@@ -12,7 +12,7 @@ continuous-improvement is guardrails for coding agents, built for Claude Code fi
 
 The guard is `hooks/gateguard.mjs` (destructive shell commands and blind edits), with `hooks/hook-pack.mjs` (protected-branch pushes, opt-in) and `hooks/config-guard.mjs` (guardrail config edits, opt-in). Lessons come from `hooks/session.mjs`. The Stop gate is `hooks/typecheck-stop.mjs` and `hooks/goal-drift-stop.mjs`, both off or warn-only until you switch them on (`CI_TYPECHECK_GATE=block`, `CI_GOAL_DRIFT_GATE=block`). The tool-call log is `bin/observe.mjs` and the MCP server is `bin/mcp-server.mjs`. `lib/hook-io.mjs` writes each answer in the format the agent reads, and OpenCode and Amp run the same hook files through `lib/hook-bridge.mjs`.
 
-A blind edit is an edit of an existing file that this conversation's tool-call log shows no read of; with no log yet, every edit passes. A shell command that names the file counts as a read on every hook agent, and so does a file tool whose path key the research documents. Copilot, Devin and Auggie document none for their file-read tools, so a read through `view` never counts and a read through `read` counts only when it names the file as `path`: read the file through the shell, or run the clear command the deny prints. A tool event from another agent that names no session gets that deny for every edit of an existing file.
+A blind edit is an edit of an existing file that this conversation's tool-call log shows no read of; with no log yet, every edit that names its file passes. A shell command that names the file counts as a read on every hook agent, and so does a file tool whose path key the research documents. Copilot, Devin and Auggie document none for their file-read tools, so a read through `view` never counts and a read through `read` counts only when it names the file as `path`: read the file through the shell, or run the clear command the deny prints. The write tools of Copilot (`edit`, `str_replace_editor`, `create`), Devin (`edit`, `write`, `notebook_edit`), Auggie (`edit`, `write`, `str-replace-editor`, `save-file`) and Junie (`Write`, `Edit`; hooks on its Early Access build) document no path key either: the guard reads `path`, `file_path`, `filePath` and `target_file` for them (unverified; Devin's `notebook_edit` also `notebook_path`), gates the file it finds there like any edit, and denies a write that names a file at none of those keys, log or no log, with the clear command that lets that tool's path-less writes through for the session; config-guard reports such a write too. An `apply_patch` of Devin, Copilot, Cline or Junie (hooks on its Early Access build), or a Droid `ApplyPatch`, whose patch text names no file at `command`, `patch` or `input` gets the same deny (a Codex `apply_patch`, whose key is documented, gets a warning). A Claude-named write tool of another agent is read with that agent's keys too, so a Grok `Write` is gated on `path`, `filePath` and `target_file` as well as `file_path`. Gemini's `save_memory` names no file and always passes. A tool event from another agent that names no session gets that deny for every edit of an existing file.
 
 "Blocks" means the agent stops the tool call when the hook runs and answers deny. An agent that fails open on a hook crash or timeout, or a setting that turns hooks off (Codex trust, Gemini and Qwen folder trust, Devin Restricted Mode, Copilot `disableAllHooks`), lets the call through. `npx -p continuous-improvement ci doctor --agent <id>` shows what an installed agent loaded, using only its own listing commands.
 
@@ -24,8 +24,8 @@ A blind edit is an edit of an existing file that this conversation's tool-call l
 |---|---|---|---|---|---|
 | Claude Code | full | yes, in every permission mode | yes | `/plugin marketplace add naimkatiman/continuous-improvement`, then `/plugin install continuous-improvement@continuous-improvement` | Nothing is lost. The npm installer wires no guard for Claude Code, so use the plugin. |
 | Codex CLI | full | yes, after you trust each hook in /hooks | yes | `npx continuous-improvement install --target codex --hooks` | Hooks stay off until trusted. Hosted tools bypass hooks. No Skill tool, so companion-preference is not wired. |
-| Gemini CLI | full | yes | yes | `npx continuous-improvement install --target gemini --hooks` | A malformed hooks.json is dropped silently. No CLI lists the hooks. |
-| Qwen Code | full | yes | yes | `npx continuous-improvement install --target qwen --hooks` | `$ARGUMENTS` is not substituted in commands. The prompt hook also fires on tool results. |
+| Gemini CLI | full | yes, in a trusted folder | yes | `npx continuous-improvement install --target gemini --hooks` | No CLI command lists the hooks it loaded from settings.json; only `/hooks panel` inside a session does. |
+| Qwen Code | full | yes, once you approve the project hooks or trust the folder | yes | `npx continuous-improvement install --target qwen --hooks` | `$ARGUMENTS` is not substituted in commands. The prompt hook also fires on tool results. |
 | Cursor | full | yes (3.x) | yes | `npx continuous-improvement install --target cursor --hooks` | Cloud agents run no session hooks. 2.5.26 has no prompt context. Stray output from a hook stops every tool call on 3.x. The Cursor CLI is not covered. |
 | GitHub Copilot CLI | full | yes | yes | `npx continuous-improvement install --target copilot --hooks` | Prompt hook output is dropped, so the prompt hooks are not wired. A hook that times out fails open. The cloud agent reads only .github/hooks, and disableAllHooks turns every hook off. A read through `view` does not clear the blind-edit gate, so read the file through the shell first. |
 | Grok CLI | partial | yes, in a trusted folder | rules file | `npx continuous-improvement install --target grok --hooks` | No session or prompt context, so lessons need the rules file. |
@@ -75,20 +75,20 @@ A blind edit is an edit of an existing file that this conversation's tool-call l
 ### Gemini CLI
 
 - Tier: full
-- Blocks a destructive command: yes
+- Blocks a destructive command: yes, in a trusted folder
 - Lessons at session start: yes
 - Stop gate: yes
 - MCP server: yes
 - Checked against: installed binary
 - Install: `npx continuous-improvement install --target gemini --hooks`
 - Then: Trust the folder in Gemini CLI: it runs no settings.json hooks in an untrusted folder.
-- Cannot: A malformed hooks.json is dropped silently. No CLI lists the hooks.
+- Cannot: No CLI command lists the hooks it loaded from settings.json; only `/hooks panel` inside a session does.
 - Source: Research Gemini CLI 0.41 hook_pre_tool BeforeTool (skeptic: corrected; top-level decision deny, permissionDecision ignored), AfterAgent, JSON session context; matrix row Gemini CLI 0.41.
 
 ### Qwen Code
 
 - Tier: full
-- Blocks a destructive command: yes
+- Blocks a destructive command: yes, once you approve the project hooks or trust the folder
 - Lessons at session start: yes
 - Stop gate: yes
 - MCP server: yes

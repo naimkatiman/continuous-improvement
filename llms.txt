@@ -86,7 +86,7 @@ This workflow is explicit and opt-in. Files are created in the git root when ava
 ## Works With
 
 - Claude Code (full support: skill + hooks + MCP server + slash commands + auto-leveling instincts)
-- Full tier with `--target <agent> --hooks` (the guard blocks, lessons load through a session hook, a Stop gate): Codex CLI, Gemini CLI, Qwen Code, Cursor, GitHub Copilot CLI, Devin Local, Kiro CLI, Factory Droid, Amp
+- Full tier with `--target <agent> --hooks` (the guard blocks where the agent runs its hooks, lessons load through a session hook, a Stop gate): Codex CLI (after you trust each hook in /hooks), Gemini CLI (in a trusted folder), Qwen Code (once you approve the project hooks or trust the folder), Cursor (3.x), GitHub Copilot CLI, Devin Local (outside Restricted Mode), Kiro CLI, Factory Droid, Amp
 - Partial tier (lessons through a rules file, no Stop gate, or no blocking claimed where the hooks run): Grok, Kiro IDE (no blocking claimed), Auggie, Junie (Early Access build), Cline, Goose, OpenCode
 - Rules file only, nothing blocked: Zed, Aider
 - Per agent, with the install step and what each cannot do: https://github.com/naimkatiman/continuous-improvement/blob/main/docs/AGENT-SUPPORT.md

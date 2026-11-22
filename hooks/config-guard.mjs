@@ -37,7 +37,9 @@ const ALLOW = { kind: "allow" };
 function buildReason(toolName, hit, mode) {
     const what = hit.via === "claude-cli" || hit.via === "agent-cli"
         ? `\`${hit.target}\` edits the plugin / MCP / settings configuration`
-        : `${toolName} would modify ${hit.target} (matches "${hit.pattern}")`;
+        : hit.via === "no-path"
+            ? `${toolName} names no file at any key it reads (${hit.target}), so it may modify a file`
+            : `${toolName} would modify ${hit.target} (matches "${hit.pattern}")`;
     return [
         `config-guard: ${what}, one of the files that wires the guardrails (settings, MCP config, hooks, installed plugins).`,
         "If this is intended, rerun this one call with CI_CONFIG_GUARD_ALLOW=true, or set CI_CONFIG_GUARD=off for the session.",
@@ -54,7 +56,7 @@ function decideConfigGuard() {
     if (!parsed.ok)
         return ALLOW;
     const event = normalizeEvent(hookAgent(), EVENT, parsed.value);
-    const hit = classifyMutation(event.toolName, event.toolInput);
+    const hit = classifyMutation(event.toolName, event.toolInput, event.agent);
     if (!hit)
         return ALLOW;
     if (String(process.env.CI_CONFIG_GUARD_ALLOW ?? "").trim().toLowerCase() === "true") {

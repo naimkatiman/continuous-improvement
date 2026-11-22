@@ -1052,13 +1052,13 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
           </tr>
           <tr role="row">
             <th role="rowheader" scope="row">Gemini CLI</th>
-            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes.</td>
+            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes, in a trusted folder.</td>
             <td role="cell" data-l="Install"><code>npx continuous-improvement install --target gemini --hooks</code></td>
-            <td role="cell" data-l="Cannot">A malformed hooks.json is dropped silently. No CLI lists the hooks.</td>
+            <td role="cell" data-l="Cannot">No CLI command lists the hooks it loaded from settings.json; only <code>/hooks panel</code> inside a session does.</td>
           </tr>
           <tr role="row">
             <th role="rowheader" scope="row">Qwen Code</th>
-            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes.</td>
+            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes, once you approve the project hooks or trust the folder.</td>
             <td role="cell" data-l="Install"><code>npx continuous-improvement install --target qwen --hooks</code></td>
             <td role="cell" data-l="Cannot"><code>$ARGUMENTS</code> is not substituted in commands. The prompt hook also fires on tool results.</td>
           </tr>
@@ -1262,7 +1262,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
     <ul class="colophon">
       <li><span class="v">28</span><span class="k">Bundled skills</span></li>
       <li><span class="v">0</span><span class="k">Runtime deps</span></li>
-      <li><span class="v">4,760</span><span class="k">Tests in the suite</span></li>
+      <li><span class="v">4,870</span><span class="k">Tests in the suite</span></li>
       <li><span class="v">MIT</span><span class="k">License</span></li>
       <li><span class="v">v3.27.0</span><span class="k">Current rev</span></li>
     </ul>
@@ -1271,7 +1271,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
       <div class="drawer">
         <p>The test line is a stated count, not a capture: CI compares it with the real run and fails when they differ. Three numbers above are pinned by a check: the version in four places (<code>verify:landing-version</code>), the skill count (<code>verify:skill-count</code>) and the test count in two (<code>verify:test-count</code>).</p>
 <pre class="tape">checks     20 invariants + typecheck
-tests      PASS  4760/4760
+tests      PASS  4870/4870
 ci         Node 18, 20, 22 on Linux</pre>
       </div>
     </details>

@@ -25,7 +25,9 @@ import {
 import {
   BLOCK_END,
   BLOCK_START,
+  CHANGELOG_FILE,
   CLAIM_SCAN_FILES,
+  changelogClaims,
   checkAgentMatrix,
   findBlockingClaims,
   renderSupportDoc,
@@ -560,5 +562,126 @@ describe("the conditional verdict, a partial row's hook install, and the variant
     const variants = AGENT_SUPPORT.filter((r) => r.variantOf !== undefined);
     assert.ok(variants.length > 0);
     for (const r of variants) assert.equal(resolveHookAgent(r.id), r.variantOf, r.id);
+  });
+});
+
+// PR 21: the [Unreleased] CHANGELOG lead for PR 8 said "a deny blocks on ...
+// Kiro, Junie ..." with no qualifier, against a table where the Kiro IDE claims
+// no blocking and Junie blocks only on its Early Access build. The scan did not
+// read CHANGELOG.md, a conditional row's claim needed no condition, and the
+// bare "Kiro" (the Kiro CLI row's short name) also names the Kiro IDE.
+describe("conditional and ambiguous blocking claims, and the CHANGELOG leads", () => {
+  it("flags a blocking claim for Junie that does not name its Early Access build", () => {
+    for (const text of ["A deny blocks on Junie too.", "Junie CLI blocks rm -rf.", "The guard denies force pushes in Junie on Early Access."]) {
+      const [hit, ...rest] = findBlockingClaims("README.md", text, AGENT_SUPPORT);
+      assert.equal(rest.length, 0, text);
+      assert.match(hit?.reason ?? "", /Junie.*Early Access build/, text);
+    }
+  });
+
+  it("accepts a Junie claim that names the condition, and a negated one", () => {
+    for (const text of [
+      "A deny blocks on Junie's Early Access build.",
+      "Junie CLI blocks rm -rf on the Early Access build.",
+      "On stable builds Junie does not block anything.",
+      "Junie gets a rules file.",
+    ]) {
+      assert.deepEqual(findBlockingClaims("README.md", text, AGENT_SUPPORT), [], text);
+    }
+  });
+
+  it("fails closed on a conditional row whose Blocks cell names an empty condition", () => {
+    const odd = [row({ id: "odd", names: ["Oddagent"], preToolVerdict: "conditional", blocks: "yes, on the " })];
+    assert.equal(findBlockingClaims("x.md", "Oddagent blocks rm -rf on the build.", odd).length, 1);
+    assert.equal(findBlockingClaims("x.md", "Oddagent blocks rm -rf.", odd).length, 1);
+  });
+
+  it("flags a bare Kiro beside a blocking verb, since the Kiro IDE claims no blocking", () => {
+    for (const text of ["A deny blocks on Kiro too.", "Kiro's hooks block rm -rf.", "kiro blocks it."]) {
+      const [hit, ...rest] = findBlockingClaims("README.md", text, AGENT_SUPPORT);
+      assert.equal(rest.length, 0, text);
+      assert.match(hit?.reason ?? "", /"Kiro".*Kiro CLI.*Kiro IDE/i, text);
+    }
+    for (const text of ["Kiro CLI blocks force pushes with exit 2.", "Kiro has no Stop hook.", "Kiro does not block in the IDE."]) {
+      assert.deepEqual(findBlockingClaims("README.md", text, AGENT_SUPPORT), [], text);
+    }
+  });
+
+  it("does not call a short name ambiguous when no non-blocking row shares it", () => {
+    const rows = [row({ id: "kiro", names: ["Kiro CLI", "Kiro"] })];
+    assert.deepEqual(findBlockingClaims("README.md", "A deny blocks on Kiro too.", rows), []);
+    const both = [...rows, row({ id: "kiro-ide", variantOf: "kiro", names: ["Kiro IDE"], canBlockPreTool: false, preToolVerdict: "partial", blocks: "not claimed" })];
+    assert.equal(findBlockingClaims("README.md", "A deny blocks on Kiro too.", both).length, 1);
+  });
+
+  it("reads only the bold lead of each [Unreleased] entry, at its own line", () => {
+    const text = [
+      "# Changelog",
+      "",
+      "## [Unreleased]",
+      "",
+      "### Added",
+      "",
+      "- **The hooks now answer each agent, so a deny blocks on Gemini, Kiro, Junie and Cline too** — body.",
+      "- **Zed gets a rules file** — the body says Zed blocks nothing here, and a deny blocks on Junie.",
+      "",
+      "## [1.0.0] — 2026-01-01",
+      "",
+      "- **A deny blocks on Zed** — released history is not rescanned.",
+      "",
+    ].join("\n");
+    const claims = changelogClaims(text, AGENT_SUPPORT);
+    assert.equal(claims.length, 2, JSON.stringify(claims));
+    assert.ok(claims.every((claim) => claim.file === CHANGELOG_FILE && claim.line === 7));
+    assert.deepEqual(claims.map((claim) => (/Junie/.test(claim.reason ?? "") ? "junie" : "kiro")).sort(), ["junie", "kiro"]);
+  });
+
+  it("finds nothing in an empty CHANGELOG, one with no [Unreleased] section, or one whose entries have no bold lead", () => {
+    for (const text of [
+      "",
+      "# Changelog\n\n## [1.0.0]\n\n- **A deny blocks on Zed** — x.\n",
+      "## [Unreleased]\n\n- a deny blocks on Zed\n",
+      "## [Unreleased]\n\n- **unclosed lead, a deny blocks on Zed\n",
+    ]) {
+      assert.deepEqual(changelogClaims(text, AGENT_SUPPORT), [], JSON.stringify(text));
+    }
+  });
+
+  it("fails checkAgentMatrix on an unqualified CHANGELOG lead, and passes when CHANGELOG.md is absent", () => {
+    const root = mkdtempSync(join(tmpdir(), "agent-matrix-cl-"));
+    try {
+      mkdirSync(join(root, "docs", "landing"), { recursive: true });
+      mkdirSync(join(root, ".cloudplugin"));
+      writeFileSync(join(root, "package.json"), JSON.stringify({ version: "3.27.0" }));
+      writeFileSync(join(root, ".cloudplugin", "marketplace.json"), JSON.stringify({ name: "n", version: "3.27.0", compatibleWith: [] }));
+      writeFileSync(join(root, "README.md"), `# r\n${BLOCK_START}\n${BLOCK_END}\n`);
+      writeFileSync(join(root, "docs", "landing", "index.html"), `<p>x</p>\n${BLOCK_START}\n${BLOCK_END}\n`);
+      writeFileSync(join(root, "QUICKSTART.md"), "# q\n");
+      writeFileSync(join(root, "llms.txt"), "# l\n");
+      writeAgentMatrix(root);
+      assert.deepEqual(checkAgentMatrix(root), []);
+      writeFileSync(join(root, CHANGELOG_FILE), "## [Unreleased]\n\n- **A deny now blocks on Junie too** — x.\n");
+      assert.match(checkAgentMatrix(root).join("\n"), /CHANGELOG\.md:3: .*Junie.*Early Access build/);
+      writeFileSync(join(root, CHANGELOG_FILE), "## [Unreleased]\n\n- **A deny now blocks on Junie's Early Access build too** — x.\n");
+      assert.deepEqual(checkAgentMatrix(root), []);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("finds no unqualified claim in this repository's [Unreleased] leads", () => {
+    assert.deepEqual(changelogClaims(readFileSync(join(REPO_ROOT, CHANGELOG_FILE), "utf8"), AGENT_SUPPORT), []);
+  });
+});
+
+// PR 21: the Gemini install merges its hooks into .gemini/settings.json and
+// writes no extension, so the Cannot cell no longer describes an extension's
+// hooks/hooks.json.
+describe("the Gemini row describes the settings.json install", () => {
+  it("says no CLI command lists the hooks and names no extension hooks.json", () => {
+    const gemini = AGENT_SUPPORT.find((r) => r.id === "gemini");
+    assert.doesNotMatch(gemini!.cannot, /hooks\.json/);
+    assert.match(gemini!.cannot, /No CLI command lists the hooks/);
+    assert.match(gemini!.cannot, /\/hooks panel/);
   });
 });
