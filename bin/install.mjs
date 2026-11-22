@@ -715,7 +715,9 @@ Options for 'install':
   --hooks           With --target codex, qwen, grok, devin (windsurf), droid,
                     gemini, cursor, copilot, kiro, auggie, junie, goose or cline:
                     also install that agent's hooks and MCP server, pointing at
-                    a stable runtime copy under the instincts dir
+                    a stable runtime copy under the instincts dir. With
+                    --target opencode or amp: write the agent's local plugin
+                    file, which runs the same hooks from that copy
   --scope <scope>   With --hooks: project (default) or user; user-level agent
                     config is written only with --scope user
   --dry-run         With --hooks: print what would be written and run; write nothing
