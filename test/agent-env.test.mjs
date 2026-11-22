@@ -7,7 +7,7 @@
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { KNOB_ALIASES, readKnob } from "../lib/agent-env.mjs";
+import { INSTALLER_KNOB_ALIASES, KNOB_ALIASES, readKnob } from "../lib/agent-env.mjs";
 describe("KNOB_ALIASES", () => {
     it("maps every CLAUDE_* knob a hook reads to its CI_* alias", () => {
         assert.deepEqual(KNOB_ALIASES, {
@@ -71,5 +71,23 @@ describe("readKnob", () => {
             if (savedLegacy !== undefined)
                 process.env.CLAUDE_WORKFLOW_DISTILL_NUDGE = savedLegacy;
         }
+    });
+});
+// PR 5 (refactor/agent-paths-bins): the ninth knob is read only by the
+// installer, so it sits apart from the hook knobs (the Claude golden replay
+// needs a hook golden for every entry of KNOB_ALIASES) and reads the same way.
+describe("INSTALLER_KNOB_ALIASES", () => {
+    it("maps the installer's CLAUDE_CI_UPDATE_CHECK to CI_UPDATE_CHECK, apart from the hook knobs", () => {
+        assert.deepEqual(INSTALLER_KNOB_ALIASES, { CLAUDE_CI_UPDATE_CHECK: "CI_UPDATE_CHECK" });
+        assert.equal("CLAUDE_CI_UPDATE_CHECK" in KNOB_ALIASES, false);
+        for (const [legacy, alias] of Object.entries(INSTALLER_KNOB_ALIASES)) {
+            assert.equal(alias, `CI_${legacy.replace(/^CLAUDE_(CI_)?/, "")}`, legacy);
+        }
+    });
+    it("readKnob reads it like a hook knob: CLAUDE_* wins when non-blank, else the alias", () => {
+        assert.equal(readKnob("CLAUDE_CI_UPDATE_CHECK", { CI_UPDATE_CHECK: "off" }), "off");
+        assert.equal(readKnob("CLAUDE_CI_UPDATE_CHECK", { CLAUDE_CI_UPDATE_CHECK: "on", CI_UPDATE_CHECK: "off" }), "on");
+        assert.equal(readKnob("CLAUDE_CI_UPDATE_CHECK", { CLAUDE_CI_UPDATE_CHECK: " ", CI_UPDATE_CHECK: "off" }), "off");
+        assert.equal(readKnob("CLAUDE_CI_UPDATE_CHECK", {}), undefined);
     });
 });

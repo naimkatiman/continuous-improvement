@@ -260,3 +260,34 @@ describe("backfill.mjs subcommand", () => {
     }
   });
 });
+
+// PR 5 (refactor/agent-paths-bins): backfill walks the store every hook and
+// the observer write, so CI_INSTINCTS_HOME moves it too.
+describe("backfill.mjs: CI_INSTINCTS_HOME", () => {
+  it("tags the rows and writes the summary under CI_INSTINCTS_HOME, not <home>/.claude/instincts", () => {
+    const home = makeTempHome();
+    const store = join(home, "store");
+    try {
+      const dir = join(store, "bbbbbbbbbbbb");
+      mkdirSync(dir, { recursive: true });
+      const file = join(dir, "observations.jsonl");
+      writeFileSync(
+        file,
+        JSON.stringify({ ts: "2026-04-29T01:00:00Z", event: "tool_start", session: "s1", tool: "Bash", project_id: "bbbbbbbbbbbb", project_name: "proj-b" }) + "\n",
+        "utf8",
+      );
+      const result = spawnSync("node", [BACKFILL_BIN], {
+        env: { ...process.env, HOME: home, USERPROFILE: home, CI_INSTINCTS_HOME: store },
+        encoding: "utf8",
+        timeout: 10_000,
+      });
+      assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+      assert.deepEqual(readJsonl(file).map((row) => row.schema), ["thin"]);
+      const summary = JSON.parse(readFileSync(join(store, "backfill-summary.json"), "utf8")) as BackfillSummary;
+      assert.equal(summary.total, 1);
+      assert.equal(existsSync(instinctsDirOf(home)), false, "the default root was used");
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+});

@@ -11,6 +11,8 @@ import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { hashProjectRoot } from "../lib/gateguard-state.mjs";
+
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 // __dirname resolves to <repo>/test/ at runtime; CLI lives under <repo>/bin/.
 const CLI_PATH = join(__dirname, "..", "bin", "companion-preference-status.mjs");
@@ -253,6 +255,36 @@ describe("/companion-preference status CLI", () => {
       assert.match(r.stdout, /installed%/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// PR 5 (refactor/agent-paths-bins): the CLI reads the bucket the hook writes,
+// through the shared resolver in lib/agent-paths.mjs: CI_INSTINCTS_HOME moves
+// the store, and another agent's project env var picks the project.
+describe("/companion-preference status CLI: shared store and project root", () => {
+  it("defaults to <CI_INSTINCTS_HOME>/<hash of QWEN_PROJECT_DIR>/companion-preference.jsonl", () => {
+    const base = mkdtempSync(join(tmpdir(), "ci-cps-root-"));
+    try {
+      const home = join(base, "home");
+      const store = join(base, "store");
+      const project = join(base, "project");
+      for (const dir of [home, store, project]) mkdirSync(dir, { recursive: true });
+      const env: NodeJS.ProcessEnv = { ...process.env };
+      for (const key of Object.keys(env)) {
+        if (/^(CI_|CLAUDE_)/i.test(key) || /_PROJECT_DIR$|^GROK_WORKSPACE_ROOT$/i.test(key)) delete env[key];
+      }
+      const result = spawnSync(process.execPath, [CLI_PATH], {
+        cwd: base,
+        env: { ...env, HOME: home, USERPROFILE: home, CI_INSTINCTS_HOME: store, QWEN_PROJECT_DIR: project },
+        encoding: "utf8",
+        timeout: 5000,
+      });
+      assert.equal(result.status, 0, result.stderr);
+      const expected = join(store, hashProjectRoot(project), "companion-preference.jsonl");
+      assert.equal(result.stdout, `Companion-preference telemetry: no telemetry recorded yet at ${expected}\n`);
+    } finally {
+      rmSync(base, { recursive: true, force: true });
     }
   });
 });

@@ -2,7 +2,9 @@
 /**
  * /companion-preference status — read & aggregate hook telemetry.
  *
- * Reads ~/.claude/instincts/<project-hash>/companion-preference.jsonl
+ * Reads <instincts root>/<project-hash>/companion-preference.jsonl (the root
+ * and project resolve as the companion-preference hook resolves them, through
+ * lib/agent-paths.mjs)
  * (or an explicit path via --path), groups events by ci_skill within the
  * configured window (default 7 days), and prints a summary report with
  * per-skill totals, action breakdown, and companion_installed%.
@@ -19,9 +21,9 @@
  *   1 — argument parse error or unexpected runtime failure
  */
 
-import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
+import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 import { join } from "node:path";
 import { argv, exit, stdout } from "node:process";
@@ -116,25 +118,13 @@ function printHelp(): void {
   );
 }
 
-function resolveProjectRoot(): string {
-  const fromEnv = process.env.CLAUDE_PROJECT_DIR;
-  if (fromEnv) return fromEnv;
-  try {
-    const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-    if (root) return root;
-  } catch {
-    // not in a git repo
-  }
-  return "global";
-}
-
+// The file hooks/companion-preference.mjs writes: the same home rule, and the
+// shared root and project resolver. The CLI gets no hook payload, so the
+// project comes from a project env var or the git toplevel of the cwd.
 function defaultJsonlPath(): string {
   const home = process.env.HOME ?? process.env.USERPROFILE ?? homedir();
   const hash = hashProjectRoot(resolveProjectRoot());
-  return join(home, ".claude", "instincts", hash, "companion-preference.jsonl");
+  return join(resolveInstinctsRoot(home), hash, "companion-preference.jsonl");
 }
 
 function parseJsonl(raw: string): { rows: TelemetryLine[]; parseErrors: number } {

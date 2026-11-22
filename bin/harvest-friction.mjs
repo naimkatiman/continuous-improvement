@@ -34,6 +34,7 @@ import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { argv, exit } from "node:process";
+import { resolveInstinctsRoot } from "../lib/agent-paths.mjs";
 import { hashProjectRoot, resolveProjectRoot } from "../lib/gateguard-state.mjs";
 const SUMMARY_TRUNCATE = 120;
 const DEDUP_KEY_INPUT_TRUNCATE = 120;
@@ -232,7 +233,8 @@ function main() {
     const listOnly = args.includes("--list");
     const positional = args.filter((a) => !a.startsWith("--"));
     const projectHash = positional[0] ?? defaultProjectHash();
-    const projectDir = join(homedir(), ".claude", "instincts", projectHash);
+    // The store the observer writes (CI_INSTINCTS_HOME, else <homedir>/.claude/instincts).
+    const projectDir = join(resolveInstinctsRoot(homedir()), projectHash);
     const observationsPath = join(projectDir, "observations.jsonl");
     const instinctsPath = join(projectDir, "instincts.jsonl");
     const result = harvest(observationsPath, instinctsPath);

@@ -18,10 +18,11 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { after, before, describe, it } from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   GLOBAL_PROJECT_ROOT,
+  mcpRootsPayload,
   PROJECT_DIR_ENV,
   resolveInstinctsRoot,
   resolveProjectRoot,
@@ -493,5 +494,70 @@ describe("hooks and observer use the shared root", () => {
     assert.ok(existsSync(state), `no state at ${state}`);
     assert.match(readFileSync(state, "utf8"), /a\.txt/);
     assert.equal(existsSync(join(home, ".claude", "instincts")), false, "the default root was written");
+  });
+});
+
+// PR 5 (refactor/agent-paths-bins): the MCP server gets no hook payload, so it
+// asks the client for its roots (MCP spec 2024-11-05, client feature "Roots":
+// the server sends `roots/list`, the reply is `{ roots: [{ uri, name? }] }`
+// with `file://` URIs). mcpRootsPayload turns that reply into the payload
+// resolveProjectRoot already reads, so a root counts under the same rule as a
+// hook payload cwd: absolute, existing, inside a repository.
+describe("mcpRootsPayload", () => {
+  const fileUri = (path: string) => pathToFileURL(path).href;
+
+  it("takes the first root with a usable file URI as the payload cwd", () => {
+    const first = resolve(tmpdir(), "ci-roots-first");
+    const second = resolve(tmpdir(), "ci-roots-second");
+    assert.deepEqual(mcpRootsPayload({ roots: [{ uri: fileUri(first), name: "first" }, { uri: fileUri(second) }] }), {
+      cwd: first,
+    });
+    assert.deepEqual(
+      mcpRootsPayload({ roots: [{ uri: "https://example.com/repo" }, { name: "no uri" }, { uri: fileUri(second) }] }),
+      { cwd: second },
+    );
+  });
+
+  it("returns undefined for a reply with no usable root, and never throws", () => {
+    const replies: unknown[] = [
+      undefined,
+      null,
+      "roots",
+      42,
+      [],
+      {},
+      { roots: "file:///x" },
+      { roots: {} },
+      { roots: [] },
+      { roots: [null, 1, "file:///x", [], { uri: 5 }, { uri: "" }, { uri: "   " }, { name: "x" }] },
+      { roots: [{ uri: "https://example.com/repo" }, { uri: "untitled:Untitled-1" }, { uri: "not a uri" }] },
+      // Malformed percent-encoding and an encoded slash make fileURLToPath throw.
+      { roots: [{ uri: "file:///%E0%A4%A" }, { uri: "file:///tmp/a%2Fb" }] },
+    ];
+    for (const reply of replies) {
+      assert.equal(mcpRootsPayload(reply), undefined, JSON.stringify(reply));
+    }
+  });
+
+  it("a root inside a repository resolves like a hook payload cwd: the repo's toplevel", () => {
+    const base = mkdtempSync(join(tmpdir(), "ci-mcp-roots-"));
+    try {
+      const repo = join(base, "repo");
+      const sub = join(repo, "packages", "app");
+      const plain = join(base, "plain");
+      mkdirSync(sub, { recursive: true });
+      mkdirSync(plain);
+      execFileSync("git", ["init", "-q", repo], { env: { ...process.env, GIT_CEILING_DIRECTORIES: base } });
+      withEnv({ GIT_CEILING_DIRECTORIES: base }, () => {
+        same(resolveProjectRoot(mcpRootsPayload({ roots: [{ uri: fileUri(sub) }] })), gitToplevel(repo));
+        // A root outside any repository is skipped, like a non-git payload dir.
+        assert.equal(
+          resolveProjectRoot(mcpRootsPayload({ roots: [{ uri: fileUri(plain) }] })),
+          resolveProjectRoot(),
+        );
+      });
+    } finally {
+      rmSync(base, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    }
   });
 });
