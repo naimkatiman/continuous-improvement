@@ -417,6 +417,23 @@ function buildUnreadablePatchReason(toolName: string): string {
   );
 }
 
+// A write through a file tool whose path keys are unverified
+// (lib/agent-profiles.mjs ToolSpec.pathKeys) that names a file at none of
+// them: the gate cannot see what it writes, so it denies in evidence and
+// strict mode instead of allowing a write of nothing. The clearance is the
+// tool's own key (pathlessWriteKey), so clearing it lets this tool's
+// path-less writes through for the session and nothing else.
+function pathlessWriteKey(toolName: string): string {
+  return `no-path:${toolName}`;
+}
+
+function buildPathlessWriteReason(tool: InboundTool, stateFilePath: string, clearCliPath: string): string {
+  return [
+    `${tool.name} names no file at any key the guard reads (${tool.input.path.join(", ")}; unverified for this tool), so the blind-edit gate cannot see what it writes. Send the call with the file under one of those keys.`,
+    `If the tool cannot name it there, read the file first, then clear the gate for ${tool.name}'s path-less writes in this session and retry: node ${quotePath(clearCliPath)} --state ${quotePath(stateFilePath)} ${quotePath(pathlessWriteKey(tool.name))}`,
+  ].join("\n");
+}
+
 function buildCapReachedReason(): string {
   return [
     `Gateguard clearance cap reached (${MAX_CLEARED_FILES} distinct files this session).`,
@@ -490,6 +507,7 @@ export async function decideGateguard(event: NeutralEvent, config: GateguardConf
   let state = loadState(sessionDir);
   const allTargetPaths = alias ? inboundPaths(alias, toolInput) : extractFilePaths(toolInput);
   const unreadablePatch = alias?.kind === "patch" && allTargetPaths.length === 0;
+  const pathlessWrite = alias?.kind === "file-write" && alias.pathRequired && allTargetPaths.length === 0 ? alias : null;
   const filePaths = allTargetPaths.filter((path) => !isExcludedPath(path, config.excludeFragments));
   if (allTargetPaths.length > 0 && filePaths.length === 0) {
     // Every target is under a CI_GATEGUARD_EXCLUDE path; skip the gate, but say so.
@@ -512,6 +530,13 @@ export async function decideGateguard(event: NeutralEvent, config: GateguardConf
   if (config.fileGateMode === "off") return allow();
 
   const factsFlagged = toolInput._gateguard_facts_presented === true;
+
+  // Before the observation log is consulted: with no file there is no read to
+  // look for, and no log is no reason to allow a write the gate cannot see.
+  if (pathlessWrite !== null) {
+    if (isFileCleared(state, pathlessWriteKey(pathlessWrite.name))) return allow();
+    return deny(buildPathlessWriteReason(pathlessWrite, stateFilePath, config.clearCliPath));
+  }
 
   if (unreadablePatch) {
     if (config.fileGateMode === "strict" && !factsFlagged) return deny(buildUnreadablePatchReason(toolName));

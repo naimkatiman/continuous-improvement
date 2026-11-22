@@ -38,7 +38,10 @@
  * Other agents that load this plugin report their own tool names. The ones in
  * lib/agent-profiles.mjs (never a Claude Code name) are routed by kind: a shell
  * is classified in its flavor, both ways on Windows when the flavor is unknown;
- * a file tool is gated on the paths its input keys hold; an apply_patch is
+ * a file tool is gated on the paths its input keys hold, and one whose keys
+ * are unverified (Copilot str_replace_editor and create, Auggie
+ * str-replace-editor and save-file) is denied when it names a file at none of
+ * them, log or no log, unless the file gate is off; an apply_patch is
  * gated on the paths in its *** File headers (lib/patch-paths.mjs).
  *
  * V1 honest limitations (see src/lib/gateguard-state.mts header):

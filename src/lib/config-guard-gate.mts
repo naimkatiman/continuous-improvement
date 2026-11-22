@@ -25,11 +25,12 @@ export interface ConfigGuardDecision {
 }
 
 export interface ConfigMutation {
-  /** The path (or CLI subcommand) that would be mutated. */
+  /** The path (or CLI subcommand) that would be mutated; for "no-path", the keys read. */
   target: string;
-  /** The protected pattern it matched, "claude-cli", or "<cli>-cli" for another agent's CLI. */
+  /** The protected pattern it matched, "claude-cli", "<cli>-cli" for another agent's CLI, or "no-path". */
   pattern: string;
-  via: "file" | "bash" | "claude-cli" | "agent-cli";
+  /** "no-path": a file tool whose path keys are unverified named no file, so it may write a guarded one. */
+  via: "file" | "bash" | "claude-cli" | "agent-cli" | "no-path";
 }
 
 /**
@@ -736,11 +737,15 @@ function classifyShellCommand(command: string): ConfigMutation | null {
 
 // Another agent's tool name (lib/agent-profiles.mjs, never a Claude Code one):
 // a file or patch tool is judged by the paths it names (a patch's come from its
-// *** File headers, a Delete included), a shell by the shell rules above.
+// *** File headers, a Delete included), a shell by the shell rules above. A
+// file tool whose path keys are unverified (agent-profiles pathRequired) that
+// names no file may be writing a guarded one, so it is reported, not passed.
 function classifyAliasMutation(toolName: string, toolInput: Record<string, unknown>): ConfigMutation | null {
   const alias = resolveInboundTool(toolName);
   if (alias?.kind === "file-write" || alias?.kind === "patch") {
-    for (const p of inboundPaths(alias, toolInput)) {
+    const paths = inboundPaths(alias, toolInput);
+    if (paths.length === 0 && alias.pathRequired) return { target: alias.input.path.join(", "), pattern: "no-path", via: "no-path" };
+    for (const p of paths) {
       const pattern = matchProtectedPath(p);
       if (pattern) return { target: p, pattern, via: "file" };
     }

@@ -28,6 +28,13 @@ export interface ToolSpec {
   kind: ToolKind;
   /** Shell tools only. */
   flavor?: ShellFlavor;
+  /**
+   * File tools whose path key the research does not document: the keys read
+   * in place of the profile's, and a call that names a file at none of them is
+   * a write the guard cannot see, which gateguard and config-guard deny
+   * instead of allowing (InboundTool.pathRequired).
+   */
+  pathKeys?: readonly string[];
 }
 
 export interface InputKeys {
@@ -55,6 +62,12 @@ export interface InboundTool {
   flavor: ShellFlavor;
   agents: string[];
   input: InputKeys;
+  /**
+   * A file tool of an agent whose path keys are unverified (ToolSpec.pathKeys):
+   * a call that names no file at any of input.path is denied by the blind-edit
+   * gate and reported by config-guard, never allowed as a write of nothing.
+   */
+  pathRequired: boolean;
 }
 
 const sh = (flavor: ShellFlavor): ToolSpec => ({ kind: "shell", flavor });
@@ -69,6 +82,11 @@ const NONE: readonly string[] = [];
 // candidate key is read, so a well-formed patch is gated whichever one it uses.
 // Unverified; the citing source says so.
 const PATCH_KEYS_UNVERIFIED: readonly string[] = ["command", "patch", "input"];
+// For a file-write tool whose path key the research does not document: the
+// common keys, in this order. Unverified; the citing source says so. A call
+// naming none of them fails closed (ToolSpec.pathKeys).
+const PATH_KEYS_UNVERIFIED: readonly string[] = ["path", "file_path", "filePath", "target_file"];
+const WRITE_PATH_UNVERIFIED: ToolSpec = { kind: "file-write", pathKeys: PATH_KEYS_UNVERIFIED };
 
 /**
  * The Claude Code tool names: the ones this repo's hooks route and match
@@ -159,19 +177,19 @@ export const AGENT_PROFILES: readonly AgentProfile[] = [
   },
   {
     id: "copilot",
-    source: "Copilot CLI, research tool_names (cli-hooks-reference tool table; skeptic: powershell maps to Bash under PascalCase events). Shell args carry command. Camel-case payloads use toolName/toolArgs (lib/hook-io.mjs reads them). Under PascalCase events powershell is reported as Bash, so Copilot's Bash has an unknown flavor. apply_patch's input key is not documented: patch keys command, patch and input are unverified candidates.",
+    source: "Copilot CLI, research tool_names (cli-hooks-reference tool table; skeptic: powershell maps to Bash under PascalCase events). Shell args carry command. Camel-case payloads use toolName/toolArgs (lib/hook-io.mjs reads them). Under PascalCase events powershell is reported as Bash, so Copilot's Bash has an unknown flavor. apply_patch's input key is not documented: patch keys command, patch and input are unverified candidates. str_replace_editor and create name no argument keys in the research (tool_names: `edit` (also `str_replace_editor`, `apply_patch`), `create` (file write)): their path keys path, file_path, filePath and target_file are unverified candidates, and a call naming none of them is denied, not allowed.",
     tools: {
-      Bash: SHELL, bash: sh("posix"), powershell: sh("powershell"), edit: WRITE, str_replace_editor: WRITE, apply_patch: PATCH,
-      create: WRITE, view: READ, grep: SEARCH, rg: SEARCH, glob: SEARCH, web_fetch: OTHER, web_search: OTHER,
+      Bash: SHELL, bash: sh("posix"), powershell: sh("powershell"), edit: WRITE, str_replace_editor: WRITE_PATH_UNVERIFIED, apply_patch: PATCH,
+      create: WRITE_PATH_UNVERIFIED, view: READ, grep: SEARCH, rg: SEARCH, glob: SEARCH, web_fetch: OTHER, web_search: OTHER,
     },
     input: { command: ["command"], path: NONE, patch: PATCH_KEYS_UNVERIFIED },
   },
   {
     id: "auggie",
-    source: "Auggie 1.2.2, research tool_names (bash, read, edit, write, grep, find; legacy 0.x launch-process, view, str-replace-editor, save-file) + hook_payload_example (bash tool_input {command}).",
+    source: "Auggie 1.2.2, research tool_names (bash, read, edit, write, grep, find; legacy 0.x launch-process, view, str-replace-editor, save-file) + hook_payload_example (bash tool_input {command}). The legacy str-replace-editor and save-file name no argument keys in the research: their path keys path, file_path, filePath and target_file are unverified candidates, and a call naming none of them is denied, not allowed.",
     tools: {
       bash: sh("posix"), "launch-process": SHELL, read: READ, view: READ, edit: WRITE, write: WRITE,
-      "str-replace-editor": WRITE, "save-file": WRITE, grep: SEARCH, find: SEARCH, "web-fetch": OTHER, "web-search": OTHER,
+      "str-replace-editor": WRITE_PATH_UNVERIFIED, "save-file": WRITE_PATH_UNVERIFIED, grep: SEARCH, find: SEARCH, "web-fetch": OTHER, "web-search": OTHER,
     },
     input: { command: ["command"], path: NONE, patch: NONE },
   },
@@ -208,6 +226,11 @@ function union(left: readonly string[], right: readonly string[]): string[] {
   return [...new Set([...left, ...right])];
 }
 
+// A tool's own path keys (ToolSpec.pathKeys) replace its profile's.
+function inputFor(profile: AgentProfile, spec: ToolSpec): InputKeys {
+  return spec.pathKeys === undefined ? profile.input : { ...profile.input, path: spec.pathKeys };
+}
+
 function buildInbound(): ReadonlyMap<string, InboundTool> {
   const inbound = new Map<string, InboundTool>();
   for (const profile of AGENT_PROFILES) {
@@ -216,9 +239,10 @@ function buildInbound(): ReadonlyMap<string, InboundTool> {
       const flavor = spec.flavor ?? "unknown";
       const seen = inbound.get(name);
       if (seen === undefined) {
-        inbound.set(name, { name, kind: spec.kind, flavor, agents: [profile.id], input: profile.input });
+        inbound.set(name, { name, kind: spec.kind, flavor, agents: [profile.id], input: inputFor(profile, spec), pathRequired: spec.pathKeys !== undefined });
         continue;
       }
+      const input = inputFor(profile, spec);
       // Two agents that disagree on a kind would be a table error (a test
       // pins it); the shell reading wins so the call is still gated.
       inbound.set(name, {
@@ -227,10 +251,11 @@ function buildInbound(): ReadonlyMap<string, InboundTool> {
         flavor: seen.flavor === flavor ? flavor : "unknown",
         agents: [...seen.agents, profile.id],
         input: {
-          command: union(seen.input.command, profile.input.command),
-          path: union(seen.input.path, profile.input.path),
-          patch: union(seen.input.patch, profile.input.patch),
+          command: union(seen.input.command, input.command),
+          path: union(seen.input.path, input.path),
+          patch: union(seen.input.patch, input.patch),
         },
+        pathRequired: seen.pathRequired || spec.pathKeys !== undefined,
       });
     }
   }

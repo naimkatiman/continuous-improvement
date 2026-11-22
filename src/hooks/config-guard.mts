@@ -50,7 +50,9 @@ function buildReason(toolName: string, hit: ConfigMutation, mode: "warn" | "bloc
   const what =
     hit.via === "claude-cli" || hit.via === "agent-cli"
       ? `\`${hit.target}\` edits the plugin / MCP / settings configuration`
-      : `${toolName} would modify ${hit.target} (matches "${hit.pattern}")`;
+      : hit.via === "no-path"
+        ? `${toolName} names no file at any key it reads (${hit.target}), so it may modify a file`
+        : `${toolName} would modify ${hit.target} (matches "${hit.pattern}")`;
   return [
     `config-guard: ${what}, one of the files that wires the guardrails (settings, MCP config, hooks, installed plugins).`,
     "If this is intended, rerun this one call with CI_CONFIG_GUARD_ALLOW=true, or set CI_CONFIG_GUARD=off for the session.",
