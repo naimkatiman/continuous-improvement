@@ -136,10 +136,20 @@ describe("planTargetWrites", () => {
         assert.deepEqual(plan.writes.map((w) => w.relPath), ["CONVENTIONS.md"]);
         assert.ok(plan.notes.some((note) => note.includes(".aider.conf.yml")));
     });
-    it("every non-claude plan notes that hooks/MCP/instincts stay Claude Code-only", () => {
-        for (const id of ["gemini", "codex", "cursor", "windsurf", "zed", "aider", "copilot"]) {
-            const plan = planTargetWrites(id, SAMPLE_SKILL, readNothing);
-            assert.ok(plan.notes.some((note) => note.includes("Claude Code")), `missing Claude Code-only note for ${id}`);
+    // Owner, 2026-11-22: nothing the installer prints says the guard is Claude
+    // Code only. A rules-file plan says it wrote the rules file only, and names
+    // --hooks where the agent has a hook this package can use.
+    it("every non-claude plan says it wrote the rules file only, and names --hooks where the agent has a usable hook", () => {
+        for (const id of ["gemini", "codex", "cursor", "windsurf", "copilot"]) {
+            const notes = planTargetWrites(id, SAMPLE_SKILL, readNothing).notes.join("\n");
+            assert.match(notes, /rules file only/, id);
+            assert.ok(notes.includes(`--target ${id} --hooks`), `${id} note names --hooks`);
+            assert.doesNotMatch(notes, /Claude Code/, id);
+        }
+        for (const id of ["zed", "aider"]) {
+            const notes = planTargetWrites(id, SAMPLE_SKILL, readNothing).notes.join("\n");
+            assert.match(notes, /rules file only: it runs no hook this package can use/, id);
+            assert.doesNotMatch(notes, /--hooks|Claude Code/, id);
         }
     });
 });

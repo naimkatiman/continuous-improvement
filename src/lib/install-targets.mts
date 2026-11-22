@@ -7,8 +7,10 @@
  * pure lets the per-target contracts be unit-tested without temp dirs.
  *
  * v1 contract (docs/plans/2026-06-11-multi-platform-installer.md):
- * - Non-Claude targets receive the skill text only; hooks, the MCP server,
- *   and instinct learning stay Claude Code-only and every plan says so.
+ * - Without --hooks, a target receives the skill text only, and every plan
+ *   says so: for an agent with a hook this package can use, the note names
+ *   `--target <id> --hooks`, which installs the guard; for Zed and Aider it
+ *   says they run no such hook (docs/AGENT-SUPPORT.md).
  * - Shared files (GEMINI.md, AGENTS.md, .rules, CONVENTIONS.md,
  *   copilot-instructions.md) are merged through a managed block so existing
  *   user content is never clobbered and reinstalls are idempotent.
@@ -33,16 +35,18 @@ interface TargetSpec {
   /** "managed" merges into a shared file; "whole" owns its file outright. */
   mode: "managed" | "whole";
   relPath: string;
+  /** `--target <id> --hooks` installs the guard for this agent. */
+  hooks: boolean;
 }
 
 const TARGET_SPECS: Record<string, TargetSpec> = {
-  gemini: { label: "Gemini CLI", mode: "managed", relPath: "GEMINI.md" },
-  codex: { label: "Codex CLI (agents.md standard)", mode: "managed", relPath: "AGENTS.md" },
-  cursor: { label: "Cursor", mode: "whole", relPath: ".cursor/rules/continuous-improvement.mdc" },
-  windsurf: { label: "Windsurf", mode: "whole", relPath: ".windsurf/rules/continuous-improvement.md" },
-  zed: { label: "Zed", mode: "managed", relPath: ".rules" },
-  aider: { label: "Aider", mode: "managed", relPath: "CONVENTIONS.md" },
-  copilot: { label: "GitHub Copilot", mode: "managed", relPath: ".github/copilot-instructions.md" },
+  gemini: { label: "Gemini CLI", mode: "managed", relPath: "GEMINI.md", hooks: true },
+  codex: { label: "Codex CLI (agents.md standard)", mode: "managed", relPath: "AGENTS.md", hooks: true },
+  cursor: { label: "Cursor", mode: "whole", relPath: ".cursor/rules/continuous-improvement.mdc", hooks: true },
+  windsurf: { label: "Windsurf", mode: "whole", relPath: ".windsurf/rules/continuous-improvement.md", hooks: true },
+  zed: { label: "Zed", mode: "managed", relPath: ".rules", hooks: false },
+  aider: { label: "Aider", mode: "managed", relPath: "CONVENTIONS.md", hooks: false },
+  copilot: { label: "GitHub Copilot", mode: "managed", relPath: ".github/copilot-instructions.md", hooks: true },
 };
 
 export const TARGET_IDS: readonly string[] = ["claude", ...Object.keys(TARGET_SPECS)];
@@ -124,7 +128,9 @@ export function planTargetWrites(
 
   const writes: TargetWrite[] = [];
   const notes: string[] = [
-    `${spec.label} gets the 7-Laws skill text only — hooks, the MCP server, and instinct learning are Claude Code-only.`,
+    spec.hooks
+      ? `${spec.label} gets the 7-Laws rules file only. --target ${targetId} --hooks also installs the guard hooks, the tool-call log and the MCP server step (docs/AGENT-SUPPORT.md).`
+      : `${spec.label} gets the 7-Laws rules file only: it runs no hook this package can use, so nothing is blocked (docs/AGENT-SUPPORT.md).`,
   ];
 
   if (spec.mode === "whole") {

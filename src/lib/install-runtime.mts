@@ -328,7 +328,7 @@ export function runHookInstall(args: ParsedArgs, io: HookRunIo): number {
     return 1;
   }
   // codex, gemini, cursor, copilot and windsurf also keep their rules file, recorded with
-  // the agent's entry (PR 19). Its plan's "hooks are Claude Code-only" note is not
+  // the agent's entry (PR 19). Its plan's "rules file only" note is not
   // printed: here they get hooks.
   const rules = rulesWrites(args, io, ledger);
   const plans = planned.map((plan) => ({ ...plan, writes: [...plan.writes, ...(rules.recorded.get(plan.agent) ?? [])] }));
