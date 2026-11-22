@@ -104,6 +104,9 @@ function fakeAmp() {
 async function load<T>(content: string, name: string): Promise<T> {
   const dir = tempDir("ci-shims-file-");
   const file = join(dir, name);
+  // The plugin file is ESM in a .js file, which OpenCode's Bun runs as a module.
+  // Node 18 reads a .js file as CommonJS unless its package.json says otherwise.
+  writeFileSync(join(dir, "package.json"), '{"type":"module"}\n');
   writeFileSync(file, content);
   return ((await import(pathToFileURL(file).href)) as { default: T }).default;
 }
@@ -562,7 +565,7 @@ describe("install --target opencode,amp --hooks (spawned)", () => {
     const amp = join(project, ".amp", "plugins", "continuous-improvement.ts");
     assert.ok(existsSync(opencode) && existsSync(amp), out.stdout);
     assert.match(readFileSync(opencode, "utf8"), /runtime\/[^/]+\/lib\/plugin-shim-opencode\.mjs/);
-    const plugin = ((await import(pathToFileURL(opencode).href)) as { default: { server: (input: unknown) => Promise<Record<string, Fn>> } }).default;
+    const plugin = await load<{ server: (input: unknown) => Promise<Record<string, Fn>> }>(readFileSync(opencode, "utf8"), "continuous-improvement.js");
     const hooks = await plugin.server({ directory: project });
     await assert.rejects(hooks["tool.execute.before"]!({ tool: "bash", sessionID: "ses_i", callID: "c" }, { args: { command: FORCE_PUSH } }), /Destructive command/);
     const removed = install(["--uninstall", "--target", "opencode,amp"]);
