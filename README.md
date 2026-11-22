@@ -2,7 +2,7 @@
 
 # continuous-improvement
 
-A Claude Code plugin: hooks that refuse destructive shell commands and blind edits, a local searchable log of tool calls, and recorded lessons that load at session start.
+Guardrails for coding agents, Claude Code first: hooks that refuse destructive shell commands and blind edits, a local searchable log of tool calls, and recorded lessons that load at session start. On Claude Code it installs as a plugin. Other agents get the same hooks through their own hook systems where they have one, and the [tier table](#other-coding-agents) says exactly what each one gets.
 
 [![npm version](https://img.shields.io/npm/v/continuous-improvement)](https://www.npmjs.com/package/continuous-improvement)
 [![npm downloads](https://img.shields.io/npm/dm/continuous-improvement)](https://www.npmjs.com/package/continuous-improvement)
@@ -11,7 +11,7 @@ A Claude Code plugin: hooks that refuse destructive shell commands and blind edi
 
 Claude Code ships the mechanisms: hooks, permission rules, memory and transcripts. What a hook should refuse, and what a session should keep about its tool calls, is left to you. This plugin is one set of answers. Its hooks, logger and MCP server make no model calls and no network calls, and one command disables all of it.
 
-Walkthrough: [QUICKSTART.md](QUICKSTART.md). Site: [continuous-improvement.dev](https://continuous-improvement.dev). Changes: [CHANGELOG.md](CHANGELOG.md).
+Walkthrough: [QUICKSTART.md](QUICKSTART.md). Other agents: [docs/AGENT-SUPPORT.md](docs/AGENT-SUPPORT.md). Site: [continuous-improvement.dev](https://continuous-improvement.dev). Changes: [CHANGELOG.md](CHANGELOG.md).
 
 ## What this adds that Claude Code does not do by itself
 
@@ -229,6 +229,35 @@ Then delete `~/.claude/instincts/` and `~/.claude/hook-telemetry/` by hand. The 
 
 **Uninstall the npm install.** Run `npx continuous-improvement install --uninstall`. This removes both skills, the 14 commands, the logger, the session hook, their rows in `~/.claude/settings.json` and the `mcpServers.continuous-improvement` entry. It keeps `~/.claude/instincts/` and says so. It also leaves `~/.claude/.continuous-improvement-staging/`, empty `commands` and `skills` directories, empty hook arrays in `settings.json`, and any rules file that `--target` wrote into a project. Delete those by hand.
 
+## Other coding agents
+
+The guard is the same hook file on every agent, [`hooks/gateguard.mjs`](hooks/gateguard.mjs), run from a stable copy under `~/.claude/instincts/runtime/`, and [`lib/hook-io.mjs`](lib/hook-io.mjs) answers in the format each agent reads. Saved lessons come from [`hooks/session.mjs`](hooks/session.mjs) where the agent has a session hook, and from a rules file written by `ci lessons --format <agent> --write` where it does not. This table is the promise; [docs/AGENT-SUPPORT.md](docs/AGENT-SUPPORT.md) has each agent's follow-up step, Stop gate, MCP route and sources. "Blocks" means the call stops when the hook runs: an agent that fails open on a hook crash or timeout, or has hooks switched off, lets it through.
+
+<!-- agent-matrix:start -->
+| Agent | Tier | Blocks a destructive command | Lessons at session start | Install | Cannot |
+|---|---|---|---|---|---|
+| Claude Code | full | yes, in every permission mode | yes | `/plugin marketplace add naimkatiman/continuous-improvement`, then `/plugin install continuous-improvement@continuous-improvement` | Nothing is lost. The npm installer wires no guard for Claude Code, so use the plugin. |
+| Codex CLI | full | yes, after you trust each hook in /hooks | yes | `npx continuous-improvement install --target codex --hooks` | Hooks stay off until trusted. Hosted tools bypass hooks. No Skill tool, so companion-preference is not wired. |
+| Gemini CLI | full | yes | yes | `npx continuous-improvement install --target gemini --hooks` | A malformed hooks.json is dropped silently. No CLI lists the hooks. |
+| Qwen Code | full | yes | yes | `npx continuous-improvement install --target qwen --hooks` | `$ARGUMENTS` is not substituted in commands. The prompt hook also fires on tool results. |
+| Cursor | full | yes (3.x) | yes | `npx continuous-improvement install --target cursor --hooks` | Cloud agents run no session hooks. 2.5.26 has no prompt context. Stray output from a hook stops every tool call on 3.x. The Cursor CLI is not covered. |
+| GitHub Copilot CLI | full | yes | yes | `npx continuous-improvement install --target copilot --hooks` | Prompt hook output is dropped, so the prompt hooks are not wired. A hook that times out fails open. The cloud agent reads only .github/hooks, and disableAllHooks turns every hook off. |
+| Grok CLI | partial | yes, in a trusted folder | rules file | `npx continuous-improvement install --target grok --hooks` | No session or prompt context, so lessons need the rules file. No `mcp remove`, so the MCP undo is a config edit. |
+| Devin Local | full | yes, outside Restricted Mode | yes | `npx continuous-improvement install --target devin --hooks` | Restricted Mode runs no hooks. Hooks it imports from ~/.claude can fire twice. Plugin hooks fail open. |
+| Kiro CLI and IDE | full | yes (exit 2) | yes | `npx continuous-improvement install --target kiro --hooks` | CLI sessions on the V2 harness read agent-profile hooks, not this file. A hook crash exits 1, which Kiro CLI allows, and the IDE docs disagree on what that exit means. |
+| Factory Droid | full | yes | yes | `npx continuous-improvement install --target droid --hooks` | Context printed at PreToolUse is ignored. SubagentStop cannot send a turn back. |
+| Auggie | partial | yes | rules file | `npx continuous-improvement install --target auggie --hooks` | Only the tool-call hooks act. Session, Stop and prompt hooks run in the background, so only the guards and the log are wired. |
+| Junie CLI | partial | yes, on the Early Access build | rules file | `npx continuous-improvement install --target junie --hooks --scope user` | Stable builds run no hooks. SessionStart context is ignored. |
+| Cline | partial | yes, while Enable Hooks is on | no | `npx continuous-improvement install --target cline --hooks` | No Stop gate and no session lessons. A hook error fails open. |
+| Goose | partial | yes | rules file | `npx continuous-improvement install --target goose --hooks` | Post-tool, session and prompt hooks only observe. Hook commands run through sh -c, unverified on Windows. |
+| OpenCode | partial | yes, through a local plugin file | yes | `npx continuous-improvement install --target opencode --hooks` | 1.x has no Stop gate (2.x continues a turn through experimental.idle). A deny reaches the model as a failed tool call and the turn goes on. OPENCODE_PURE turns plugins off. |
+| Amp | full | yes, through a local plugin file | yes | `npx continuous-improvement install --target amp --hooks` | The plugin API is experimental. Plugins do not load in Puck or Spaces, and `amp -x` needs --plugin-ready-timeout. |
+| Zed | rules only | no | rules file | `npx continuous-improvement install --target zed` | Zed has no hooks, so nothing is blocked. This package installs no MCP server or skills for Zed yet. |
+| Aider | rules only | no | rules file | `npx continuous-improvement install --target aider` | Aider has no hooks, MCP client or skills, so nothing is blocked. |
+<!-- agent-matrix:end -->
+
+`--target <id>` without `--hooks` still writes only the rules file. `--scope user` writes the agent's user-level config, `--dry-run` prints every write first, and `npx continuous-improvement install --uninstall --target <id>` removes what `--hooks` recorded. `npx -p continuous-improvement ci doctor --agent <id>` shows what an installed agent loaded, using only that agent's own listing commands.
+
 ## Unattended runs and CI
 
 In an unattended run nobody reads a debug log, so set the rules you want to `block` in the environment Claude Code starts from:
@@ -407,7 +436,7 @@ An expert tool called in beginner mode returns an error such as `ci_recall requi
 
 **Companion plugins.** The marketplace lists five plugins: this one plus `superpowers`, `agent-skills`, `ruflo-swarm` and `oh-my-claudecode`. The four companions are pinned snapshots of other projects, recorded in [third-party/MANIFEST.md](third-party/MANIFEST.md). None is required. `/superpowers` routes to them when they are installed, for example after `/plugin install superpowers@continuous-improvement`. PM skills install from their own marketplace: [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md).
 
-**Other agents.** `npx continuous-improvement install --target gemini,codex` writes the 7 Laws text as a rules file into the current project. Those agents get no hooks, no MCP server and no lessons.
+**Other agents, rules files.** `npx continuous-improvement install --target gemini,codex` writes the 7 Laws text as a rules file into the current project. With no `--hooks`, those agents get no hooks, no MCP server and no lessons. For the hooks, see [Other coding agents](#other-coding-agents).
 
 | Target | File written |
 |---|---|

@@ -18,6 +18,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { AGENT_SUPPORT, blocksPreTool } from "../lib/agent-support.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 import { getClaudePluginManifest, getPluginHooksConfig } from "../lib/plugin-metadata.mjs";
 
@@ -108,8 +109,36 @@ describe("package description (npm and llms.txt)", () => {
     assert.match(installer, /if \(INSTALL_MODE === "expert"\) \{\s*setupMcpServer\(\);/);
     assert.match(
       pkg.description,
-      /`npx continuous-improvement install` wires only the tool-call log \(with --mode expert, also the session-start loader and the MCP server\)/,
+      /`npx continuous-improvement install` wires only the tool-call log for Claude Code \(with --mode expert, also the session-start loader and the MCP server\)/,
     );
+  });
+
+  // PR 17 of the all-agents train changed the positioning on purpose: guardrails
+  // for coding agents, Claude Code first. "for Claude Code" now qualifies the npx
+  // sentence above, because `--target <agent> --hooks` does install the guard for
+  // other agents. The count it states comes from the support table, so it cannot
+  // drift from the agents the tier table says can block.
+  it("leads with the positioning and states how many other agents can block, from lib/agent-support.mjs", () => {
+    assert.match(pkg.description, /^Guardrails for coding agents, Claude Code first\. /);
+    const others = AGENT_SUPPORT.filter((row) => row.id !== "claude" && blocksPreTool(row)).length;
+    assert.ok(
+      pkg.description.includes(`\`--target <agent> --hooks\` installs the guard for ${others} other agents that can block a tool call`),
+      `the description must state the ${others} other agents that can block`,
+    );
+    assert.match(pkg.description, /docs\/AGENT-SUPPORT\.md/);
+  });
+
+  // PR 17 review: at project scope 8 of the 15 agents get the MCP server as a
+  // printed step, not a written file, so no surface may say the install adds it.
+  it("says the other-agent install writes or prints the MCP server step, on every surface", () => {
+    assert.ok(pkg.description.includes("and writes or prints the MCP server step"), "package.json description");
+    assert.doesNotMatch(pkg.description, /with the MCP server, per/);
+    const llms = readRepoFile("llms.txt");
+    assert.doesNotMatch(llms, /run from a stable copy, plus the MCP server/);
+    assert.match(llms, /writes or prints the MCP server step/);
+    const landing = readRepoFile("docs/landing/index.html");
+    assert.doesNotMatch(landing, /Installs the hooks and the MCP server for that agent/);
+    assert.match(landing, /writes or prints the MCP server step/);
   });
 });
 
