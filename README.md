@@ -25,7 +25,7 @@ cd your-project
 npx continuous-improvement install --target codex --hooks --dry-run
 ```
 
-`<agent>` is the `--target` id in the [agent table](#works-with-these-agents), such as `codex`, `gemini`, `cursor` or `copilot`. The install copies the hooks to a stable place under your home directory, so the guard keeps working after npx clears its cache. Outside a git repository the install writes nothing unless you pass `--scope user`. The agent installs, `ci doctor` and `ci lessons` need 3.28.0 or later. In a project that already depends on an older continuous-improvement, npx runs that copy: upgrade the dependency first, or add `@latest` to the package name (`npx continuous-improvement@latest install ...`, `npx -p continuous-improvement@latest ci ...`). In this README, `ci <command>` means `npx -p continuous-improvement ci <command>`, or `ci <command>` after `npm i -g continuous-improvement`.
+`<agent>` is the `--target` id in the [agent table](#works-with-these-agents), such as `codex`, `gemini`, `cursor` or `copilot`. The install copies the hooks to a stable place under your home directory, so the guard keeps working after npx clears its cache. Outside a git repository the install writes nothing unless you pass `--scope user`. The agent installs, `ci doctor` and `ci lessons` need 3.28.0 or later, and a project that pins an older continuous-improvement should run `npx continuous-improvement@latest ...`, because npx otherwise runs the pinned copy. In this README, `ci <command>` means `npx -p continuous-improvement ci <command>`, or `ci <command>` after `npm i -g continuous-improvement`.
 
 <details>
 <summary><b>What <code>--dry-run</code> prints</b></summary>
@@ -116,7 +116,7 @@ Beyond the refusals:
 - **Git state as a command with exit codes.** `npx -p continuous-improvement ci-reconcile` prints branch, upstream, in-progress operations, working-tree drift, stashes and worktrees, and exits 0 when clear, 1 on a blocker and 2 outside a repository ([`bin/reconcile.mjs`](bin/reconcile.mjs)).
 - **A transcript linter for CI.** A GitHub Action reports edits made with no earlier lookup and code changes with no test or build run ([`action.yml`](action.yml), [`bin/lint-transcript.mjs`](bin/lint-transcript.mjs)). See [Unattended runs and CI](#unattended-runs-and-ci).
 
-It also ships 28 skills and 29 slash commands, which are prose the model reads. `--hooks` copies the skills to agents that read skills; the slash commands are Claude Code's, and an agent such as Gemini CLI keeps its own command files. Codex has no command files, so it gets the 13 commands without a same-name skill as skills. Only the hooks, the MCP server and the command-line tools execute.
+It also ships 28 skills and 29 slash commands, which are prose the model reads. `--hooks` copies the skills to agents that read skills; the slash commands are Claude Code's, and an agent such as Gemini CLI keeps its own command files. Codex, GitHub Copilot CLI, Devin, Kiro, Goose and Amp have no command files, so they get the 13 commands without a same-name skill as skills. Only the hooks, the MCP server and the command-line tools execute.
 
 What it does not do: it does not make the model better at code, it does not apply a lesson for you, it does not check your work unless you switch the typecheck gate on, and it is not a sandbox.
 
@@ -203,7 +203,7 @@ On after install: the destructive-command deny (with the `@{u}` quoting rule), t
 - **Lessons are notes.** At most 10 lines and 1,500 characters load, lessons under 0.5 confidence are not shown, and nothing enforces them.
 - **Goal drift needs a goal file.** It does not score until `task_plan.md` has a `## Goal` section, or, when there is no `task_plan.md`, a `goal.md` sits in the repository's state directory. It still rewrites `goal-drift-state.json` at each turn end unless `CLAUDE_GOAL_DRIFT_GATE=off`. It scores keyword overlap, and it reads the repository's recent calls from any session.
 - **Hooks need `node` on `PATH`.** Without it no hook runs and nothing is denied. CI runs Linux on Node 18, 20 and 22, the captures in this README were taken on Windows 11, and macOS has no CI job.
-- **Two commands need this package's scripts in the current directory.** `/harvest` and `/companion-preference` run `node bin/<script>.mjs` from the current directory. Run them from a clone (`git clone https://github.com/naimkatiman/continuous-improvement`) or from the npm package directory. The plugin bundle does not ship those two scripts.
+- **Two commands need a clone of this repository.** `/harvest` and `/companion-preference` run `node bin/<script>.mjs` from the current directory, and the plugin bundle does not ship those two scripts: clone the repository (`git clone https://github.com/naimkatiman/continuous-improvement`) and run the command from inside it.
 
 ## Memory
 
@@ -359,7 +359,7 @@ The plugin overlaps Claude Code in five places. The destructive-command deny ove
 <details>
 <summary><b>All 29 commands, and what each one needs</b></summary>
 
-They are Claude Code commands: they ship in the plugin, and the npm installer writes 14 of them for Claude Code. Other agents get the skills, not these commands. Codex, which has no command files, gets the 13 commands without a same-name skill as skills. Each command's full name is `/continuous-improvement:<name>`. Type it when another plugin has a command with the same short name. "The 7 Laws" is the plugin's name for its research, plan, execute, verify, reflect, learn, iterate loop, written out in [SKILL.md](SKILL.md).
+They are Claude Code commands: they ship in the plugin, and the npm installer writes 14 of them for Claude Code. Other agents get the skills, not these commands. The agents with no command files (Codex, GitHub Copilot CLI, Devin, Kiro, Goose and Amp) get the 13 commands without a same-name skill as skills. Each command's full name is `/continuous-improvement:<name>`. Type it when another plugin has a command with the same short name. "The 7 Laws" is the plugin's name for its research, plan, execute, verify, reflect, learn, iterate loop, written out in [SKILL.md](SKILL.md).
 
 ```
 Memory and lessons
@@ -402,7 +402,7 @@ Reference and setup
 /companion-preference             Summarize companion-preference hook telemetry                   [clone]
 ```
 
-All 29 ship in the plugin bundle. `[MCP]` means the command calls an MCP tool; the plugin install registers the server, so it works after the two-command install. `[clone]` means the command runs `node bin/<script>.mjs` from the current directory, so run it from a clone of this repository or from the npm package directory; the plugin bundle does not ship the script.
+All 29 ship in the plugin bundle. `[MCP]` means the command calls an MCP tool; the plugin install registers the server, so it works after the two-command install. `[clone]` means the command runs `node bin/<script>.mjs` from the current directory and the plugin bundle does not ship that script, so run the command from inside a clone of this repository.
 
 The npm installer writes 14 of them: continuous-improvement, dashboard, discipline, harvest, learn-eval, planning-with-files, proceed-with-the-recommendation, ralph, release-train, seven-laws, superpowers, swarm, verify-install and workspace-surface-audit.
 
