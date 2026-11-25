@@ -13,15 +13,16 @@
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { AGENT_SUPPORT, blocksPreTool } from "../lib/agent-support.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
+import { MAX_LESSONS } from "../lib/lesson-render.mjs";
 import { LOOP_STAGES, loopWords } from "../lib/loop-stages.mjs";
-import { getClaudePluginManifest, getPluginHooksConfig } from "../lib/plugin-metadata.mjs";
+import { PLUGIN_MODES, getClaudePluginManifest, getPluginHooksConfig, getPluginManifest, getToolNames } from "../lib/plugin-metadata.mjs";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const REPO_ROOT = join(__dirname, "..");
@@ -89,6 +90,79 @@ describe("plugin description", () => {
   it("is repeated word for word in .cloudplugin/marketplace.json", () => {
     const manifest = JSON.parse(readRepoFile(".cloudplugin/marketplace.json")) as { description: string };
     assert.equal(manifest.description, DESCRIPTION);
+  });
+
+  it("has keywords that carry both pillars, as package.json's do", () => {
+    const npm = (JSON.parse(readRepoFile("package.json")) as { keywords: string[] }).keywords;
+    const keywords = getClaudePluginManifest().keywords;
+    for (const word of ["coding-agents", "ambition", "be-ambitious", "ai-discipline"]) {
+      assert.ok(npm.includes(word), `package.json keywords: ${word}`);
+      assert.ok(keywords.includes(word), `plugin.json keywords: ${word}`);
+    }
+    assert.equal(new Set(keywords).size, keywords.length, "no keyword twice");
+  });
+});
+
+// The manifest's description leads with the be-ambitious skill and the loop,
+// so its own lists (kept by hand) must hold them, and only files that ship.
+describe(".cloudplugin/marketplace.json lists", () => {
+  interface Listed { name: string; description: string; file?: string; triggers?: string[] }
+  const manifest = JSON.parse(readRepoFile(".cloudplugin/marketplace.json")) as { skills: Listed[]; commands: Listed[]; tags: string[] };
+
+  it("list the be-ambitious skill first after the core skill, and its command", () => {
+    assert.deepEqual(manifest.skills.slice(0, 2).map((s) => [s.name, s.file]), [["continuous-improvement", "SKILL.md"], ["be-ambitious", "skills/be-ambitious.md"]]);
+    assert.ok(manifest.commands.some((c) => c.name === "be-ambitious"));
+    assert.ok(manifest.tags.includes("ambition") && manifest.tags.includes("discipline"));
+  });
+
+  it("name only skills and commands that ship", () => {
+    for (const skill of manifest.skills) assert.ok(skill.file !== undefined && existsSync(join(REPO_ROOT, skill.file)), `${skill.name}: ${skill.file}`);
+    for (const command of manifest.commands) assert.ok(existsSync(join(REPO_ROOT, "commands", `${command.name}.md`)), command.name);
+  });
+
+  it("describe the core skill by the loop's steps in order, and no skill as more than guidance", () => {
+    const [core, ambitious] = manifest.skills;
+    assert.ok(core!.description.includes(loopWords()), core!.description);
+    for (const skill of [core!, ambitious!]) assert.match(skill.description, /Guidance the agent reads\./, skill.name);
+    for (const entry of [...manifest.skills, ...manifest.commands]) assert.doesNotMatch(entry.description, /mandatory|any AI agent|enforce/i, entry.name);
+  });
+});
+
+// plugins/beginner.json and plugins/expert.json ship in the npm package. They
+// led with gateguard, carried no pillar, and said research, tests and
+// verification "happen by default". No hook runs tests, lint or a build.
+describe("mode manifests", () => {
+  const registered = JSON.stringify(getPluginHooksConfig().hooks);
+
+  for (const mode of PLUGIN_MODES) {
+    const manifest = getPluginManifest(mode);
+    const texts = [manifest.description, manifest.hooks.description];
+
+    it(`${mode} leads with the two pillars and the tools the mode serves, before any guard`, () => {
+      assert.ok(manifest.description.startsWith(`Ambition and discipline for coding agents, ${mode} mode`), manifest.description);
+      const tools = getToolNames(mode);
+      assert.ok(manifest.description.includes(`${tools.length} tools`));
+      const named = texts.flatMap((text) => text.match(/\bci_\w+/g) ?? []);
+      for (const name of named) assert.ok(tools.includes(name), `${mode} serves no ${name}`);
+      assert.doesNotMatch(manifest.description, /gateguard/);
+      assert.match(manifest.description, /\bbe-ambitious\b/);
+    });
+
+    it(`${mode} calls a skill guidance, and says only what its hooks do`, () => {
+      assert.match(manifest.description, /guidance the agent reads/);
+      for (const text of texts) assert.doesNotMatch(text, /happen by default|every tool call|every edit|auto-reflection|auto-level|silently|stay sharp|non-blocking|learnings survive|lazy/i);
+      assert.match(manifest.hooks.description, /bin\/observe\.mjs logs each tool call that runs/);
+      for (const [, file] of manifest.hooks.description.matchAll(/\b((?:hooks|bin)\/[\w-]+\.mjs)/g)) {
+        assert.ok(registered.includes(`/${file}`), `${file} is not registered by the plugin`);
+      }
+    });
+  }
+
+  it("expert states the lesson cap the session hook uses, and calls the session-end line a reminder", () => {
+    const text = getPluginManifest("expert").hooks.description;
+    assert.ok(text.includes(`up to ${MAX_LESSONS} saved lessons at session start`), text);
+    assert.match(text, /a reminder to reflect at session end/);
+    assert.match(readRepoFile("hooks/session.mjs"), /Session ending\. Run \/continuous-improvement to reflect/);
   });
 });
 

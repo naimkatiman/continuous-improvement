@@ -2,7 +2,7 @@
   "name": "continuous-improvement",
   "version": "3.28.0",
   "mode": "expert",
-  "description": "Expert mode: tune confidence, manage instincts, and persist plans on disk. Adds safety, token-budget, and strategic-compact skills plus the /learn-eval command so long sessions stay sharp and learnings survive context resets.",
+  "description": "Ambition and discipline for coding agents, expert mode of the MCP server: all 19 tools. Search the log (ci_recall), save and weigh lessons (ci_create_instinct, ci_reinforce), write the plan files (ci_plan_init) and score recent calls against the goal (ci_goal_check). The bundled skills, be-ambitious among them, are guidance the agent reads. Nothing applies a lesson for you.",
   "tools": [
     {
       "name": "ci_status",
@@ -115,6 +115,6 @@
       "SessionStart",
       "SessionEnd"
     ],
-    "description": "Full hook suite: observation capture, lazy prompt routing, session-level instinct loading, and auto-reflection."
+    "description": "The hooks of beginner mode: bin/observe.mjs logs each tool call that runs, and hooks/gateguard.mjs denies destructive commands and blind edits where it is installed. hooks/session.mjs also prints up to 10 saved lessons at session start, where the agent has a session hook, and writes a reminder to reflect at session end (debug log only)."
   }
 }
