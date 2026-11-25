@@ -51,7 +51,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { HOOK_AGENT_IDS, PLUGIN_AGENT_IDS } from "../lib/agent-install-plans.mjs";
-import { AGENT_SUPPORT, blocksPreTool, renderCloudplugin, supportTier, } from "../lib/agent-support.mjs";
+import { AGENT_SUPPORT, blocksPreTool, installFlags, renderCloudplugin, supportTier, } from "../lib/agent-support.mjs";
 import { LOOP_TABLE_END, LOOP_TABLE_START, renderLoopStepsHtml, renderLoopTableMarkdown } from "../lib/loop-stages.mjs";
 import { IMAGE_WIDTH, PAD, charsFit, rect, richText, svgDocument, text, wrap } from "../lib/readme-svg.mjs";
 export const SUPPORT_DOC = "docs/AGENT-SUPPORT.md";
@@ -451,11 +451,11 @@ export function headingAnchor(heading) {
 }
 /** The README's `--target` cell: the id and any extra flag the install needs, or the plugin for Claude Code. */
 function targetCell(row) {
-    const match = /--target (\S+)(.*)$/.exec(row.install[0] ?? "");
-    if (!match)
+    const id = /--target (\S+)/.exec(row.install[0] ?? "")?.[1];
+    if (id === undefined)
         return "plugin, see [Install](#install)";
-    const extra = match[2].replace(/\s*--hooks\b/, "").trim();
-    return `\`${match[1]}\`${extra === "" ? "" : ` (add \`${extra}\`)`}`;
+    const flags = installFlags(row);
+    return `\`${id}\`${flags === "" ? "" : ` (add \`${flags}\`)`}`;
 }
 /**
  * The README tier table: only the rows that block a destructive command. Each

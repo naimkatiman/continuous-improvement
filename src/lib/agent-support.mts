@@ -387,6 +387,11 @@ export function blocksPreTool(row: Pick<AgentSupport, "canBlockPreTool">): boole
   return row.canBlockPreTool === true;
 }
 
+/** The flags a row's install command takes beyond `--target <id> --hooks`: "--scope user" for Junie, "" for the rest. */
+export function installFlags(row: Pick<AgentSupport, "install">): string {
+  return (/--target \S+(.*)$/.exec(row.install[0] ?? "")?.[1] ?? "").replace(/\s*--hooks\b/, "").trim();
+}
+
 /**
  * full: blocks, lessons through a session hook, and a Stop gate.
  * partial: blocks, and one of the other two is missing; or the hooks run but

@@ -57,6 +57,7 @@ import { HOOK_AGENT_IDS, PLUGIN_AGENT_IDS } from "../lib/agent-install-plans.mjs
 import {
   AGENT_SUPPORT,
   blocksPreTool,
+  installFlags,
   renderCloudplugin,
   supportTier,
   type AgentSupport,
@@ -476,10 +477,10 @@ export function headingAnchor(heading: string): string {
 
 /** The README's `--target` cell: the id and any extra flag the install needs, or the plugin for Claude Code. */
 function targetCell(row: AgentSupport): string {
-  const match = /--target (\S+)(.*)$/.exec(row.install[0] ?? "");
-  if (!match) return "plugin, see [Install](#install)";
-  const extra = match[2]!.replace(/\s*--hooks\b/, "").trim();
-  return `\`${match[1]}\`${extra === "" ? "" : ` (add \`${extra}\`)`}`;
+  const id = /--target (\S+)/.exec(row.install[0] ?? "")?.[1];
+  if (id === undefined) return "plugin, see [Install](#install)";
+  const flags = installFlags(row);
+  return `\`${id}\`${flags === "" ? "" : ` (add \`${flags}\`)`}`;
 }
 
 /**

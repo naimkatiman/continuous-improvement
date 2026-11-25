@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { HOOK_AGENT_IDS, PLUGIN_AGENT_IDS, planAgentInstall, resolveHookAgent } from "../lib/agent-install-plans.mjs";
 import { AGENT_PROFILES } from "../lib/agent-profiles.mjs";
 import { LOOP_TABLE_END, LOOP_TABLE_START, renderLoopStepsHtml, renderLoopTableMarkdown } from "../lib/loop-stages.mjs";
-import { AGENT_SUPPORT, blocksPreTool, compatibleWith, renderCloudplugin, supportTier, } from "../lib/agent-support.mjs";
+import { AGENT_SUPPORT, blocksPreTool, compatibleWith, installFlags, renderCloudplugin, supportTier, } from "../lib/agent-support.mjs";
 import { AGENT_MAP_SVG, BLOCK_END, BLOCK_START, CHANGELOG_FILE, CLAIM_SCAN_FILES, CLOUDPLUGIN, changelogClaims, checkAgentMatrix, findBlockingClaims, headingAnchor, renderAgentMapSvg, renderReadmeTierMarkdown, renderSupportDoc, renderTierHtml, renderTierMarkdown, spliceBlock, supportViolations, writeAgentMatrix, } from "../bin/check-agent-matrix.mjs";
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const REPO_ROOT = join(__dirname, "..");
@@ -264,6 +264,14 @@ describe("renderers", () => {
         for (const file of ["hooks/gateguard.mjs", "hooks/session.mjs", "hooks/typecheck-stop.mjs", "hooks/goal-drift-stop.mjs", "bin/mcp-server.mjs"]) {
             assert.ok(doc.includes(file), file);
         }
+    });
+});
+describe("installFlags", () => {
+    it("is what a row's install command takes beyond --target <id> --hooks: --scope user for Junie, nothing for the rest", () => {
+        for (const r of AGENT_SUPPORT)
+            assert.equal(installFlags(r), r.id === "junie" ? "--scope user" : "", r.id);
+        assert.equal(installFlags({ install: [] }), "");
+        assert.equal(installFlags({ install: ["npx continuous-improvement install --target x --scope user --hooks --run"] }), "--scope user --run");
     });
 });
 describe("cloudplugin manifest", () => {

@@ -170,6 +170,11 @@ describe("mode manifests", () => {
 // plugin, and src/bin/install.mts wires much less than the plugin's hooks.json:
 // the tool-call log (bin/observe.mjs) always, the session hook and the MCP
 // server only with --mode expert, and no PreToolUse guard at all.
+// The installer names hooks/gateguard.mjs in its help, to say it is not wired.
+// Wiring one takes the file name as a string of its own, as join(..., "hooks",
+// "session.mjs") does; src/test/install.test.mts reads the settings it writes.
+const wires = (installer: string, file: string): boolean => new RegExp(`["'\`]${file.replace(".", "\\.")}["'\`]`).test(installer);
+
 describe("package description (npm and llms.txt)", () => {
   const pkg = JSON.parse(readRepoFile("package.json")) as { description: string };
   const installer = readRepoFile("bin/install.mjs");
@@ -189,8 +194,9 @@ describe("package description (npm and llms.txt)", () => {
   });
 
   it("says what `npx continuous-improvement install` wires, which is what src/bin/install.mts wires", () => {
-    for (const guard of ["hooks/gateguard.mjs", "hooks/hook-pack.mjs", "hooks/config-guard.mjs", "hooks/typecheck-stop.mjs"]) {
-      assert.ok(!installer.includes(guard), `the installer now wires ${guard}; update the description`);
+    assert.ok(wires(installer, "session.mjs"), "the probe sees a hook the installer does wire");
+    for (const guard of ["gateguard.mjs", "hook-pack.mjs", "config-guard.mjs", "typecheck-stop.mjs"]) {
+      assert.ok(!wires(installer, guard), `the installer now wires hooks/${guard}; update the description`);
     }
     assert.match(installer, /if \(INSTALL_MODE === "expert"\) \{\s*setupMcpServer\(\);/);
     assert.match(
@@ -246,7 +252,7 @@ describe("llms.txt install steps", () => {
   const llms = readRepoFile("llms.txt");
 
   it("does not say the npx install fires gateguard, which src/bin/install.mts never wires", () => {
-    assert.ok(!readRepoFile("bin/install.mjs").includes("hooks/gateguard.mjs"));
+    assert.ok(!wires(readRepoFile("bin/install.mjs"), "gateguard.mjs"));
     assert.deepEqual(
       llms
         .split(/\r?\n/)

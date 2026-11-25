@@ -19,6 +19,7 @@ import {
   AGENT_SUPPORT,
   blocksPreTool,
   compatibleWith,
+  installFlags,
   renderCloudplugin,
   supportTier,
   type AgentSupport,
@@ -321,6 +322,14 @@ describe("renderers", () => {
     for (const file of ["hooks/gateguard.mjs", "hooks/session.mjs", "hooks/typecheck-stop.mjs", "hooks/goal-drift-stop.mjs", "bin/mcp-server.mjs"]) {
       assert.ok(doc.includes(file), file);
     }
+  });
+});
+
+describe("installFlags", () => {
+  it("is what a row's install command takes beyond --target <id> --hooks: --scope user for Junie, nothing for the rest", () => {
+    for (const r of AGENT_SUPPORT) assert.equal(installFlags(r), r.id === "junie" ? "--scope user" : "", r.id);
+    assert.equal(installFlags({ install: [] }), "");
+    assert.equal(installFlags({ install: ["npx continuous-improvement install --target x --scope user --hooks --run"] }), "--scope user --run");
   });
 });
 
