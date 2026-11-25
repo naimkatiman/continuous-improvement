@@ -98,11 +98,11 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
-/** Strip the "Enforces Law N (…) of the 7 Laws…" preamble; keep what it does. */
+/** Strip the "Enforces Law N (…) of the 7 Laws…" or "Guidance for Law N…" preamble; keep what it does. */
 export function summarize(description: string | undefined): string {
   if (!description) return "";
   return description
-    .replace(/^Enforces\s+(all\s+7\s+Laws|Law\s*[1-7](\s*\+\s*[1-7])?)[^.]*\.\s*/i, "")
+    .replace(/^(?:Enforces|Guidance for)\s+(all\s+7\s+Laws|Law\s*[1-7](\s*\+\s*[1-7])?)[^.]*\.\s*/i, "")
     .replace(/^Use this skill to\s*/i, "")
     .trim();
 }

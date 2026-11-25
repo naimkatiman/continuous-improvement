@@ -106,6 +106,18 @@ describe("the skill catalog", () => {
     assert.ok(catalog.skills.length > 20 && catalog.commands.length > 20);
   });
 
+  it("ships be-ambitious as a skill every agent can read: a same-name command, its credit kept, and no Claude-only tool it would need", () => {
+    const catalog = readSkillCatalog(REPO_ROOT);
+    const ambitious = catalog.skills.find((entry) => entry.name === "be-ambitious");
+    assert.ok(ambitious, "be-ambitious is in the bundle");
+    assert.ok(catalog.commands.some((entry) => entry.name === "be-ambitious"), "and has a same-name command");
+    assert.match(ambitious.text, /Felix Rieseberg/);
+    assert.match(ambitious.text, /felixrieseberg\.com\/how-to-be-more-ambitious/);
+    for (const claudeOnly of [/\bAgent tool\b/, /\bWorkflow\b/, /\/loop\b/, /\bTodoWrite\b/, /\bscratchpad\b/, /CLAUDE\.md/, /references\//]) {
+      assert.doesNotMatch(ambitious.text, claudeOnly);
+    }
+  });
+
   it("refuses a malformed skill or command: no frontmatter, empty, a name that does not match, no description, a bad name", () => {
     const bad: Array<[string, string]> = [
       ["ship", ""],

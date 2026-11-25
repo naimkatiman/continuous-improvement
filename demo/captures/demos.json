@@ -202,7 +202,7 @@
           "label": "dry run",
           "run": "npx continuous-improvement install --target gemini --hooks --dry-run",
           "exit": 0,
-          "stdout": "\ncontinuous-improvement agent install (scope: project, dry run)\n\n  · would copy the runtime → ~/.claude/instincts/runtime/3.28.0\n  · would create ~/project/.gemini/settings.json (gemini)\n  · would create ~/project/GEMINI.md (gemini)\n  · would write 28 skills to ~/project/.gemini/skills (gemini)\n  ℹ Gemini CLI runs no settings.json hooks in an untrusted folder, user-level ones included: trust the folder in Gemini CLI.\n  ℹ Gemini CLI reads its own command files (.gemini/commands (TOML)); the commands are not copied, only the skills.\n\nDry run: nothing was written.\n\n",
+          "stdout": "\ncontinuous-improvement agent install (scope: project, dry run)\n\n  · would copy the runtime → ~/.claude/instincts/runtime/3.28.0\n  · would create ~/project/.gemini/settings.json (gemini)\n  · would create ~/project/GEMINI.md (gemini)\n  · would write 29 skills to ~/project/.gemini/skills (gemini)\n  ℹ Gemini CLI runs no settings.json hooks in an untrusted folder, user-level ones included: trust the folder in Gemini CLI.\n  ℹ Gemini CLI reads its own command files (.gemini/commands (TOML)); the commands are not copied, only the skills.\n\nDry run: nothing was written.\n\n",
           "stderr": "",
           "files": [
             ".git"

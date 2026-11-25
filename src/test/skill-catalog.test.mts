@@ -79,6 +79,13 @@ describe("skill-catalog — summarize", () => {
     );
   });
 
+  it("strips a Guidance preamble the same way", () => {
+    assert.equal(
+      summarize("Guidance for Law 2 (Plan Is Sacred) of the 7 Laws of AI Agent Discipline. Sets a target first."),
+      "Sets a target first.",
+    );
+  });
+
   it("leaves an untagged description alone", () => {
     assert.equal(summarize("Blocks edits."), "Blocks edits.");
   });

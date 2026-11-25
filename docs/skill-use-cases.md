@@ -2,7 +2,7 @@
 
 [`docs/skills.md`](skills.md) is the **catalog** (what each skill *is*). This page is the **decision guide** (when to *reach for it*, and how to tell two similar-sounding skills apart).
 
-The plugin ships **28 skills** (1 core + 1 featured + 7 tier-1 + 16 tier-2 + 3 always-bundled companions). Most confusion is not "what does this skill do" — it is "I have five skills that all sound like *stop and check first*; which one is this situation?" The [disambiguation section](#4-disambiguation--this-not-that) is the answer to that.
+The plugin ships **29 skills** (1 core + 1 featured + 7 tier-1 + 17 tier-2 + 3 always-bundled companions). Most confusion is not "what does this skill do" — it is "I have five skills that all sound like *stop and check first*; which one is this situation?" The [disambiguation section](#4-disambiguation--this-not-that) is the answer to that.
 
 ---
 
@@ -62,6 +62,7 @@ Grouped by the job, not the tier. Each skill gets the **trigger** that is unique
 
 | Skill | Reach for it when… | Not for… |
 |---|---|---|
+| `be-ambitious` | You have a big goal and the task as typed is smaller than it: climb to the outcome, fix a hard number and an outside judge, then do the work | A typo, a one-line fix, or anything you asked for "just" or "exactly" as written |
 | `intent-driven-development` | A change is ambiguous or high-impact and you need scoped, verifiable acceptance criteria (observable AC-NNN + named verification) before building | Trivial edits, clear specs, active debugging, or code review (conditions already known) |
 | `goal-monitor` | Mid-session, to catch drift from the stated `## Goal` in `task_plan.md` before it reaches "done" | End-of-session reflection (that is `/seven-laws`) |
 | `token-budget-advisor` | A big answer is coming and you want to pick depth (25/50/75/100%) before spending the tokens | Short, obvious answers |
@@ -193,6 +194,7 @@ The skills that get confused, separated by the one word that distinguishes them.
 | A verify step just failed | `recovery-classification` |
 | Reviewing recent commits for defects | `audit` |
 | My change works, but is it over-engineered? | `simplicity-review` |
+| I want this done the way the best in the field would do it | `be-ambitious` |
 | Am I drifting off the goal? | `goal-monitor` |
 | Running low on context, mid-task | `strategic-compact` |
 | Wrapping up for the next session | `handoff` |
