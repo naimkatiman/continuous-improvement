@@ -10,7 +10,7 @@ those declarations so the table of contents cannot drift from the actual
 skill set on disk.
 
 ## Core skill
-- `continuous-improvement` — Install structured self-improvement loops with instinct-based learning into a coding agent: research, plan, execute, verify, reflect, learn, iterate. On-demand or weekly analysis to save tokens. Supports multi-agent parallel analysis.
+- `continuous-improvement` — The discipline pillar, beside the be-ambitious skill (ambition). Tells the agent to work a task in seven steps: research, plan, implement, review, contemplate, relearn and learn, iterate. Lessons are saved as instincts; analysis runs on demand or weekly to save tokens.
 
 ## Featured companion
 - `proceed-with-the-recommendation` ⭐ — Orchestrator for all 7 Laws of AI Agent Discipline. Walks an agent-emitted recommendation list top-to-bottom under the 7 Laws — restate, route per item, verify before advancing, reflect at the end, close with the mandatory three-section block. Standalone with inline fallbacks; trigger phrases are matched by the companion hook, not enumerated here.

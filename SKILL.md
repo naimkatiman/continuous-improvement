@@ -1,7 +1,7 @@
 ---
 name: continuous-improvement
 tier: core
-description: "Install structured self-improvement loops with instinct-based learning into a coding agent: research, plan, execute, verify, reflect, learn, iterate. On-demand or weekly analysis to save tokens. Supports multi-agent parallel analysis."
+description: "The discipline pillar, beside the be-ambitious skill (ambition). Tells the agent to work a task in seven steps: research, plan, implement, review, contemplate, relearn and learn, iterate. Lessons are saved as instincts; analysis runs on demand or weekly to save tokens."
 ---
 
 # continuous-improvement

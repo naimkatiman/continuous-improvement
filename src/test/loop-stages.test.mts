@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 
 import { pillarsLoop } from "../bin/render-readme-assets.mjs";
 import { HOOK_AGENT_IDS, PLUGIN_AGENT_IDS } from "../lib/agent-install-plans.mjs";
-import { AGENT_SUPPORT, blocksPreTool, supportTier, type AgentSupport } from "../lib/agent-support.mjs";
+import { AGENT_SUPPORT, blocksPreTool, installFlags, supportTier, type AgentSupport } from "../lib/agent-support.mjs";
 import {
   HEADLINE,
   LOOP_MARKS,
@@ -68,6 +68,13 @@ describe("the loop's steps and the laws of the core skill", () => {
       const opening = text.slice(text.indexOf("\n# continuous-improvement\n"), text.indexOf("\n## Law 1"));
       for (const pillar of PILLARS) assert.ok(opening.includes(`**${pillar.name}:**`), `the opening names ${pillar.name}`);
       assert.match(opening, /`be-ambitious`/);
+    });
+
+    it(`${doc} says in its description, the line a skill list shows, which pillar it is and the steps in order`, () => {
+      const description = /^description: "(.*)"$/m.exec(read(doc))![1]!;
+      assert.match(description, /^The discipline pillar, beside the be-ambitious skill \(ambition\)\. Tells the agent /);
+      assert.ok(description.includes(`seven steps: ${loopWords()}.`), description);
+      assert.doesNotMatch(description, /Install structured|execute, verify|into a coding agent/);
     });
   }
 });
@@ -268,7 +275,13 @@ describe("the README first screen", () => {
   });
 
   it("lists the --target ids and the agents from the support table, in its order", () => {
-    const ids = facts.targetIds.map((id) => `\`${id}\``);
+    // An id whose own install command takes another flag (Junie, whose project
+    // config the agent does not read) carries it, as the agent table does.
+    const ids = facts.targetIds.map((id) => {
+      const flags = installFlags(AGENT_SUPPORT.find((row) => row.id === id)!);
+      return `\`${id}\`${flags === "" ? "" : ` (add \`${flags}\`)`}`;
+    });
+    assert.ok(ids.includes("`junie` (add `--scope user`)"));
     assert.ok(top.includes(`\`<agent>\` is ${ids.slice(0, -1).join(", ")} or ${ids[ids.length - 1]}.`), "the --target ids");
     const names = working.map((row) => row.names[0]!);
     assert.ok(top.includes(`It works in ${names.length} coding agents: ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}.`), "the agents");
@@ -277,6 +290,81 @@ describe("the README first screen", () => {
   it("stays short: the per-step caveats live in the loop table, not in a paragraph above it", () => {
     assert.doesNotMatch(top.replace(/<img\b[^>]*>/g, ""), /off until you switch it on|refuses by default|written rules?/i);
     assert.ok(top.split("\n").filter((line) => line.trim() !== "").length <= 20, "at most 20 lines above the first section");
+  });
+});
+
+// The README first screen gives every agent one command and links to
+// QUICKSTART.md as the walkthrough, so the walkthrough may not start by asking
+// for Claude Code.
+describe("the README Discipline section", () => {
+  const readme = read("README.md");
+  const section = (from: string, to: string): string => readme.slice(readme.indexOf(from), readme.indexOf(to));
+  const discipline = section("\n## Discipline\n", "\n## Install\n");
+
+  // "What turns on" and Limits hold the detail. Discipline says the point of
+  // each part and links there, so a fact is stated once.
+  it("says what each part is and leaves the detail to What turns on and Limits", () => {
+    assert.ok(discipline.includes("](#what-turns-on-what-it-costs-how-to-turn-it-off)") && discipline.includes("](#limits)"));
+    for (const repeat of [/are on after install:/, /No hook writes inside your repository/, /No hook runs tests, lint or a build/, /Contemplate and Iterate have no hook/, /no runtime dependencies/]) {
+      assert.doesNotMatch(discipline, repeat);
+      assert.match(readme.replace(discipline, ""), repeat.source.includes("after install") ? /\*\*On after install:\*\*/ : repeat, "it is still said, once, where the detail is");
+    }
+    for (const once of ["No hook writes inside your repository", "the blind-edit gate, the log, the lesson load", "no runtime dependencies"]) {
+      assert.equal(readme.split(once).length - 1, 1, once);
+    }
+  });
+
+  it("does not say that every other hook waits for a switch, since two of them write local state by default", () => {
+    assert.match(readme, /The goal-drift check runs without reaching the model and rewrites `goal-drift-state\.json`/);
+    for (const doc of [readme, read("QUICKSTART.md")]) {
+      assert.doesNotMatch(doc, /Every other hook waits for a switch/);
+      assert.match(doc, /Every other hook refuses nothing and sends the model nothing until you set its switch/);
+    }
+  });
+
+  it("defines a Stop gate once, in the loop table", () => {
+    assert.equal(readme.split("runs when the agent ends its turn").length - 1, 1);
+    assert.match(discipline, /Stop gate/);
+  });
+});
+
+describe("QUICKSTART.md, the walkthrough the first screen links to", () => {
+  const quick = read("QUICKSTART.md");
+  const facts = loopFacts();
+
+  it("opens with the two pillars and needs any agent of the table, not Claude Code", () => {
+    const intro = quick.slice(0, quick.indexOf("\n## 1. "));
+    assert.ok(intro.indexOf("ambition") !== -1 && intro.indexOf("ambition") < intro.indexOf("discipline"));
+    assert.ok(intro.includes(`You need one of the ${facts.agents} agents`), "the agent count");
+    assert.doesNotMatch(intro, /You need Claude Code|uses Claude Code/);
+  });
+
+  it("installs with --target first and the Claude Code plugin second, with the ids of the table", () => {
+    const install = quick.slice(quick.indexOf("\n## 1. "), quick.indexOf("\n## 2. "));
+    const command = install.indexOf("npx continuous-improvement install --target codex --hooks");
+    assert.ok(command !== -1 && command < install.indexOf("/plugin install"));
+    assert.ok(install.includes(`**For ${facts.targetIds.length} agents**`));
+    const ids = AGENT_SUPPORT.filter((row) => facts.targetIds.includes(row.id)).map((row) => `\`${row.id}\`${installFlags(row) === "" ? "" : ` (add \`${installFlags(row)}\`)`}`);
+    assert.ok(install.includes(`The ids are ${ids.slice(0, -1).join(", ")} and ${ids[ids.length - 1]}.`), ids.join(", "));
+  });
+
+  it("asks for nothing only Claude Code has without saying so", () => {
+    for (const block of quick.split("\n\n")) {
+      if (!/(?:^|[\s`])\/(?:plugin|recall|verify-install|be-ambitious|clear|continuous-improvement:recall)\b|claude plugin /m.test(block)) continue;
+      if (block.startsWith("```")) continue; // a code block takes the label of the paragraph above it
+      assert.match(block, /Claude Code/, block);
+    }
+    for (const command of ["/plugin marketplace add", "/verify-install", "claude plugin disable"]) {
+      const before = quick.slice(0, quick.indexOf(`\n${command}`)).split("\n\n");
+      assert.match(before[before.length - 2] ?? "", /\*\*(?:On )?Claude Code\*\*/, command);
+    }
+  });
+
+  it("names the agents that take lessons another way, from the support table, and tries the ambition side", () => {
+    const names = facts.lessonsByRulesFile;
+    assert.ok(quick.includes(`${names.slice(0, -1).join(", ")} and ${names[names.length - 1]} take lessons through a rules file instead`));
+    assert.ok(quick.includes(`${facts.lessonsNone.join(" and ")} gets none.`));
+    assert.match(quick, /Use the be-ambitious skill on this task/);
   });
 });
 
