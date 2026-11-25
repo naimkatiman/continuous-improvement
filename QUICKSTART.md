@@ -15,7 +15,7 @@ Where a step differs on Claude Code, it says so. The commands below use `codex`;
 npx continuous-improvement install --target codex --hooks
 ```
 
-The ids are `codex`, `gemini`, `qwen`, `cursor`, `copilot`, `grok`, `devin`, `kiro`, `droid`, `auggie`, `junie` (add `--scope user`), `cline`, `goose`, `opencode` and `amp`. Then do the steps it prints, if any. Codex CLI needs two: trust each hook in `/hooks`, and paste the printed MCP block into `.codex/config.toml`. Gemini CLI needs the folder trusted. Cursor needs none. Your agent's own step, and what it cannot do, are in [docs/AGENT-SUPPORT.md](docs/AGENT-SUPPORT.md). Start a new session afterwards.
+The ids are `codex`, `gemini`, `qwen`, `cursor`, `copilot`, `grok`, `devin`, `kiro`, `droid`, `auggie`, `junie` (add `--scope user`), `cline`, `goose`, `opencode` and `amp`. Then do the steps it prints, if any. Codex CLI needs the project trusted, each hook trusted in `/hooks`, and the printed MCP block pasted into `.codex/config.toml`. Gemini CLI needs the folder trusted. Cursor needs none. Your agent's own step, and what it cannot do, are in [docs/AGENT-SUPPORT.md](docs/AGENT-SUPPORT.md). Start a new session afterwards.
 
 **Claude Code** installs it as a plugin, from inside Claude Code:
 
