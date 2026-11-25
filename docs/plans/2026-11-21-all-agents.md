@@ -568,6 +568,13 @@ option. Naim can overrule any of them; the PR that depends on it says so.
   agents with Claude Code as one supported agent, and the README lists only
   agents that block (docs/AGENT-SUPPORT.md keeps every row). The landing copy
   is a follow-up. Plan: docs/plans/2026-11-22-readme-all-agents.md.
+  Superseded by the owner on 2026-11-25: every surface leads with two
+  pillars, ambition (the `be-ambitious` skill) and discipline (hooks, a local
+  log and a seven-step loop), under the headline "Aim high. Stay in control."
+  The guard is one proof under discipline, not the lead. What stands: every
+  coding agent, enforcement claimed only where pre-tool blocking is verified,
+  and the tier table as the public promise. Plan:
+  docs/plans/2026-11-25-two-pillars.md.
 - **OpenCode:** an installer-written local plugin file; no new package.
 - **`.cloudplugin/marketplace.json`:** `compatibleWith` regenerated from the
   agent profiles and its stale version fixed.
