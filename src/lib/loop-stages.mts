@@ -8,21 +8,23 @@
 //
 // Each step carries one of four marks, and the docs never blur them:
 //   refuses by default          a hook answers deny before the call runs
-//   off until you switch it on  the hook ships and waits for a variable
+//   off until you switch it on  the hook ships and refuses nothing until a
+//                               variable is set
 //   records and loads           a hook logs or prints, and cannot refuse
-//   none                        a written rule; no code checks it
+//   none                        a written rule; no hook checks it
 //
 // The README loop table and the landing page's list of steps
 // (bin/check-agent-matrix.mjs splices each between the loop-table markers and
-// fails on drift), assets/readme/pillars-loop.svg
-// (bin/render-readme-assets.mjs) and the loop line of SKILL.md are rendered
-// from this table. test/loop-stages.test.mjs ties it to the law headings in
-// SKILL.md, to the hook files on disk and to the plugin's hook registrations.
+// fails on drift) and assets/readme/pillars-loop.svg
+// (bin/render-readme-assets.mjs) are rendered from this table. The loop line
+// of SKILL.md is hand-written. test/loop-stages.test.mjs holds it to this
+// table, and ties the table to the law headings in SKILL.md, to the hook files
+// on disk and to the plugin's hook registrations.
 // Every agent count comes from lib/agent-support.mjs; none is typed. Pure: no
 // I/O.
 
 import { HOOK_AGENT_IDS, PLUGIN_AGENT_IDS } from "./agent-install-plans.mjs";
-import { AGENT_SUPPORT, blocksPreTool, type AgentSupport } from "./agent-support.mjs";
+import { AGENT_SUPPORT, blocksPreTool, supportTier, type AgentSupport } from "./agent-support.mjs";
 import { COMMIT_FILE_LIMIT } from "./hook-pack-gate.mjs";
 import { TARGET_IDS } from "./install-targets.mjs";
 import { MAX_LESSONS } from "./lesson-render.mjs";
@@ -53,12 +55,12 @@ export const PILLARS: readonly Pillar[] = [
 export const LOOP_MARKS = ["refuses by default", "off until you switch it on", "records and loads", "none"] as const;
 export type LoopMark = (typeof LOOP_MARKS)[number];
 
-/** What each mark means, in the words the README legend uses. */
+/** What each mark means, in the words the README legend uses. Each holds for every step that carries the mark. */
 export const MARK_MEANING: Readonly<Record<LoopMark, string>> = {
   "refuses by default": "a hook answers deny before the call runs",
-  "off until you switch it on": "the hook ships and does nothing until you set the variable",
+  "off until you switch it on": "the hook ships and refuses nothing until you set the variable",
   "records and loads": "a hook writes a log row or prints saved lessons, and cannot refuse anything",
-  none: "text the agent is given, and nothing checks it",
+  none: "text the agent is given, and nothing checks it during the session",
 };
 
 /** The agent event a hook file is registered on in the plugin's hooks.json. */
@@ -72,7 +74,7 @@ export interface LoopHook {
   optIn?: boolean;
 }
 
-/** How the step's hook behaves on a fresh install: on, a debug-log line nobody reads (warn), off, or no hook at all. */
+/** How the step's hook behaves on a fresh install: on, a debug-log line nobody reads (warn, a turn-end hook), off, or no hook at all. */
 export type LoopDefault = "on" | "warn" | "off" | "none";
 
 /** Agent counts the loop copy states, computed from the support table. */
@@ -81,6 +83,10 @@ export interface LoopFacts {
   agents: number;
   /** Of those, the ones with a Stop gate. */
   stopGate: number;
+  /** Of those, the full-tier ones. A full-tier agent has a Stop gate by definition. */
+  fullTier: number;
+  /** Display names of the partial-tier ones that have a Stop gate. */
+  stopGatePartial: readonly string[];
   /** Of those, the ones that get saved lessons through a session hook. */
   lessonsByHook: number;
   /** Display names of the ones that get lessons through a rules file. */
@@ -100,6 +106,8 @@ export function loopFacts(rows: readonly AgentSupport[] = AGENT_SUPPORT): LoopFa
   return {
     agents: working.length,
     stopGate: working.filter((row) => row.stopGate === true).length,
+    fullTier: working.filter((row) => supportTier(row) === "full").length,
+    stopGatePartial: working.filter((row) => row.stopGate === true && supportTier(row) !== "full").map(name),
     lessonsByHook: working.filter((row) => row.lessons === "hook").length,
     lessonsByRulesFile: working.filter((row) => row.lessons === "rules file").map(name),
     lessonsNone: working.filter((row) => row.lessons === "none").map(name),
@@ -182,7 +190,7 @@ export const LOOP_STAGES: readonly LoopStage[] = [
     defaultMode: "off",
     switch: "CI_TYPECHECK_GATE=block",
     given: "The rule: done means the code ran and the result was checked. Skills `verification-loop`, `simplicity-review`, `audit`",
-    does: (f) => `${link("hooks/typecheck-stop.mjs")} with \`CI_TYPECHECK_GATE=block\` holds the turn open on a failing typecheck. TypeScript only, on the ${f.stopGate} agents with a Stop gate. No hook runs tests, lint or a build. After the run, the ${LINTER} flags a code change with no test or build command`,
+    does: (f) => `${link("hooks/typecheck-stop.mjs")} with \`CI_TYPECHECK_GATE=block\` holds the turn open on a failing typecheck. TypeScript only, on the ${f.stopGate} agents with a Stop gate (a hook that runs when the agent ends its turn and can send it back). No hook runs tests, lint or a build. After the run, the ${LINTER} flags a code change with no test or build command`,
     covers: "TypeScript only",
   },
   {
@@ -280,7 +288,8 @@ function reachSentences(facts: LoopFacts): string {
   const rulesFile = facts.rulesFile.length === 0 ? "" : ` ${list(facts.rulesFile)} also load the rules as a rules file in every session.`;
   const byFile = facts.lessonsByRulesFile.length === 0 ? "" : `, through a rules file you rewrite on ${facts.lessonsByRulesFile.length} (${list(facts.lessonsByRulesFile)})`;
   const none = facts.lessonsNone.length === 0 ? "" : `, and not on ${list(facts.lessonsNone)}`;
-  return `the skills go to all ${facts.agents} agents, the core skill with these rules among them.${rulesFile} ${facts.stopGate} have a Stop gate. Saved lessons load by hook on ${facts.lessonsByHook}${byFile}${none}.`;
+  const stopGate = list([`the ${facts.fullTier} full-tier agents`, ...facts.stopGatePartial]);
+  return `the skills go to all ${facts.agents} agents, the core skill with these rules among them.${rulesFile} ${facts.stopGate} have a Stop gate: ${stopGate}. Saved lessons load by hook on ${facts.lessonsByHook}${byFile}${none}.`;
 }
 
 const REPO_URL = "https://github.com/naimkatiman/continuous-improvement";
@@ -295,7 +304,7 @@ const MARK_CLASS: Readonly<Record<LoopMark, string>> = {
 
 const DEFAULT_LABEL: Readonly<Record<LoopDefault, string>> = {
   on: "On after install",
-  warn: "Warns only: a debug-log line, and the call goes through",
+  warn: "Warns only: a debug-log line, and the turn ends",
   off: "Off",
   none: "No hook",
 };

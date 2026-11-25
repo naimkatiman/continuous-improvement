@@ -1,9 +1,9 @@
 /**
  * The loop is the spine of the two-pillar positioning (the owner's direction
  * of 2026-11-25), and lib/loop-stages.mjs is its one source. The README loop
- * table, the landing page's list of steps, assets/readme/pillars-loop.svg and
- * the loop line in SKILL.md are rendered from it. These tests tie the table
- * to what ships: each step's law is a heading of SKILL.md, each hook file
+ * table, the landing page's list of steps and assets/readme/pillars-loop.svg
+ * are rendered from it; SKILL.md's loop line is hand-written and held to it
+ * here. These tests tie the table to what ships: each step's law is a heading of SKILL.md, each hook file
  * exists and is registered on the event the table names, each mark agrees with
  * the hook's default, and every agent count comes from lib/agent-support.mjs.
  * The last four suites hold the landing page and the social card to the same
@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 
 import { pillarsLoop } from "../bin/render-readme-assets.mjs";
 import { HOOK_AGENT_IDS, PLUGIN_AGENT_IDS } from "../lib/agent-install-plans.mjs";
-import { AGENT_SUPPORT, blocksPreTool, type AgentSupport } from "../lib/agent-support.mjs";
+import { AGENT_SUPPORT, blocksPreTool, supportTier, type AgentSupport } from "../lib/agent-support.mjs";
 import {
   HEADLINE,
   LOOP_MARKS,
@@ -146,6 +146,9 @@ describe("the agent counts in the loop copy", () => {
     assert.equal(facts.agents, working.length);
     assert.equal(facts.stopGate, working.filter((r) => r.stopGate).length);
     assert.equal(facts.lessonsByHook + facts.lessonsByRulesFile.length + facts.lessonsNone.length, facts.agents);
+    assert.equal(facts.fullTier, working.filter((r) => supportTier(r) === "full").length);
+    assert.deepEqual(facts.stopGatePartial, working.filter((r) => r.stopGate && supportTier(r) !== "full").map((r) => r.names[0]));
+    assert.equal(facts.fullTier + facts.stopGatePartial.length, facts.stopGate, "every agent with a Stop gate is counted or named once");
     assert.deepEqual(facts.targetIds, working.filter((r) => r.id !== "claude").map((r) => r.id));
     assert.deepEqual([...facts.targetIds].sort(), [...HOOK_AGENT_IDS, ...PLUGIN_AGENT_IDS].sort(), "every agent --hooks installs for can block");
   });
@@ -159,7 +162,7 @@ describe("the agent counts in the loop copy", () => {
     assert.ok(text.includes(`go to all ${before.agents} agents`));
 
     const noStop = renderLoopTableMarkdown(change("codex", { stopGate: false }));
-    assert.ok(noStop.includes(`on the ${before.stopGate - 1} agents with a Stop gate`) && noStop.includes(`${before.stopGate - 1} have a Stop gate`));
+    assert.ok(noStop.includes(`on the ${before.stopGate - 1} agents with a Stop gate`) && noStop.includes(`${before.stopGate - 1} have a Stop gate: the ${before.fullTier - 1} full-tier agents, `));
     const clineHook = renderLoopTableMarkdown(change("cline", { lessons: "hook" }));
     assert.ok(clineHook.includes(`by hook on ${before.lessonsByHook + 1} agents`) && clineHook.includes("not at all on 0"));
     assert.ok(!clineHook.includes("not on Cline"));
@@ -198,6 +201,37 @@ describe("the README loop table", () => {
     const text = renderLoopTableMarkdown();
     for (const mark of LOOP_MARKS) assert.ok(text.includes(`**${markLabel(mark)}**: ${MARK_MEANING[mark]}.`), mark);
     for (const stage of LOOP_STAGES.filter((s) => s.mark === "none")) assert.doesNotMatch(stage.does(loopFacts()), /hooks\/|bin\//, `${stage.name} names no hook file`);
+  });
+
+  // Plan carries the "off until you switch it on" mark, and its hook acts by
+  // default: hooks/goal-drift-stop.mjs scores the turn, prints a stderr line on
+  // drift and rewrites its state file. Iterate carries "none", and the
+  // transcript linter checks it after the run. A legend that says "does
+  // nothing" or "nothing checks it" is false for both.
+  it("says of a mark only what holds for every step that carries it", () => {
+    const plan = LOOP_STAGES.find((s) => s.mark === "off until you switch it on" && s.defaultMode === "warn");
+    assert.equal(plan?.name, "Plan");
+    assert.match(read(plan!.hooks[0]!.file), /goal-drift-state\.json/, "the hook writes a state file with no switch set");
+    assert.equal(MARK_MEANING["off until you switch it on"], "the hook ships and refuses nothing until you set the variable");
+    assert.ok(LOOP_STAGES.some((s) => s.mark === "none" && /transcript linter/.test(s.does(loopFacts()))), "a step with no hook is checked after the run");
+    assert.equal(MARK_MEANING.none, "text the agent is given, and nothing checks it during the session");
+    for (const meaning of Object.values(MARK_MEANING)) assert.doesNotMatch(meaning, /does nothing|nothing checks it$/);
+  });
+
+  // A reader meets "Stop gate" in the Review row first, so that row says what
+  // one is. The agent table has no Stop gate column, so the reach line says
+  // which agents the count is.
+  it("says what a Stop gate is in the Review row, and which agents have one under the table", () => {
+    const facts = loopFacts();
+    const text = renderLoopTableMarkdown();
+    const review = text.split("\n").find((line) => line.startsWith("| 4. Review "))!;
+    assert.ok(review.includes(`on the ${facts.stopGate} agents with a Stop gate (a hook that runs when the agent ends its turn and can send it back)`));
+    assert.equal(text.indexOf("Stop gate"), text.indexOf("Stop gate (a hook that runs when the agent ends its turn"), "the first mention defines it");
+    const others = facts.stopGatePartial;
+    assert.ok(others.length > 1);
+    const named = `${others.slice(0, -1).map((name) => `, ${name}`).join("")} and ${others[others.length - 1]}`;
+    assert.ok(text.includes(` ${facts.stopGate} have a Stop gate: the ${facts.fullTier} full-tier agents${named}.`), text.split("\n").pop());
+    assert.ok(read("README.md").indexOf("Stop gate") > read("README.md").indexOf(LOOP_TABLE_START), "nothing above the loop table uses the term");
   });
 
   it("says where the Plan gate is shown to work, and that Review's gate is TypeScript only", () => {
@@ -323,6 +357,10 @@ describe("the landing page's loop block", () => {
     }
     assert.equal(html.split("<dt>Switch</dt><dd>None</dd>").length - 1, LOOP_STAGES.filter((s) => s.switch === "").length);
     assert.equal(html.split("<dt>Default</dt><dd>No hook</dd>").length - 1, markCounts().none, "a step with no hook says so");
+    // The only step that warns by default runs at turn end, where there is no tool call to let through.
+    assert.deepEqual(LOOP_STAGES.filter((s) => s.defaultMode === "warn").flatMap((s) => s.hooks.map((hook) => hook.event)), ["Stop"]);
+    assert.equal(html.split("<dt>Default</dt><dd>Warns only: a debug-log line, and the turn ends</dd>").length - 1, 1);
+    assert.doesNotMatch(html, /the call goes through/);
     assert.equal(html.split("<details").length - 1, LOOP_STAGES.length, "one disclosure per step");
   });
 
@@ -347,10 +385,10 @@ describe("the landing page's loop block", () => {
   it("states the reach with the support table's counts, and they move when a row changes", () => {
     const text = plain(html);
     assert.ok(text.includes(`the skills go to all ${facts.agents} agents`));
-    assert.ok(text.includes(`${facts.stopGate} have a Stop gate.`));
+    assert.ok(text.includes(`${facts.stopGate} have a Stop gate: the ${facts.fullTier} full-tier agents, `));
     assert.ok(text.includes(`Saved lessons load by hook on ${facts.lessonsByHook}`));
     const fewer = plain(renderLoopStepsHtml(AGENT_SUPPORT.map((row) => (row.id === "codex" ? { ...row, stopGate: false } : row))));
-    assert.ok(fewer.includes(`${facts.stopGate - 1} have a Stop gate.`) && fewer.includes(`on the ${facts.stopGate - 1} agents with a Stop gate`));
+    assert.ok(fewer.includes(`${facts.stopGate - 1} have a Stop gate: the ${facts.fullTier - 1} full-tier agents, `) && fewer.includes(`on the ${facts.stopGate - 1} agents with a Stop gate`));
     const readmeReach = renderLoopTableMarkdown().split("\n").pop()!.replace(/\[agent table\]\([^)]*\)/, "agent table");
     assert.ok(text.endsWith(readmeReach), "the reach line is the README's");
   });
