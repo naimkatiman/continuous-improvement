@@ -68,10 +68,10 @@ describe("installer", () => {
     it("says what each target writes, and promises nothing the installer does not do", () => {
         const help = execFileSync("node", [INSTALL_SCRIPT, "--help"], { env: { ...process.env, HOME: tempHome }, encoding: "utf8" });
         const flat = help.replace(/\s+/g, " ");
-        assert.match(flat, /claude — Claude Code without the plugin: the tool-call log, skills and commands\. No guard/);
+        assert.match(flat, /claude Claude Code without the plugin: the tool-call log, skills and commands\. No guard/);
         assert.match(flat, /Without --hooks[^.]*a rules file only, and nothing is blocked/);
         for (const id of TARGET_IDS)
-            assert.match(help, new RegExp(`^ {22}${id}\\s+— `, "m"), id);
+            assert.match(help, new RegExp(`^ {22}${id} {2,}\\S`, "m"), id);
         assert.doesNotMatch(help, /full power|full install|default subcommand|remove everything/i);
         assert.match(flat, /keeps ~\/\.claude\/instincts/);
         for (const line of help.split("\n"))

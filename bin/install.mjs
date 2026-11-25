@@ -733,18 +733,18 @@ Options for 'install':
   --target <names>  Comma-separated list (default: claude). With --hooks, the
                     agent ids above. Without --hooks, each target but claude
                     gets a rules file only, and nothing is blocked:
-                      claude    — Claude Code without the plugin: the tool-call
-                                  log, skills and commands. No guard
-                      gemini    — GEMINI.md (Gemini CLI)
-                      codex     — AGENTS.md (Codex CLI / agents.md standard)
-                      cursor    — .cursor/rules/continuous-improvement.mdc
-                      windsurf  — .windsurf/rules/continuous-improvement.md
-                      zed       — .rules (no hook this package can use)
-                      aider     — CONVENTIONS.md + .aider.conf.yml (the same)
-                      copilot   — .github/copilot-instructions.md
+                      claude    Claude Code without the plugin: the tool-call
+                                log, skills and commands. No guard
+                      gemini    GEMINI.md (Gemini CLI)
+                      codex     AGENTS.md (Codex CLI / agents.md standard)
+                      cursor    .cursor/rules/continuous-improvement.mdc
+                      windsurf  .windsurf/rules/continuous-improvement.md
+                      zed       .rules (no hook this package can use)
+                      aider     CONVENTIONS.md + .aider.conf.yml (the same)
+                      copilot   .github/copilot-instructions.md
   --mode <mode>     For the claude target:
-                      beginner  — tool-call log + skills + commands (default)
-                      expert    — beginner + MCP server + session hooks
+                      beginner  tool-call log + skills + commands (default)
+                      expert    beginner + MCP server + session hooks
   --pack <name>     Load a starter instinct pack (react, python, go, meta)
   --hooks           Install the agent's hooks, skills and MCP server, pointing
                     at a stable runtime copy under the instincts dir. For
