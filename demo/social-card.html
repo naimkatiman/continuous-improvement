@@ -4,16 +4,19 @@
 <meta charset="utf-8">
 <title>continuous-improvement social card</title>
 <!--
-  Source of the link-preview image, 1200 x 630. It is cut from docs/landing/index.html:
-  the same paper, ink and vermilion, the same fonts, the page headline and the capture
-  from Exhibit A. Render it to both PNG paths with headless Edge or Chrome:
+  Source of the link-preview image, 1200 x 630: the headline, the two pillars, and the loop as
+  seven steps with the mark each one carries. Render it to both PNG paths with headless Edge or
+  Chrome, from the repository root:
 
     msedge --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=1 \
       --window-size=1200,630 --virtual-time-budget=4000 \
       --screenshot=docs/landing/social-preview.png "file:///<repo>/demo/social-card.html"
 
-  then copy that PNG to assets/social-preview.png. The release line below is typed by
-  hand: update it and render again when the version changes.
+  then copy that PNG to assets/social-preview.png. The card states no version, so a release does
+  not redraw it. Its headline, agent count, step names and marks are typed by hand:
+  src/test/loop-stages.test.mts holds them to src/lib/loop-stages.mts and the agent table, and
+  holds og:image:alt and twitter:image:alt in docs/landing/index.html to what the card says.
+  Render again after any change here.
 -->
 <style>
   @font-face { font-family: "Newsreader Display"; font-weight: 400 600; src: url(../docs/landing/fonts/newsreader-display.woff2) format("woff2"); }
@@ -33,46 +36,52 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: 1200px; height: 630px; overflow: hidden; }
   body { background: var(--paper); color: var(--ink); font-family: var(--serif); -webkit-font-smoothing: antialiased; }
-  .card { display: grid; grid-template-columns: 656px 1fr; height: 630px; padding: 54px 64px 50px; }
-  .left { display: flex; flex-direction: column; padding-right: 52px; }
+  .card { display: grid; grid-template-columns: 620px 1fr; height: 630px; padding: 54px 64px 50px; }
+  .left { display: flex; flex-direction: column; padding-right: 48px; }
   .label { font: 500 17px/1.4 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
   .label b { color: var(--ink); font-weight: 600; }
-  h1 { font-family: var(--display); font-size: 74px; font-weight: 500; line-height: .98; letter-spacing: -.026em; margin-top: 22px; }
+  h1 { font-family: var(--display); font-size: 92px; font-weight: 500; line-height: .96; letter-spacing: -.028em; margin-top: 26px; }
   h1 span { display: block; white-space: nowrap; }
-  .lead { font-size: 25px; line-height: 1.38; color: var(--ink-soft); margin-top: 24px; max-width: 21em; }
+  .lead { font-size: 26px; line-height: 1.36; color: var(--ink-soft); margin-top: 28px; }
+  .lead b { font-weight: 600; color: var(--ink); }
+  .lead span { display: block; }
   .brand { margin-top: auto; display: flex; align-items: center; gap: 14px; font: 600 21px var(--mono); letter-spacing: -.02em; }
   .brand svg { width: 34px; height: 34px; }
-  .right { border-left: 1px solid var(--line-strong); padding-left: 48px; display: flex; flex-direction: column; }
-  .entry { margin-top: 14px; }
-  .entry > div { padding: 12px 0 13px; border-top: 1px solid var(--line-strong); }
-  .entry > div:last-child { border-bottom: 1px solid var(--line-strong); }
-  .entry dt { font: 600 15px/1.5 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
-  .entry dd { font-family: var(--mono); }
-  .cmd { font-size: 33px; font-weight: 500; letter-spacing: -.035em; line-height: 1.2; margin-top: 2px; }
-  .verdict { font-size: 172px; font-weight: 700; letter-spacing: -.065em; line-height: .8; color: var(--signal); padding: 12px 0 18px; margin-left: -7px; }
-  .rule { font-size: 26px; font-weight: 500; letter-spacing: -.025em; margin-top: 2px; }
+  .right { border-left: 1px solid var(--line-strong); padding-left: 44px; display: flex; flex-direction: column; }
+  .steps { list-style: none; margin-top: 14px; counter-reset: s; }
+  .steps li { counter-increment: s; display: grid; grid-template-columns: 24px 1fr auto; align-items: baseline; gap: 0 8px; padding: 13px 0 14px; border-top: 1px solid var(--line-strong); }
+  .steps li:last-child { border-bottom: 1px solid var(--line-strong); }
+  .steps li::before { content: counter(s); font: 600 15px var(--mono); color: var(--muted); }
+  .steps b { font: 500 27px/1.1 var(--display); letter-spacing: -.02em; white-space: nowrap; }
+  .steps em { font: 500 14px/1.2 var(--mono); font-style: normal; letter-spacing: -.02em; color: var(--muted); white-space: nowrap; }
+  .steps .deny em { color: var(--signal); font-weight: 700; }
+  .steps .on em { color: var(--ink); }
   .note { margin-top: auto; font: 400 15px/1.5 var(--mono); color: var(--muted); }
 </style>
 </head>
 <body>
   <div class="card">
     <div class="left">
-      <span class="label">Case file <b>/</b> Claude Code plugin <b>/</b> REV 3.26.0</span>
-      <h1><span>Guard hooks and a</span><span>local tool-call log</span><span>for Claude Code.</span></h1>
-      <p class="lead">One hook denies destructive shell commands in every permission mode, and blind edits of existing files. Each hook's default, switch and cost is listed.</p>
+      <span class="label">Two pillars <b>/</b> one loop <b>/</b> 16 coding agents</span>
+      <h1><span>Aim high.</span><span>Stay in control.</span></h1>
+      <p class="lead"><span><b>Ambition.</b> The be-ambitious skill.</span><span><b>Discipline.</b> Hooks, a local log, switches.</span></p>
       <div class="brand">
         <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="2.5" y="2.5" width="27" height="27" rx="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 24 L24 8" stroke="var(--signal)" stroke-width="4" stroke-linecap="round"/><rect x="13" y="13" width="6" height="6" rx="1.5" fill="currentColor"/></svg>
         <span>continuous-improvement.dev</span>
       </div>
     </div>
     <div class="right">
-      <span class="label"><b>Exhibit A</b> · captured output</span>
-      <dl class="entry">
-        <div><dt>Attempt</dt><dd class="cmd">rm -rf build/ dist/</dd></div>
-        <div><dt>Verdict</dt><dd class="verdict">deny</dd></div>
-        <div><dt>Matched rule</dt><dd class="rule">rm-recursive-force</dd></div>
-      </dl>
-      <p class="note">hooks/gateguard.mjs · PreToolUse</p>
+      <span class="label"><b>The loop</b> · what backs each step</span>
+      <ol class="steps">
+        <li class="deny"><b>Research</b><em>refuses by default</em></li>
+        <li class="off"><b>Plan</b><em>off until you switch it on</em></li>
+        <li class="deny"><b>Implement</b><em>refuses by default</em></li>
+        <li class="off"><b>Review</b><em>off until you switch it on</em></li>
+        <li class="none"><b>Contemplate</b><em>none</em></li>
+        <li class="on"><b>Relearn and learn</b><em>records and loads</em></li>
+        <li class="none"><b>Iterate</b><em>none</em></li>
+      </ol>
+      <p class="note">only a hook can refuse a call</p>
     </div>
   </div>
 </body>

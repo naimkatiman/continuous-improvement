@@ -1,26 +1,26 @@
 # Brand visuals & demo assets
 
-Reproducible sources for the marketing/discovery images. Both render to exactly **1280×640** (GitHub's recommended social-preview size).
+Reproducible sources for the link-preview and demo images.
 
-| Source | Renders to | Used for |
-|---|---|---|
-| [`social-card.html`](social-card.html) | `assets/social-preview.png` | GitHub repo **Social preview** (Settings) + link-share Open Graph card |
-| [`gateguard-demo.html`](gateguard-demo.html) | `assets/gateguard-demo.png` | A still of the gateguard deny. The README does not use it; its images are under "README images" below |
+| Source | Renders to | Size | Used for |
+|---|---|---|---|
+| [`social-card.html`](social-card.html) | `docs/landing/social-preview.png`, copied to `assets/social-preview.png` | 1200×630 | The landing page's `og:image` and `twitter:image`, and the GitHub repository **Social preview** (Settings) |
+| [`gateguard-demo.html`](gateguard-demo.html) | `assets/gateguard-demo.png` | 1280×640 | A still of the gateguard deny. The README does not use it; its images are under "README images" below |
 
 ## Regenerate the PNGs
 
-Any headless browser at a 1280×640 viewport works. The repo was built with a local static server + Playwright:
+The social card shows the headline, the two pillars and the loop's seven steps with their marks. It loads the landing page's fonts by relative path, so open it from the file system, not from a server rooted at `demo/`. Render it with headless Edge or Chrome from the repository root:
 
 ```bash
-# 1. serve this folder
-npx http-server demo -p 8799        # or: python -m http.server 8799 -d demo
-
-# 2. screenshot at 1280x640 (Playwright example)
-npx playwright screenshot --viewport-size=1280,640 \
-  http://localhost:8799/social-card.html   assets/social-preview.png
-npx playwright screenshot --viewport-size=1280,640 \
-  http://localhost:8799/gateguard-demo.html assets/gateguard-demo.png
+msedge --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=1 \
+  --window-size=1200,630 --virtual-time-budget=4000 \
+  --screenshot=docs/landing/social-preview.png "file:///<repo>/demo/social-card.html"
+cp docs/landing/social-preview.png assets/social-preview.png
 ```
+
+The card states no version, so a release does not redraw it. After any change to it, render again and update `og:image:alt` and `twitter:image:alt` in `docs/landing/index.html` to say what the card shows: `src/test/loop-stages.test.mts` holds the card's headline, agent count, step names and marks to `src/lib/loop-stages.mts` and the agent table, the alt text to the card, and both PNGs to 1200×630.
+
+`gateguard-demo.html` renders the same way at `--window-size=1280,640`.
 
 Keep each PNG **under 1 MB** (GitHub's social-preview cap).
 
