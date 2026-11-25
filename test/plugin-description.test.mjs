@@ -18,6 +18,7 @@ import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { AGENT_SUPPORT, blocksPreTool } from "../lib/agent-support.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
+import { LOOP_STAGES, loopWords } from "../lib/loop-stages.mjs";
 import { getClaudePluginManifest, getPluginHooksConfig } from "../lib/plugin-metadata.mjs";
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const REPO_ROOT = join(__dirname, "..");
@@ -58,6 +59,16 @@ describe("plugin description", () => {
             assert.ok(JSON.stringify(registrations ?? []).includes(mechanism.hook), `${mechanism.hook} is not registered on ${mechanism.event} in the plugin's hooks.json`);
         });
     }
+    // The owner's direction of 2026-11-25: two pillars lead every surface, and
+    // the destructive-command guard is one proof under discipline, never the
+    // first thing a card says.
+    it("leads with the two pillars and names the be-ambitious skill before any guard", () => {
+        assert.match(DESCRIPTION, /^Ambition and discipline for coding agents: /);
+        assert.match(DESCRIPTION, /\bbe-ambitious skill\b/);
+        assert.match(DESCRIPTION, new RegExp(`\\b${["zero", "one", "two", "three", "four", "five", "six", "seven"][LOOP_STAGES.length]}-step loop\\b`));
+        assert.ok(DESCRIPTION.indexOf("be-ambitious") < DESCRIPTION.search(/destructive/i), "the guard comes after the pillars");
+        assert.doesNotMatch(DESCRIPTION, /^Guard\b/);
+    });
     it("is repeated word for word in .cloudplugin/marketplace.json", () => {
         const manifest = JSON.parse(readRepoFile(".cloudplugin/marketplace.json"));
         assert.equal(manifest.description, DESCRIPTION);
@@ -77,7 +88,7 @@ describe("package description (npm and llms.txt)", () => {
         assert.equal(summary, `> ${pkg.description}`);
     });
     it("says the guards and the session loader come with the plugin install", () => {
-        assert.match(pkg.description, /As a Claude Code plugin it wires/);
+        assert.match(pkg.description, /Claude Code gets all of it as a plugin, in every permission mode/);
         for (const mechanism of MECHANISMS) {
             assert.match(pkg.description, mechanism.says);
         }
@@ -89,14 +100,26 @@ describe("package description (npm and llms.txt)", () => {
         assert.match(installer, /if \(INSTALL_MODE === "expert"\) \{\s*setupMcpServer\(\);/);
         assert.match(pkg.description, /`npx continuous-improvement install` wires only the tool-call log for Claude Code \(with --mode expert, also the session-start loader and the MCP server\)/);
     });
-    // PR 17 of the all-agents train changed the positioning on purpose, and the
-    // owner changed it again on 2026-11-22: guardrails for coding agents, with no
-    // agent named first. "for Claude Code" qualifies the npx sentence above,
-    // because `--target <agent> --hooks` does install the guard for other agents.
-    // The count it states comes from the support table, so it cannot drift from
-    // the agents the tier table says can block.
-    it("leads with the positioning and states how many other agents can block, from lib/agent-support.mjs", () => {
-        assert.match(pkg.description, /^Guardrails for coding agents\. /);
+    // PR 17 of the all-agents train changed the positioning on purpose, the
+    // owner changed it on 2026-11-22 (no agent named first) and again on
+    // 2026-11-25: two pillars, ambition and discipline, and the loop that joins
+    // them. The lead names the be-ambitious skill, then the loop's steps in the
+    // order lib/loop-stages.mjs holds them, then the two refusals that are on by
+    // default. It never opens with the guard, and it never counts steps a hook
+    // "refuses on", which reads as a claim about the other five.
+    // "for Claude Code" qualifies the npx sentence above, because
+    // `--target <agent> --hooks` does install the guard for other agents. The
+    // count it states comes from the support table, so it cannot drift from the
+    // agents the tier table says can block.
+    it("leads with the two pillars and the loop, and states how many other agents can block, from lib/agent-support.mjs", () => {
+        assert.match(pkg.description, /^Ambition and discipline for coding agents: the be-ambitious skill for big goals, and a seven-step loop \(/);
+        assert.equal(LOOP_STAGES.length, 7);
+        assert.ok(pkg.description.includes(`a seven-step loop (${loopWords()}) backed by hooks that refuse destructive commands and blind edits.`), "the steps are listed in the loop's order");
+        for (const stage of LOOP_STAGES.filter((s) => s.mark === "refuses by default")) {
+            assert.deepEqual(stage.hooks.filter((h) => h.optIn !== true).map((h) => h.file), ["hooks/gateguard.mjs"], `${stage.name} is refused by the guard hook`);
+        }
+        assert.doesNotMatch(pkg.description, /two of its steps/);
+        assert.doesNotMatch(pkg.description, /^Guardrails\b/);
         assert.doesNotMatch(pkg.description, /Claude Code first/);
         const others = AGENT_SUPPORT.filter((row) => row.id !== "claude" && blocksPreTool(row)).length;
         assert.ok(pkg.description.includes(`\`--target <agent> --hooks\` installs the guard for ${others} other agents that can block a tool call`), `the description must state the ${others} other agents that can block`);

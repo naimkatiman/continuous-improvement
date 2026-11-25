@@ -50,7 +50,7 @@ The 7 Laws run as one pass: Research, Plan, Execute one thing, Verify, Reflect, 
 | Before the act | Musharatah | Agree the conditions up front | Law 1 (search what exists) and Law 2 (state WILL, WILL NOT, VERIFY before touching code). `gateguard` blocks an edit of an existing file the session has not read, and under `CI_GATEGUARD_FILE_GATE=strict` the first edit of each file until those facts are on the table. |
 | During the act | Muraqabah | Vigilance: watch yourself as you act, asking why, how, and for whom | Law 3 (one thing at a time) and the observation hooks. The engine is named **Mulahazah**, observation, for this phase. |
 | After the act | Muhasabah | Self-accounting: examine what you actually did | Law 4 (read the real output, not the assumed one) and Law 5 (the reflection block: what worked, what failed, rule to add). |
-| Responding to the act | Mu'aqabah | Penalty for the lapse | A correction from the user drops an instinct's confidence by 0.1. Behavior that was wrong gets weaker, mechanically. |
+| Responding to the act | Mu'aqabah | Penalty for the lapse | A correction from the user drops an instinct's confidence by 0.1 once it is recorded with `ci_reinforce`. No code lowers it without that call. |
 | | Mujahadah | Renewed striving | Law 6: one change, verify, next change. A failure loops back to research instead of carrying forward. |
 | | Mu'atabah | Self-censure | Law 7: the "Rule to add" line becomes an instinct with 0.6 starting confidence, so the reproach outlives the session. |
 
@@ -62,9 +62,9 @@ The philosophy is not a slogan on the landing page. It decides design questions:
 
 - **The gate sits before the edit, not after.** A wishful edit is the first-column failure. So `hooks/gateguard.mjs` refuses an edit of an existing file the session has not read (under `CI_GATEGUARD_FILE_GATE=strict`, the first mutation per file until the investigation is presented), instead of reviewing the damage later.
 - **"Done" is an observed outcome.** Law 4 requires the actual command output. A reply that says "should work" is, in the sentence's terms, wishing upon the reviewer.
-- **Nothing learned is permanent.** Instincts decay without reinforcement and weaken on correction. Self-accounting that happens once is not self-accounting.
+- **Nothing learned is permanent.** A lesson weakens when a correction is recorded against it with `ci_reinforce`. Nothing fades one in the background. Self-accounting that happens once is not self-accounting.
 - **Reflection is structured, not optional.** The Law 5 block has fixed fields because an unstructured "lessons learned" paragraph is how "I'll remember..." disguises itself.
-- **The stance is model-forward.** As models improve, the reminders merge into the model. The self-accounting loop does not. The durable core is goal-driven execution plus guardrails, which is the sentence restated.
+- **The stance is model-forward.** As models improve, the reminders merge into the model. The self-accounting loop does not. The durable core is goal-driven execution plus guardrails, which is the sentence restated. Those are the two pillars: ambition and discipline.
 
 ## The two names
 
