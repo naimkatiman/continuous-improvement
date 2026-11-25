@@ -33,6 +33,8 @@ import { dirname, join, resolve } from "node:path";
 import { argv, cwd, execPath, exit, stdout } from "node:process";
 import { pathToFileURL } from "node:url";
 
+import { hashProjectRoot } from "../lib/gateguard-state.mjs";
+
 export const CAPTURE_FILE = "demo/captures/demos.json";
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
@@ -389,6 +391,47 @@ export async function capture(repoArg: string): Promise<Capture> {
       writeFileSync(join(dirs.project, "session.jsonl"), input);
       const r = await s.run("bin/lint-transcript.mjs", ["session.jsonl"], dirs);
       demos.push({ id: "lint-transcript", title: "The transcript linter on an edit with no lookup and no test run", how: "bin/lint-transcript.mjs on a two-row file of flat tool events.", steps: [{ label: "lint", run: "npx -p continuous-improvement ci-lint-transcript session.jsonl", stdin: input, exit: r.exit, stdout: s.output(r.stdout), stderr: s.output(r.stderr) }] });
+    }
+
+    // 9. The goal check: ci_plan_init writes the goal, then ci_goal_check scores two logs against it.
+    // The log rows are written here with fixed times (bin/observe.mjs would stamp the clock), in
+    // the bucket the server reads for this project.
+    {
+      const dirs = s.newRoot("goal");
+      const hash = hashProjectRoot(dirs.project);
+      const bucket = join(dirs.home, ".claude", "instincts", hash);
+      mkdirSync(bucket, { recursive: true });
+      s.addLiteral(hash, "<hash>");
+      const writeLog = (rows: ReadonlyArray<readonly [string, string]>): void =>
+        writeFileSync(join(bucket, "observations.jsonl"), rows.map(([tool, input], i) => JSON.stringify({ ts: `2026-11-22T09:00:0${i}Z`, session: "s1", tool, input_summary: input, output_summary: "" })).join("\n") + "\n");
+      const hello = [
+        { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "demo", version: "0" } } },
+        { jsonrpc: "2.0", method: "notifications/initialized" },
+      ].map((m) => JSON.stringify(m));
+      const call = (id: number, name: string, args: JsonObject): string => JSON.stringify({ jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: args } });
+      const run = "node bin/mcp-server.mjs --mode expert";
+      const server = async (calls: readonly string[]): Promise<{ exit: number | null; stderr: string; reply: (id: number) => string }> => {
+        const r = await s.run("bin/mcp-server.mjs", ["--mode", "expert"], dirs, [...hello, ...calls].join("\n") + "\n", { CLAUDE_PROJECT_DIR: dirs.project });
+        return { exit: r.exit, stderr: s.output(r.stderr), reply: (id) => s.output(r.stdout.split("\n").find((line) => line.includes(`"id":${id}`)) ?? r.stdout) };
+      };
+      const init = call(2, "ci_plan_init", { goal: "Add retry with backoff to the payment webhook handler" });
+      const check = (id: number): string => call(id, "ci_goal_check", {});
+      writeLog([["Edit", "docs/landing/index.html"], ["Bash", "npm run lint"], ["Edit", "README.md"], ["Read", "src/theme/colors.ts"]]);
+      const first = await server([init, check(3)]);
+      const files = readdirSync(dirs.project).sort();
+      writeLog([["Read", "src/webhooks/payment.ts"], ["Edit", "src/webhooks/payment.ts"], ["Bash", "npm test -- payment-webhook"], ["Edit", "src/webhooks/retry.ts"]]);
+      const second = await server([check(2)]);
+      if (!first.reply(3).includes("DRIFT") || !second.reply(2).includes("ON GOAL")) throw new Error(`goal-check: expected DRIFT then ON GOAL, got ${first.reply(3)} and ${second.reply(2)}`);
+      demos.push({
+        id: "goal-check",
+        title: "ci_goal_check on a log that left the goal, then on one that follows it",
+        how: "The MCP server over stdio in one temp HOME and project: ci_plan_init writes task_plan.md, then ci_goal_check runs against a four-row tool-call log written with fixed times, twice.",
+        steps: [
+          { label: "ci_plan_init over MCP", run, stdin: s.output(init), exit: first.exit, stdout: first.reply(2), stderr: first.stderr, files },
+          { label: "ci_goal_check, four logged calls on other files", run, stdin: check(3), exit: first.exit, stdout: first.reply(3), stderr: first.stderr },
+          { label: "ci_goal_check, four logged calls on the webhook handler", run, stdin: check(2), exit: second.exit, stdout: second.reply(2), stderr: second.stderr },
+        ],
+      });
     }
   } finally {
     s.cleanup();

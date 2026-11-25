@@ -12,6 +12,9 @@
  *     README lists only the rows that block a destructive command (the owner's
  *     2026-11-22 call: the README names the agents it works on); the landing
  *     table and docs/AGENT-SUPPORT.md keep every row.
+ *   - README.md carries the loop table between `<!-- loop-table:start -->`
+ *     and `<!-- loop-table:end -->`, rendered from lib/loop-stages.mjs with
+ *     its agent counts taken from the rows.
  *   - assets/readme/agents-map.svg, the README's map of those same rows, is
  *     rendered from them byte for byte.
  *   - .cloudplugin/marketplace.json carries compatibleWith from the rows and
@@ -48,6 +51,7 @@ import { dirname, join } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { HOOK_AGENT_IDS, PLUGIN_AGENT_IDS } from "../lib/agent-install-plans.mjs";
 import { AGENT_SUPPORT, blocksPreTool, renderCloudplugin, supportTier, } from "../lib/agent-support.mjs";
+import { LOOP_TABLE_END, LOOP_TABLE_START, renderLoopTableMarkdown } from "../lib/loop-stages.mjs";
 import { IMAGE_WIDTH, PAD, charsFit, rect, richText, svgDocument, text, wrap } from "../lib/readme-svg.mjs";
 export const SUPPORT_DOC = "docs/AGENT-SUPPORT.md";
 export const CLOUDPLUGIN = ".cloudplugin/marketplace.json";
@@ -304,14 +308,14 @@ export function changelogClaims(text, rows = AGENT_SUPPORT) {
     return findBlockingClaims(CHANGELOG_FILE, leads.join("\n"), rows);
 }
 /** The text with the body between the markers replaced, or null when the markers are not one ordered pair. */
-export function spliceBlock(text, body) {
-    const start = text.indexOf(BLOCK_START);
-    const end = text.indexOf(BLOCK_END);
+export function spliceBlock(text, body, startMark = BLOCK_START, endMark = BLOCK_END) {
+    const start = text.indexOf(startMark);
+    const end = text.indexOf(endMark);
     if (start === -1 || end === -1 || end < start)
         return null;
-    if (text.indexOf(BLOCK_START, start + 1) !== -1 || text.indexOf(BLOCK_END, end + 1) !== -1)
+    if (text.indexOf(startMark, start + 1) !== -1 || text.indexOf(endMark, end + 1) !== -1)
         return null;
-    return `${text.slice(0, start + BLOCK_START.length)}\n${body}\n${text.slice(end)}`;
+    return `${text.slice(0, start + startMark.length)}\n${body}\n${text.slice(end)}`;
 }
 function installCell(row) {
     return row.install.map((cmd) => `\`${cmd}\``).join(", then ");
@@ -369,7 +373,7 @@ export function renderSupportDoc(rows = AGENT_SUPPORT) {
         "",
         "# Agent support",
         "",
-        "continuous-improvement is guardrails for coding agents. This page is the promise for each agent: what the guard does there, how saved lessons reach the model, and what the agent cannot do. Nothing here goes beyond what the 2026-11-21 research verified, with the skeptic corrections applied ([plan](plans/2026-11-21-all-agents.md)).",
+        "continuous-improvement is two pillars for coding agents, ambition and discipline. This page is the discipline side, agent by agent: what the guard does there, how saved lessons reach the model, and what the agent cannot do. Nothing here goes beyond what the 2026-11-21 research verified, with the skeptic corrections applied ([plan](plans/2026-11-21-all-agents.md)). The ambition side is the `be-ambitious` skill. `--hooks` copies it with the other skills to every agent in the tier table that reads skills. It is guidance the agent reads, and no hook checks that it was followed.",
         "",
         "## What the tiers mean",
         "",
@@ -377,7 +381,7 @@ export function renderSupportDoc(rows = AGENT_SUPPORT) {
         "- **partial**: the guard blocks, and one of the other two is missing. A surface whose hooks run but whose deny the research could not confirm is partial too, and no blocking is claimed for it.",
         "- **rules only**: the agent has no hook this package can use, so nothing is blocked. It gets the 7 Laws rules file, and the lessons through `ci lessons`.",
         "",
-        "The guard is `hooks/gateguard.mjs` (destructive shell commands and blind edits), with `hooks/hook-pack.mjs` (protected-branch pushes, opt-in) and `hooks/config-guard.mjs` (guardrail config edits, opt-in). Lessons come from `hooks/session.mjs`. The Stop gate is `hooks/typecheck-stop.mjs` and `hooks/goal-drift-stop.mjs`, both off or warn-only until you switch them on (`CI_TYPECHECK_GATE=block`, `CI_GOAL_DRIFT_GATE=block`). The tool-call log is `bin/observe.mjs` and the MCP server is `bin/mcp-server.mjs`. `lib/hook-io.mjs` writes each answer in the format the agent reads, and OpenCode and Amp run the same hook files through `lib/hook-bridge.mjs`.",
+        "The guard is `hooks/gateguard.mjs` (destructive shell commands and blind edits), with `hooks/hook-pack.mjs` (protected-branch pushes, opt-in) and `hooks/config-guard.mjs` (guardrail config edits, opt-in). Lessons come from `hooks/session.mjs`. The Stop gate is `hooks/typecheck-stop.mjs` and `hooks/goal-drift-stop.mjs`, both off or warn-only until you switch them on (`CI_TYPECHECK_GATE=block`, `CI_GOAL_DRIFT_GATE=block`). The goal-drift block reads the reply from a Claude Code transcript, so it is shown to work on Claude Code only. The tool-call log is `bin/observe.mjs` and the MCP server is `bin/mcp-server.mjs`. `lib/hook-io.mjs` writes each answer in the format the agent reads, and OpenCode and Amp run the same hook files through `lib/hook-bridge.mjs`.",
         "",
         "A blind edit is an edit of an existing file that this conversation's tool-call log shows no read of; with no log yet, every edit that names its file passes. A shell command that names the file counts as a read on every hook agent, and so does a file tool whose path key the research documents. Copilot, Devin and Auggie document none for their file-read tools, so a read through `view` never counts and a read through `read` counts only when it names the file as `path`: read the file through the shell, or run the clear command the deny prints. The write tools of Copilot (`edit`, `str_replace_editor`, `create`), Devin (`edit`, `write`, `notebook_edit`), Auggie (`edit`, `write`, `str-replace-editor`, `save-file`) and Junie (`Write`, `Edit`; hooks on its Early Access build) document no path key either: the guard reads `path`, `file_path`, `filePath` and `target_file` for them (unverified; Devin's `notebook_edit` also `notebook_path`), gates the file it finds there like any edit, and denies a write that names a file at none of those keys, log or no log, with the clear command that lets that tool's path-less writes through for the session; config-guard reports such a write too. An `apply_patch` of Devin, Copilot, Cline or Junie (hooks on its Early Access build), or a Droid `ApplyPatch`, whose patch text names no file at `command`, `patch` or `input` gets the same deny (a Codex `apply_patch`, whose key is documented, gets a warning). A Claude-named write tool of another agent is read with that agent's keys too, so a Grok `Write` is gated on `path`, `filePath` and `target_file` as well as `file_path`. Gemini's `save_memory` names no file and always passes. A tool event from another agent that names no session gets that deny for every edit of an existing file.",
         "",
@@ -442,9 +446,11 @@ export function renderReadmeTierMarkdown(rows = AGENT_SUPPORT) {
     ];
     return lines.join("\n");
 }
-const BLOCK_RENDERERS = [
-    ["README.md", renderReadmeTierMarkdown],
-    ["docs/landing/index.html", renderTierHtml],
+// Every block a doc carries between a marker pair. The README has two.
+const RENDERED_BLOCKS = [
+    { file: "README.md", start: BLOCK_START, end: BLOCK_END, what: "tier table", render: renderReadmeTierMarkdown },
+    { file: "docs/landing/index.html", start: BLOCK_START, end: BLOCK_END, what: "tier table", render: renderTierHtml },
+    { file: "README.md", start: LOOP_TABLE_START, end: LOOP_TABLE_END, what: "loop table", render: (rows) => renderLoopTableMarkdown(rows) },
 ];
 const MAP_GROUPS = [
     ["full", "Full", "blocks, loads lessons at session start, has a Stop gate"],
@@ -506,17 +512,20 @@ export function checkAgentMatrix(repoRoot, rows = AGENT_SUPPORT) {
         out.push(`${SUPPORT_DOC}: missing; ${REGENERATE}`);
     else if (doc.replace(/\r\n/g, "\n") !== renderSupportDoc(rows))
         out.push(`${SUPPORT_DOC}: differs from the rows; ${REGENERATE}`);
-    for (const [file, render] of BLOCK_RENDERERS) {
-        const text = read(repoRoot, file);
+    const missing = new Set();
+    for (const block of RENDERED_BLOCKS) {
+        const text = read(repoRoot, block.file);
         if (text === null) {
-            out.push(`${file}: missing`);
+            if (!missing.has(block.file))
+                out.push(`${block.file}: missing`);
+            missing.add(block.file);
             continue;
         }
-        const want = spliceBlock(text.replace(/\r\n/g, "\n"), render(rows));
+        const want = spliceBlock(text.replace(/\r\n/g, "\n"), block.render(rows), block.start, block.end);
         if (want === null)
-            out.push(`${file}: needs exactly one ${BLOCK_START} ... ${BLOCK_END} marker pair`);
+            out.push(`${block.file}: needs exactly one ${block.start} ... ${block.end} marker pair`);
         else if (want !== text.replace(/\r\n/g, "\n"))
-            out.push(`${file}: the tier table differs from the rows; ${REGENERATE}`);
+            out.push(`${block.file}: the ${block.what} differs from the rows; ${REGENERATE}`);
     }
     const map = read(repoRoot, AGENT_MAP_SVG);
     if (map === null)
@@ -564,13 +573,14 @@ export function writeAgentMatrix(repoRoot, rows = AGENT_SUPPORT) {
     const written = [];
     writeFileSync(join(repoRoot, SUPPORT_DOC), renderSupportDoc(rows));
     written.push(SUPPORT_DOC);
-    for (const [file, render] of BLOCK_RENDERERS) {
-        const text = read(repoRoot, file);
-        const next = text === null ? null : spliceBlock(text.replace(/\r\n/g, "\n"), render(rows));
+    for (const block of RENDERED_BLOCKS) {
+        const text = read(repoRoot, block.file);
+        const next = text === null ? null : spliceBlock(text.replace(/\r\n/g, "\n"), block.render(rows), block.start, block.end);
         if (next === null)
             continue;
-        writeFileSync(join(repoRoot, file), next);
-        written.push(file);
+        writeFileSync(join(repoRoot, block.file), next);
+        if (!written.includes(block.file))
+            written.push(block.file);
     }
     mkdirSync(dirname(join(repoRoot, AGENT_MAP_SVG)), { recursive: true });
     writeFileSync(join(repoRoot, AGENT_MAP_SVG), renderAgentMapSvg(rows));
@@ -593,7 +603,7 @@ function main() {
     }
     const violations = checkAgentMatrix(repoRoot);
     if (violations.length === 0) {
-        console.log(`OK agent-matrix: ${AGENT_SUPPORT.length} rows; ${SUPPORT_DOC}, the README and landing tier tables, ${AGENT_MAP_SVG} and ${CLOUDPLUGIN} match the rows, and no scanned doc or ${CHANGELOG_FILE} [Unreleased] lead claims blocking for an agent that cannot block, or leaves out a condition or surface.`);
+        console.log(`OK agent-matrix: ${AGENT_SUPPORT.length} rows; ${SUPPORT_DOC}, the README and landing tier tables, the README loop table, ${AGENT_MAP_SVG} and ${CLOUDPLUGIN} match the rows, and no scanned doc or ${CHANGELOG_FILE} [Unreleased] lead claims blocking for an agent that cannot block, or leaves out a condition or surface.`);
         exit(0);
     }
     console.error(`FAIL agent-matrix: ${violations.length} violation(s).\n`);

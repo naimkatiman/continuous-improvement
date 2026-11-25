@@ -1,12 +1,14 @@
 ---
 name: continuous-improvement
 tier: core
-description: "Install structured self-improvement loops with instinct-based learning into Claude Code — research, plan, execute, verify, reflect, learn, iterate. On-demand or weekly analysis to save tokens. Supports multi-agent parallel analysis."
+description: "Install structured self-improvement loops with instinct-based learning into a coding agent: research, plan, execute, verify, reflect, learn, iterate. On-demand or weekly analysis to save tokens. Supports multi-agent parallel analysis."
 ---
 
 # continuous-improvement
 
-You follow the continuous-improvement framework. These 7 laws make every task sharper — each is a capability that compounds: research deeper, plan tighter, verify with evidence, reflect, and record what you learn so the next session starts with it.
+You follow the continuous-improvement framework. It stands on two pillars. **Ambition:** the user has big goals, so work on the goal behind the task. The `be-ambitious` skill has the method. **Discipline:** the user controls the AI, and the AI does not control the user. The 7 laws below are that discipline, and where the hooks are installed they back part of it in code.
+
+These 7 laws make every task sharper — each is a capability that compounds: research deeper, plan tighter, verify with evidence, reflect, and record what you learn so the next session starts with it.
 
 ## Law 1: Research Before Executing
 
@@ -119,9 +121,19 @@ The harvest is opt-in: it runs only when explicitly invoked. Cron / hook trigger
 
 ## The Loop
 
+The loop is where the two pillars meet. Ambition sets the goal. Discipline is how the work gets done, one step at a time:
+
+```
+Research (Law 1) → Plan (Law 2) → Implement (Law 3) → Review (Law 4) → Contemplate (Law 5) → Relearn and learn (Law 7) → Iterate (Law 6)
+```
+
+The same loop in the words of the laws above, with no law renumbered:
+
 ```
 Research → Plan → Execute (one thing) → Verify → Reflect → Learn → Iterate
 ```
+
+Implement is Law 3, Review is Law 4 and Contemplate is Law 5. Relearn and learn is Law 7 and comes before Iterate, Law 6: what you learned shapes the next pass.
 
 If you're skipping a step, that's the step you need most.
 
@@ -220,7 +232,7 @@ Always search with Grep to confirm location before using Edit.
 | Confirming observation (same pattern seen again) | +0.05 |
 | Reflection matches existing instinct | +0.2 |
 | User corrects/rejects | -0.1 |
-| No observation for 30 days | -0.05 decay |
+| No observation for 30 days (analysis applies it when you run it; no code does) | -0.05 decay |
 
 Cap: 0.9 max. Scope: default to project; promote to global when seen in 2+ projects.
 

@@ -5,7 +5,8 @@
  *
  * Draws the README's images under assets/readme/ as SVG: the terminal cards
  * from the real runs in demo/captures/demos.json (written by
- * bin/capture-readme-demos.mjs), and the two diagrams. Every line a card shows
+ * bin/capture-readme-demos.mjs), the two diagrams, and the two pillars with
+ * the loop from lib/loop-stages.mjs. Every line a card shows
  * as output is looked up in the capture first, and drawing fails when it is
  * not there, so a card cannot show output nobody ran. Monospace is kept for
  * commands, paths and captured output. The agents map is drawn
@@ -25,6 +26,7 @@ import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { CAPTURE_FILE, type Capture, type Demo, type Step } from "./capture-readme-demos.mjs";
+import { LOOP_STAGES, PILLARS, type LoopMark, type LoopStage, markCounts } from "../lib/loop-stages.mjs";
 import { IMAGE_WIDTH, PAD, type Span, arrow, charsFit, rect, richText, svgDocument, text, wrap, wrapRanges } from "../lib/readme-svg.mjs";
 
 export const ASSET_DIR = "assets/readme";
@@ -229,7 +231,7 @@ function card(file: string, demo: Demo, title: string, desc: string, sections: r
   return { file, demos: [demo.id], evidence, svg: svgDocument({ height: y, title, desc, body }) };
 }
 
-/** The hero: one force push, six agents' replies from one hook file, and git status allowed on all six. */
+/** One force push, six agents' replies from one hook file, and git status allowed on all six. */
 function forcePushCard(capture: Capture): Asset {
   const deny = demoById(capture, "force-push");
   const allow = demoById(capture, "git-status");
@@ -331,6 +333,37 @@ function lintCard(capture: Capture): Asset {
   ]);
 }
 
+/** The push gate switched on: one push to main, and the deny hooks/hook-pack.mjs answers with. */
+function pushGateCard(capture: Capture): Asset {
+  const demo = demoById(capture, "push-gate");
+  const step = demo.steps[0];
+  if (!step) throw new Error("push-gate: expected one step");
+  const reason = jsonField(step.stdout, "hookSpecificOutput", "permissionDecisionReason");
+  return card(`${ASSET_DIR}/demo-push-gate.svg`, demo, "A push to main with the push gate on", `With CI_HOOKPACK_GATE=block set, ${step.label} sends a push to main to hooks/hook-pack.mjs and gets a deny whose reason names the protected branch.`, [
+    { heading: `1. ${step.label} asks to run`, lines: [out(jsonField(step.stdin ?? "", "tool_input", "command"), "tx", { prefix: "$ ", bold: true })] },
+    { heading: "2. The hook, with the switch set, answers", lines: [out(step.run, "mute"), out(decision(step.stdout), "deny", { bold: true }), out(reason, "tx")] },
+  ]);
+}
+
+/** The goal check: one goal, a log that left it and a log that follows it. */
+function goalCheckCard(capture: Capture): Asset {
+  const demo = demoById(capture, "goal-check");
+  const [init, drift, onGoal] = demo.steps;
+  if (!init || !drift || !onGoal) throw new Error("goal-check: expected three steps");
+  const reply = (step: Step): string => jsonField(step.stdout, "result", "content", "0", "text");
+  const verdict = (step: Step, want: string, tone: Tone): CardLine[] => {
+    const status = firstLine(reply(step), "**Status:**");
+    if (!status.endsWith(` ${want}`)) throw new Error(`goal-check: "${step.label}" answered ${status}, not ${want}`);
+    return [out(status, tone, { md: true, bold: true }), out(firstLine(reply(step), "**Score:**"), "tx", { md: true })];
+  };
+  const name = (step: Step): string => step.label.slice(step.label.indexOf(", ") + 2);
+  return card(`${ASSET_DIR}/demo-goal-check.svg`, demo, "The goal check on two tool-call logs", "The ci_plan_init MCP tool writes a goal into task_plan.md. The ci_goal_check MCP tool then answers DRIFT for four logged calls that share no keyword with the goal, and ON GOAL for four that do.", [
+    { heading: "1. ci_plan_init writes task_plan.md", lines: [out(firstLine(reply(init), "**Goal:**"), "tx", { md: true })] },
+    { heading: `2. ci_goal_check: ${name(drift)}`, lines: [...verdict(drift, "DRIFT", "deny"), out(firstLine(reply(drift), "**Goal keywords:**"), "mute", { md: true })] },
+    { heading: `3. ci_goal_check: ${name(onGoal)}`, lines: verdict(onGoal, "ON GOAL", "ok") },
+  ]);
+}
+
 /** A line in a diagram box: a path or command in monospace, an explanation in the sans face. */
 interface BoxLine {
   t: string;
@@ -345,6 +378,8 @@ interface Box {
   title: string;
   titleTone: Tone;
   lines: BoxLine[];
+  /** The tone of the lines under the title. On a tinted fill it is the text color. */
+  lineTone?: Tone;
 }
 
 const BOX = { title: 20, line: 18, step: 25 } as const;
@@ -363,7 +398,7 @@ function drawBox(b: Box): string[] {
   const lines = boxLines(b);
   const drawn: string[] = [rect(b.x, b.y, b.w, boxHeight(b), b.cls)];
   drawn.push(text(b.x + 16, b.y + 30, BOX.title, `${b.titleTone} b`, b.title));
-  lines.forEach((line, i) => drawn.push(text(b.x + 16, b.y + 57 + i * BOX.step, BOX.line, `mute${line.mono ? " mono" : ""}`, line.t)));
+  lines.forEach((line, i) => drawn.push(text(b.x + 16, b.y + 57 + i * BOX.step, BOX.line, `${b.lineTone ?? "mute"}${line.mono ? " mono" : ""}`, line.t)));
   return drawn;
 }
 
@@ -416,6 +451,88 @@ function heroFlow(): Asset {
   };
 }
 
+// How a step's row is drawn for each mark: the row's fill, and the tone of the mark's own text.
+const MARK_STYLE: Readonly<Record<LoopMark, { fill: string; tone: Tone }>> = {
+  "refuses by default": { fill: "deny-bg", tone: "deny" },
+  "off until you switch it on": { fill: "warn-bg", tone: "warn" },
+  "records and loads": { fill: "accent-bg", tone: "accent" },
+  none: { fill: "panel", tone: "mute" },
+};
+
+/**
+ * The two pillars over the seven steps of the loop, in order, each with its law
+ * number, its mark and the hook files behind it. Drawn from lib/loop-stages.mjs.
+ */
+export function pillarsLoop(stages: readonly LoopStage[] = LOOP_STAGES): Asset {
+  const body: string[] = [];
+  const colW = (IMAGE_WIDTH - 2 * PAD - 16) / 2;
+  const boxes: Box[] = PILLARS.map((pillar, i) => ({
+    x: PAD + i * (colW + 16),
+    y: PAD,
+    w: colW,
+    cls: i === 0 ? "accent-bg" : "ok-bg",
+    title: pillar.name,
+    titleTone: i === 0 ? "accent" : "ok",
+    lines: [{ t: pillar.claim }, { t: pillar.ships, mono: pillar.shipsIsName }, { t: pillar.kind }],
+    lineTone: "tx",
+  }));
+  for (const b of boxes) body.push(...drawBox(b));
+  let y = PAD + Math.max(...boxes.map(boxHeight)) + 38;
+  body.push(richText(PAD, y, 20, "tx", [{ text: "The loop", bold: true }, { text: ": seven steps, and the code behind each" }]));
+  y += 16;
+  const left = PAD + 28;
+  const right = IMAGE_WIDTH - PAD;
+  const rowW = right - left;
+  const rowH = 66;
+  const gap = 8;
+  const top = y;
+  const inner = rowW - 32;
+  // On the second line the law number has its own column, wide enough for "Law 7".
+  const lawW = "Law 0".length * 18 * 0.56 + 14;
+  stages.forEach((stage, i) => {
+    const style = MARK_STYLE[stage.mark];
+    const sub = style.fill === "panel" ? "mute" : "tx";
+    const name = `${i + 1}. ${stage.name}`;
+    const files = stage.hooks.filter((hook) => hook.optIn !== true).map((hook) => hook.file).join(", ");
+    const firstRow = name.length * 20 * 0.6 + 16 + stage.mark.length * 18 * 0.6;
+    const secondRow = lawW + files.length * 18 * 0.61 + (stage.covers === "" ? 0 : 16 + stage.covers.length * 18 * 0.56);
+    if (Math.max(firstRow, secondRow) > inner) throw new Error(`loop step "${stage.name}" does not fit its row`);
+    body.push(rect(left, y, rowW, rowH, style.fill));
+    body.push(text(left + 16, y + 28, 20, "tx b", name));
+    body.push(text(right - 16, y + 28, 18, `${style.tone} b`, stage.mark, "end"));
+    body.push(text(left + 16, y + 54, 18, sub, `Law ${stage.law}`));
+    if (stage.hooks.length === 0) {
+      body.push(text(left + 16 + lawW, y + 54, 18, sub, "a written rule, no hook"));
+    } else {
+      body.push(text(left + 16 + lawW, y + 54, 18, `${sub} mono`, files));
+      if (stage.covers !== "") body.push(text(right - 16, y + 54, 18, sub, stage.covers, "end"));
+    }
+    y += rowH + gap;
+  });
+  y -= gap;
+  // Iterate starts the next pass: the lane at the left runs from the last step back to the first.
+  const lane = PAD + 10;
+  const from = y - rowH / 2;
+  const to = top + rowH / 2;
+  body.push(`<path d="M ${left} ${from} H ${lane} V ${to} H ${left - 9}" class="arrow" stroke-width="2"/>`);
+  body.push(`<polygon points="${left},${to} ${left - 10},${to - 6} ${left - 10},${to + 6}" class="head"/>`);
+  y += 32;
+  body.push(text(IMAGE_WIDTH / 2, y, 18, "mute", "A skill is guidance. Only a hook can refuse a call.", "middle"));
+  const counts = markCounts(stages);
+  const named = (mark: LoopMark): string => stages.filter((stage) => stage.mark === mark).map((stage) => stage.name).join(" and ");
+  return {
+    file: `${ASSET_DIR}/pillars-loop.svg`,
+    demos: [],
+    evidence: [],
+    svg: svgDocument({
+      height: y + PAD,
+      title: "Two pillars and the loop that joins them",
+      desc: `${PILLARS.map((p) => `${p.name}: ${p.ships}, ${p.kind}.`).join(" ")} The loop, in order: ${stages.map((stage) => `${stage.name} (Law ${stage.law})`).join(", ")}. ${counts["refuses by default"]} steps have a hook that refuses by default: ${named("refuses by default")}. ${counts["off until you switch it on"]} have a gate that is off until you switch it on: ${named("off until you switch it on")}. ${named("records and loads")} records and loads. ${named("none")} are written rules with no hook.`,
+      body,
+    }),
+  };
+}
+
 /** The memory parts: a log with a search over it, and lessons that load at session start. Two tracks, nothing between them. */
 function memoryParts(): Asset {
   const body: string[] = [];
@@ -451,7 +568,7 @@ function memoryParts(): Asset {
 
 /** Every image this script owns, drawn from the capture. Throws when a card's output is not in the capture. */
 export function renderReadmeAssets(capture: Capture): Asset[] {
-  const assets = [forcePushCard(capture), installCard(capture), blindEditCard(capture), sessionCard(capture), lintCard(capture), heroFlow(), memoryParts()];
+  const assets = [pillarsLoop(), forcePushCard(capture), installCard(capture), blindEditCard(capture), pushGateCard(capture), goalCheckCard(capture), sessionCard(capture), lintCard(capture), heroFlow(), memoryParts()];
   for (const asset of assets) {
     const corpus = asset.demos.map((id) => demoCorpus(demoById(capture, id))).join("\n");
     for (const line of asset.evidence) {

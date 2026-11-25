@@ -12,6 +12,7 @@ import { after, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { HOOK_AGENT_IDS, PLUGIN_AGENT_IDS, planAgentInstall, resolveHookAgent } from "../lib/agent-install-plans.mjs";
 import { AGENT_PROFILES } from "../lib/agent-profiles.mjs";
+import { LOOP_TABLE_END, LOOP_TABLE_START, renderLoopTableMarkdown } from "../lib/loop-stages.mjs";
 import { AGENT_SUPPORT, blocksPreTool, compatibleWith, renderCloudplugin, supportTier, } from "../lib/agent-support.mjs";
 import { AGENT_MAP_SVG, BLOCK_END, BLOCK_START, CHANGELOG_FILE, CLAIM_SCAN_FILES, changelogClaims, checkAgentMatrix, findBlockingClaims, headingAnchor, renderAgentMapSvg, renderReadmeTierMarkdown, renderSupportDoc, renderTierHtml, renderTierMarkdown, spliceBlock, supportViolations, writeAgentMatrix, } from "../bin/check-agent-matrix.mjs";
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
@@ -224,6 +225,12 @@ describe("spliceBlock", () => {
             assert.equal(spliceBlock(bad, "new"), null, bad);
         }
     });
+    it("splices a second block by its own marker pair and leaves the first alone", () => {
+        const two = `${doc}${LOOP_TABLE_START}\nold loop\n${LOOP_TABLE_END}\nc\n`;
+        assert.equal(spliceBlock(two, "new", LOOP_TABLE_START, LOOP_TABLE_END), `${doc}${LOOP_TABLE_START}\nnew\n${LOOP_TABLE_END}\nc\n`);
+        assert.equal(spliceBlock(two, "new"), `a\n${BLOCK_START}\nnew\n${BLOCK_END}\nb\n${LOOP_TABLE_START}\nold loop\n${LOOP_TABLE_END}\nc\n`);
+        assert.equal(spliceBlock(doc, "new", LOOP_TABLE_START, LOOP_TABLE_END), null, "no loop markers");
+    });
 });
 describe("renderers", () => {
     it("render every agent, its tier, its first install command and what it cannot do", () => {
@@ -289,7 +296,7 @@ describe("checkAgentMatrix", () => {
         writeFileSync(join(root, "package.json"), JSON.stringify({ version: "3.27.0" }));
         writeFileSync(join(root, ".cloudplugin", "marketplace.json"), JSON.stringify({ name: "n", version: "3.13.0", compatibleWith: ["claude"] }));
         writeFileSync(join(root, "docs", "AGENT-SUPPORT.md"), "stale\n");
-        writeFileSync(join(root, "README.md"), `# r\n${BLOCK_START}\nold\n${BLOCK_END}\n`);
+        writeFileSync(join(root, "README.md"), `# r\n${LOOP_TABLE_START}\nold\n${LOOP_TABLE_END}\n${BLOCK_START}\nold\n${BLOCK_END}\n`);
         writeFileSync(join(root, "docs", "landing", "index.html"), `<p>x</p>\n${BLOCK_START}\nold\n${BLOCK_END}\n`);
         writeFileSync(join(root, "QUICKSTART.md"), "# q\n");
         writeFileSync(join(root, "llms.txt"), "# l\n");
@@ -319,6 +326,21 @@ describe("checkAgentMatrix", () => {
         writeAgentMatrix(root);
         writeFileSync(join(root, "QUICKSTART.md"), "# q\n\nThe guard blocks rm -rf in Aider too.\n");
         assert.match(checkAgentMatrix(root).join("\n"), /QUICKSTART\.md:3: .*Aider/);
+    });
+    // The README loop table is rendered from lib/loop-stages.mjs with its agent
+    // counts taken from the rows, so a hand edit, a missing block and a changed
+    // row all show up here.
+    it("fails when the README loop table is edited by hand, or its markers are gone", () => {
+        const root = fixtureRepo();
+        assert.match(checkAgentMatrix(root).join("\n"), /README\.md: the loop table differs from the rows/);
+        writeAgentMatrix(root);
+        const path = join(root, "README.md");
+        const written = readFileSync(path, "utf8");
+        assert.ok(written.includes(renderLoopTableMarkdown(AGENT_SUPPORT)), "--write renders the loop table");
+        writeFileSync(path, written.replace("Refuses by default", "Refuses always"));
+        assert.match(checkAgentMatrix(root).join("\n"), /README\.md: the loop table differs from the rows/);
+        writeFileSync(path, written.replace(LOOP_TABLE_START, "").replace(LOOP_TABLE_END, ""));
+        assert.match(checkAgentMatrix(root).join("\n"), /README\.md: needs exactly one <!-- loop-table:start --> \.\.\. <!-- loop-table:end --> marker pair/);
     });
     it("fails when the agents map is edited by hand", () => {
         const root = fixtureRepo();
@@ -575,7 +597,7 @@ describe("conditional and ambiguous blocking claims, and the CHANGELOG leads", (
             mkdirSync(join(root, ".cloudplugin"));
             writeFileSync(join(root, "package.json"), JSON.stringify({ version: "3.27.0" }));
             writeFileSync(join(root, ".cloudplugin", "marketplace.json"), JSON.stringify({ name: "n", version: "3.27.0", compatibleWith: [] }));
-            writeFileSync(join(root, "README.md"), `# r\n${BLOCK_START}\n${BLOCK_END}\n`);
+            writeFileSync(join(root, "README.md"), `# r\n${LOOP_TABLE_START}\n${LOOP_TABLE_END}\n${BLOCK_START}\n${BLOCK_END}\n`);
             writeFileSync(join(root, "docs", "landing", "index.html"), `<p>x</p>\n${BLOCK_START}\n${BLOCK_END}\n`);
             writeFileSync(join(root, "QUICKSTART.md"), "# q\n");
             writeFileSync(join(root, "llms.txt"), "# l\n");

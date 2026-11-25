@@ -1,6 +1,7 @@
 /**
  * The README images are drawn from data: the terminal cards from the real runs
- * in demo/captures/demos.json, the agents map from lib/agent-support.mjs. These
+ * in demo/captures/demos.json, the agents map from lib/agent-support.mjs, the
+ * two pillars and the loop from lib/loop-stages.mjs. These
  * tests fail when a committed image differs from what the data draws now, when
  * a card shows output the capture does not hold, and when the capture no
  * longer matches what this checkout's hooks print.
@@ -42,6 +43,10 @@ describe("README images", () => {
     const noisy = copy();
     noisy.demos.find((d) => d.id === "git-status")!.steps[2]!.stdout = "{}";
     assert.throws(() => renderReadmeAssets(noisy), /git-status/);
+    const drifted = copy();
+    const check = drifted.demos.find((d) => d.id === "goal-check")!.steps[1]!;
+    check.stdout = check.stdout.replace("**Status:** DRIFT", "**Status:** ON GOAL");
+    assert.throws(() => renderReadmeAssets(drifted), /goal-check/);
     const ruleless = copy();
     const kiro = ruleless.demos.find((d) => d.id === "force-push")!.steps.find((s) => s.label === "Kiro CLI")!;
     kiro.stderr = kiro.stderr.replace("Matched rule:", "Rule:");
@@ -108,9 +113,21 @@ describe("the README's use of the images", () => {
     assert.doesNotMatch(readme, /!\[[^\]]*\]\(assets\/readme\//, "a Markdown image's alt text is read by the claim scan; use <img>");
   });
 
-  it("opens with the six-agent demo, right under the badges", () => {
-    const hero = readme.indexOf("assets/readme/demo-force-push.svg");
-    assert.ok(hero > readme.indexOf("img.shields.io") && hero < readme.indexOf("\n## "), "the hero sits above the first section");
+  // The owner's direction of 2026-11-25: the two pillars and the loop lead, and
+  // the destructive-command guard is one proof under Discipline.
+  it("opens with the two pillars and the loop, between the badges and the first section", () => {
+    const first = readme.indexOf("\n## ");
+    const hero = readme.indexOf("assets/readme/pillars-loop.svg");
+    assert.ok(hero > readme.indexOf("img.shields.io") && hero < first, "the pillars image sits above the first section");
+    assert.equal(tags[0]![1], "assets/readme/pillars-loop.svg", "it is the first image");
+  });
+
+  it("shows the six-agent demo under Discipline, never above the first section", () => {
+    const demo = readme.indexOf("assets/readme/demo-force-push.svg");
+    const discipline = readme.indexOf("\n## Discipline\n");
+    const next = readme.indexOf("\n## ", discipline + 1);
+    assert.ok(discipline !== -1 && demo > discipline && demo < next, "the six-agent demo sits in the Discipline section");
+    assert.ok(demo > readme.indexOf("\n## "), "and below the first section heading");
   });
 });
 
