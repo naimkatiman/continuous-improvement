@@ -1,7 +1,7 @@
 ---
 name: be-ambitious
 tier: "2"
-description: Guidance for Law 2 (Plan Is Sacred) of the 7 Laws of AI Agent Discipline. Takes one task and works it at three kinds of ambition (Altitude, the goal behind the task; Depth, the way the best person in the field would do it; Range, other fields doing their real work), fixes a numeric target and an outside judge before the work starts, then does the work. The literal ask is always delivered, and anything hard to reverse still needs a yes. Method from Felix Rieseberg's "How to be more ambitious", restated.
+description: Guidance for Law 2 (Plan Is Sacred) of the 7 Laws of AI Agent Discipline. Takes one task and works it at three kinds of ambition (Altitude, the goal behind the task; Depth, the way the best person in the field would do it; Range, other fields doing their real work), fixes a numeric target and an outside judge before the work starts, then does the work. It tells the agent to deliver the literal ask and to wait for a yes on anything hard to reverse. Method from Felix Rieseberg's "How to be more ambitious", restated.
 origin: continuous-improvement
 user-invocable: true
 argument-hint: "[task] | rewrite [prompt] | audit"
@@ -13,7 +13,7 @@ One task in. The work comes out done at the altitude, depth and range the best p
 
 This is the Ambition pillar of continuous-improvement. It is guidance: text you read and follow. No hook checks that you followed it. The Discipline pillar is the part that code backs, and the two meet in ground rules 5 and 6 below: you do not grade your own work, and anything hard to reverse waits for a yes. Where the hooks are installed, a destructive command is still refused by `hooks/gateguard.mjs`, whatever the brief says.
 
-Credit: the method is from Felix Rieseberg, *How to be more ambitious: A tutorial for humans with models* (13 October 2026), https://felixrieseberg.com/how-to-be-more-ambitious-a-tutorial-for-humans-with-models/. The article coaches a person who prompts a model. This skill turns it around: you apply each technique to yourself, then do the work. The wording, the examples and the rules marked *(added)* are this skill's own.
+Credit: the method is from Felix Rieseberg, *How to be more ambitious: A tutorial for humans with models* (13 October 2026), https://felixrieseberg.com/how-to-be-more-ambitious-a-tutorial-for-humans-with-models/. The article coaches a person who prompts a model. This skill turns it around: you apply each technique to yourself, then do the work. The four depth questions in step 2 restate the article's. The other wording, the examples and the rules marked *(added)* are this skill's own.
 
 | Axis | Question | Timid | Ambitious |
 |---|---|---|---|
@@ -41,7 +41,7 @@ Credit: the method is from Felix Rieseberg, *How to be more ambitious: A tutoria
 
 **Seats and sub-agents.** Run the seats yourself, one after another. If your agent can run sub-agents, a Full run may give each seat to one, never more than six without asking. Invoking this skill is not consent to any larger orchestration.
 
-**Missing prerequisites.** Every kind of ambition needs a computer to work on, the ability to install software and access to the relevant data. Where some of that is missing, work the highest rung the access you have supports, and say in the report what the next rung needs.
+**Missing prerequisites.** Higher rungs need a machine to run things on, permission to add tools, and the real data. Where some of that is missing, work the highest rung your access supports, and say in the report what the next rung needs.
 
 **If you are running as a sub-agent**, you cannot ask the user anything. Make each escalation decision yourself, keep the literal ask as the floor, do not install software or request credentials, and skip anything outward-facing.
 
@@ -63,18 +63,18 @@ Pick the rung you will execute: as high as your data and access allow, and as hi
 
 Answer four questions in writing, for this task, naming real tools, datasets and people:
 
-1. What would a top professional in this field do here that the user is not asking for?
-2. What is the rawest material they would start from? Logs, not dashboards. Source, not docs. Filings, not articles. Recordings, not summaries.
+1. What would the strongest practitioner do with this task that nobody has asked you to do?
+2. Which source is furthest upstream? Read logs before dashboards, code before docs, filings before articles, recordings before summaries.
 3. Which methods and instruments would they use? Told to act professional, a model tends to change its vocabulary and keep its method. If you are about to write a table, would they build a database, a statistical model, a profiler or a simulator?
-4. What, other than you or the user, would show the result is right? This becomes the judge in step 4.
+4. What outside this conversation could prove the result wrong? This becomes the judge in step 4.
 
 Then plan two more moves. **Challenge a belief:** name the belief the task rests on and plan to reproduce it from raw data. **Produce new knowledge:** once you are in the data, look for something an expert in the field would learn from, and show it holds on data it has not seen.
 
 ## 3. Assemble the crew (Range)
 
 1. Imagine the result has to be exceptional, with real stakes. Which team would be put together for it?
-2. Turn nouns into verbs. A quarterly review is not "a deck". It is getting busy people to believe a story about cause and effect, and to decide under uncertainty, in thirty minutes.
-3. Each verb points at a field. "Believe a story" is journalism. "Cause and effect" is econometrics. "Decide under uncertainty" is decision analysis. "In thirty minutes" is editing.
+2. Turn nouns into verbs (the article takes this move from Kelley and Littman, *The Art of Innovation*). A migration guide is more than a page of steps: a tired engineer has to trust the sequence at 2 a.m., notice when a step has failed, and back out without losing data.
+3. Each verb points at a field. Trusting a sequence when tired is aviation checklists. Noticing a failed step is observability. Backing out without losing data is database recovery.
 4. Pick the seats the verbs call for. *(added)* Include a red-team seat by default, and look for one field nobody would expect.
 5. For each seat write one concrete activity and the artifact it produces. Not "review as a journalist" but "find the most surprising true number and write the headline around it". If the obvious field would produce that artifact anyway, drop the seat.
 
@@ -154,7 +154,7 @@ Research, Plan, Implement, Review, Contemplate, Relearn and learn, Iterate. This
 
 ## Pairs with
 
-- [`goal-monitor`](./goal-monitor.md): holds the session to the goal you set here.
+- [`goal-monitor`](./goal-monitor.md): once you put the goal in `task_plan.md` under `## Goal`, it scores recent tool calls against it by keyword overlap. It reports drift, and blocks nothing by default.
 - [`verification-loop`](./verification-loop.md): the ladder to run as the judge for code.
 - [`roast`](./roast.md) and [`grill-me`](./grill-me.md): pressure-test the brief before a Full run.
 - [`gateguard`](./gateguard.md): the Discipline pillar's hook, which applies to an ambitious run like any other.

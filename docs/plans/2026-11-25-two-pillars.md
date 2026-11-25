@@ -71,7 +71,7 @@ Iterate) is follow-up work, not part of this change.
   them. Where no second context exists, the runnable judge and the user are
   the audit, so the agent never scores its own work.
 - Restated, not copied. The article page carries no reuse licence, so the
-  skill uses its own wording and its own examples and credits the author,
+  skill restates the method with its own examples and credits the author,
   title, date and URL in the skill and the command. The article's 83-word
   meta-prompt is restated as the four depth questions. The personal skill's
   A/B test scores are left out: this repository holds no data for them.

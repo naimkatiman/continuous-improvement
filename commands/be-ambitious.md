@@ -28,15 +28,15 @@ Before the work starts it fixes a hard numeric target and a judge that can fail,
 
 ## What it will not do
 
-It is guidance, not a hook: nothing checks that the agent followed it. Its own rules keep the run in your hands. The literal ask is always delivered, in the form you asked. The agent does not grade its own work. Anything hard to reverse or outward-facing (push, send, publish, deploy, spend, delete) waits for your yes.
+It is guidance, not a hook: nothing checks that the agent followed it. It carries its own rules, and they are text too: deliver the literal ask in the form you asked, do not grade your own work, and wait for a yes before anything hard to reverse or outward-facing (push, send, publish, deploy, spend, delete).
 
 ## Pairs with
 
 - **`be-ambitious`** skill: the method this command runs.
-- **`goal-monitor`**: holds the session to the goal set here.
+- **`goal-monitor`**: scores recent calls against the goal once it is in `task_plan.md`. Reports drift, blocks nothing by default.
 - **`verification-loop`**: the judge for a code change.
 - **`roast`** and **`grill-me`**: pressure-test the brief before a full run.
 
 ## Credit
 
-The method is from Felix Rieseberg, *How to be more ambitious: A tutorial for humans with models* (13 October 2026), https://felixrieseberg.com/how-to-be-more-ambitious-a-tutorial-for-humans-with-models/. The skill restates it in its own words and adds its own rules.
+The method is from Felix Rieseberg, *How to be more ambitious: A tutorial for humans with models* (13 October 2026), https://felixrieseberg.com/how-to-be-more-ambitious-a-tutorial-for-humans-with-models/. The skill restates the method, uses its own examples and adds its own rules.
