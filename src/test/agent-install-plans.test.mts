@@ -500,8 +500,8 @@ describe("PR 19: the planner and the ledger match what the agents read and what 
   });
 });
 
-// PR 20 review fix: .cloudplugin compatibleWith lists kiro-ide, the Kiro IDE
-// row's id, and the IDE installs with the Kiro hooks. `--target kiro-ide
+// PR 20 review fix: lib/agent-support.mjs has a kiro-ide row, the Kiro IDE,
+// and the IDE installs with the Kiro hooks. `--target kiro-ide
 // --hooks` said "no hook install for this agent"; it now maps to kiro, the way
 // windsurf maps to devin.
 describe("the kiro-ide target", () => {

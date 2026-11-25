@@ -8,16 +8,28 @@
   "skills": [
     {
       "name": "continuous-improvement",
-      "description": "Install structured self-improvement loops into any AI agent — research, plan, execute, verify, reflect, iterate",
+      "description": "The seven-step loop: research, plan, implement, review, contemplate, relearn and learn, iterate. Guidance the agent reads.",
       "file": "SKILL.md",
       "triggers": [
         "use the continuous-improvement framework",
         "follow the improvement loop",
         "research plan execute verify reflect",
+        "research plan implement review",
         "structured improvement",
         "agent discipline",
         "planning with files",
         "persistent file-based planning"
+      ]
+    },
+    {
+      "name": "be-ambitious",
+      "description": "Tells the agent to work the goal behind a task, with a numeric target and a check set before the work starts, an expert method, and other fields brought in. Guidance the agent reads.",
+      "file": "skills/be-ambitious.md",
+      "triggers": [
+        "be ambitious",
+        "be more ambitious about this",
+        "work the goal behind the task",
+        "set a target and a check first"
       ]
     },
     {
@@ -47,7 +59,7 @@
     },
     {
       "name": "superpowers",
-      "description": "Mandatory agent workflows — brainstorming, TDD, code review, git worktrees, structured development",
+      "description": "Routes a task to the matching skill: brainstorming, TDD, code review, git worktrees, structured development. Guidance the agent reads.",
       "file": "skills/superpowers.md",
       "triggers": [
         "activate superpowers",
@@ -62,6 +74,10 @@
     {
       "name": "continuous-improvement",
       "description": "Reflect, analyze, and show instinct status"
+    },
+    {
+      "name": "be-ambitious",
+      "description": "Work the goal behind a task: target and outside judge first"
     },
     {
       "name": "planning-with-files",
@@ -85,7 +101,7 @@
     },
     {
       "name": "superpowers",
-      "description": "Activate mandatory workflows: brainstorming, TDD, code review, git worktrees"
+      "description": "Route a task to the matching skill: brainstorming, TDD, code review, git worktrees"
     }
   ],
   "instinct_packs": [
@@ -97,6 +113,7 @@
   "tags": [
     "productivity",
     "agent",
+    "ambition",
     "discipline",
     "workflow",
     "self-improvement",
@@ -124,15 +141,12 @@
     "devin",
     "windsurf",
     "kiro",
-    "kiro-ide",
     "droid",
     "auggie",
     "junie",
     "cline",
     "goose",
     "opencode",
-    "amp",
-    "zed",
-    "aider"
+    "amp"
   ]
 }

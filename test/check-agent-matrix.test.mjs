@@ -14,7 +14,7 @@ import { HOOK_AGENT_IDS, PLUGIN_AGENT_IDS, planAgentInstall, resolveHookAgent } 
 import { AGENT_PROFILES } from "../lib/agent-profiles.mjs";
 import { LOOP_TABLE_END, LOOP_TABLE_START, renderLoopStepsHtml, renderLoopTableMarkdown } from "../lib/loop-stages.mjs";
 import { AGENT_SUPPORT, blocksPreTool, compatibleWith, renderCloudplugin, supportTier, } from "../lib/agent-support.mjs";
-import { AGENT_MAP_SVG, BLOCK_END, BLOCK_START, CHANGELOG_FILE, CLAIM_SCAN_FILES, changelogClaims, checkAgentMatrix, findBlockingClaims, headingAnchor, renderAgentMapSvg, renderReadmeTierMarkdown, renderSupportDoc, renderTierHtml, renderTierMarkdown, spliceBlock, supportViolations, writeAgentMatrix, } from "../bin/check-agent-matrix.mjs";
+import { AGENT_MAP_SVG, BLOCK_END, BLOCK_START, CHANGELOG_FILE, CLAIM_SCAN_FILES, CLOUDPLUGIN, changelogClaims, checkAgentMatrix, findBlockingClaims, headingAnchor, renderAgentMapSvg, renderReadmeTierMarkdown, renderSupportDoc, renderTierHtml, renderTierMarkdown, spliceBlock, supportViolations, writeAgentMatrix, } from "../bin/check-agent-matrix.mjs";
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const REPO_ROOT = join(__dirname, "..");
 const row = (over) => ({
@@ -280,6 +280,28 @@ describe("cloudplugin manifest", () => {
         assert.ok(ids.includes("claude-code") && ids.includes("gemini-cli"));
         assert.ok(!ids.includes("openclaw"));
     });
+    // The owner's call of 2026-11-22: put only the agents it works on. A
+    // manifest key has no room for "nothing is blocked there", so the list holds
+    // the agents whose row blocks and nothing else. docs/AGENT-SUPPORT.md keeps
+    // every row, with its caveat.
+    it("lists only the agents whose row blocks, in table order, each with its other ids", () => {
+        const ids = compatibleWith();
+        assert.deepEqual(ids, [...new Set(AGENT_SUPPORT.filter((r) => blocksPreTool(r)).flatMap((r) => [r.id, ...r.compat]))]);
+        for (const r of AGENT_SUPPORT)
+            assert.equal(ids.includes(r.id), blocksPreTool(r), r.id);
+        for (const id of ["kiro-ide", "zed", "aider"])
+            assert.ok(!ids.includes(id), id);
+        for (const id of ["kiro", "windsurf", "junie"])
+            assert.ok(ids.includes(id), id);
+    });
+    it("drops a row the moment it stops blocking, with its other ids, and reads a malformed flag as not blocking", () => {
+        const rows = [row({ id: "codex", compat: ["codex-cli"] }), row({ id: "gemini", compat: ["gemini-cli"] })];
+        assert.deepEqual(compatibleWith(rows), ["codex", "codex-cli", "gemini", "gemini-cli"]);
+        for (const flag of [false, undefined, null, "true", 1]) {
+            const changed = [rows[0], { ...rows[1], canBlockPreTool: flag }];
+            assert.deepEqual(compatibleWith(changed), ["codex", "codex-cli"], String(flag));
+        }
+    });
     it("refuses a manifest that is not a JSON object", () => {
         for (const bad of ["[]", "null", "1", "{not json"])
             assert.throws(() => renderCloudplugin(bad, "1.0.0"), bad);
@@ -314,6 +336,16 @@ describe("checkAgentMatrix", () => {
         writeAgentMatrix(root);
         assert.deepEqual(checkAgentMatrix(root), []);
         assert.equal(JSON.parse(readFileSync(join(root, ".cloudplugin", "marketplace.json"), "utf8")).version, "3.27.0");
+    });
+    it("fails when the manifest lists an agent whose row does not block, and names it", () => {
+        const root = fixtureRepo();
+        writeAgentMatrix(root);
+        const path = join(root, CLOUDPLUGIN);
+        const manifest = JSON.parse(readFileSync(path, "utf8"));
+        writeFileSync(path, JSON.stringify({ ...manifest, compatibleWith: [...manifest.compatibleWith, "kiro-ide", "zed"] }));
+        assert.match(checkAgentMatrix(root).join("\n"), /compatibleWith .*lists kiro-ide, zed, whose row does not block/);
+        writeFileSync(path, JSON.stringify({ ...manifest, compatibleWith: "claude" }));
+        assert.match(checkAgentMatrix(root).join("\n"), /compatibleWith is not/);
     });
     it("fails closed on a missing scanned file or a missing block", () => {
         const root = fixtureRepo();
@@ -467,10 +499,10 @@ describe("Kiro CLI and Kiro IDE, and the pre-tool verdict", () => {
         assert.deepEqual(findBlockingClaims("README.md", "Kiro CLI blocks force pushes with exit 2.", AGENT_SUPPORT), []);
         assert.deepEqual(findBlockingClaims("README.md", "The Kiro IDE: no blocking is claimed.", AGENT_SUPPORT), []);
     });
-    it("lists the Kiro IDE in compatibleWith right after kiro", () => {
+    it("keeps the Kiro IDE out of compatibleWith, beside kiro, which blocks", () => {
         const ids = compatibleWith();
-        assert.ok(ids.includes("kiro-ide"));
-        assert.equal(ids.indexOf("kiro-ide"), ids.indexOf("kiro") + 1);
+        assert.ok(ids.includes("kiro"));
+        assert.ok(!ids.includes("kiro-ide"));
     });
 });
 // PR 20 (closeout, critic doc claim 2): the support doc said the guard covers
@@ -499,8 +531,8 @@ describe("the blind-edit claim in the support doc", () => {
 // a build or setting, and a conditional row may claim blocking only when its
 // Blocks cell states that condition. (2) A non-blocking row rated partial is
 // published as "hooks run", so it needs a hook install like a blocking row.
-// (3) kiro-ide is in compatibleWith, so `--target kiro-ide` installs the Kiro
-// hooks instead of saying there is no hook install.
+// (3) kiro-ide has a row, so `--target kiro-ide` installs the Kiro hooks
+// instead of saying there is no hook install.
 describe("the conditional verdict, a partial row's hook install, and the variant target", () => {
     it("records Junie's matrix cell, partial on the Early Access build only, as conditional", () => {
         const junie = AGENT_SUPPORT.find((r) => r.id === "junie");
