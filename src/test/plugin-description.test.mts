@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 import { AGENT_SUPPORT, blocksPreTool } from "../lib/agent-support.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
 import { MAX_LESSONS } from "../lib/lesson-render.mjs";
-import { LOOP_STAGES, loopWords } from "../lib/loop-stages.mjs";
+import { LOOP_STAGES, loopFacts, loopWords } from "../lib/loop-stages.mjs";
 import { PLUGIN_MODES, getClaudePluginManifest, getPluginHooksConfig, getPluginManifest, getToolNames } from "../lib/plugin-metadata.mjs";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
@@ -41,7 +41,9 @@ const MECHANISMS: ReadonlyArray<{ says: RegExp; event: string; hook: string }> =
   { says: /guardrails/i, event: "PreToolUse", hook: "/hooks/config-guard.mjs" },
   { says: /typecheck/i, event: "Stop", hook: "/hooks/typecheck-stop.mjs" },
   { says: /searchable log/i, event: "PostToolUse", hook: "/bin/observe.mjs" },
-  { says: /session start/i, event: "SessionStart", hook: "/hooks/session.mjs" },
+  // Not "at session start": 5 of the 16 agents have no session hook, and the
+  // same description names all 16 in .cloudplugin/marketplace.json.
+  { says: /session hook/i, event: "SessionStart", hook: "/hooks/session.mjs" },
 ];
 
 // The three promises the old description made with no code behind them.
@@ -262,11 +264,36 @@ describe("llms.txt install steps", () => {
     );
   });
 
-  it("gives the plugin install first, and marks the npx install as the narrower one", () => {
-    const install = llms.slice(llms.indexOf("## Install"));
-    assert.ok(install.indexOf("/plugin install") !== -1, "the plugin install is listed");
-    assert.ok(install.indexOf("/plugin install") < install.indexOf("npx continuous-improvement install"));
+  it("gives the --target install first, then the Claude Code plugin, and marks the plain npx install as the narrowest", () => {
+    const install = llms.slice(llms.indexOf("## Install"), llms.indexOf("## The 7 Laws"));
+    const target = install.indexOf("npx continuous-improvement install --target <agent> --hooks");
+    const plugin = install.indexOf("/plugin install");
+    const plain = install.indexOf("\nnpx continuous-improvement install\n");
+    assert.ok(target !== -1 && plugin > target && plain > plugin, `${target} ${plugin} ${plain}`);
     assert.match(install, /log only/);
+  });
+
+  // The README's first screen order: the goal, then what refuses, then what
+  // remembers. A slash command is Claude Code's, so it is named as such.
+  it("opens the benefit list with the ambition pillar, and puts every slash command under Claude Code", () => {
+    const list = llms.slice(llms.indexOf("How you actually benefit:"), llms.indexOf("## Install")).split("\n").filter((line) => /^\d\. /.test(line));
+    assert.match(list[0] ?? "", /^1\. Ask the agent to use the be-ambitious skill/);
+    assert.ok(list.findIndex((line) => line.includes("hooks/gateguard.mjs")) > 0, "the guard is not the first benefit");
+    for (const line of list) if (/(?:^|[\s`])\/[a-z][a-z-]+/.test(line)) assert.match(line, /^\d\. On Claude Code /, line);
+  });
+
+  it("states how lessons reach each agent with the support table's counts, and the guard with its per-agent conditions", () => {
+    const facts = loopFacts();
+    const words = ["no", "one", "two", "three", "four", "five", "six"];
+    const discipline = llms.split("\n").find((line) => line.startsWith("Discipline: "))!;
+    assert.ok(discipline.includes(`at session start where the agent has a session hook (${facts.lessonsByHook} of the ${facts.agents})`), discipline);
+    const names = facts.lessonsByRulesFile;
+    const count = words[names.length]!;
+    assert.ok(discipline.includes(`${count.charAt(0).toUpperCase()}${count.slice(1)} agents (${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}) get them from a rules file`), discipline);
+    assert.ok(discipline.includes(`and ${facts.lessonsNone.join(" and ")} gets none`), discipline);
+    assert.match(discipline, /docs\/AGENT-SUPPORT\.md/);
+    const pkg = JSON.parse(readRepoFile("package.json")) as { description: string };
+    assert.match(pkg.description, /lessons at session start where the agent has a session hook/);
   });
 });
 

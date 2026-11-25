@@ -488,21 +488,41 @@ describe("checkAgentMatrix", () => {
 });
 
 // llms.txt lists the agents per tier in prose; each list must be exactly the
-// non-Claude rows of that tier, so the hand-written lines cannot drift.
+// non-Claude rows it stands for, so the hand-written lines cannot drift. The
+// owner's call is to put only the agents it works on, so "Works With" holds the
+// rows that block and the others sit under a heading of their own.
 describe("llms.txt tier lists", () => {
   const llms = readFileSync(join(REPO_ROOT, "llms.txt"), "utf8").split(/\r?\n/);
-  const lists: ReadonlyArray<readonly [string, string]> = [["- Full tier", "full"], ["- Partial tier", "partial"], ["- Rules file only", "rules only"]];
+  const section = (heading: string): string[] => {
+    const start = llms.indexOf(heading);
+    assert.notEqual(start, -1, `llms.txt has no "${heading}" heading`);
+    const end = llms.findIndex((l, i) => i > start && l.startsWith("## "));
+    return llms.slice(start + 1, end === -1 ? llms.length : end);
+  };
+  const lists: ReadonlyArray<readonly [string, string, string, (r: AgentSupport) => boolean]> = [
+    ["## Works With", "- Full tier", "full", (r) => blocksPreTool(r) && supportTier(r) === "full"],
+    ["## Works With", "- Partial tier", "blocking partial", (r) => blocksPreTool(r) && supportTier(r) === "partial"],
+    ["## Not in the 16", "- No blocking claimed", "non-blocking partial", (r) => !blocksPreTool(r) && supportTier(r) === "partial"],
+    ["## Not in the 16", "- Rules file only", "rules only", (r) => supportTier(r) === "rules only"],
+  ];
 
-  for (const [prefix, tier] of lists) {
-    it(`"${prefix}" names exactly the ${tier} agents`, () => {
-      const line = llms.find((l) => l.startsWith(prefix));
-      assert.ok(line, `llms.txt has no "${prefix}" line`);
+  for (const [heading, prefix, what, wanted] of lists) {
+    it(`"${prefix}" under "${heading}" names exactly the ${what} agents`, () => {
+      const line = section(heading).find((l) => l.startsWith(prefix));
+      assert.ok(line, `llms.txt has no "${prefix}" line under "${heading}"`);
       const items = line.slice(line.lastIndexOf(":") + 1).split(",").map((item) => item.replace(/\(.*?\)/g, "").trim());
       const named = items.map((item) => AGENT_SUPPORT.find((r) => r.names.includes(item))?.id ?? `unknown:${item}`);
-      const want = AGENT_SUPPORT.filter((r) => r.id !== "claude" && supportTier(r) === tier).map((r) => r.id);
-      assert.deepEqual(named, want);
+      assert.deepEqual(named, AGENT_SUPPORT.filter((r) => r.id !== "claude" && wanted(r)).map((r) => r.id));
     });
   }
+
+  it("counts the agents under \"Works With\", and names none there that does not block", () => {
+    const text = section("## Works With").join("\n");
+    const working = AGENT_SUPPORT.filter((r) => blocksPreTool(r)).length;
+    assert.ok(text.includes(`The ${working} agents`));
+    assert.ok(llms.includes(`## Not in the ${working}`));
+    for (const name of AGENT_SUPPORT.filter((r) => !blocksPreTool(r)).flatMap((r) => r.names)) assert.ok(!text.includes(name), name);
+  });
 });
 
 // AGENTS.md is CLAUDE.md with "Claude" replaced by "Codex", which turned real

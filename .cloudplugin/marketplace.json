@@ -1,7 +1,7 @@
 {
   "name": "continuous-improvement",
   "version": "3.28.0",
-  "description": "Ambition and discipline for coding agents: the be-ambitious skill and a seven-step loop. A hook denies known destructive shell commands. Opt-in hooks deny pushes to protected branches and edits to the files that wire the guardrails, and hold a turn open on a failing typecheck. Tool calls go to a local searchable log; saved lessons load at session start. Ships 29 bundled skills and an MCP server.",
+  "description": "Ambition and discipline for coding agents: the be-ambitious skill and a seven-step loop. A hook denies known destructive shell commands. Opt-in hooks deny pushes to protected branches and edits to the files that wire the guardrails, and hold a turn open on a failing typecheck. Tool calls go to a local searchable log; saved lessons load by session hook. Ships 29 bundled skills and an MCP server.",
   "author": "naimkatiman",
   "license": "MIT",
   "repository": "https://github.com/naimkatiman/continuous-improvement",
