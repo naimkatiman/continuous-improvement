@@ -12,7 +12,7 @@ import { after, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { HOOK_AGENT_IDS, PLUGIN_AGENT_IDS, planAgentInstall, resolveHookAgent } from "../lib/agent-install-plans.mjs";
 import { AGENT_PROFILES } from "../lib/agent-profiles.mjs";
-import { LOOP_TABLE_END, LOOP_TABLE_START, renderLoopTableMarkdown } from "../lib/loop-stages.mjs";
+import { LOOP_TABLE_END, LOOP_TABLE_START, renderLoopStepsHtml, renderLoopTableMarkdown } from "../lib/loop-stages.mjs";
 import { AGENT_SUPPORT, blocksPreTool, compatibleWith, renderCloudplugin, supportTier, } from "../lib/agent-support.mjs";
 import { AGENT_MAP_SVG, BLOCK_END, BLOCK_START, CHANGELOG_FILE, CLAIM_SCAN_FILES, changelogClaims, checkAgentMatrix, findBlockingClaims, headingAnchor, renderAgentMapSvg, renderReadmeTierMarkdown, renderSupportDoc, renderTierHtml, renderTierMarkdown, spliceBlock, supportViolations, writeAgentMatrix, } from "../bin/check-agent-matrix.mjs";
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
@@ -242,8 +242,11 @@ describe("renderers", () => {
                 assert.ok(text.includes(r.names[0]), `${r.id} name`);
                 assert.ok(text.includes(r.install[0]), `${r.id} install`);
             }
-            assert.ok(html.includes(r.names[0]), `${r.id} name in html`);
             assert.ok(doc.includes(r.cannot), `${r.id} cannot`);
+        }
+        for (const r of AGENT_SUPPORT.filter((x) => blocksPreTool(x))) {
+            assert.ok(html.includes(`<th role="rowheader" scope="row">${r.names[0]}</th>`), `${r.id} name in html`);
+            assert.ok(html.includes(`<code>${r.install[0]}</code>`), `${r.id} install in html`);
         }
     });
     it("escapes HTML and turns backticks into code", () => {
@@ -297,7 +300,7 @@ describe("checkAgentMatrix", () => {
         writeFileSync(join(root, ".cloudplugin", "marketplace.json"), JSON.stringify({ name: "n", version: "3.13.0", compatibleWith: ["claude"] }));
         writeFileSync(join(root, "docs", "AGENT-SUPPORT.md"), "stale\n");
         writeFileSync(join(root, "README.md"), `# r\n${LOOP_TABLE_START}\nold\n${LOOP_TABLE_END}\n${BLOCK_START}\nold\n${BLOCK_END}\n`);
-        writeFileSync(join(root, "docs", "landing", "index.html"), `<p>x</p>\n${BLOCK_START}\nold\n${BLOCK_END}\n`);
+        writeFileSync(join(root, "docs", "landing", "index.html"), `<p>x</p>\n${LOOP_TABLE_START}\nold\n${LOOP_TABLE_END}\n${BLOCK_START}\nold\n${BLOCK_END}\n`);
         writeFileSync(join(root, "QUICKSTART.md"), "# q\n");
         writeFileSync(join(root, "llms.txt"), "# l\n");
         return root;
@@ -341,6 +344,24 @@ describe("checkAgentMatrix", () => {
         assert.match(checkAgentMatrix(root).join("\n"), /README\.md: the loop table differs from the rows/);
         writeFileSync(path, written.replace(LOOP_TABLE_START, "").replace(LOOP_TABLE_END, ""));
         assert.match(checkAgentMatrix(root).join("\n"), /README\.md: needs exactly one <!-- loop-table:start --> \.\.\. <!-- loop-table:end --> marker pair/);
+    });
+    // The landing page carries the same two blocks as markup: the agents where
+    // the guard blocks, and the loop as a list of steps.
+    it("fails when a generated landing block is edited by hand, or its markers are gone", () => {
+        const root = fixtureRepo();
+        const stale = checkAgentMatrix(root).join("\n");
+        assert.match(stale, /docs\/landing\/index\.html: the tier table differs from the rows/);
+        assert.match(stale, /docs\/landing\/index\.html: the list of loop steps differs from the rows/);
+        writeAgentMatrix(root);
+        const path = join(root, "docs", "landing", "index.html");
+        const written = readFileSync(path, "utf8");
+        assert.ok(written.includes(renderTierHtml(AGENT_SUPPORT)) && written.includes(renderLoopStepsHtml(AGENT_SUPPORT)), "--write renders both blocks");
+        writeFileSync(path, written.replace("<dd>Cursor</dd>", "<dd>Cursor</dd><dd>Zed</dd>"));
+        assert.match(checkAgentMatrix(root).join("\n"), /docs\/landing\/index\.html: the tier table differs from the rows/);
+        writeFileSync(path, written.replace("Refuses by default", "Refuses always"));
+        assert.match(checkAgentMatrix(root).join("\n"), /docs\/landing\/index\.html: the list of loop steps differs from the rows/);
+        writeFileSync(path, written.replace(LOOP_TABLE_END, ""));
+        assert.match(checkAgentMatrix(root).join("\n"), /docs\/landing\/index\.html: needs exactly one <!-- loop-table:start --> \.\.\. <!-- loop-table:end --> marker pair/);
     });
     it("fails when the agents map is edited by hand", () => {
         const root = fixtureRepo();
@@ -598,7 +619,7 @@ describe("conditional and ambiguous blocking claims, and the CHANGELOG leads", (
             writeFileSync(join(root, "package.json"), JSON.stringify({ version: "3.27.0" }));
             writeFileSync(join(root, ".cloudplugin", "marketplace.json"), JSON.stringify({ name: "n", version: "3.27.0", compatibleWith: [] }));
             writeFileSync(join(root, "README.md"), `# r\n${LOOP_TABLE_START}\n${LOOP_TABLE_END}\n${BLOCK_START}\n${BLOCK_END}\n`);
-            writeFileSync(join(root, "docs", "landing", "index.html"), `<p>x</p>\n${BLOCK_START}\n${BLOCK_END}\n`);
+            writeFileSync(join(root, "docs", "landing", "index.html"), `<p>x</p>\n${LOOP_TABLE_START}\n${LOOP_TABLE_END}\n${BLOCK_START}\n${BLOCK_END}\n`);
             writeFileSync(join(root, "QUICKSTART.md"), "# q\n");
             writeFileSync(join(root, "llms.txt"), "# l\n");
             writeAgentMatrix(root);
@@ -627,10 +648,11 @@ describe("the Gemini row describes the settings.json install", () => {
         assert.match(gemini.cannot, /\/hooks panel/);
     });
 });
-// Owner, 2026-11-22: the README names only the agents it works on. The README
-// tier table and its map keep the rows that block a destructive command; the
-// support doc and the landing table keep every row.
-describe("the README lists only the agents where the guard blocks", () => {
+// Owner, 2026-11-22: the README names only the agents it works on, and the
+// landing page follows it. The README tier table, its map and the landing
+// roster and table keep the rows that block a destructive command; the support
+// doc keeps every row.
+describe("the README and the landing page list only the agents where the guard blocks", () => {
     const blind = AGENT_SUPPORT.filter((r) => !blocksPreTool(r));
     const working = AGENT_SUPPORT.filter((r) => blocksPreTool(r));
     it("leaves the non-blocking rows out of the README table", () => {
@@ -642,15 +664,64 @@ describe("the README lists only the agents where the guard blocks", () => {
             assert.ok(md.includes(`| ${r.names[0]} |`), `${r.id} is missing from the README table`);
         assert.equal(md.split("\n").length, 2 + working.length);
     });
-    it("keeps every row, the three non-blocking ones included, in the support doc and the landing table", () => {
+    it("keeps every row, the three non-blocking ones included, in the support doc", () => {
         const doc = renderSupportDoc(AGENT_SUPPORT);
-        const html = renderTierHtml(AGENT_SUPPORT);
         assert.equal(AGENT_SUPPORT.length, 19);
-        for (const r of AGENT_SUPPORT) {
+        for (const r of AGENT_SUPPORT)
             assert.ok(doc.includes(`### ${r.names[0]}`), `${r.id} section`);
-            assert.ok(html.includes(r.names[0]), `${r.id} landing row`);
-        }
         assert.equal(renderTierMarkdown(AGENT_SUPPORT).split("\n").length, 2 + AGENT_SUPPORT.length);
+    });
+    it("leaves the non-blocking rows out of the landing block: one roster entry and one table row per blocking agent", () => {
+        const html = renderTierHtml(AGENT_SUPPORT);
+        for (const r of blind)
+            assert.ok(!html.includes(r.names[0]), `${r.id} is named in the landing block`);
+        assert.doesNotMatch(html, /rules only/);
+        for (const r of working) {
+            assert.equal(html.split(`<dd>${r.names[0]}</dd>`).length - 1, 1, `${r.id} roster entry`);
+            assert.equal(html.split(`<th role="rowheader" scope="row">${r.names[0]}</th>`).length - 1, 1, `${r.id} table row`);
+        }
+        assert.equal(html.split("<dd>").length - 1, working.length);
+        assert.equal(html.split('<th role="rowheader"').length - 1, working.length);
+    });
+    it("filters by the row, not by a list: a row that stops blocking leaves the landing block, and one that starts joins it", () => {
+        const flipped = AGENT_SUPPORT.map((r) => r.id === "codex" ? { ...r, canBlockPreTool: false, blocks: "no" } : r.id === "zed" ? { ...r, canBlockPreTool: true, preToolVerdict: "yes", blocks: "yes" } : r);
+        const html = renderTierHtml(flipped);
+        assert.ok(!html.includes("Codex CLI"), "a row that cannot block is still listed");
+        assert.equal(html.split("<dd>Zed</dd>").length - 1, 1, "a row that blocks is missing from the roster");
+        assert.equal(html.split("<dd>").length - 1, working.length);
+    });
+    it("groups the landing roster by tier, under the meanings the README map uses", () => {
+        const html = renderTierHtml(AGENT_SUPPORT);
+        const groups = [...html.matchAll(/<dt><b>(\w+)<\/b><span>([^<]+)<\/span><\/dt>((?:<dd>[^<]+<\/dd>)+)/g)];
+        assert.deepEqual(groups.map((g) => g[1]), ["Full", "Partial"]);
+        const svg = renderAgentMapSvg(AGENT_SUPPORT);
+        for (const [, heading, meaning, entries] of groups) {
+            assert.ok(svg.includes(meaning), `the map does not say "${meaning}"`);
+            const names = [...entries.matchAll(/<dd>([^<]+)<\/dd>/g)].map((m) => m[1]);
+            assert.deepEqual(names, working.filter((r) => supportTier(r) === heading.toLowerCase()).map((r) => r.names[0]));
+        }
+    });
+    it("keeps the table in the page inside a disclosure, where the install switch reads each agent's command", () => {
+        const html = renderTierHtml(AGENT_SUPPORT);
+        assert.ok(html.indexOf("<details") < html.indexOf("<table") && html.indexOf("</table>") < html.indexOf("</details>"));
+        assert.match(html, /<td role="cell" data-l="Install"><code>npx continuous-improvement install --target junie --hooks --scope user<\/code><\/td>/);
+        assert.match(html, /<b>partial<\/b>\. Blocks: yes, on the Early Access build\./);
+    });
+    // The page states the count in its hero kicker, the Agents heading and its link-preview text; all are typed by hand.
+    it("states the number of blocking agents the rows give, wherever the landing page counts coding agents", () => {
+        const landing = readFileSync(join(REPO_ROOT, "docs", "landing", "index.html"), "utf8");
+        assert.match(landing, new RegExp(`<span class="kicker">.*?<b>${working.length} coding agents</b>`));
+        assert.match(landing, new RegExp(`<h2 id="h-agents">${working.length} agents\\. `));
+        const counts = [...landing.matchAll(/\b(\d+) coding agents\b/g)].map((m) => Number(m[1]));
+        assert.ok(counts.length >= 6, "the kicker, the three descriptions, the image text and the JSON-LD state the count");
+        assert.deepEqual([...new Set(counts)], [working.length]);
+        for (const r of blind)
+            assert.ok(!landing.includes(r.names[0]), `the landing page names ${r.names[0]}`);
+    });
+    // Owner: "dont mention this is only for claude code...this is for all agents".
+    it("never frames the landing page as Claude Code first", () => {
+        const landing = readFileSync(join(REPO_ROOT, "docs", "landing", "index.html"), "utf8");
+        assert.doesNotMatch(landing, /Claude Code first/i);
     });
     it("does not frame the support doc as Claude Code first", () => {
         assert.doesNotMatch(renderSupportDoc(AGENT_SUPPORT), /Claude Code first/);

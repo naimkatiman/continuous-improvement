@@ -9,13 +9,14 @@
  *
  *   - docs/AGENT-SUPPORT.md is rendered from the rows, whole.
  *   - README.md and docs/landing/index.html carry the tier table between
- *     `<!-- agent-matrix:start -->` and `<!-- agent-matrix:end -->`. The
- *     README lists only the rows that block a destructive command (the owner's
- *     2026-11-22 call: the README names the agents it works on); the landing
- *     table and docs/AGENT-SUPPORT.md keep every row.
- *   - README.md carries the loop table between `<!-- loop-table:start -->`
- *     and `<!-- loop-table:end -->`, rendered from lib/loop-stages.mjs with
- *     its agent counts taken from the rows.
+ *     `<!-- agent-matrix:start -->` and `<!-- agent-matrix:end -->`. Both
+ *     list only the rows that block a destructive command (the owner's
+ *     2026-11-22 call: the README names the agents it works on, and the
+ *     landing page follows it); docs/AGENT-SUPPORT.md keeps every row.
+ *   - README.md and docs/landing/index.html carry the loop between
+ *     `<!-- loop-table:start -->` and `<!-- loop-table:end -->`, a table in
+ *     the README and a list of steps on the landing page, both rendered from
+ *     lib/loop-stages.mjs with their agent counts taken from the rows.
  *   - assets/readme/agents-map.svg, the README's map of those same rows, is
  *     rendered from them byte for byte.
  *   - .cloudplugin/marketplace.json carries compatibleWith from the rows and
@@ -60,7 +61,7 @@ import {
   supportTier,
   type AgentSupport,
 } from "../lib/agent-support.mjs";
-import { LOOP_TABLE_END, LOOP_TABLE_START, renderLoopTableMarkdown } from "../lib/loop-stages.mjs";
+import { LOOP_TABLE_END, LOOP_TABLE_START, renderLoopStepsHtml, renderLoopTableMarkdown } from "../lib/loop-stages.mjs";
 import { IMAGE_WIDTH, PAD, charsFit, rect, richText, svgDocument, text, wrap } from "../lib/readme-svg.mjs";
 
 export const SUPPORT_DOC = "docs/AGENT-SUPPORT.md";
@@ -357,9 +358,21 @@ function htmlInline(text: string): string {
   return escaped.replace(/`([^`]+)`/g, "<code>$1</code>");
 }
 
-/** The tier table, HTML for the landing page (stacks like the files table on narrow screens). */
+/**
+ * The landing page's Agents block: only the rows that block a destructive
+ * command. A roster of names grouped by tier, under the meanings the README
+ * map uses, then the tier table inside a disclosure (it stacks one block per
+ * agent at every width). The page's install switch reads each agent's command
+ * from the table's Install cell.
+ */
 export function renderTierHtml(rows: readonly AgentSupport[] = AGENT_SUPPORT): string {
-  const body = rows.map((row) => [
+  const working = rows.filter((row) => blocksPreTool(row));
+  const roster = MAP_GROUPS.flatMap(([tier, heading, meaning]) => {
+    const group = working.filter((row) => supportTier(row) === tier);
+    if (group.length === 0) return [];
+    return [`          <div><dt><b>${heading}</b><span>${htmlInline(meaning)}</span></dt>${group.map((row) => `<dd>${htmlInline(row.names[0]!)}</dd>`).join("")}</div>`];
+  });
+  const body = working.map((row) => [
     `          <tr role="row">`,
     `            <th role="rowheader" scope="row">${htmlInline(row.names[0]!)}</th>`,
     `            <td role="cell" data-l="Tier"><b>${supportTier(row)}</b>. Blocks: ${htmlInline(row.blocks)}.</td>`,
@@ -368,12 +381,22 @@ export function renderTierHtml(rows: readonly AgentSupport[] = AGENT_SUPPORT): s
     `          </tr>`,
   ].join("\n"));
   return [
+    `      <div class="ex roster">`,
+    `        <dl class="tiers">`,
+    ...roster,
+    `        </dl>`,
+    `        <details class="more">`,
+    `          <summary>When each one blocks, its install command and what it cannot do</summary>`,
+    `          <div class="drawer"><div class="wide">`,
     `      <table class="files agents" role="table" aria-labelledby="h-agents">`,
     `        <thead role="rowgroup"><tr role="row"><th role="columnheader" scope="col"><span class="tag">Agent</span></th><th role="columnheader" scope="col"><span class="tag">Tier</span></th><th role="columnheader" scope="col"><span class="tag">Install</span></th><th role="columnheader" scope="col"><span class="tag">Cannot</span></th></tr></thead>`,
     `        <tbody role="rowgroup">`,
     ...body,
     `        </tbody>`,
     `      </table>`,
+    `          </div></div>`,
+    `        </details>`,
+    `      </div>`,
   ].join("\n");
 }
 
@@ -483,11 +506,12 @@ interface RenderedBlock {
   render: (rows: readonly AgentSupport[]) => string;
 }
 
-// Every block a doc carries between a marker pair. The README has two.
+// Every block a doc carries between a marker pair. The README and the landing page have two each.
 const RENDERED_BLOCKS: readonly RenderedBlock[] = [
   { file: "README.md", start: BLOCK_START, end: BLOCK_END, what: "tier table", render: renderReadmeTierMarkdown },
   { file: "docs/landing/index.html", start: BLOCK_START, end: BLOCK_END, what: "tier table", render: renderTierHtml },
   { file: "README.md", start: LOOP_TABLE_START, end: LOOP_TABLE_END, what: "loop table", render: (rows) => renderLoopTableMarkdown(rows) },
+  { file: "docs/landing/index.html", start: LOOP_TABLE_START, end: LOOP_TABLE_END, what: "list of loop steps", render: (rows) => renderLoopStepsHtml(rows) },
 ];
 
 const MAP_GROUPS: ReadonlyArray<readonly [ReturnType<typeof supportTier>, string, string]> = [
@@ -632,7 +656,7 @@ function main(): void {
   }
   const violations = checkAgentMatrix(repoRoot);
   if (violations.length === 0) {
-    console.log(`OK agent-matrix: ${AGENT_SUPPORT.length} rows; ${SUPPORT_DOC}, the README and landing tier tables, the README loop table, ${AGENT_MAP_SVG} and ${CLOUDPLUGIN} match the rows, and no scanned doc or ${CHANGELOG_FILE} [Unreleased] lead claims blocking for an agent that cannot block, or leaves out a condition or surface.`);
+    console.log(`OK agent-matrix: ${AGENT_SUPPORT.length} rows; ${SUPPORT_DOC}, the README and landing tier tables and loop blocks, ${AGENT_MAP_SVG} and ${CLOUDPLUGIN} match the rows, and no scanned doc or ${CHANGELOG_FILE} [Unreleased] lead claims blocking for an agent that cannot block, or leaves out a condition or surface.`);
     exit(0);
   }
   console.error(`FAIL agent-matrix: ${violations.length} violation(s).\n`);

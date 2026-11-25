@@ -12,9 +12,13 @@
  * commands, paths and captured output. The agents map is drawn
  * by bin/check-agent-matrix.mjs from the support table instead.
  *
+ * The landing page shows the same force-push capture as markup: the panel
+ * between the demo-force-push markers in docs/landing/index.html is written
+ * from the capture here, under the same rule.
+ *
  * Usage:
- *   node bin/render-readme-assets.mjs            # exit 1 when a committed image differs
- *   node bin/render-readme-assets.mjs --write    # redraw every image
+ *   node bin/render-readme-assets.mjs            # exit 1 when a committed image or the landing panel differs
+ *   node bin/render-readme-assets.mjs --write    # redraw every image and the landing panel
  *
  * GitHub and npm load these files by relative path from the default branch, so
  * an image must be merged before the release that references it.
@@ -26,10 +30,14 @@ import { argv, cwd, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { CAPTURE_FILE, type Capture, type Demo, type Step } from "./capture-readme-demos.mjs";
+import { spliceBlock } from "./check-agent-matrix.mjs";
 import { LOOP_STAGES, PILLARS, type LoopMark, type LoopStage, markCounts } from "../lib/loop-stages.mjs";
 import { IMAGE_WIDTH, PAD, type Span, arrow, charsFit, rect, richText, svgDocument, text, wrap, wrapRanges } from "../lib/readme-svg.mjs";
 
 export const ASSET_DIR = "assets/readme";
+export const LANDING_PAGE = "docs/landing/index.html";
+export const LANDING_DEMO_START = "<!-- demo-force-push:start -->";
+export const LANDING_DEMO_END = "<!-- demo-force-push:end -->";
 
 type Tone = "tx" | "mute" | "deny" | "ok" | "accent" | "warn";
 
@@ -120,6 +128,13 @@ function firstLine(text: string, starting: string): string {
 }
 
 const isQuietAllow = (step: Step): boolean => step.exit === 0 && step.stdout === "" && step.stderr === "";
+
+/** How one agent got its deny: the decision pair it printed, or its exit code when the reason went to stderr, and the rule line of the reason. */
+function denyOf(step: Step): { reply: string; rule: string } {
+  const reply = step.stdout !== "" ? decision(step.stdout) : `exit ${step.exit}`;
+  const reason = step.stdout !== "" ? jsonField(step.stdout, ...(step.stdout.includes("hookSpecificOutput") ? ["hookSpecificOutput", "permissionDecisionReason"] : step.stdout.includes("user_message") ? ["user_message"] : step.stdout.includes('"reason"') ? ["reason"] : ["permissionDecisionReason"])) : step.stderr;
+  return { reply, rule: firstLine(reason, "Matched rule:") };
+}
 
 const out = (t: string, tone: Tone = "tx", extra: Partial<CardLine> = {}): CardLine => ({ text: t, tone, mono: true, evidence: true, ...extra });
 const label = (t: string, tone: Tone = "tx", extra: Partial<CardLine> = {}): CardLine => ({ text: t, tone, mono: false, evidence: false, ...extra });
@@ -251,9 +266,7 @@ function forcePushCard(capture: Capture): Asset {
   body.push(text(right, y, LINE.sans, "mute", "How the agent gets the deny", "end"));
   y += 12;
   for (const step of deny.steps) {
-    const reply = step.stdout !== "" ? decision(step.stdout) : `exit ${step.exit}`;
-    const reason = step.stdout !== "" ? jsonField(step.stdout, ...(step.stdout.includes("hookSpecificOutput") ? ["hookSpecificOutput", "permissionDecisionReason"] : step.stdout.includes("user_message") ? ["user_message"] : step.stdout.includes('"reason"') ? ["reason"] : ["permissionDecisionReason"])) : step.stderr;
-    const rule = firstLine(reason, "Matched rule:");
+    const { reply, rule } = denyOf(step);
     evidence.push(reply, rule);
     const h = 66;
     body.push(rect(PAD, y, IMAGE_WIDTH - 2 * PAD, h, "deny-bg"));
@@ -578,36 +591,121 @@ export function renderReadmeAssets(capture: Capture): Asset[] {
   return assets;
 }
 
+const escapeHtml = (t: string): string => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/**
+ * The landing page's cross-agent panel, the body between the demo-force-push
+ * markers in docs/landing/index.html: the force push each agent sent, how each
+ * one got its deny, and every payload and reply as captured, in the page's own
+ * exhibit markup. Throws when a line it shows is not in the capture, when an
+ * agent sent another command, or when the replies name different rules.
+ */
+export function renderLandingForcePush(capture: Capture): string {
+  const deny = demoById(capture, "force-push");
+  const allow = demoById(capture, "git-status");
+  if (!allow.steps.every(isQuietAllow)) throw new Error("git-status: a step printed something or exited non-zero");
+  const command = jsonField(deny.steps[0]!.stdin ?? "", "tool_input", "command");
+  const status = jsonField(allow.steps[0]!.stdin ?? "", "tool_input", "command");
+  const rules = new Set(deny.steps.map((step) => denyOf(step).rule));
+  if (rules.size !== 1) throw new Error(`force-push: the replies name ${rules.size} rules, not one`);
+  const rule = [...rules][0]!;
+  const evidence: string[] = [command, status, rule];
+  const rows: string[] = [];
+  const tapes: string[] = [];
+  for (const step of deny.steps) {
+    const stdin = step.stdin ?? "";
+    if (!stdin.includes(command)) throw new Error(`force-push: ${step.label} did not send "${command}"`);
+    if (!step.run.includes("hooks/gateguard.mjs")) throw new Error(`force-push: ${step.label} did not run hooks/gateguard.mjs`);
+    const { reply } = denyOf(step);
+    const stdout = step.stdout.trimEnd();
+    const stderr = step.stderr.trimEnd();
+    evidence.push(step.label, step.run, stdin, stdout, stderr, reply, `exit ${step.exit}`);
+    rows.push(`          <li><span>${escapeHtml(step.label)}</span> <span class="rv"><b>${escapeHtml(reply)}</b>${stdout === "" ? ", reason on stderr" : ""}</span></li>`);
+    // The decision is marked where the agent reads it: in the reply it printed, or in the rule line on stderr.
+    const printed = stdout === "" ? `<span class="p">(stdout empty)</span>` : escapeHtml(stdout).replace(escapeHtml(reply), escapeHtml(reply).replace(/"deny"$/, `<b>"deny"</b>`));
+    const errors = stderr === "" ? [] : [`<span class="p">stderr: </span>${stdout === "" ? escapeHtml(stderr).replace(escapeHtml(rule), `<b>${escapeHtml(rule)}</b>`) : escapeHtml(stderr)}`];
+    tapes.push(
+      `            <p class="cap">${escapeHtml(step.label)}</p>`,
+      `<pre class="tape"><span class="p">payload  ${escapeHtml(stdin)}`,
+      ``,
+      `$ ${escapeHtml(step.run)}</span>`,
+      printed,
+      ...errors,
+      `<span class="p">(${stderr === "" ? "stderr empty, " : ""}exit ${step.exit})</span></pre>`,
+    );
+  }
+  const corpus = `${demoCorpus(deny)}\n${demoCorpus(allow)}`;
+  for (const line of evidence) {
+    if (!corpus.includes(line)) throw new Error(`${LANDING_PAGE} shows "${line}", which is not in the force-push or git-status capture`);
+  }
+  return [
+    `      <article class="ex" aria-labelledby="h-xagent">`,
+    `        <div class="ex-head"><h3 id="h-xagent">One force push, refused in each agent's own format.</h3><p class="meta">hooks/gateguard.mjs</p></div>`,
+    `        <p class="sub">${escapeHtml(deny.title)}. ${escapeHtml(deny.how)}</p>`,
+    `        <p class="cap">The command in each agent's tool call</p>`,
+    `<pre class="tape"><span class="p">$ </span>${escapeHtml(command)}</pre>`,
+    `        <ul class="rulings">`,
+    `          <li class="sep"><i class="m deny"></i>Denied: how each agent got it</li>`,
+    ...rows,
+    `          <li class="sep"><i class="m"></i>Allowed</li>`,
+    `          <li><code>${escapeHtml(status)}</code> <span class="rv">all ${allow.steps.length}: <b>exit 0</b>, no output</span></li>`,
+    `        </ul>`,
+    `        <p class="cap">Every reason names the rule that matched: <code>${escapeHtml(rule)}</code></p>`,
+    `        <details class="more">`,
+    `          <summary>Each agent's payload and reply, as captured</summary>`,
+    `          <div class="drawer">`,
+    ...tapes,
+    `          </div>`,
+    `        </details>`,
+    `      </article>`,
+  ].join("\n");
+}
+
 export function readCapture(repoRoot: string): Capture {
   return JSON.parse(readFileSync(join(repoRoot, CAPTURE_FILE), "utf8")) as Capture;
 }
 
-/** Images whose committed file is missing or differs from what the capture draws now. */
+function readText(repoRoot: string, file: string): string | null {
+  try {
+    return readFileSync(join(repoRoot, file), "utf8").replace(/\r\n/g, "\n");
+  } catch {
+    return null;
+  }
+}
+
+/** The landing page with its cross-agent panel redrawn from the capture, or null when the page or its one marker pair is missing. */
+function landingWithDemo(repoRoot: string, capture: Capture): string | null {
+  const page = readText(repoRoot, LANDING_PAGE);
+  return page === null ? null : spliceBlock(page, renderLandingForcePush(capture), LANDING_DEMO_START, LANDING_DEMO_END);
+}
+
+/** Images, and the landing page for its cross-agent panel, whose committed file is missing or differs from what the capture draws now. */
 export function staleAssets(repoRoot: string): string[] {
-  return renderReadmeAssets(readCapture(repoRoot)).flatMap((asset) => {
-    let have: string | null = null;
-    try {
-      have = readFileSync(join(repoRoot, asset.file), "utf8").replace(/\r\n/g, "\n");
-    } catch {
-      have = null;
-    }
-    return have === asset.svg ? [] : [asset.file];
-  });
+  const capture = readCapture(repoRoot);
+  const images = renderReadmeAssets(capture).flatMap((asset) => (readText(repoRoot, asset.file) === asset.svg ? [] : [asset.file]));
+  const page = landingWithDemo(repoRoot, capture);
+  return page !== null && page === readText(repoRoot, LANDING_PAGE) ? images : [...images, LANDING_PAGE];
 }
 
 function main(): void {
   const args = argv.slice(2);
   const repoRoot = args.find((arg) => !arg.startsWith("--")) ?? cwd();
   if (args.includes("--write")) {
-    for (const asset of renderReadmeAssets(readCapture(repoRoot))) {
+    const capture = readCapture(repoRoot);
+    for (const asset of renderReadmeAssets(capture)) {
       mkdirSync(dirname(join(repoRoot, asset.file)), { recursive: true });
       writeFileSync(join(repoRoot, asset.file), asset.svg);
       console.log(`wrote ${asset.file}`);
     }
+    const page = landingWithDemo(repoRoot, capture);
+    if (page !== null) {
+      writeFileSync(join(repoRoot, LANDING_PAGE), page);
+      console.log(`wrote ${LANDING_PAGE}`);
+    }
   }
   const stale = staleAssets(repoRoot);
   if (stale.length === 0) {
-    console.log(`OK readme-assets: every image under ${ASSET_DIR}/ matches what ${CAPTURE_FILE} draws.`);
+    console.log(`OK readme-assets: every image under ${ASSET_DIR}/, and the cross-agent panel in ${LANDING_PAGE}, match what ${CAPTURE_FILE} draws.`);
     exit(0);
   }
   console.error(`FAIL readme-assets: ${stale.join(", ")} differ; run \`node bin/render-readme-assets.mjs --write\`.`);

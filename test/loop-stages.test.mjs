@@ -1,11 +1,14 @@
 /**
  * The loop is the spine of the two-pillar positioning (the owner's direction
  * of 2026-11-25), and lib/loop-stages.mjs is its one source. The README loop
- * table, assets/readme/pillars-loop.svg and the loop line in SKILL.md are
- * rendered from it. These tests tie the table to what ships: each step's law
- * is a heading of SKILL.md, each hook file exists and is registered on the
- * event the table names, each mark agrees with the hook's default, and every
- * agent count comes from lib/agent-support.mjs.
+ * table, the landing page's list of steps, assets/readme/pillars-loop.svg and
+ * the loop line in SKILL.md are rendered from it. These tests tie the table
+ * to what ships: each step's law is a heading of SKILL.md, each hook file
+ * exists and is registered on the event the table names, each mark agrees with
+ * the hook's default, and every agent count comes from lib/agent-support.mjs.
+ * The last four suites hold the landing page and the social card to the same
+ * table: the headline, the pillars, the install switch, and where the guard's
+ * replay sits.
  */
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
@@ -15,7 +18,7 @@ import { fileURLToPath } from "node:url";
 import { pillarsLoop } from "../bin/render-readme-assets.mjs";
 import { HOOK_AGENT_IDS, PLUGIN_AGENT_IDS } from "../lib/agent-install-plans.mjs";
 import { AGENT_SUPPORT, blocksPreTool } from "../lib/agent-support.mjs";
-import { HEADLINE, LOOP_MARKS, LOOP_STAGES, LOOP_TABLE_END, LOOP_TABLE_START, MARK_MEANING, PILLARS, loopFacts, loopWords, markCounts, markLabel, renderLoopLine, renderLoopTableMarkdown, } from "../lib/loop-stages.mjs";
+import { HEADLINE, LOOP_MARKS, LOOP_STAGES, LOOP_TABLE_END, LOOP_TABLE_START, MARK_MEANING, PILLARS, loopFacts, loopWords, markCounts, markLabel, renderLoopLine, renderLoopStepsHtml, renderLoopTableMarkdown, } from "../lib/loop-stages.mjs";
 import { getPluginHooksConfig, getToolNames } from "../lib/plugin-metadata.mjs";
 const REPO_ROOT = join(fileURLToPath(new URL(".", import.meta.url)), "..");
 const read = (rel) => readFileSync(join(REPO_ROOT, rel), "utf8").replace(/\r\n/g, "\n");
@@ -235,5 +238,228 @@ describe("the pillars image", () => {
             assert.ok(desc.includes(`${stage.name} (Law ${stage.law})`), stage.name);
         assert.match(desc, /2 steps have a hook that refuses by default: Research and Implement\./);
         assert.match(desc, /Contemplate and Iterate are written rules with no hook\./);
+    });
+});
+// The landing page (docs/landing/index.html) carries the same positioning: the
+// headline, the two pillars and the install command in the hero, then the loop,
+// Ambition and Discipline, with the guard's replay under Discipline.
+const landing = read("docs/landing/index.html");
+const plain = (markup) => markup.replace(/<[^>]*>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+const sectionOf = (id) => {
+    const at = landing.search(new RegExp(`<section[^>]* id="${id}"`));
+    assert.notEqual(at, -1, `the landing page has no #${id} section`);
+    return landing.slice(at, landing.indexOf("</section>", at));
+};
+const metaOf = (key) => new RegExp(`<meta (?:name|property)="${key}" content="([^"]*)">`).exec(landing)?.[1] ?? "";
+// A README cell as the text the landing page prints for it: links and backticks dropped.
+const cellText = (markdown) => markdown.replace(/\[`?([^\]`]+)`?\]\([^)]+\)/g, "$1").replace(/`/g, "");
+describe("the landing page's loop block", () => {
+    const html = renderLoopStepsHtml();
+    const facts = loopFacts();
+    it("is the render of lib/loop-stages.mjs, between its one marker pair, in the loop section", () => {
+        const start = landing.indexOf(LOOP_TABLE_START);
+        const end = landing.indexOf(LOOP_TABLE_END);
+        assert.ok(start !== -1 && end > start, "one marker pair");
+        assert.equal(landing.slice(start + LOOP_TABLE_START.length, end), `\n${html}\n`, "run `node bin/check-agent-matrix.mjs --write`");
+        assert.ok(sectionOf("loop").includes(LOOP_TABLE_START), "the block sits in #loop");
+    });
+    it("gives every step, in order, its name, its mark, its law and the hook files behind it", () => {
+        const rows = [...html.matchAll(/<p class="step-top"><b>([^<]+)<\/b><span class="mark"><i class="m \w+" aria-hidden="true"><\/i>([^<]+)<\/span><\/p>\n\s*<p class="step-sub">Law (\d), ([^·]+) · (.*)<\/p>/g)];
+        assert.equal(rows.length, LOOP_STAGES.length);
+        LOOP_STAGES.forEach((stage, i) => {
+            const [, name, mark, law, title, backing] = rows[i];
+            assert.equal(name, stage.name);
+            assert.equal(mark, markLabel(stage.mark), `${stage.name}: ${stage.mark}`);
+            assert.equal(Number(law), stage.law);
+            assert.equal(title, stage.lawTitle);
+            const files = stage.hooks.filter((hook) => hook.optIn !== true).map((hook) => hook.file);
+            assert.deepEqual([...backing.matchAll(/<code>([^<]+)<\/code>/g)].map((m) => m[1]), files, `${stage.name}: hook files`);
+            if (files.length === 0)
+                assert.equal(backing, "a written rule, no hook");
+            else
+                assert.ok(backing.endsWith(stage.covers === "" ? "</code>" : `: ${stage.covers}`), `${stage.name}: what the hook covers`);
+        });
+    });
+    it("prints under each step the two cells the README table prints, its default and its switch", () => {
+        const text = plain(html);
+        for (const stage of LOOP_STAGES) {
+            assert.ok(text.includes(`${cellText(stage.given)}.`), `${stage.name}: what the agent is given`);
+            assert.ok(text.includes(`${cellText(stage.does(facts))}.`), `${stage.name}: what a hook does`);
+            if (stage.switch !== "")
+                assert.ok(html.includes(`<dt>Switch</dt><dd><code>${stage.switch}</code></dd>`), `${stage.name}: switch`);
+        }
+        assert.equal(html.split("<dt>Switch</dt><dd>None</dd>").length - 1, LOOP_STAGES.filter((s) => s.switch === "").length);
+        assert.equal(html.split("<dt>Default</dt><dd>No hook</dd>").length - 1, markCounts().none, "a step with no hook says so");
+        assert.equal(html.split("<details").length - 1, LOOP_STAGES.length, "one disclosure per step");
+    });
+    it("leaves no Markdown in the markup, and links each hook file to the file on GitHub", () => {
+        assert.doesNotMatch(html, /\]\(|`|\*\*/);
+        const linked = [...html.matchAll(/<a href="https:\/\/github\.com\/naimkatiman\/continuous-improvement\/blob\/main\/([^"]+)"><code>([^<]+)<\/code><\/a>/g)];
+        const named = new Set(LOOP_STAGES.flatMap((stage) => stage.hooks.map((hook) => hook.file)));
+        assert.deepEqual([...new Set(linked.map((m) => m[1]))].sort(), [...named].sort(), "every hook file a step names is linked");
+        for (const [, target, label] of linked) {
+            assert.equal(target, label);
+            assert.ok(existsSync(join(REPO_ROOT, target)), `${target} is not in the repository`);
+        }
+    });
+    it("lists the four marks once each, with the meaning the README gives and the steps that carry it", () => {
+        for (const mark of LOOP_MARKS) {
+            const carriers = LOOP_STAGES.filter((s) => s.mark === mark).map((s) => s.name).join(", ");
+            assert.equal(html.split(`<b>${markLabel(mark)}</b>: ${MARK_MEANING[mark]}</span> <span class="rv">${carriers}</span>`).length - 1, 1, mark);
+        }
+    });
+    it("states the reach with the support table's counts, and they move when a row changes", () => {
+        const text = plain(html);
+        assert.ok(text.includes(`the skills go to all ${facts.agents} agents`));
+        assert.ok(text.includes(`${facts.stopGate} have a Stop gate.`));
+        assert.ok(text.includes(`Saved lessons load by hook on ${facts.lessonsByHook}`));
+        const fewer = plain(renderLoopStepsHtml(AGENT_SUPPORT.map((row) => (row.id === "codex" ? { ...row, stopGate: false } : row))));
+        assert.ok(fewer.includes(`${facts.stopGate - 1} have a Stop gate.`) && fewer.includes(`on the ${facts.stopGate - 1} agents with a Stop gate`));
+        const readmeReach = renderLoopTableMarkdown().split("\n").pop().replace(/\[agent table\]\([^)]*\)/, "agent table");
+        assert.ok(text.endsWith(readmeReach), "the reach line is the README's");
+    });
+    it("is introduced by a heading that counts the steps, and nothing above it in the section counts marks by hand", () => {
+        const section = sectionOf("loop");
+        assert.equal(LOOP_STAGES.length, 7);
+        assert.match(section, /<h2 id="h-loop">Seven steps\. /);
+        assert.doesNotMatch(plain(section.slice(0, section.indexOf(LOOP_TABLE_START))), /\b(?:one|two|three|four|five|six|\d+) (?:steps?|have|are|logs)\b/i);
+    });
+});
+describe("the landing page's first screen", () => {
+    const hero = sectionOf("top");
+    const pkg = JSON.parse(read("package.json"));
+    const lead = pkg.description.slice(0, pkg.description.indexOf(". ") + 1);
+    const tiles = [...hero.matchAll(/<li><b>([^<]+)<\/b>([\s\S]*?)<\/li>/g)].map((m) => ({ title: m[1], body: plain(m[2]) }));
+    it("leads with the headline: the h1, the title and the link-preview titles", () => {
+        assert.equal(plain(/<h1 id="h-top">([\s\S]*?)<\/h1>/.exec(hero)[1]), HEADLINE);
+        const title = /<title>([^<]*)<\/title>/.exec(landing)[1];
+        assert.match(title, /Aim high, stay in control/);
+        assert.equal(metaOf("og:title"), title);
+        assert.equal(metaOf("twitter:title"), title);
+    });
+    it("opens the description, the link-preview texts and the JSON-LD description with the npm lead sentence", () => {
+        assert.ok(lead.startsWith("Ambition and discipline for coding agents:") && lead.includes(loopWords()), lead);
+        for (const key of ["description", "og:description", "twitter:description"])
+            assert.ok(metaOf(key).startsWith(lead), key);
+        const ld = JSON.parse(/<script type="application\/ld\+json">([^<]*)<\/script>/.exec(landing)[1]);
+        assert.ok(ld.description.startsWith(lead), "JSON-LD");
+        assert.equal(ld.softwareRequirements, "A supported coding agent, Node.js 18 or newer");
+    });
+    it("shows the two pillars as tiles in the owner's words, the first called guidance and the second naming its hooks", () => {
+        assert.deepEqual(tiles.map((t) => t.title), PILLARS.map((p) => `${p.name}. ${p.claim.charAt(0).toUpperCase()}${p.claim.slice(1)}.`));
+        assert.ok(tiles[0].body.includes(PILLARS[0].ships), "Ambition names the skill");
+        assert.match(tiles[0].body, /It is guidance the agent reads\. No hook checks that it was followed\./);
+        assert.match(tiles[1].body, /With the hooks installed, hooks\/gateguard\.mjs refuses destructive commands and blind edits before they run\./);
+        assert.match(tiles[1].body, /bin\/observe\.mjs logs each tool call that runs/);
+        assert.ok(hero.indexOf("<h1") < hero.indexOf('<ul class="tiles') && hero.indexOf('<ul class="tiles') < hero.indexOf('id="install"'), "headline, pillars, install");
+    });
+    it("keeps the guard's replay out of the hero: the chips and the verdict card are in the Discipline section", () => {
+        assert.doesNotMatch(hero, /data-call=|class="chip"|id="verdict"|class="tape"/);
+        const discipline = sectionOf("discipline");
+        assert.equal(discipline.split("data-call=").length, landing.split("data-call=").length, "every chip is under Discipline");
+        assert.ok(discipline.includes('id="verdict"') && discipline.includes('id="verdict-live"'));
+        assert.doesNotMatch(plain(hero.slice(0, hero.indexOf('<ul class="tiles'))), /refus|den(?:y|ies)|block|guard/i, "nothing above the pillars is about the guard");
+    });
+    it("shows the --target install command by default, and the Claude Code plugin commands as the other state", () => {
+        const command = "npx continuous-improvement install --target <agent> --hooks";
+        assert.match(hero, /<input class="vh" type="radio" name="install-for" id="for-other" value="other" checked>/);
+        assert.match(hero, /<input class="vh" type="radio" name="install-for" id="for-claude" value="claude">/);
+        assert.equal(plain(/<pre class="cmds sh" id="cmds-other">([\s\S]*?)<\/pre>/.exec(hero)[1]), command);
+        assert.equal(plain(/<button class="copy-btn"[^>]* data-copy="([^"]*)"/.exec(hero)[1]), command, "the copy button copies what is shown");
+        const claude = AGENT_SUPPORT.find((row) => row.id === "claude");
+        const lines = [...(/<pre class="cmds" id="cmds">([\s\S]*?)<\/pre>/.exec(hero)[1]).matchAll(/<span>((?:<span class="nb">[^<]*<\/span>|<wbr>|[^<])*)<\/span>/g)].map((m) => plain(m[1]));
+        assert.deepEqual(lines, claude.install, "the plugin commands are the agent table's");
+        assert.match(hero, /writes or prints the MCP server step/);
+    });
+    it("works without scripting: CSS swaps the two states, and the copy button is not shown", () => {
+        assert.match(landing, /\.for-claude \{ display: none; \}/);
+        assert.match(landing, /\.install:has\(#for-claude:checked\) \.for-claude \{ display: block; \}/);
+        assert.match(landing, /\.install:has\(#for-claude:checked\) \.for-other \{ display: none; \}/);
+        assert.match(landing, /\.no-js \.copy-btn \{ display: none; \}/);
+        assert.match(landing, /<html lang="en" class="no-js">/);
+        assert.match(hero, /<select id="for-agent">/, "the agent list is a native select");
+    });
+});
+describe("the landing page's pillar sections", () => {
+    const sections = [...landing.matchAll(/<section class="[^"]*" id="([^"]+)" data-cam="([^"]+)"/g)].map((m) => ({ id: m[1], cam: m[2] }));
+    it("follow the hero in the order loop, Ambition, Discipline, agents, all on the hero camera", () => {
+        assert.deepEqual(sections.slice(0, 6).map((s) => `${s.id}:${s.cam}`), ["top:hero", "loop:hero", "ambition:hero", "discipline:hero", "agents:hero", "native:native"]);
+    });
+    it("use only camera names landing.js has a view for, so no section falls back to the hero view by accident", () => {
+        const js = read("docs/landing/landing.js");
+        const views = [...(/var SECT = \{([\s\S]*?)\n  \};/.exec(js)[1]).matchAll(/^\s+(\w+):\s+\{/gm)].map((m) => m[1]);
+        assert.ok(views.length >= 9, "the SECT table was read");
+        for (const { id, cam } of sections)
+            assert.ok(views.includes(cam), `#${id} names camera "${cam}"`);
+    });
+    it("call be-ambitious guidance with no hook, list what it tells the agent, and credit the essay", () => {
+        const ambition = sectionOf("ambition");
+        const text = plain(ambition);
+        assert.match(text, /be-ambitious is a bundled skill\./);
+        assert.match(text, /It is guidance/);
+        assert.match(text, /A skill: guidance the agent reads\. No benchmark is claimed for it\./);
+        assert.match(text, /No hook\. No code checks that the agent followed it/);
+        assert.equal(ambition.split("<li><span><b>").length - 1, 5, "five things it tells the agent");
+        assert.match(ambition, /href="https:\/\/felixrieseberg\.com\/how-to-be-more-ambitious-a-tutorial-for-humans-with-models\/"/);
+        assert.ok(existsSync(join(REPO_ROOT, "skills", "be-ambitious.md")), "the skill ships");
+    });
+    it("put the owner's line under Discipline, and name the file for what is refused and what is logged", () => {
+        const discipline = sectionOf("discipline");
+        const text = plain(discipline);
+        assert.ok(text.includes("You control the AI.") && text.includes("The AI does not control you."));
+        const tiles = [...discipline.matchAll(/<li[^>]*><b>([^<]+)<\/b>([\s\S]*?)<\/li>/g)].map((m) => ({ title: m[1], body: plain(m[2]) }));
+        assert.deepEqual(tiles.map((t) => t.title), ["Refused", "Logged", "Switches", "Where it runs"]);
+        assert.ok(tiles[0].body.startsWith("hooks/gateguard.mjs denies"));
+        assert.ok(tiles[1].body.startsWith("bin/observe.mjs writes"));
+        assert.match(text, /It is not a sandbox\./);
+    });
+    it("tag each exhibit with its step of the loop, by number and name", () => {
+        const exhibits = sectionOf("exhibits");
+        const tags = [...exhibits.matchAll(/<p class="meta">Step (\d), ([^·]+) · /g)];
+        assert.equal(tags.length, exhibits.split('<article class="ex"').length - 1, "every exhibit is tagged");
+        for (const [, n, name] of tags)
+            assert.equal(name, LOOP_STAGES[Number(n) - 1]?.name, `step ${n}`);
+    });
+    it("count the known gaps they list, and name the gaps the pillars and the loop add", () => {
+        const limits = sectionOf("limits");
+        const gaps = limits.split("<li><details><summary>").length - 1;
+        assert.match(limits, new RegExp(`<p class="lead">${gaps} known gaps, `));
+        assert.match(limits, new RegExp(`<summary>All ${gaps} known gaps</summary>`));
+        for (const gap of ["It is not a sandbox.", "be-ambitious is guidance.", "Contemplate and Iterate have no hook.", "No hook runs tests, lint or a build."])
+            assert.ok(limits.includes(`<summary>${gap}</summary>`), gap);
+        assert.deepEqual(LOOP_STAGES.filter((s) => s.mark === "none").map((s) => s.name), ["Contemplate", "Iterate"]);
+    });
+});
+// demo/social-card.html is the source of the link-preview image. A PNG cannot
+// be read back, so the source is held to the data and the alt text to the source.
+describe("the social card", () => {
+    const card = read("demo/social-card.html");
+    const body = plain(card.slice(card.indexOf("<body>")));
+    it("carries the headline, the agent count and the seven steps with their marks, and no version", () => {
+        assert.equal(plain(/<h1>([\s\S]*?)<\/h1>/.exec(card)[1].replace(/<\/span><span>/g, " ")), HEADLINE);
+        assert.ok(body.includes(`Two pillars / one loop / ${working.length} coding agents`), "the label");
+        const steps = [...card.matchAll(/<li class="\w+"><b>([^<]+)<\/b><em>([^<]+)<\/em><\/li>/g)].map((m) => `${m[1]}: ${m[2]}`);
+        assert.deepEqual(steps, LOOP_STAGES.map((stage) => `${stage.name}: ${stage.mark}`));
+        for (const pillar of PILLARS)
+            assert.ok(body.includes(`${pillar.name}.`), pillar.name);
+        assert.doesNotMatch(body, /\d+\.\d+\.\d+|\bREV\b/);
+    });
+    it("is described by og:image:alt and twitter:image:alt, in the words the card uses", () => {
+        const alt = metaOf("og:image:alt");
+        assert.equal(metaOf("twitter:image:alt"), alt);
+        const marks = LOOP_MARKS.map((mark) => `${LOOP_STAGES.filter((s) => s.mark === mark).map((s) => s.name).join(" and ")}: ${mark}.`).join(" ");
+        assert.equal(alt, `A paper-coloured card. Label: two pillars, one loop, ${working.length} coding agents. Headline: ${HEADLINE} Under it: Ambition, the be-ambitious skill. Discipline, hooks, a local log, switches. Beside it, the loop as seven numbered steps, each with its mark. ${marks} At the foot: continuous-improvement.dev, and the line: only a hook can refuse a call.`);
+        for (const shown of ["The be-ambitious skill.", "Hooks, a local log, switches.", "continuous-improvement.dev", "only a hook can refuse a call"])
+            assert.ok(body.includes(shown), shown);
+    });
+    it("is rendered to both PNG paths at the size the page declares", () => {
+        assert.equal(metaOf("og:image:width"), "1200");
+        assert.equal(metaOf("og:image:height"), "630");
+        const files = ["docs/landing/social-preview.png", "assets/social-preview.png"].map((file) => readFileSync(join(REPO_ROOT, file)));
+        for (const png of files) {
+            assert.equal(png.toString("latin1", 1, 4), "PNG");
+            assert.deepEqual([png.readUInt32BE(16), png.readUInt32BE(20)], [1200, 630]);
+        }
+        assert.ok(files[0].equals(files[1]), "the two files are one render");
     });
 });
