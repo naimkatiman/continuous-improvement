@@ -10,12 +10,12 @@ After this lands, no PR can be merged into `main` until all four required checks
 
 | Required check | Job | What it enforces |
 |---|---|---|
-| `test (18)` | `test` matrix on Node 18 | Build + tests + 7-laws verifier + instinct-pack JSON + skill-mirror parity + docs-substring assertions |
+| `test (18)` | `test` matrix on Node 18 | Both `shard (18, N/2)` jobs passed (build + half the suite each; shard 1 also runs the 7-laws verifier, instinct-pack JSON, skill-mirror parity and docs-substring assertions), and the two shard counts sum to the stated test count |
 | `test (20)` | `test` matrix on Node 20 | Same, on Node 20 |
 | `test (22)` | `test` matrix on Node 22 | Same, on Node 22 |
 | `lint-transcript` | `lint-transcript` job | Verifies `bin/lint-transcript.mjs` runs without errors |
 
-The skill-mirror, docs-substrings, 7-laws, and instinct-pack-JSON lints all live inside the `test` job's steps in [.github/workflows/ci.yml](../.github/workflows/ci.yml) — they don't appear as separate required-check names in the GitHub UI. Making `test (N)` required for each Node version covers all of them.
+The skill-mirror, docs-substrings, 7-laws, and instinct-pack-JSON lints all live inside the `shard` job's steps (shard 1 of each Node version) in [.github/workflows/ci.yml](../.github/workflows/ci.yml) — they don't appear as separate required-check names in the GitHub UI. Making `test (N)` required for each Node version covers all of them.
 
 ## UI path (recommended)
 

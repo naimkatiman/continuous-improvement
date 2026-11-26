@@ -95,7 +95,7 @@ describe("GitHub templates", () => {
         const path = join(ROOT, ".github", "workflows", "ci.yml");
         assert.ok(existsSync(path));
         const content = readFileSync(path, "utf8");
-        assert.match(content, /node --test test\/\*\.test\.mjs/);
+        assert.match(content, /node --test\b[^\n]*test\/\*\.test\.mjs/);
         assert.match(content, /node-version/);
     });
 });

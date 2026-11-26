@@ -22,9 +22,10 @@
  *   1. Locally, inside `verify:all`, it asserts that every surface states the
  *      SAME number. Fast, no suite run, and it catches the two-surfaces-disagree
  *      case that a single-number edit produces.
- *   2. In CI, after `npm test` has already run, `--actual-from <file>` parses
+ *   2. In CI, after the suite has already run, `--actual-from <file>` parses
  *      the runner's "tests N" summary out of the captured output and asserts the
- *      claimed number equals reality. No second suite run.
+ *      claimed number equals reality. No second suite run. CI shards the suite,
+ *      so `--actual-from` repeats once per shard log and the counts are summed.
  *
  * A claim that drifts from reality fails CI; two claims that drift apart fail
  * locally. Fail-closed: a missing surface is a violation, not a silent pass.
@@ -32,6 +33,7 @@
  * Usage:
  *   node bin/check-test-count.mjs                        # Claims agree with each other
  *   node bin/check-test-count.mjs --actual-from out.txt  # ...and with an actual run
+ *   node bin/check-test-count.mjs --actual-from a.txt --actual-from b.txt  # sharded run, summed
  *   node bin/check-test-count.mjs <repo-root> [--actual-from out.txt]
  *
  * Exit codes:
@@ -73,6 +75,22 @@ export function parseActualCount(runOutput: string): number | null {
   return m ? Number(m[1]) : null;
 }
 
+/**
+ * CI splits the suite across shards, and each shard's log states only its own
+ * part. Sum them. Fail closed: a shard with no summary line returns null, so a
+ * lost or crashed shard cannot let a short total through.
+ */
+export function sumActualCounts(runOutputs: string[]): number | null {
+  if (runOutputs.length === 0) return null;
+  let total = 0;
+  for (const output of runOutputs) {
+    const count = parseActualCount(output);
+    if (count === null) return null;
+    total += count;
+  }
+  return total;
+}
+
 export function findViolations(claims: TestCountClaims, actual: number | null): string[] {
   const violations: string[] = [];
   if (claims.strip.length === 0) {
@@ -104,13 +122,22 @@ export function findViolations(claims: TestCountClaims, actual: number | null): 
 
 function main(): void {
   const args = argv.slice(2);
-  const actualIdx = args.indexOf("--actual-from");
-  const actualPath = actualIdx === -1 ? null : args[actualIdx + 1];
-  if (actualIdx !== -1 && !actualPath) {
-    console.error("FAIL test-count: --actual-from needs a path to a captured test run.");
-    exit(1);
+  const actualPaths: string[] = [];
+  const positional: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] !== "--actual-from") {
+      if (!args[i].startsWith("--")) positional.push(args[i]);
+      continue;
+    }
+    const path = args[i + 1];
+    if (!path || path.startsWith("--")) {
+      console.error("FAIL test-count: --actual-from needs a path to a captured test run.");
+      exit(1);
+    }
+    actualPaths.push(path);
+    i++;
   }
-  const repoRoot = args.find((a) => !a.startsWith("--") && a !== actualPath) ?? cwd();
+  const repoRoot = positional[0] ?? cwd();
 
   let html: string;
   try {
@@ -121,21 +148,25 @@ function main(): void {
   }
 
   let actual: number | null = null;
-  if (actualPath) {
-    let runOutput: string;
-    try {
-      runOutput = readFileSync(actualPath, "utf8");
-    } catch {
-      console.error(`FAIL test-count: cannot read the captured test run at ${actualPath}.`);
-      exit(1);
+  if (actualPaths.length > 0) {
+    const runOutputs: string[] = [];
+    for (const actualPath of actualPaths) {
+      let runOutput: string;
+      try {
+        runOutput = readFileSync(actualPath, "utf8");
+      } catch {
+        console.error(`FAIL test-count: cannot read the captured test run at ${actualPath}.`);
+        exit(1);
+      }
+      if (parseActualCount(runOutput) === null) {
+        console.error(
+          `FAIL test-count: ${actualPath} has no "tests N" summary line, so the claim cannot be checked against a real run.`,
+        );
+        exit(1);
+      }
+      runOutputs.push(runOutput);
     }
-    actual = parseActualCount(runOutput);
-    if (actual === null) {
-      console.error(
-        `FAIL test-count: ${actualPath} has no "tests N" summary line, so the claim cannot be checked against a real run.`,
-      );
-      exit(1);
-    }
+    actual = sumActualCounts(runOutputs);
   }
 
   const claims = extractClaims(html);

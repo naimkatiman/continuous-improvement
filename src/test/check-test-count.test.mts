@@ -1,12 +1,15 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
   extractClaims,
   parseActualCount,
+  sumActualCounts,
   findViolations,
 } from "../bin/check-test-count.mjs";
 
@@ -133,5 +136,76 @@ describe("check-test-count — against the real landing page", () => {
     assert.ok(claims.strip.length > 0, "spec strip must state a test count");
     assert.ok(claims.ladder.length > 0, "verification-loop panel must state a test count");
     assert.deepEqual(findViolations(claims, null), []);
+  });
+});
+
+describe("check-test-count — sumActualCounts (sharded runs)", () => {
+  it("sums the summary line of every shard", () => {
+    assert.equal(sumActualCounts(["ℹ tests 2400\nℹ pass 2400", "ℹ tests 2492\nℹ pass 2490"]), 4892);
+  });
+
+  it("matches parseActualCount for a single unsharded run", () => {
+    assert.equal(sumActualCounts(["ℹ tests 4892"]), 4892);
+  });
+
+  it("returns null when any shard has no summary line, so a lost shard cannot pass", () => {
+    assert.equal(sumActualCounts(["ℹ tests 2400", "npm ERR! the runner crashed"]), null);
+  });
+
+  it("returns null for no runs at all rather than summing to zero", () => {
+    assert.equal(sumActualCounts([]), null);
+  });
+});
+
+describe("check-test-count — CLI with repeated --actual-from", () => {
+  const BIN = join(REPO_ROOT, "bin", "check-test-count.mjs");
+
+  const run = (root: string, logs: string[]): number => {
+    const args = [BIN, root, ...logs.flatMap((l) => ["--actual-from", l])];
+    try {
+      execFileSync(process.execPath, args, { stdio: "pipe" });
+      return 0;
+    } catch (err) {
+      return (err as { status: number }).status;
+    }
+  };
+
+  const withRepo = (fn: (root: string, log: (name: string, body: string) => string) => void): void => {
+    const root = mkdtempSync(join(tmpdir(), "ci-test-count-"));
+    try {
+      mkdirSync(join(root, "docs", "landing"), { recursive: true });
+      writeFileSync(join(root, "docs", "landing", "index.html"), page(strip("10"), ladder("10", "10")));
+      fn(root, (name, body) => {
+        const path = join(root, name);
+        writeFileSync(path, body);
+        return path;
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  };
+
+  it("passes when the shards add up to the stated count", () => {
+    withRepo((root, log) => {
+      assert.equal(run(root, [log("a.log", "ℹ tests 4"), log("b.log", "ℹ tests 6")]), 0);
+    });
+  });
+
+  it("fails when one shard is checked alone", () => {
+    withRepo((root, log) => {
+      assert.equal(run(root, [log("a.log", "ℹ tests 4")]), 1);
+    });
+  });
+
+  it("fails when an ignored --test-shard flag makes both shards run everything", () => {
+    withRepo((root, log) => {
+      assert.equal(run(root, [log("a.log", "ℹ tests 10"), log("b.log", "ℹ tests 10")]), 1);
+    });
+  });
+
+  it("fails closed when a shard log has no summary line", () => {
+    withRepo((root, log) => {
+      assert.equal(run(root, [log("a.log", "ℹ tests 10"), log("b.log", "crashed")]), 1);
+    });
   });
 });
