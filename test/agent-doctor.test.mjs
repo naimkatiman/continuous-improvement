@@ -345,6 +345,17 @@ describe("ci doctor (spawned)", () => {
         const out = ci(["--help"], fakeEnv(join(root, "empty")), root);
         assert.match(out.stdout, /doctor --agent <agent>/);
     });
+    it("prints its usage and exits 0 on --help or -h, running no probe", () => {
+        const root = tempRoot();
+        const { bin, log } = fakeCli(root, "gemini");
+        for (const flag of ["--help", "-h"]) {
+            const out = ci(["doctor", flag], fakeEnv(bin), root);
+            assert.equal(out.status, 0, out.stdout + out.stderr);
+            assert.match(out.stdout, /^Usage: ci doctor --agent </);
+            assert.equal(out.stderr, "");
+        }
+        assert.deepEqual(calls(log), []);
+    });
 });
 // PR 19 (docs/plans/2026-11-21-all-agents.md): probe defects 6 and 7 and critic gap 10.
 describe("runDoctor: what a listing says about our server and hooks", () => {

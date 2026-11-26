@@ -361,11 +361,11 @@ export async function capture(repoArg: string): Promise<Capture> {
     {
       const dirs = s.newRoot("install");
       // A project-scope install needs a git repository; outside one it writes nothing and exits 1.
-      // The run line names the clone form the README gives: npm 3.27.0 has no --hooks.
+      // The run line names the npx form the README gives; it runs this checkout's bin/install.mjs.
       s.git(dirs, ["init", "-q"]);
       const args = ["install", "--target", "gemini", "--hooks", "--dry-run"];
       const r = await s.run("bin/install.mjs", args, dirs);
-      demos.push({ id: "install-dry-run", title: "Installer dry run for Gemini CLI", how: "bin/install.mjs in a temp git repository with a temp HOME.", steps: [{ label: "dry run", run: `node $HOME/continuous-improvement/bin/install.mjs ${args.join(" ")}`, exit: r.exit, stdout: s.output(r.stdout), stderr: s.output(r.stderr), files: readdirSync(dirs.project) }] });
+      demos.push({ id: "install-dry-run", title: "Installer dry run for Gemini CLI", how: "bin/install.mjs in a temp git repository with a temp HOME.", steps: [{ label: "dry run", run: `npx continuous-improvement ${args.join(" ")}`, exit: r.exit, stdout: s.output(r.stdout), stderr: s.output(r.stderr), files: readdirSync(dirs.project) }] });
     }
 
     // 7. The push gate in block mode, through the CI_* alias.

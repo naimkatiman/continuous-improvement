@@ -16,7 +16,7 @@
 
 `--target <agent> --hooks` installs the guard hooks for the agents that have a hook this package can use, and writes or prints the MCP server step. Which agents those are, what each one blocks and the step that follows each install are in [AGENT-SUPPORT.md](AGENT-SUPPORT.md). Saved lessons reach an agent with no session hook through `npx -p continuous-improvement ci lessons --format <agent> --write`.
 
-`--hooks`, `--uninstall --target <agent>` and `ci lessons` ship in the release after 3.27.0, the current one on npm. Until then, run them from a clone of this repository, in your project: `node $HOME/continuous-improvement/bin/install.mjs install --target <agent> --hooks`, and `node $HOME/continuous-improvement/bin/unified-cli.mjs lessons --format <agent> --write` ([README → Install](../README.md#install)).
+`--hooks`, `--uninstall --target <agent>` and `ci lessons` need 3.28.0 or later.
 
 ## Undoing an agent install
 

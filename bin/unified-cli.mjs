@@ -13,7 +13,7 @@
 import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseDoctorArgs, runDoctor } from "../lib/agent-doctor.mjs";
+import { DOCTOR_USAGE, parseDoctorArgs, runDoctor } from "../lib/agent-doctor.mjs";
 import { resolveInstinctsRoot, resolveProjectRoot } from "../lib/agent-paths.mjs";
 import CLIAnything from "../lib/cli-anything.mjs";
 import { isInstinctLoadOff, isLessonPathAllowed, LESSON_FORMATS, LESSON_SCOPES, lessonRoute, lessonRouteNote, projectLessonRoute, readLessonSources, renderForRoute, renderLessonBlock, renderLessons, } from "../lib/lesson-render.mjs";
@@ -116,6 +116,11 @@ class UnifiedCLI {
         console.log(`Configuration updated: ${key} = ${value}`);
     }
 }
+// `ci <command> --help` prints that command's usage and exits 0 instead of
+// failing on an unexpected argument.
+function wantsHelp(args) {
+    return args.includes("--help") || args.includes("-h");
+}
 const LESSONS_USAGE = `Usage: ci lessons --format <${LESSON_FORMATS.join("|")}> [--scope ${LESSON_SCOPES.join("|")}] [--write]`;
 function parseLessonsArgs(args) {
     let format;
@@ -169,6 +174,10 @@ function lessonCount(block) {
 // this project's lessons and global/. `--scope user` writes the user-level file
 // instead, with global/ only, because that file loads in every repository.
 function handleLessons(args) {
+    if (wantsHelp(args)) {
+        console.log(LESSONS_USAGE);
+        return;
+    }
     const { format, scope: givenScope, write } = parseLessonsArgs(args);
     const home = resolveHomeDir();
     if (!home)
@@ -226,6 +235,10 @@ const DOCTOR_TIMEOUT_MS = 30_000;
 // the agent's listing commands from lib/agent-doctor.mjs and exits 1 when one
 // is missing or fails. An unknown id throws before anything runs.
 async function handleDoctor(args) {
+    if (wantsHelp(args)) {
+        console.log(DOCTOR_USAGE);
+        return;
+    }
     const { agent } = parseDoctorArgs(args);
     const ok = await runDoctor(agent, {
         env: process.env,

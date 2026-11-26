@@ -412,4 +412,16 @@ describe("ci lessons: bad input fails closed", () => {
       assert.deepEqual(tree(b.root), before);
     });
   }
+
+  it("--help and -h print the usage and exit 0, writing nothing", () => {
+    const b = box();
+    const before = tree(b.root);
+    for (const flag of ["--help", "-h"]) {
+      const out = run(b, [flag]);
+      assert.equal(out.status, 0, out.stderr);
+      assert.match(out.stdout, /^Usage: ci lessons --format </);
+      assert.equal(out.stderr, "");
+    }
+    assert.deepEqual(tree(b.root), before);
+  });
 });

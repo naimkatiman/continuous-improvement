@@ -31,6 +31,7 @@ git add package.json package-lock.json \
   docs/landing/index.html \
   demo/captures/demos.json assets/readme/*.svg \
   .claude-plugin/marketplace.json \
+  .cloudplugin/marketplace.json \
   plugins/continuous-improvement/.claude-plugin/marketplace.json \
   plugins/continuous-improvement/.claude-plugin/plugin.json \
   plugins/beginner.json \

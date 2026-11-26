@@ -17,27 +17,24 @@ You need `node` 18 or newer on your `PATH`. The hooks are Node scripts and need 
 | Agent | Install |
 |---|---|
 | Claude Code | `/plugin marketplace add naimkatiman/continuous-improvement`, then `/plugin install continuous-improvement@continuous-improvement`, then restart Claude Code once |
-| Codex CLI, Gemini CLI, Cursor, GitHub Copilot CLI and 11 more | Clone this repository once, then in your project run `node $HOME/continuous-improvement/bin/install.mjs install --target <agent> --hooks` and the one step it prints (such as trusting the hooks) |
+| Codex CLI, Gemini CLI, Cursor, GitHub Copilot CLI and 11 more | In your project's git repository, run `npx continuous-improvement install --target <agent> --hooks` and the steps it prints (for Codex: trust each hook in `/hooks` and paste the printed MCP block into `.codex/config.toml`) |
 
 ```bash
-git clone https://github.com/naimkatiman/continuous-improvement "$HOME/continuous-improvement"
 cd your-project
 # --dry-run lists every write and writes nothing; run it again without --dry-run to install
-node $HOME/continuous-improvement/bin/install.mjs install --target codex --hooks --dry-run
+npx continuous-improvement install --target codex --hooks --dry-run
 ```
 
-`<agent>` is the `--target` id in the [agent table](#works-with-these-agents), such as `codex`, `gemini`, `cursor` or `copilot`. The install copies the hooks to a stable place under your home directory, so the guard keeps working if the clone moves.
-
-> **Not on npm yet.** npm `latest` is 3.27.0, which predates the agent installs. There, `--target <agent> --hooks` wires no guard: it writes a rules file for the agents that have one, even with `--dry-run`, and rejects the other ids; `--uninstall --target <agent>` removes a Claude Code npm install instead; and `ci doctor` and `ci lessons` do not exist. Run them from the clone until the next release. In this README, `ci <command>` means `node $HOME/continuous-improvement/bin/unified-cli.mjs <command>` until then, and `npx -p continuous-improvement ci <command>` after. The Claude Code plugin installs from this repository and is not affected.
+`<agent>` is the `--target` id in the [agent table](#works-with-these-agents), such as `codex`, `gemini`, `cursor` or `copilot`. The install copies the hooks to a stable place under your home directory, so the guard keeps working after npx clears its cache. Outside a git repository the install writes nothing unless you pass `--scope user`. The agent installs, `ci doctor` and `ci lessons` need 3.28.0 or later, and a project that pins an older continuous-improvement should run `npx continuous-improvement@latest ...`, because npx otherwise runs the pinned copy. In this README, `ci <command>` means `npx -p continuous-improvement ci <command>`, or `ci <command>` after `npm i -g continuous-improvement`.
 
 <details>
 <summary><b>What <code>--dry-run</code> prints</b></summary>
 
-<p><img src="assets/readme/demo-install-dry-run.svg" width="640" alt="The installer dry run for Gemini CLI, run from a clone, lists the runtime copy, the settings.json, the GEMINI.md file and the 28 skills it would write, notes that Gemini CLI runs no hooks in an untrusted folder and copies no commands, and ends with nothing written."></p>
+<p><img src="assets/readme/demo-install-dry-run.svg" width="640" alt="The installer dry run for Gemini CLI, run through npx, lists the runtime copy, the settings.json, the GEMINI.md file and the 28 skills it would write, notes that Gemini CLI runs no hooks in an untrusted folder and copies no commands, and ends with nothing written."></p>
 
 </details>
 
-**Turn it off.** Claude Code: `claude plugin disable continuous-improvement@continuous-improvement` switches the whole plugin off without removing it, and `claude plugin enable continuous-improvement@continuous-improvement` turns it back on. Any other agent: in the same project, `node $HOME/continuous-improvement/bin/install.mjs install --uninstall --target <agent>` removes what `--hooks` recorded. Removing Claude Code's install is under [Two install paths](#two-install-paths).
+**Turn it off.** Claude Code: `claude plugin disable continuous-improvement@continuous-improvement` switches the whole plugin off without removing it, and `claude plugin enable continuous-improvement@continuous-improvement` turns it back on. Any other agent: in the same project, `npx continuous-improvement install --uninstall --target <agent>` removes what `--hooks` recorded. Removing Claude Code's install is under [Two install paths](#two-install-paths).
 
 For Claude Code, `npx continuous-improvement install` without `--target` installs skills and commands but no guards. Use the plugin ([Two install paths](#two-install-paths)).
 
@@ -62,7 +59,7 @@ Matched rule: rm-recursive-force
 Destructive Bash gates EVERY call — clearance is not cached.
 ```
 
-The three numbered items ask the model to explain itself to you. Answering them does not unlock the command: a retry is refused again. If the command runs instead, no hook ran. Check that `node` is on your `PATH` and that the install came from the clone or the plugin (npm 3.27.0 has no `--hooks`), then restart the agent.
+The three numbered items ask the model to explain itself to you. Answering them does not unlock the command: a retry is refused again. If the command runs instead, no hook ran. Check that `node` is on your `PATH` and that the install came from the plugin or from `install --target <agent> --hooks`, then restart the agent.
 
 **Check the wiring.** The probe above works on every agent. To list what an agent loaded, run `ci doctor --agent <agent>` in the project; it uses only that agent's own listing commands. On Claude Code, `/verify-install` checks from inside a session: ask it to run `git status` first so the log has a row. It confirms the commands loaded, sends `git rev-parse @{u}` with the ref unquoted (the guard refuses that and prints the quoted command), and reads the log for a row. A wired install ends with this line:
 
@@ -119,7 +116,7 @@ Beyond the refusals:
 - **Git state as a command with exit codes.** `npx -p continuous-improvement ci-reconcile` prints branch, upstream, in-progress operations, working-tree drift, stashes and worktrees, and exits 0 when clear, 1 on a blocker and 2 outside a repository ([`bin/reconcile.mjs`](bin/reconcile.mjs)).
 - **A transcript linter for CI.** A GitHub Action reports edits made with no earlier lookup and code changes with no test or build run ([`action.yml`](action.yml), [`bin/lint-transcript.mjs`](bin/lint-transcript.mjs)). See [Unattended runs and CI](#unattended-runs-and-ci).
 
-It also ships 28 skills and 29 slash commands, which are prose the model reads. `--hooks` copies the skills to agents that read skills; the slash commands are Claude Code's, and an agent such as Gemini CLI keeps its own command files. Only the hooks, the MCP server and the command-line tools execute.
+It also ships 28 skills and 29 slash commands, which are prose the model reads. `--hooks` copies the skills to agents that read skills; the slash commands are Claude Code's, and an agent such as Gemini CLI keeps its own command files. Codex, GitHub Copilot CLI, Devin, Kiro, Goose and Amp have no command files, so they get the 13 commands without a same-name skill as skills. Only the hooks, the MCP server and the command-line tools execute.
 
 What it does not do: it does not make the model better at code, it does not apply a lesson for you, it does not check your work unless you switch the typecheck gate on, and it is not a sandbox.
 
@@ -206,7 +203,7 @@ On after install: the destructive-command deny (with the `@{u}` quoting rule), t
 - **Lessons are notes.** At most 10 lines and 1,500 characters load, lessons under 0.5 confidence are not shown, and nothing enforces them.
 - **Goal drift needs a goal file.** It does not score until `task_plan.md` has a `## Goal` section, or, when there is no `task_plan.md`, a `goal.md` sits in the repository's state directory. It still rewrites `goal-drift-state.json` at each turn end unless `CLAUDE_GOAL_DRIFT_GATE=off`. It scores keyword overlap, and it reads the repository's recent calls from any session.
 - **Hooks need `node` on `PATH`.** Without it no hook runs and nothing is denied. CI runs Linux on Node 18, 20 and 22, the captures in this README were taken on Windows 11, and macOS has no CI job.
-- **Two commands need a clone of this repository.** `/harvest` and `/companion-preference` run `node bin/<script>.mjs` from the current directory, which only a clone of this repository has.
+- **Two commands need a clone of this repository.** `/harvest` and `/companion-preference` run `node bin/<script>.mjs` from the current directory, and the plugin bundle does not ship those two scripts: clone the repository (`git clone https://github.com/naimkatiman/continuous-improvement`) and run the command from inside it.
 
 ## Memory
 
@@ -230,7 +227,7 @@ The model reads those lines. Nothing applies them.
 
 ## MCP server
 
-The server is [`bin/mcp-server.mjs`](bin/mcp-server.mjs), stdio. Every agent in the [agent table](#works-with-these-agents) gets it: the Claude Code plugin registers it, and `--hooks` writes the agent's MCP entry or prints the agent's own `mcp add` step (`--run` runs that step). Both start it with `--mode expert`. With no flag it runs in beginner mode (4 tools, about 2,000 characters of definitions).
+The server is [`bin/mcp-server.mjs`](bin/mcp-server.mjs), stdio. Every agent in the [agent table](#works-with-these-agents) gets it: the Claude Code plugin registers it, and `--hooks` writes the agent's MCP entry or prints the agent's own `mcp add` step (`--run` runs that step). Codex at project scope prints a block to paste into `.codex/config.toml` instead, and `--run` does not change that. Both start it with `--mode expert`. With no flag it runs in beginner mode (4 tools, about 2,000 characters of definitions).
 
 Expert mode exposes all the MCP tools (19 of them, including `ci_plan_init` and `ci_plan_status`, which create and summarize the `task_plan.md`, `findings.md` and `progress.md` planning files that `/planning-with-files` also maintains).
 
@@ -268,7 +265,7 @@ src/price.ts(2,9): error TS2322: Type 'string' is not assignable to type 'number
     strict: true
 ```
 
-It reads a Claude Code transcript (`~/.claude/projects/<project>/<session>.jsonl`), this package's `observations.jsonl` (input `observations-path`) or flat tool events. It reports an edit with no earlier lookup, more than 5 consecutive edits, code changes with no test or build run, and more than 8 distinct files edited. Each violation is named after one of the 7 Laws, this package's research, plan, execute, verify, reflect, learn, iterate loop ([SKILL.md](SKILL.md)). Outputs are `violations`, `score` (0 to 100) and `report` (Markdown). `strict: true` fails the step on any violation, HIGH or MEDIUM: a run whose only finding is more than 8 distinct files edited fails it. Run it locally with `npx -p continuous-improvement ci-lint-transcript <file.jsonl> --strict`. The `v3` tag and npm `latest` both point at 3.27.0, which reads Claude Code transcripts and observation logs.
+It reads a Claude Code transcript (`~/.claude/projects/<project>/<session>.jsonl`), this package's `observations.jsonl` (input `observations-path`) or flat tool events. It reports an edit with no earlier lookup, more than 5 consecutive edits, code changes with no test or build run, and more than 8 distinct files edited. Each violation is named after one of the 7 Laws, this package's research, plan, execute, verify, reflect, learn, iterate loop ([SKILL.md](SKILL.md)). Outputs are `violations`, `score` (0 to 100) and `report` (Markdown). `strict: true` fails the step on any violation, HIGH or MEDIUM: a run whose only finding is more than 8 distinct files edited fails it. Run it locally with `npx -p continuous-improvement ci-lint-transcript <file.jsonl> --strict`. The `v3` tag moves to each new 3.x release; reading Claude Code transcripts and observation logs needs 3.27.0 or later.
 
 <p><img src="assets/readme/demo-lint-transcript.svg" width="640" alt="ci-lint-transcript on two flat tool events, an Edit of src/app.ts and a git commit, scores 43 of 100 with two HIGH violations: a write with no research, and a code change with no verification command."></p>
 
@@ -294,7 +291,7 @@ On Claude Code, the plugin and `npx continuous-improvement install` without `--t
 
 The doubled name in `/plugin install continuous-improvement@continuous-improvement` is `<plugin>@<marketplace>`.
 
-**Update.** Plugin: `claude plugin marketplace update continuous-improvement`, then `claude plugin update continuous-improvement@continuous-improvement`. The new version loads in your next session, or after `/reload-plugins`. Claude Code keeps a cached plugin until its version number changes, so the changes under Unreleased in [CHANGELOG.md](CHANGELOG.md) reach an installed plugin with the first release that raises the version. npm: run the same `npx` command again. With `--mode expert`, run `npx continuous-improvement install --uninstall` first, because a re-run keeps the existing MCP server entry and its old path.
+**Update.** Plugin: `claude plugin marketplace update continuous-improvement`, then `claude plugin update continuous-improvement@continuous-improvement`. The new version loads in your next session, or after `/reload-plugins`. Claude Code keeps a cached plugin until its version number changes, so changes merged after the latest release reach an installed plugin with the first release that raises the version. [CHANGELOG.md](CHANGELOG.md) lists each release. npm: run the same `npx` command again. With `--mode expert`, run `npx continuous-improvement install --uninstall` first, because a re-run keeps the existing MCP server entry and its old path.
 
 **Uninstall the plugin.**
 
@@ -362,7 +359,7 @@ The plugin overlaps Claude Code in five places. The destructive-command deny ove
 <details>
 <summary><b>All 29 commands, and what each one needs</b></summary>
 
-They are Claude Code commands: they ship in the plugin, and the npm installer writes 14 of them for Claude Code. Other agents get the skills, not these commands. Each command's full name is `/continuous-improvement:<name>`. Type it when another plugin has a command with the same short name. "The 7 Laws" is the plugin's name for its research, plan, execute, verify, reflect, learn, iterate loop, written out in [SKILL.md](SKILL.md).
+They are Claude Code commands: they ship in the plugin, and the npm installer writes 14 of them for Claude Code. Other agents get the skills, not these commands. The agents with no command files (Codex, GitHub Copilot CLI, Devin, Kiro, Goose and Amp) get the 13 commands without a same-name skill as skills. Each command's full name is `/continuous-improvement:<name>`. Type it when another plugin has a command with the same short name. "The 7 Laws" is the plugin's name for its research, plan, execute, verify, reflect, learn, iterate loop, written out in [SKILL.md](SKILL.md).
 
 ```
 Memory and lessons
@@ -405,7 +402,7 @@ Reference and setup
 /companion-preference             Summarize companion-preference hook telemetry                   [clone]
 ```
 
-All 29 ship in the plugin bundle. `[MCP]` means the command calls an MCP tool; the plugin install registers the server, so it works after the two-command install. `[clone]` means the command runs a script that exists only in a clone of this repository.
+All 29 ship in the plugin bundle. `[MCP]` means the command calls an MCP tool; the plugin install registers the server, so it works after the two-command install. `[clone]` means the command runs `node bin/<script>.mjs` from the current directory and the plugin bundle does not ship that script, so run the command from inside a clone of this repository.
 
 The npm installer writes 14 of them: continuous-improvement, dashboard, discipline, harvest, learn-eval, planning-with-files, proceed-with-the-recommendation, ralph, release-train, seven-laws, superpowers, swarm, verify-install and workspace-surface-audit.
 
@@ -488,7 +485,7 @@ Also read: `CI_INSTINCTS_HOME` (the instincts root, default `~/.claude/instincts
 <details>
 <summary><b>Command-line tools in the npm package</b></summary>
 
-Run them after `npm i -g continuous-improvement`, or as `npx -p continuous-improvement <command>`. The agent installs and `ci doctor` and `ci lessons` are in the release after 3.27.0; until then run them from a clone ([Install](#install)).
+Run them after `npm i -g continuous-improvement`, or as `npx -p continuous-improvement <command>`.
 
 | Command | What it does |
 |---|---|
@@ -498,7 +495,7 @@ Run them after `npm i -g continuous-improvement`, or as `npx -p continuous-impro
 | `ci-plan-pack <plan.md>` | Writes `<plan>.review.md`, a review packet |
 | `ci-audit-actions` | Static scan of `.github/workflows` for permission, pinning, timeout, concurrency and injection findings |
 | `ci-portfolio-health` | Scores the repositories in a `portfolio/repos.json` registry from local signals |
-| `ci` | `ci doctor --agent <agent>` shows what an installed agent loaded. `ci lessons --format <agent> --write` writes the lessons as a rules file. `ci generate <repository-path>` analyzes a repository and writes a command-line wrapper for it, using the bundled CLI-Anything library ([`lib/cli-anything.mjs`](lib/cli-anything.mjs)). Known issue: the wrapper that `ci generate` writes prints nothing on Windows (its entry-point check never matches a Windows path), tracked for the next release |
+| `ci` | `ci doctor --agent <agent>` shows what an installed agent loaded. `ci lessons --format <agent> --write` writes the lessons as a rules file. `ci generate <repository-path>` analyzes a repository and writes a command-line wrapper for it, using the bundled CLI-Anything library ([`lib/cli-anything.mjs`](lib/cli-anything.mjs)). Known issue: the wrapper that `ci generate` writes prints nothing on Windows (its entry-point check never matches a Windows path). It is open and logged in [docs/deferred.md](docs/deferred.md) |
 
 </details>
 
