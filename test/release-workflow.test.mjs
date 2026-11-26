@@ -18,4 +18,25 @@ describe("release workflow", () => {
         assert.ok(publishIndex > upgradeIndex, "publish job must upgrade npm before publishing");
         assert.doesNotMatch(publishJob, /\bnpx\b[^\n]*npm[^\n]*publish/);
     });
+    it("gates on CI having passed on the tagged commit instead of re-running the suite", () => {
+        const workflow = readFileSync(workflowPath, "utf8");
+        const gateIndex = workflow.indexOf("actions/workflows/ci.yml/runs?head_sha=$GITHUB_SHA&event=push");
+        const publishIndex = workflow.indexOf("npm publish --access public --provenance");
+        assert.notEqual(gateIndex, -1, "release must look up ci.yml's push run for the tagged SHA");
+        assert.ok(publishIndex > gateIndex, "the CI gate must run before npm publish");
+        assert.match(workflow, /^      actions: read$/m, "the job needs actions: read to query workflow runs");
+        assert.doesNotMatch(workflow, /run: node --test test\/\*\.test\.mjs/, "release must not re-run the suite CI already ran");
+    });
+});
+describe("ci workflow", () => {
+    const ciPath = join(process.cwd(), ".github", "workflows", "ci.yml");
+    it("cancels stale PR runs but never cancels a push-to-main run the release gate depends on", () => {
+        const workflow = readFileSync(ciPath, "utf8");
+        assert.match(workflow, /^concurrency:\n  group: ci-\$\{\{ github\.event_name == 'pull_request' && github\.ref \|\| github\.sha \}\}\n  cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}$/m);
+    });
+    it("runs the suite once, after the explicit build step", () => {
+        const workflow = readFileSync(ciPath, "utf8");
+        assert.match(workflow, /node --test test\/\*\.test\.mjs 2>&1 \| tee test-run\.log/);
+        assert.doesNotMatch(workflow, /npm test 2>&1/, "npm test rebuilds; the build step already ran");
+    });
 });
