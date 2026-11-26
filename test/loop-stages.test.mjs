@@ -379,6 +379,10 @@ describe("the landing page's loop block", () => {
     it("gives every step, in order, its name, its mark, its law and the hook files behind it", () => {
         const rows = [...html.matchAll(/<p class="step-top"><b>([^<]+)<\/b><span class="mark"><i class="m \w+" aria-hidden="true"><\/i>([^<]+)<\/span><\/p>\n\s*<p class="step-sub">Law (\d), ([^·]+) · (.*)<\/p>/g)];
         assert.equal(rows.length, LOOP_STAGES.length);
+        const items = [...html.matchAll(/<li data-loop="([^"]+)" data-mark="(\w+)">\n\s*<div>\n\s*<p class="step-top">.*?<i class="m (\w+)"/g)];
+        assert.deepEqual(items.map((m) => m[1]), LOOP_STAGES.map((stage) => stage.name), "the names landing.js reads");
+        for (const [, name, mark, square] of items)
+            assert.equal(mark, square, `${name}: the mark landing.js reads is the mark the page prints`);
         LOOP_STAGES.forEach((stage, i) => {
             const [, name, mark, law, title, backing] = rows[i];
             assert.equal(name, stage.name);
@@ -466,7 +470,7 @@ describe("the landing page's first screen", () => {
         assert.deepEqual(tiles.map((t) => t.title), PILLARS.map((p) => `${p.name}. ${p.claim.charAt(0).toUpperCase()}${p.claim.slice(1)}.`));
         assert.ok(tiles[0].body.includes(PILLARS[0].ships), "Ambition names the skill");
         assert.match(tiles[0].body, /It is guidance the agent reads\. No hook checks that it was followed\./);
-        assert.match(tiles[1].body, /With the hooks installed, hooks\/gateguard\.mjs refuses destructive commands and blind edits before they run\./);
+        assert.match(tiles[1].body, /With the hooks installed, hooks\/gateguard\.mjs refuses destructive commands and blind edits \(an edit of an existing file the session has not read\) before they run\./);
         assert.match(tiles[1].body, /bin\/observe\.mjs logs each tool call that runs/);
         assert.ok(hero.indexOf("<h1") < hero.indexOf('<ul class="tiles') && hero.indexOf('<ul class="tiles') < hero.indexOf('id="install"'), "headline, pillars, install");
     });
@@ -499,8 +503,8 @@ describe("the landing page's first screen", () => {
 });
 describe("the landing page's pillar sections", () => {
     const sections = [...landing.matchAll(/<section class="[^"]*" id="([^"]+)" data-cam="([^"]+)"/g)].map((m) => ({ id: m[1], cam: m[2] }));
-    it("follow the hero in the order loop, Ambition, Discipline, agents, all on the hero camera", () => {
-        assert.deepEqual(sections.slice(0, 6).map((s) => `${s.id}:${s.cam}`), ["top:hero", "loop:hero", "ambition:hero", "discipline:hero", "agents:hero", "native:native"]);
+    it("follow the hero in the order loop, Ambition, Discipline, agents, each on its own camera", () => {
+        assert.deepEqual(sections.slice(0, 6).map((s) => `${s.id}:${s.cam}`), ["top:hero", "loop:loop", "ambition:ambition", "discipline:gate", "agents:agents", "native:native"]);
     });
     it("use only camera names landing.js has a view for, so no section falls back to the hero view by accident", () => {
         const js = read("docs/landing/landing.js");

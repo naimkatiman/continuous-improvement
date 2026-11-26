@@ -32,16 +32,19 @@
 
   The page is visual first. Each section is a headline, one line, and a set piece in the 3D world;
   every table and capture the page proves its claims with stays in the markup, inside a disclosure.
-  landing.js reads its data from the markup: the replay chips (data-call, in the Discipline section),
-  the hooks table rows (tr[data-hook]) and the cost list (li[data-cost]). Change the markup and the
-  world follows.
+  landing.js reads its data from the markup: the loop's steps and their marks (li[data-loop]), the
+  replay chips (data-call, in the Discipline section), the hooks table rows (tr[data-hook]) and the
+  cost list (li[data-cost]). Change the markup and the world follows.
 
-  The page leads with two pillars and one loop (docs/plans/2026-11-25-two-pillars.md). The sections
-  Loop, Ambition, Discipline and Agents have no set piece of their own: data-cam="hero" keeps the hero
-  camera, and with it the gate, the one hook file every agent calls, beside them. landing.js replays
-  the chips while a hero-camera section is on screen, and floats the verdict card beside the gate; the
-  script at the end of this file lets the card show only while Discipline is on screen. Class "follow"
-  drops the stage gap above a section on narrow screens, where the same scene would repeat.
+  The page leads with two pillars and one loop (docs/plans/2026-11-25-two-pillars.md), and so does the
+  world: the hero, Loop and Ambition each have a camera on one set, the two pillars inside a ring of
+  seven tablets edged in their marks. The gate is Discipline's (data-cam="gate", on that section only):
+  the replay chips, the idle autoplay, the red light and the floating verdict card run while Discipline
+  holds the camera and stop when it lets go. Agents looks at the same gate, idle, from its own key.
+  data-cam-hold keeps a section's view from its first screenful to its last when it is taller than the
+  screen. Class "follow" drops the stage gap above a section on narrow screens, where the set above it
+  would repeat. Without WebGL or scripting the hero shows .still-loop, the same set as flat boxes, and
+  without WebGL Discipline shows .still, a flat gate.
 
   Three blocks are written by scripts, not by hand, and a check fails when one differs from its source:
     - between the loop-table markers: the seven steps, their marks and the reach line, from
@@ -55,6 +58,8 @@
   hand and pinned by src/test/check-agent-matrix.test.mts.
   src/test/loop-stages.test.mts pins the headline, the pillar tiles, the install switch's default state,
   the section order, the exhibit step tags, the gap count in Limits and the image alt text.
+  src/test/landing-scene.test.mts runs landing.js on this file: what each section's camera shows, where the
+  replay may run, the still, and the switch names.
 
   Lints in "npm run verify:all" pin the markup below, and every release rewrites the version in it.
   Keep these exactly as they are written:
@@ -124,7 +129,7 @@ code { overflow-wrap: anywhere; }
 .hud { position: absolute; left: 0; top: 0; opacity: 0; visibility: hidden; transition: opacity 0.35s var(--ease), visibility 0s linear 0.35s; will-change: transform; }
 .hud.show { opacity: 1; visibility: visible; transition: opacity 0.35s var(--ease); }
 .leader { position: absolute; left: 0; top: 0; height: 1px; transform-origin: 0 50%; background: linear-gradient(90deg, rgba(241, 238, 234, 0.5), rgba(241, 238, 234, 0.08)); opacity: 0; transition: opacity 0.35s var(--ease); }
-.at-discipline .leader.show { opacity: 1; }
+.leader.show { opacity: 1; }
 .hud.ev { translate: -50% 6px; text-align: center; font-size: 13.5px; color: var(--soft); line-height: 1.25; text-shadow: 0 1px 8px #0b0b0c, 0 0 2px #0b0b0c; }
 .hud.ev span { display: block; font-weight: 600; color: var(--text); }
 .hud.ev.far { translate: -50% calc(-100% - 6px); }
@@ -152,6 +157,12 @@ code { overflow-wrap: anywhere; }
 .hud.lane { translate: 34px -50%; font-size: 13.5px; color: var(--amber); text-align: left; white-space: nowrap; background: rgba(11, 11, 12, 0.85); border: 1px solid var(--line-2); border-radius: 10px; padding: 7px 12px; }
 .hud.lane::before { content: ""; position: absolute; right: 100%; top: 50%; width: 22px; height: 1px; background: var(--amber); opacity: 0.7; }
 .hud.lane code { display: block; color: var(--text); font-size: 12.5px; }
+
+@media (max-width: 1100px) {
+  .hud.pillar { font-size: 12px; padding: 3px 8px; border-radius: 8px; }
+  .hud.pillar b { margin-right: 0; }
+  .hud.pillar span, .hud.step { display: none; }
+}
 
 /* ---------- header ---------- */
 header { position: fixed; top: 0; left: 0; right: 0; z-index: 20; backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2); background: linear-gradient(rgba(15, 13, 12, 0.78), rgba(15, 13, 12, 0.5)); border-bottom: 1px solid var(--line); }
@@ -190,7 +201,7 @@ h3 { font: 600 17px/1.3 var(--sans); margin: 0 0 8px; letter-spacing: -0.005em; 
 .note { font-size: 13.5px; color: var(--muted); margin: 14px 0 0; max-width: 40em; }
 
 /* ---------- hero ---------- */
-.hero { min-height: 100vh; min-height: 100svh; align-content: start; padding-top: max(120px, 15vh); }
+.hero { min-height: 100vh; min-height: 100svh; align-content: start; padding-top: max(112px, 13vh); }
 .hero .tiles { margin-top: 26px; }
 .hero .install { max-width: none; }
 .key { display: inline-flex; gap: 6px 12px; margin-left: 10px; color: var(--muted); font-size: 12.5px; align-items: center; flex-wrap: wrap; }
@@ -244,7 +255,7 @@ h3 { font: 600 17px/1.3 var(--sans); margin: 0 0 8px; letter-spacing: -0.005em; 
 .chip[data-note] em { color: var(--amber); }
 
 .verdict { position: fixed; left: 0; top: 0; z-index: 3; width: 340px; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--line-2); background: rgba(14, 12, 11, 0.82); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); opacity: 0; visibility: hidden; transition: opacity 0.4s var(--ease), visibility 0s linear 0.4s; box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.6); }
-.at-discipline .verdict.on.float { opacity: 1; visibility: visible; transition: opacity 0.4s var(--ease); }
+.verdict.on.float { opacity: 1; visibility: visible; transition: opacity 0.4s var(--ease); }
 .verdict.pending .vc-verdict, .verdict.pending .vc-rule, .verdict.pending .vc-note { opacity: 0.25; transition: opacity 0.2s; }
 .vc-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .vc-cmd { font: 13px var(--mono); color: var(--text); overflow-wrap: anywhere; }
@@ -450,7 +461,22 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
 .foot-links a { text-decoration: none; }
 .foot-links a:hover { color: var(--text); }
 
-/* ---------- no WebGL: a still gate drawn in CSS stands in for the world ---------- */
+/* ---------- no WebGL or no scripting: flat boxes stand in for the world ---------- */
+/* The hero's still: the two pillars and the seven tablets, each edged in its step's mark. */
+.still-loop { display: none; grid-column: 2; align-self: center; justify-self: center; width: min(100% - 48px, 560px); height: auto; margin-left: 48px; }
+.nogl .still-loop { display: block; }
+.still-loop .ring { fill: none; stroke: #4a4744; stroke-width: 2; }
+.still-loop .t { stroke-width: 3; fill: #1b1817; stroke: #6b6560; }
+.still-loop .t.deny { stroke: var(--signal); }
+.still-loop .t.on { stroke: var(--paper); }
+.still-loop .t.off { fill: #35383d; stroke: #5d6168; }
+.still-loop .t.none { fill: none; stroke-width: 1; }
+.still-loop .ln { stroke: #6b6560; stroke-width: 2; }
+.still-loop .block { fill: #4b4f55; }
+.still-loop .joint { fill: var(--paper); }
+.still-loop .cap { fill: #8c9097; }
+.still-loop text { font: 600 17px var(--sans); fill: var(--text); text-anchor: middle; }
+/* Discipline's still: the gate, without WebGL only. */
 .still { display: none; }
 .nogl .still { display: block; position: relative; height: 260px; margin-top: 36px; max-width: 560px; border-radius: 16px; border: 1px solid var(--line); background: radial-gradient(60% 80% at 60% 70%, #221d1a, var(--bg-2)); overflow: hidden; }
 .still i { position: absolute; bottom: 40px; background: #3a3532; border-radius: 6px; }
@@ -471,13 +497,14 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
 /* ---------- narrow screens: the world sits above the copy ---------- */
 @media (max-width: 860px) {
   .sec { grid-template-columns: minmax(0, 1fr); min-height: 0; padding: 0 var(--gutter) 64px; align-items: start; }
+  .still-loop { grid-column: 1; order: -1; width: 100%; max-width: 420px; margin: 0 auto 24px; }
   .gl .sec { padding-top: 54vh; }
   .gl .hero { padding-top: 40vh; min-height: 0; }
   .brand { font-size: 14px; }
   .gl .wide-sec { padding-top: 96px; }
   .gl .sec.follow { padding-top: 40px; scroll-margin-top: 44px; }
   .gl .sec.follow > .copy::before { background: rgba(15, 13, 12, 0.9); }
-  .stage-covered .hud.plus { display: none; }
+  .stage-covered .hud.plus, .stage-covered .hud.pillar { display: none; }
   .power code { white-space: normal; overflow-wrap: anywhere; }
   .step-code { white-space: pre-wrap; }
   .gl .sec > .copy { position: relative; padding-top: 40px; margin-top: -40px; }
@@ -521,6 +548,7 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
   body { background: #fff; color: #000; }
 }
 </style>
+<noscript><style>.still-loop { display: block; }</style></noscript>
 </head>
 <body class="no-js">
 <a class="skip" href="#main">Skip to content</a>
@@ -558,14 +586,14 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
 
 <main id="main" tabindex="-1">
 
-  <section class="sec hero" id="top" data-cam="hero" data-cam-top aria-labelledby="h-top">
+  <section class="sec hero" id="top" data-cam="hero" data-cam-top data-cam-hold aria-labelledby="h-top">
     <div class="copy">
       <span class="kicker"><i aria-hidden="true"></i><b>16 coding agents</b> REV 3.28.0</span>
       <h1 id="h-top"><span class="nb">Aim high.</span> <span class="nb">Stay in control.</span></h1>
       <p class="lead">Two pillars and one working loop for the coding agent you already use. Research, plan, implement, review, contemplate, relearn and learn, iterate.</p>
       <ul class="tiles pillars">
         <li><b>Ambition. You have big goals.</b>The <code>be-ambitious</code> skill tells the agent to work on the goal behind the task, with a target and a check set before it starts. It is guidance the agent reads. No hook checks that it was followed. <a href="#ambition">What it tells the agent</a></li>
-        <li><b>Discipline. You control the AI.</b>With the hooks installed, <code>hooks/<wbr>gateguard.mjs</code> refuses destructive commands and blind edits before they run. <code>bin/<wbr>observe.mjs</code> logs each tool call that runs, on your machine. Stricter gates are switches you set. <a href="#discipline">What you control</a></li>
+        <li><b>Discipline. You control the AI.</b>With the hooks installed, <code>hooks/<wbr>gateguard.mjs</code> refuses destructive commands and blind edits (an edit of an existing file the session has not read) before they run. <code>bin/<wbr>observe.mjs</code> logs each tool call that runs, on your machine. Stricter gates are switches you set. <a href="#discipline">What you control</a></li>
       </ul>
 
       <div class="install" id="install">
@@ -587,16 +615,23 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
         </div>
       </div>
     </div>
+    <svg class="still-loop" viewBox="0 0 520 400" aria-hidden="true">
+      <ellipse class="ring" cx="260" cy="300" rx="250" ry="92"/>
+      <rect class="t none" data-step="5" x="399" y="178" width="50" height="58" rx="4"/><rect class="t on" data-step="6" x="227" y="166" width="50" height="58" rx="4"/><path class="ln" d="M239 188h16m-16 12h6"/><rect class="t none" data-step="7" x="79" y="178" width="50" height="58" rx="4"/>
+      <path class="block" d="M150 254h54v42h-54zM153 207h48v42h-48zM156 160h42v42h-42zM159 113h36v42h-36zM162 66h30v42h-30zM291 263h104v33h-104zM291 227h104v33h-104zM291 191h104v33h-104zM291 155h104v33h-104z"/><path class="joint" d="M152 250h50v3h-50zM155 203h44v3h-44zM158 156h38v3h-38zM161 109h32v3h-32zM164 62h26v3h-26zM293 260h100v2h-100zM293 224h100v2h-100zM293 188h100v2h-100zM168 48h18v14h-18z"/><path class="cap" d="M284 142h118v11h-118z"/>
+      <rect class="t deny" data-step="1" x="39" y="226" width="68" height="78" rx="4"/><path class="ln" d="M51 248h34m-34 12h24"/><rect class="t off" data-step="2" x="143" y="284" width="68" height="78" rx="4"/><path class="ln" d="M155 306h34m-34 12h24"/><rect class="t deny" data-step="3" x="309" y="284" width="68" height="78" rx="4"/><path class="ln" d="M321 306h34m-34 12h24"/><rect class="t off" data-step="4" x="413" y="226" width="68" height="78" rx="4"/><path class="ln" d="M425 248h34m-34 12h24"/>
+      <text x="177" y="36">Ambition</text><text x="343" y="130">Discipline</text>
+    </svg>
   </section>
 
-  <section class="sec follow" id="loop" data-cam="hero" aria-labelledby="h-loop">
+  <section class="sec follow" id="loop" data-cam="loop" data-cam-hold aria-labelledby="h-loop">
     <div class="copy">
       <h2 id="h-loop">Seven steps. Each one says what backs it.</h2>
-      <p class="lead">One working loop, in the order the work happens. Each step restates one of the 7 Laws of the core skill. The mark beside it says what code backs it, and where it says None there is no code.</p>
+      <p class="lead">One working loop, in the order the work happens. Each step restates one of the 7 Laws, the rules in the core skill (<code class="nb">continuous-improvement</code>) that every agent in the <a href="#agents">agent table</a> gets. The mark beside it says what code backs it, and where it says None there is no code.</p>
 <!-- loop-table:start -->
       <div class="ex loop">
       <ol class="steps">
-        <li>
+        <li data-loop="Research" data-mark="deny">
           <div>
             <p class="step-top"><b>Research</b><span class="mark"><i class="m deny" aria-hidden="true"></i>Refuses by default</span></p>
             <p class="step-sub">Law 1, Research Before Executing · <code>hooks/gateguard.mjs</code>: an edit with no read</p>
@@ -611,7 +646,7 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
             </details>
           </div>
         </li>
-        <li>
+        <li data-loop="Plan" data-mark="off">
           <div>
             <p class="step-top"><b>Plan</b><span class="mark"><i class="m off" aria-hidden="true"></i>Off until you switch it on</span></p>
             <p class="step-sub">Law 2, Plan Is Sacred · <code>hooks/goal-drift-stop.mjs</code>: Claude Code only</p>
@@ -626,7 +661,7 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
             </details>
           </div>
         </li>
-        <li>
+        <li data-loop="Implement" data-mark="deny">
           <div>
             <p class="step-top"><b>Implement</b><span class="mark"><i class="m deny" aria-hidden="true"></i>Refuses by default</span></p>
             <p class="step-sub">Law 3, One Thing at a Time · <code>hooks/gateguard.mjs</code>: destructive commands</p>
@@ -641,7 +676,7 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
             </details>
           </div>
         </li>
-        <li>
+        <li data-loop="Review" data-mark="off">
           <div>
             <p class="step-top"><b>Review</b><span class="mark"><i class="m off" aria-hidden="true"></i>Off until you switch it on</span></p>
             <p class="step-sub">Law 4, Verify Before Reporting · <code>hooks/typecheck-stop.mjs</code>: TypeScript only</p>
@@ -656,7 +691,7 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
             </details>
           </div>
         </li>
-        <li>
+        <li data-loop="Contemplate" data-mark="none">
           <div>
             <p class="step-top"><b>Contemplate</b><span class="mark"><i class="m none" aria-hidden="true"></i>None</span></p>
             <p class="step-sub">Law 5, Reflect After Every Session · a written rule, no hook</p>
@@ -671,7 +706,7 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
             </details>
           </div>
         </li>
-        <li>
+        <li data-loop="Relearn and learn" data-mark="on">
           <div>
             <p class="step-top"><b>Relearn and learn</b><span class="mark"><i class="m on" aria-hidden="true"></i>Records and loads</span></p>
             <p class="step-sub">Law 7, Learn From Every Session · <code>bin/observe.mjs</code>, <code>hooks/session.mjs</code></p>
@@ -686,7 +721,7 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
             </details>
           </div>
         </li>
-        <li>
+        <li data-loop="Iterate" data-mark="none">
           <div>
             <p class="step-top"><b>Iterate</b><span class="mark"><i class="m none" aria-hidden="true"></i>None</span></p>
             <p class="step-sub">Law 6, Iterate Means One Thing · a written rule, no hook</p>
@@ -715,7 +750,7 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
     </div>
   </section>
 
-  <section class="sec follow" id="ambition" data-cam="hero" aria-labelledby="h-ambition">
+  <section class="sec follow" id="ambition" data-cam="ambition" data-cam-hold aria-labelledby="h-ambition">
     <div class="copy">
       <h2 id="h-ambition"><span class="nb">Pillar one.</span> <span class="nb">You have big goals.</span></h2>
       <p class="lead"><code>be-ambitious</code> is a bundled skill. One task goes in. It is guidance, and this is what it tells the agent to do.</p>
@@ -739,7 +774,7 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
     </div>
   </section>
 
-  <section class="sec" id="discipline" data-cam="hero" aria-labelledby="h-discipline">
+  <section class="sec" id="discipline" data-cam="gate" data-cam-hold aria-labelledby="h-discipline">
     <div class="copy">
       <h2 id="h-discipline"><span class="nb">Pillar two.</span> <span class="nb">You control the AI.</span></h2>
       <p class="lead">The AI does not control you. That is the goal. Here is what you control today, in four parts.</p>
@@ -848,7 +883,7 @@ Destructive Bash gates EVERY call — clearance is not cached.
     </div>
   </section>
 
-  <section class="sec follow" id="agents" data-cam="hero" aria-labelledby="h-agents">
+  <section class="sec follow" id="agents" data-cam="agents" data-cam-hold aria-labelledby="h-agents">
     <div class="copy">
       <h2 id="h-agents">16 agents. One hook file.</h2>
       <p class="lead">Each agent sends its tool call to the same file, <code>hooks/<wbr>gateguard.mjs</code>, and the answer comes back in the format that agent reads.</p>
@@ -1087,7 +1122,7 @@ Destructive Bash gates EVERY call — clearance is not cached.
                 <th scope="row"><i class="m warn" aria-hidden="true"></i> <span class="no">03</span><span class="ev">PreToolUse</span> <code>hooks/<wbr>hook-pack.mjs</code></th>
                 <td data-l="What it does">Flags <code>git push</code> to <code>main</code>, <code>master</code> or <code>release/*</code>, and <code>git commit</code> with more than 15 staged files (Exhibit B).</td>
                 <td data-l="Default"><span class="st">warn only</span></td>
-                <td data-l="Switch"><code>CLAUDE_CI_HOOKPACK_GATE=block</code>, <code>warn</code> or <code>off</code>.</td>
+                <td data-l="Switch"><code>CI_HOOKPACK_GATE=block</code>, <code>warn</code> or <code>off</code>.</td>
                 <td data-l="Cost">1 process per shell call, plus <code>git</code> on push and commit commands.</td>
               </tr>
               <tr data-hook="04" data-summary="Flags changes to the files that wire the guardrails." data-event="PreToolUse" data-state="warn" data-file="hooks/config-guard.mjs">
@@ -1115,7 +1150,7 @@ Destructive Bash gates EVERY call — clearance is not cached.
                 <th scope="row"><i class="m off" aria-hidden="true"></i> <span class="no">07</span><span class="ev">UserPromptSubmit</span> <code>hooks/<wbr>recall-briefing.mjs</code></th>
                 <td data-l="What it does">Once per session, on the first prompt of 12 or more characters that matches the log, injects the top 3 search hits.</td>
                 <td data-l="Default"><span class="st">off</span></td>
-                <td data-l="Switch"><code>CLAUDE_RECALL_BRIEFING=1</code>.</td>
+                <td data-l="Switch"><code>CI_RECALL_BRIEFING=1</code>.</td>
                 <td data-l="Cost">1 process per prompt. On: one reminder per session (533 characters in our capture).</td>
               </tr>
               <tr data-hook="08" data-summary="Prints your recorded lessons at session start." data-event="SessionStart" data-state="on" data-file="hooks/session.mjs">
@@ -1136,42 +1171,42 @@ Destructive Bash gates EVERY call — clearance is not cached.
                 <th scope="row"><i class="m off" aria-hidden="true"></i> <span class="no">10</span><span class="ev">Stop</span> <code>hooks/<wbr>three-section-close.mjs</code></th>
                 <td data-l="What it does">Sends back any reply of 600 or more characters that lacks three fixed headings. It checks headings, not evidence: a house style. It reads the reply from a Claude Code transcript, so it works on Claude Code only.</td>
                 <td data-l="Default"><span class="st">off</span></td>
-                <td data-l="Switch"><code>CLAUDE_THREE_SECTION_CLOSE=1</code> turns it on. <code>CLAUDE_THREE_SECTION_<wbr>CLOSE_DISABLED=1</code> forces it off.</td>
+                <td data-l="Switch"><code>CI_THREE_SECTION_CLOSE=1</code> turns it on. <code>CI_THREE_SECTION_<wbr>CLOSE_DISABLED=1</code> forces it off.</td>
                 <td data-l="Cost">1 process per turn end. On: a 359-character block reason and a rewritten reply. Writes one row per turn end with a reply to <code>~/.claude/hook-telemetry/</code>.</td>
               </tr>
               <tr data-hook="11" data-summary="Scores recent tool calls against the goal in task_plan.md." data-event="Stop" data-state="warn" data-file="hooks/goal-drift-stop.mjs">
                 <th scope="row"><i class="m warn" aria-hidden="true"></i> <span class="no">11</span><span class="ev">Stop</span> <code>hooks/<wbr>goal-drift-stop.mjs</code></th>
                 <td data-l="What it does">Scores the last 30 logged tool calls for the repository against keywords from <code>## Goal</code> in <code>task_plan.md</code>. Without a goal file it warns of nothing and only records <code>no-goal</code> in its state file. In block mode it reads the reply from a Claude Code transcript, so the block is shown to work on Claude Code only.</td>
                 <td data-l="Default"><span class="st">warn only</span></td>
-                <td data-l="Switch"><code>CLAUDE_GOAL_DRIFT_GATE=block</code>, <code>warn</code> or <code>off</code>.</td>
+                <td data-l="Switch"><code>CI_GOAL_DRIFT_GATE=block</code>, <code>warn</code> or <code>off</code>.</td>
                 <td data-l="Cost">1 process per turn end. Rewrites <code>goal-drift-state.json</code> at every turn end unless off.</td>
               </tr>
               <tr data-hook="12" data-summary="Suggests distilling a Workflow run after a passing verify." data-event="Stop" data-state="off" data-file="hooks/workflow-distill.mjs">
                 <th scope="row"><i class="m off" aria-hidden="true"></i> <span class="no">12</span><span class="ev">Stop</span> <code>hooks/<wbr>workflow-distill.mjs</code></th>
                 <td data-l="What it does">After a Workflow run followed by a passing verify, suggests the <code>ci_distill_from_workflow</code> tool. The suggestion goes to stderr even when on.</td>
                 <td data-l="Default"><span class="st">off</span></td>
-                <td data-l="Switch"><code>CLAUDE_WORKFLOW_DISTILL_<wbr>NUDGE=on</code>.</td>
+                <td data-l="Switch"><code>CI_WORKFLOW_DISTILL_<wbr>NUDGE=on</code>.</td>
                 <td data-l="Cost">1 process per turn end.</td>
               </tr>
               <tr data-hook="13" data-summary="Runs your typecheck at turn end and returns the failing lines." data-event="Stop" data-state="off" data-file="hooks/typecheck-stop.mjs">
                 <th scope="row"><i class="m off" aria-hidden="true"></i> <span class="no">13</span><span class="ev">Stop</span> <code>hooks/<wbr>typecheck-stop.mjs</code></th>
                 <td data-l="What it does">Runs the project typecheck when a TypeScript file changed and returns the failing lines (Exhibit C).</td>
                 <td data-l="Default"><span class="st">off</span></td>
-                <td data-l="Switch"><code>CLAUDE_TYPECHECK_GATE=block</code>, <code>warn</code> or <code>off</code>.</td>
+                <td data-l="Switch"><code>CI_TYPECHECK_GATE=block</code>, <code>warn</code> or <code>off</code>.</td>
                 <td data-l="Cost">1 process per turn end. On: your typecheck's run time, with a 25 second cap.</td>
               </tr>
               <tr data-hook="14" data-summary="Adds a query-cost reminder when database paths changed." data-event="Stop" data-state="off" data-file="hooks/query-cost-nudge.mjs">
                 <th scope="row"><i class="m off" aria-hidden="true"></i> <span class="no">14</span><span class="ev">Stop</span> <code>hooks/<wbr>query-cost-nudge.mjs</code></th>
                 <td data-l="What it does">When <code>.sql</code>, <code>.prisma</code>, <code>migrations/</code>, <code>db/</code>, <code>schema.*</code> or <code>drizzle</code> paths changed, adds a query-cost reminder once per session.</td>
                 <td data-l="Default"><span class="st">off</span></td>
-                <td data-l="Switch"><code>CLAUDE_QUERY_COST_NUDGE=on</code>.</td>
+                <td data-l="Switch"><code>CI_QUERY_COST_NUDGE=on</code>.</td>
                 <td data-l="Cost">1 process per turn end. On: one reminder per session and a marker file.</td>
               </tr>
             </tbody>
           </table>
           </div>
           <h3 style="margin-top:18px">How the switches read.</h3>
-          <p>Every switch but one is an environment variable, set in the shell your agent starts from or, on Claude Code, in a settings file's <code>env</code> block. Each <code>CLAUDE_*</code> switch also reads under a <code>CI_*</code> name, such as <code>CI_TYPECHECK_GATE</code> and <code>CI_HOOKPACK_GATE</code>. Values are read without case, and an unknown value falls back to the default. One exception: <code>CLAUDE_THREE_SECTION_<wbr>CLOSE_DISABLED</code> must be exactly <code>1</code>.</p>
+          <p>Every switch but one is an environment variable, set in the shell your agent starts from or, on Claude Code, in a settings file's <code>env</code> block. Where a <code>CI_*</code> switch has an older <code>CLAUDE_*</code> name, such as <code>CLAUDE_TYPECHECK_GATE</code> or <code>CLAUDE_CI_HOOKPACK_GATE</code>, either name works. When both are set, the older name wins. The captures on this page use the older names. Values are read without case, and an unknown value falls back to the default. One exception: <code>CI_THREE_SECTION_<wbr>CLOSE_DISABLED</code> must be exactly <code>1</code>.</p>
           <h3 style="margin-top:18px">Also in the bundle, not hooks.</h3>
           <ul class="plain">
             <li><b>An MCP server</b>, registered by the plugin and local to your machine: 19 tools for search, lessons, goal checks and planning files.</li>
@@ -1242,7 +1277,7 @@ $ HOME=home USERPROFILE=home CLAUDE_PROJECT_DIR=acme-api node hooks/gateguard.mj
               <div><dt>Claude Code</dt><dd>In auto mode the classifier blocks force pushes, <code class="nb">git reset --hard</code> and <code class="nb">git clean -fd</code>. Deny rules and hook denies hold in every mode, <code>bypassPermissions</code> included, but Claude Code ships no rule content for either.</dd></div>
               <div><dt>This adds</dt><dd>The rule content, as a hook deny: recursive deletes, discarding git commands, forced pushes, <code class="nb">find -delete</code>, SQL drops, PowerShell and cmd deletes, read through <code class="nb">bash -c</code>, <code class="nb">pwsh -c</code> and <code class="nb">git -C</code>. The reason names the rule.</dd></div>
               <div><dt>Default</dt><dd>On, every call. Nothing is cached and the model cannot clear it.</dd></div>
-              <div><dt>Switch</dt><dd>None. To stop it, <a href="#off">disable the plugin</a>.</dd></div>
+              <div><dt>Switch</dt><dd>None. To stop it, <a href="#off">turn the hooks off</a>.</dd></div>
               <div><dt>Cost</dt><dd>One Node process per shell or edit call. About 300 characters to the model on a deny.</dd></div>
             </dl>
           </div>
@@ -1268,7 +1303,7 @@ stderr: [hook-pack] Direct push to protected branch "main" — open a feature br
               <div><dt>Claude Code</dt><dd>The auto mode classifier allows a push to any branch of the repository you are working in, the default branch included.</dd></div>
               <div><dt>This adds</dt><dd>A refusal of <code>git push</code> to <code>main</code>, <code>master</code> or <code>release/*</code>, and of <code>git commit</code> with more than 15 staged files.</dd></div>
               <div><dt>Default</dt><dd>Warn: a stderr line with exit 0. It reaches nobody. Treat it as off.</dd></div>
-              <div><dt>Switch</dt><dd><code>CLAUDE_CI_HOOKPACK_GATE=block</code></dd></div>
+              <div><dt>Switch</dt><dd><code>CI_HOOKPACK_GATE=block</code></dd></div>
               <div><dt>Cost</dt><dd>One Node process per shell call, plus <code>git</code> on push and commit commands.</dd></div>
             </dl>
           </div>
@@ -1291,7 +1326,7 @@ stderr: (node:54464) [DEP0190] DeprecationWarning: Passing args to a child proce
               <div><dt>Claude Code</dt><dd><code>/goal</code> judges the transcript with a fresh model after each turn. It runs no commands.</dd></div>
               <div><dt>This adds</dt><dd>At turn end, if the working tree has an uncommitted TypeScript change, it runs your <code>typecheck</code> script (or the project's own <code class="nb">tsc --noEmit</code>) and returns the last 15 lines of output as the reason the turn cannot end.</dd></div>
               <div><dt>Default</dt><dd>Off.</dd></div>
-              <div><dt>Switch</dt><dd><code>CLAUDE_TYPECHECK_GATE=block</code></dd></div>
+              <div><dt>Switch</dt><dd><code>CI_TYPECHECK_GATE=block</code></dd></div>
               <div><dt>Cost</dt><dd>Off: one Node process per turn end that exits at once. On: your typecheck's run time, capped at 25 seconds.</dd></div>
             </dl>
           </div>
@@ -1316,7 +1351,7 @@ $ tail -1 home/.claude/instincts/67c11d834ccf/observations.jsonl</span>
               <div><dt>Claude Code</dt><dd>Keeps full transcripts, and auto memory keeps notes. Neither is a per-repository log of tool calls.</dd></div>
               <div><dt>This adds</dt><dd>One row per tool call in a local file: time, tool, the first 500 characters of input and 200 of output, with known secret shapes redacted before the row is written.</dd></div>
               <div><dt>Default</dt><dd>On.</dd></div>
-              <div><dt>Switch</dt><dd>None in the source. To stop it, <a href="#off">disable the plugin</a>.</dd></div>
+              <div><dt>Switch</dt><dd>None in the source. To stop it, <a href="#off">turn the hooks off</a>.</dd></div>
               <div><dt>Cost</dt><dd>One Node process per tool call. One file per repository, rotated at 10,000 rows.</dd></div>
             </dl>
           </div>
@@ -1347,7 +1382,7 @@ No past observations matched "kubernetes ingress". Try broader or different term
               <div><dt>Claude Code</dt><dd>Transcripts can be resumed or forked. No search command over them is documented.</dd></div>
               <div><dt>This adds</dt><dd><code>/recall</code> and the <code>ci_recall</code> tool: BM25 ranking over this repository's current log file. Lexical, not semantic.</dd></div>
               <div><dt>Default</dt><dd>The plugin registers a local MCP server with 19 tools. A search runs when you or the model call it.</dd></div>
-              <div><dt>Switch</dt><dd><code>CLAUDE_RECALL_BRIEFING=1</code> also injects the top 3 hits once per session.</dd></div>
+              <div><dt>Switch</dt><dd><code>CI_RECALL_BRIEFING=1</code> also injects the top 3 hits once per session.</dd></div>
               <div><dt>Cost</dt><dd>19 tool definitions: 8,279 characters as the server lists them, about 2,070 tokens, unless your client defers tool schemas.</dd></div>
             </dl>
           </div>
@@ -1404,7 +1439,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
   <section class="sec centered" id="cost" data-cam="cost" aria-labelledby="h-cost">
     <div class="copy">
       <h2 id="h-cost">It costs Node processes, not tokens.</h2>
-      <p class="lead">No model call, no network call, zero runtime dependencies. Each block is one Node process.</p>
+      <p class="lead">No model call, no network call, zero runtime dependencies. Each block is one Node process, counted on Claude Code. On another agent, each hook its install wired is one Node process per call.</p>
       <ul class="starts" aria-label="Node processes started">
         <li data-cost="1" data-label="Session start"><b>1</b>Session start, and session end</li>
         <li data-cost="2" data-label="Each prompt"><b>2</b>Each prompt (both exit at once when off)</li>
@@ -1429,7 +1464,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
             <li><b>A denied call:</b> the deny reason. About 300 characters for a destructive command, two lines for a blind edit.</li>
             <li><b>Everything else:</b> nothing until you switch it on.</li>
           </ul>
-          <p class="note">The counts are Claude Code's, where the plugin registers all 14. On another agent, each hook its install wired is one Node process per call. One start per matching registration. A call denied before it runs starts one fewer, because there is nothing to log. The Skill and Monitor rows are derived from the hook matchers, not observed. No millisecond figure is given: none was measured. Each start costs your machine's Node startup time plus the hook's own work. Token figures are characters divided by four. No tokenizer was run.</p>
+          <p class="note">The counts are Claude Code's, where the plugin registers all 14. One start per matching registration. A call denied before it runs starts one fewer, because there is nothing to log. The Skill and Monitor rows are derived from the hook matchers, not observed. No millisecond figure is given: none was measured. Each start costs your machine's Node startup time plus the hook's own work. Token figures are characters divided by four. No tokenizer was run.</p>
         </div>
       </details>
     </div>
@@ -1461,7 +1496,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
           </table>
           </div>
           <p class="note"><code>…</code> stands for <code>~/.claude/instincts/&lt;project-hash&gt;/</code>, one directory per repository. The hash is the first 12 hex characters of the SHA-256 of the project root path.</p>
-          <p class="note">The log holds command text, never your prompts. Known secret shapes are redacted before a row is written. A secret in an unknown shape is not, so review the log before sharing it. Uninstalling the plugin leaves both directories in place. The separate npm installer makes one throttled read of <code>registry.npmjs.org</code> to check for a newer version, and <code>CLAUDE_CI_UPDATE_CHECK=off</code> skips it.</p>
+          <p class="note">The log holds command text, never your prompts. Known secret shapes are redacted before a row is written. A secret in an unknown shape is not, so review the log before sharing it. Uninstalling the plugin leaves both directories in place. The separate npm installer makes one throttled read of <code>registry.npmjs.org</code> to check for a newer version, and <code>CI_UPDATE_CHECK=off</code> skips it.</p>
         </div>
       </details>
     </div>
@@ -1519,9 +1554,10 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
 
   <section class="sec" id="off" data-cam="off" aria-labelledby="h-off">
     <div class="copy">
-      <h2 id="h-off">Four steps to try it. One line to turn it off.</h2>
+      <h2 id="h-off">Five steps to try it. One line to turn it off.</h2>
       <ol class="steps">
-        <li><span>Install for your agent and do the one step it prints. On Claude Code, restart once.</span></li>
+        <li><span>Install for your agent and do what it prints (Codex: trust each hook in <code>/hooks</code>). On Claude Code, restart once.</span></li>
+        <li><span>Ask the agent to use the <code>be-ambitious</code> skill on a task you already have. On Claude Code: <code class="step-code">/be-ambitious &lt;task&gt;</code></span></li>
         <li><span>Ask the agent to delete a folder that does not exist. <code>hooks/gateguard.mjs</code> answers deny, and the reason names the rule. <code class="step-code">rm -rf ./no-such-dir  →  rm-recursive-force</code></span></li>
         <li><span>Work a few minutes, then have it search what ran with the <code>ci_recall</code> tool. On Claude Code: <code class="step-code">/recall typecheck</code></span></li>
         <li><span>In a TypeScript repository, on an agent in the full tier, start it with <code class="step-code">CI_TYPECHECK_GATE=block</code></span></li>
@@ -1533,7 +1569,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
       <details class="more">
         <summary>Verify, remove, update, and other install paths</summary>
         <div class="drawer">
-          <p>Node 18 or newer is the only requirement (CI runs 18, 20 and 22). The hooks need Node 18 or newer on your PATH. The directory in step 2 does not exist, so a broken install deletes nothing. A turn that leaves a type error in a changed file is sent back.</p>
+          <p>Node 18 or newer is the only requirement (CI runs 18, 20 and 22). The hooks need Node 18 or newer on your PATH. The directory in step 3 does not exist, so a broken install deletes nothing. A turn that leaves a type error in a changed file is sent back.</p>
           <p>On any agent, <code><span class="nb">npx -p</span> <span class="nb">continuous-improvement</span> ci doctor <span class="nb">--agent &lt;agent&gt;</span></code> shows what the agent loaded, using only its own listing commands. On Claude Code, run <code>/verify-install</code>. It confirms the commands loaded, probes the guard hook with an unquoted <code class="nb">git rev-parse @{u}</code>, which the hook refuses in every file-gate mode, and reads the log for a row. A wired install ends with <code>✓ wired — commands, gateguard, observe all confirmed.</code></p>
           <dl class="cmdlist">
             <div><dt>One rule</dt><dd>Its switch in <a href="#installs">Hooks</a>.</dd></div>
@@ -1562,7 +1598,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
       <details class="more">
         <summary>The loop is the method, the hooks are the part that executes</summary>
         <div class="drawer">
-          <p>As models improve, planning etiquette and reminders to verify merge into the model. A refusal that holds in every permission mode, a check that runs before the turn ends and a record of what was run do not. The loop is the method. The hooks and the log are the part that executes. This page says which is which.</p>
+          <p>As models improve, planning etiquette and reminders to verify merge into the model. A hook that refuses before a call runs (<code>hooks/gateguard.mjs</code>), a check that runs before the turn ends where the agent has a Stop gate, and a record of what was run do not. The loop is the method. The hooks and the log are the part that executes. This page says which is which.</p>
           <figure style="margin:0">
             <div class="plate"><img src="ledger.jpg" width="1400" height="781" decoding="async" alt="An open paper ledger with ruled columns. One group of tally marks is orange among black ones." loading="lazy"></div>
             <figcaption>A ledger settles by outcome, not by intention.</figcaption>
@@ -1577,7 +1613,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
     <ul class="colophon">
       <li><span class="v">29</span><span class="k">Bundled skills</span></li>
       <li><span class="v">0</span><span class="k">Runtime deps</span></li>
-      <li><span class="v">5,000</span><span class="k">Tests in the suite</span></li>
+      <li><span class="v">5,021</span><span class="k">Tests in the suite</span></li>
       <li><span class="v">MIT</span><span class="k">License</span></li>
       <li><span class="v">v3.28.0</span><span class="k">Current rev</span></li>
     </ul>
@@ -1586,7 +1622,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
       <div class="drawer">
         <p>The test line is a stated count, not a capture: CI compares it with the real run and fails when they differ. Three numbers above are pinned by a check: the version in four places (<code>verify:landing-version</code>), the skill count (<code>verify:skill-count</code>) and the test count in two (<code>verify:test-count</code>).</p>
 <pre class="tape">checks     20 invariants + typecheck
-tests      PASS  5000/5000
+tests      PASS  5021/5021
 ci         Node 18, 20, 22 on Linux</pre>
       </div>
     </details>
@@ -1671,17 +1707,8 @@ ci         Node 18, 20, 22 on Linux</pre>
     syncInstall();
   }
 
-  // The verdict card belongs to Discipline. landing.js floats it beside the gate while any hero-camera
-  // section is on screen; this lets it show only while the Discipline section is.
-  var disc = d.getElementById("discipline");
-  if (disc && "IntersectionObserver" in window) {
-    new IntersectionObserver(function (entries) {
-      d.documentElement.classList.toggle("at-discipline", entries[entries.length - 1].isIntersecting);
-    }, { rootMargin: "-30% 0px -30% 0px" }).observe(disc);
-  } else d.documentElement.classList.add("at-discipline");
-
-  // On narrow screens the copy scrolls up over the stage, and the scene's "+1 row" label is pinned to
-  // the stage. It is hidden while a copy block covers the top of the screen.
+  // On narrow screens the copy scrolls up over the stage, and the scene's "+1 row" and pillar labels are
+  // pinned to the stage. They are hidden while a copy block covers the top of the screen.
   var copies = [].slice.call(d.querySelectorAll(".sec > .copy")), covers = copies.map(function () { return false; });
   if (copies.length && "IntersectionObserver" in window) {
     var stageIO = new IntersectionObserver(function (entries) {
