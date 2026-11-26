@@ -11,6 +11,7 @@ jobs:
     permissions:
       contents: write
       id-token: write
+      actions: read
 
     steps:
       - uses: actions/checkout@v4
@@ -47,8 +48,39 @@ jobs:
       - name: Run verify:all
         run: npm run verify:all
 
-      - name: Run tests
-        run: node --test test/*.test.mjs
+      # The tag sits on main's squash-merge commit, and ci.yml's push run has
+      # already run the full suite on it under Node 18/20/22. Re-running it here
+      # added ~45s to every release. Wait for that run instead and fail closed:
+      # no run, a failed run, or a run still going after 15 minutes all stop
+      # the publish. A tag on a commit that never reached main fails here too.
+      - name: Require CI to have passed on the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in $(seq 1 60); do
+            run=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$GITHUB_SHA&event=push&per_page=1" \
+              --jq '.workflow_runs[0] // empty | "\(.status) \(.conclusion) \(.html_url)"')
+            if [ -z "$run" ]; then
+              if [ "$attempt" -ge 8 ]; then
+                echo "ERROR: no CI push run exists for $GITHUB_SHA. Tag the squash-merge commit on main."
+                exit 1
+              fi
+            else
+              read -r status conclusion url <<< "$run"
+              if [ "$status" = "completed" ]; then
+                if [ "$conclusion" = "success" ]; then
+                  echo "✓ CI passed on $GITHUB_SHA: $url"
+                  exit 0
+                fi
+                echo "ERROR: CI on $GITHUB_SHA finished with '$conclusion': $url"
+                exit 1
+              fi
+              echo "CI on $GITHUB_SHA is $status, waiting ($attempt/60): $url"
+            fi
+            sleep 15
+          done
+          echo "ERROR: CI on $GITHUB_SHA did not finish within 15 minutes."
+          exit 1
 
       - name: Verify tag matches package.json version
         run: |

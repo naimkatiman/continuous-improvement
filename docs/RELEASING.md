@@ -65,7 +65,7 @@ git push origin vX.Y.Z
 2. `npm ci` + `npm run build`
 3. `git diff --exit-code` to ensure generated artifacts are committed
 4. `npm run verify:all` (20 invariants + typecheck)
-5. `node --test test/*.test.mjs`
+5. Waits for `ci.yml`'s push run on the tagged commit and stops unless it succeeded (the suite is not re-run here; CI already ran it on Node 18/20/22)
 6. Asserts `package.json` version equals the tag
 7. `npm publish --access public --provenance` via OIDC trusted publishing (no token)
 8. `gh release create --generate-notes`
