@@ -81,9 +81,10 @@ Where the build differs from the design: the first-screen paragraph that
 counted steps by mark was dropped for the loop table (decision 6). The reach
 line sits inside the generated loop block, not under the agent table, so its
 counts cannot drift. The npm lead says "backed by hooks that refuse destructive
-commands and blind edits", not "refuse on two of its steps". The keywords and
+commands and blind edits", not "refuse on two of its steps". The
 marketplace descriptions of the Claude plugin manifests stay Claude-worded:
-they describe Claude plugin manifests.
+they describe Claude plugin manifests. Their keywords carry the pillars since
+the surfaces change below.
 
 ## What PR 3 built: the landing page
 
@@ -128,6 +129,30 @@ predates this change.
 Manual steps after merge, each needing the owner's yes: the Cloudflare Pages
 deploy, the GitHub social preview upload, and `gh repo edit` for the
 description and topics.
+
+## What the surfaces change built (branch docs/two-pillars-surfaces)
+
+A review of PRs 1 to 3 found the surfaces below the first screen still Claude
+Code first, and a legend the code contradicted.
+
+- `src/lib/loop-stages.mts`: a mark's meaning must hold for every step that
+  carries it. Plan is marked "off until you switch it on" and its hook writes a
+  state file and a stderr line by default, so the meaning is "refuses nothing
+  until you set the variable". Iterate is marked "none" and the transcript
+  linter checks it after the run, so "none" is "during the session". The reach
+  line names the agents with a Stop gate: the agent table has no such column.
+- `installFlags` in `src/lib/agent-support.mts` gives the flag an agent's own
+  install needs (Junie: `--scope user`). The README table and first screen,
+  QUICKSTART and the installer's help all use it.
+- `compatibleWith` in `.cloudplugin/marketplace.json` is the rows that block.
+  `install --target kiro-ide` still installs the Kiro hooks: the alias is the
+  installer's, not the manifest's.
+- `QUICKSTART.md` and `llms.txt` give the `--target` install first and label
+  every Claude Code step. Tests hold their ids, counts and order to the table.
+
+Left for the owner: line 7 of `CLAUDE.md` still says "Claude Code plugin".
+It is the project's rules file, so it changes on the owner's word. The wording
+to copy is line 7 of `AGENTS.md`.
 
 ## The `be-ambitious` port (PR 1)
 

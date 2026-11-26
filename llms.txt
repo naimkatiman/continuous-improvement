@@ -1,6 +1,6 @@
 # continuous-improvement
 
-> Ambition and discipline for coding agents: the be-ambitious skill for big goals, and a seven-step loop (research, plan, implement, review, contemplate, relearn and learn, iterate) backed by hooks that refuse destructive commands and blind edits. A blind edit is an edit of an existing file the session has not read. Opt-in hooks deny pushes to protected branches and edits to the files that wire the guardrails, and hold a turn open on a failing typecheck. It keeps a local searchable log of tool calls, loads up to 10 recorded lessons at session start, and runs an MCP server. Claude Code gets all of it as a plugin, in every permission mode. `npx continuous-improvement install` wires only the tool-call log for Claude Code (with --mode expert, also the session-start loader and the MCP server) and copies the core and ship skills. `--target <agent> --hooks` installs the guard for 15 other agents that can block a tool call, and writes or prints the MCP server step, per the tier table in docs/AGENT-SUPPORT.md. Ships 29 bundled skills.
+> Ambition and discipline for coding agents: the be-ambitious skill for big goals, and a seven-step loop (research, plan, implement, review, contemplate, relearn and learn, iterate) backed by hooks that refuse destructive commands and blind edits. A blind edit is an edit of an existing file the session has not read. Opt-in hooks deny pushes to protected branches and edits to the files that wire the guardrails, and hold a turn open on a failing typecheck. It keeps a local searchable log of tool calls, loads up to 10 recorded lessons at session start where the agent has a session hook, and runs an MCP server. Claude Code gets all of it as a plugin, in every permission mode. `npx continuous-improvement install` wires only the tool-call log for Claude Code (with --mode expert, also the session-start loader and the MCP server) and copies the core and ship skills. `--target <agent> --hooks` installs the guard for 15 other agents that can block a tool call, and writes or prints the MCP server step, per the tier table in docs/AGENT-SUPPORT.md. Ships 29 bundled skills.
 
 ## What This Is
 
@@ -8,41 +8,44 @@ Two pillars for AI coding agents, and one loop that joins them. Headline: Aim hi
 
 Ambition: you have big goals. The be-ambitious skill tells the agent to work on the goal behind the task, with the method an expert would use, and with a numeric target and a check set before the work starts. It is guidance the agent reads. No hook checks that it was followed.
 
-Discipline: you control the AI, the AI does not control you. With the hooks installed, hooks/gateguard.mjs refuses destructive commands and blind edits before they run. bin/observe.mjs logs each tool call that runs, on your disk. hooks/session.mjs loads the lessons recorded in earlier sessions (those at 0.5 confidence and above, at most 10) at session start. Stricter gates are switches you set. The hooks make no model calls and no network calls.
+Discipline: you control the AI, the AI does not control you. With the hooks installed, hooks/gateguard.mjs refuses destructive commands and blind edits before they run, on each agent's own condition (docs/AGENT-SUPPORT.md). bin/observe.mjs logs each tool call that runs, on your disk. hooks/session.mjs prints the lessons recorded in earlier sessions (those at 0.5 confidence and above, at most 10) at session start where the agent has a session hook (11 of the 16). Four agents (Grok CLI, Auggie, Junie CLI and Goose) get them from a rules file you write with `npx -p continuous-improvement ci lessons`, and Cline gets none. Stricter gates are switches you set. The hooks make no model calls and no network calls.
 
 The loop, in the order the work happens: research, plan, implement, review, contemplate, relearn and learn, iterate. These are the package's 7 Laws with their numbers unchanged (Laws 1, 2, 3, 4, 5, 7, 6). Research and implement have a hook that refuses by default. Plan and review have a gate that is off until you switch it on, and the plan gate is shown to work on Claude Code only. Relearn and learn has hooks that record and load. Contemplate and iterate are written rules with no hook. Lessons are behavioral instincts recorded via the Mulahazah learning system: one is recorded when you run the reflect command or a tool creates one, and it is applied only because the model reads it.
 
 Why these seven: every red flag an agent says ("this should work", "I'll remember", "next time I'll") is a wish standing in for a check. The Laws are one old sentence turned into checks an agent can run on itself: the wise one takes account of himself and works for what comes after; the weak one follows his impulse and merely wishes (Jami` at-Tirmidhi 2459). Before saying done: did I check, or did I hope? Sources and the mapping to each Law: docs/philosophy.md.
 
-What the gate can and cannot do: hooks/gateguard.mjs allows a new file and an edit of a file this session's observation log shows was read, and denies an Edit/Write/MultiEdit of an existing file with no such row (CI_GATEGUARD_FILE_GATE=strict denies the first edit of every file until a four-item fact list is presented and the printed clear command is run, honor system, 1000 files per session by default; off skips the file gate); destructive Bash on a fixed blocklist is denied on every call with no clearance route; Bash file writes are not gated. Goal-drift warns by default (CLAUDE_GOAL_DRIFT_GATE=block to refuse), typecheck gate and recall briefing are opt-in.
+What the gate can and cannot do: hooks/gateguard.mjs allows a new file and an edit of a file this session's observation log shows was read, and denies an edit of an existing file with no such row (through Edit, Write and MultiEdit on Claude Code, and each other agent's own write tools). CI_GATEGUARD_FILE_GATE=strict denies the first edit of every file until a four-item fact list is presented and the printed clear command is run (honor system, 1000 files per session by default), and off skips the file gate. A destructive shell command on a fixed blocklist is denied on every call with no clearance route. File writes through the shell are not gated. Goal-drift warns by default (CI_GOAL_DRIFT_GATE=block sends a drifted wrap-up back, shown to work on Claude Code only). The typecheck gate and the recall briefing are opt-in.
 
 Smarter models do not retire this. A more capable model makes a higher goal worth setting, which is the ambition pillar, and it still needs a check outside itself, which is the discipline pillar. Written reminders merge into the model over time. The hook that refuses, the per-repository log and the proof that a change worked do not (see skills/model-forward.md).
 
 How you actually benefit:
-1. Plugin install: gateguard fires on Edit/Write and on destructive Bash, with no prompt prefix required. `npx continuous-improvement install` does not wire gateguard; it wires the tool-call log only.
-2. After a real session run `/seven-laws` — capture is silent; instincts form when you close the loop. `/recall` for "have I hit this before?". `/planning-with-files` writes `task_plan.md`.
-3. Ask the agent to use the be-ambitious skill on a task you already have. On Claude Code, type `/be-ambitious <task>`.
-4. MCP tools: the plugin install starts the server in expert mode; with npx, add `--mode expert`. `/harvest` runs from an npm checkout, `/distill` needs the MCP tools, and `CLAUDE_RECALL_BRIEFING=1` is optional. Empty harvest/distill on day 1 means missing observation history, not a broken command.
+1. Ask the agent to use the be-ambitious skill on a task you already have. It tells the agent to set the goal, a target and a check before the work starts.
+2. With the hooks installed, hooks/gateguard.mjs refuses destructive commands and blind edits with no prompt prefix required. `npx continuous-improvement install` does not wire gateguard; it wires the tool-call log for Claude Code.
+3. Keep what you learn: the ci_recall MCP tool searches the log, ci_create_instinct saves a lesson and ci_reinforce raises or lowers it. Nothing saves or applies a lesson for you. Empty results on day 1 mean missing history, not a broken tool.
+4. Hold the goal: the ci_plan_init MCP tool writes task_plan.md, and ci_goal_check scores recent calls against its Goal by keyword overlap.
+5. On Claude Code these are also the slash commands `/be-ambitious`, `/recall`, `/seven-laws` (reflect), `/planning-with-files` and `/goal-check`. `/distill` needs the MCP tools, and `/harvest` runs from a clone of the repository.
+
+The Claude Code plugin and `--target <agent> --hooks` start the MCP server in expert mode. With the plain npx install, add `--mode expert`.
 
 ## Install
 
-As a Claude Code plugin (hooks, guards, session-start loader, MCP server):
+For a coding agent, in your project's git repository (hooks/gateguard.mjs and the other hooks, run from a stable copy, and the skills; it writes or prints the MCP server step), per the tier table in docs/AGENT-SUPPORT.md:
+
+```bash
+npx continuous-improvement install --target <agent> --hooks
+```
+
+For Claude Code, as a plugin (hooks, guards, session-start loader, MCP server, slash commands):
 
 ```
 /plugin marketplace add naimkatiman/continuous-improvement
 /plugin install continuous-improvement@continuous-improvement
 ```
 
-From npm, tool-call log only (add `--mode expert` for the session-start loader and the MCP server):
+For Claude Code from npm, the tool-call log only, with no guard (add `--mode expert` for the session-start loader and the MCP server):
 
 ```bash
 npx continuous-improvement install
-```
-
-For another coding agent (hooks/gateguard.mjs and the other hooks, run from a stable copy; it writes or prints the MCP server step), per the tier table in docs/AGENT-SUPPORT.md:
-
-```bash
-npx continuous-improvement install --target <agent> --hooks
 ```
 
 ## The 7 Laws
@@ -85,7 +88,7 @@ The Iteration field is build/fix/refactor/investigate moves only — not git ste
 
 ## Optional Planning Workflow
 
-When a task needs persistent file-based planning, use the `planning-with-files` workflow to create:
+When a task needs persistent file-based planning, use the planning-with-files workflow (the `ci_plan_init` MCP tool; on Claude Code, `/planning-with-files`) to create:
 - `task_plan.md` — phases, status, decisions, errors
 - `findings.md` — research notes and sources
 - `progress.md` — session log and verification notes
@@ -94,11 +97,17 @@ This workflow is explicit and opt-in. Files are created in the git root when ava
 
 ## Works With
 
+The 16 agents where hooks/gateguard.mjs blocks a destructive command, each on its own condition:
+
 - Claude Code (full tier, as a plugin: skills, hooks, MCP server, slash commands, lessons at session start)
 - Full tier with `--target <agent> --hooks` (the guard blocks where the agent runs its hooks, lessons load through a session hook, a Stop gate): Codex CLI (after you trust each hook in /hooks), Gemini CLI (in a trusted folder), Qwen Code (once you approve the project hooks or trust the folder), Cursor (3.x), GitHub Copilot CLI, Devin Local (outside Restricted Mode), Kiro CLI, Factory Droid, Amp
-- Partial tier (lessons through a rules file, no Stop gate, or no blocking claimed where the hooks run): Grok, Kiro IDE (no blocking claimed), Auggie, Junie (Early Access build), Cline, Goose, OpenCode
-- Rules file only, nothing blocked: Zed, Aider
+- Partial tier with the same command (the guard blocks, and session lessons or the Stop gate are missing): Grok, Auggie, Junie (Early Access build), Cline, Goose, OpenCode
 - Per agent, with the install step and what each cannot do: https://github.com/naimkatiman/continuous-improvement/blob/main/docs/AGENT-SUPPORT.md
+
+## Not in the 16
+
+- No blocking claimed (its hook docs disagree on exit codes): Kiro IDE
+- Rules file only, nothing blocked: Zed, Aider
 
 ## Links
 

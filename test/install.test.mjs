@@ -5,7 +5,10 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { after, before, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
+import { AGENT_SUPPORT, blocksPreTool, installFlags } from "../lib/agent-support.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
+import { TARGET_IDS } from "../lib/install-targets.mjs";
+import { HEADLINE, LOOP_STAGES, PILLARS } from "../lib/loop-stages.mjs";
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const INSTALL_SCRIPT = join(__dirname, "..", "bin", "install.mjs");
 const PACKAGED_SESSION_HOOK = join(__dirname, "..", "hooks", "session.mjs");
@@ -43,6 +46,36 @@ describe("installer", () => {
         });
         assert.match(output, /--mode/);
         assert.match(output, /--uninstall/);
+    });
+    // The help is what a user of any agent reads first, so it leads with the
+    // two pillars and the command for 15 agents, and says what the Claude Code
+    // target does not wire. The ids come from the agent table.
+    it("leads the help with the two pillars and the command for every agent that can block, then the Claude Code plugin", () => {
+        const help = execFileSync("node", [INSTALL_SCRIPT, "--help"], { env: { ...process.env, HOME: tempHome }, encoding: "utf8" });
+        assert.ok(help.trimStart().startsWith("continuous-improvement: ambition and discipline for coding agents."), help.slice(0, 120));
+        assert.ok(help.includes(HEADLINE));
+        for (const pillar of PILLARS)
+            assert.ok(help.includes(`${pillar.name}: ${pillar.claim}. ${pillar.ships} (${pillar.kind})`), pillar.name);
+        const command = help.indexOf("npx continuous-improvement install --target <agent> --hooks");
+        const plugin = help.indexOf("/plugin install continuous-improvement@continuous-improvement");
+        assert.ok(command > help.indexOf(HEADLINE) && plugin > command, "the pillars, the command, then the plugin");
+        const flat = help.replace(/\s+/g, " ");
+        const ids = AGENT_SUPPORT.filter((r) => r.id !== "claude" && blocksPreTool(r)).map((r) => `${r.id}${installFlags(r) === "" ? "" : ` (add ${installFlags(r)})`}`);
+        assert.ok(flat.includes(`<agent> is ${ids.slice(0, -1).join(", ")} or ${ids[ids.length - 1]}.`), "the ids of the agent table, in its order");
+        assert.ok(flat.includes("junie (add --scope user)"));
+        assert.match(flat, /docs\/AGENT-SUPPORT\.md/);
+    });
+    it("says what each target writes, and promises nothing the installer does not do", () => {
+        const help = execFileSync("node", [INSTALL_SCRIPT, "--help"], { env: { ...process.env, HOME: tempHome }, encoding: "utf8" });
+        const flat = help.replace(/\s+/g, " ");
+        assert.match(flat, /claude Claude Code without the plugin: the tool-call log, skills and commands\. No guard/);
+        assert.match(flat, /Without --hooks[^.]*a rules file only, and nothing is blocked/);
+        for (const id of TARGET_IDS)
+            assert.match(help, new RegExp(`^ {22}${id} {2,}\\S`, "m"), id);
+        assert.doesNotMatch(help, /full power|full install|default subcommand|remove everything/i);
+        assert.match(flat, /keeps ~\/\.claude\/instincts/);
+        for (const line of help.split("\n"))
+            assert.ok(line.length <= 100, `${line.length} columns: ${line}`);
     });
     it("installs with Bash absent because runtime hooks are Node-native", () => {
         const root = join(tmpdir(), `ci-test-no-bash-${process.pid}-${Date.now()}`);
@@ -99,6 +132,34 @@ describe("installer", () => {
         assert.equal(readFileSync(join(tempHome, ".claude", "skills", "ship", SHIP_SKILL_OWNER_FILE), "utf8"), "continuous-improvement\n", "global ship skill should carry an ownership marker");
         assert.equal(existsSync(join(tempHome, ".claude", "commands", "ship.md")), false, "installer should not create a duplicate legacy /ship command");
     });
+    // This path wires the log only, so its banner and summary may not say the
+    // hooks guard anything, that a level moves by itself, or that it is the plugin.
+    for (const mode of ["beginner", "expert"]) {
+        it(`prints the loop in order and what --mode ${mode} wired, and that the guard comes with the plugin`, () => {
+            const home = join(tmpdir(), `ci-test-banner-${mode}-${process.pid}-${Date.now()}`);
+            mkdirSync(join(home, ".claude"), { recursive: true });
+            try {
+                const output = execFileSync("node", [INSTALL_SCRIPT, "install", "--mode", mode], {
+                    env: { ...process.env, HOME: home, USERPROFILE: home, CLAUDE_CI_UPDATE_CHECK: "off" },
+                    encoding: "utf8",
+                });
+                assert.ok(output.includes(HEADLINE));
+                assert.ok(output.includes(LOOP_STAGES.map((stage) => stage.name).join(" → ")), "the loop's steps in order");
+                assert.match(output, /The hooks log tool calls/);
+                assert.match(output, /Nothing applies a lesson for you\./);
+                assert.match(output, /wires no guard/);
+                assert.match(output, /\/plugin install continuous-improvement@continuous-improvement/);
+                assert.doesNotMatch(output, /capturing silently|auto-levels|Full plugin active|Execute → Verify/);
+                const settings = JSON.parse(readFileSync(join(home, ".claude", "settings.json"), "utf8"));
+                assert.doesNotMatch(JSON.stringify(settings), /gateguard/, "and it is true: no guard is wired");
+                assert.equal(output.includes("hooks/session.mjs prints saved lessons"), settings.hooks?.SessionStart !== undefined, "the session hook is named only when it is wired");
+                assert.equal(/MCP server has \d+ tools/.test(output), settings.mcpServers !== undefined, "and the MCP server only when it is registered");
+            }
+            finally {
+                rmSync(home, { recursive: true, force: true });
+            }
+        });
+    }
     it("does not install the legacy observe.sh shim", () => {
         const hookPath = join(tempHome, ".claude", "instincts", "observe.sh");
         assert.equal(existsSync(hookPath), false);
@@ -287,7 +348,7 @@ describe("installer - global ship skill replacement safety", () => {
             assert.match(output, /Install failed/i);
             assert.match(output, /\nFailed\.\n/);
             assert.match(output, /Installation incomplete/i);
-            assert.doesNotMatch(output, /Hooks are capturing silently|Next steps:|For one defect, run: \/ship/);
+            assert.doesNotMatch(output, /The hooks log tool calls|Next steps:|For one defect, run: \/ship/);
         }
         finally {
             rmSync(tempHome, { recursive: true, force: true });

@@ -2,7 +2,7 @@
   "name": "continuous-improvement",
   "version": "3.28.0",
   "mode": "beginner",
-  "description": "Beginner mode: see what your agent learned, list its instincts, and request a session reflection. Bundles the ship fast path plus grounding skills (gateguard, tdd-workflow, verification-loop) so one-defect delivery, research, tests, and verification happen by default — every edit starts from facts, not guesses.",
+  "description": "Ambition and discipline for coding agents, beginner mode of the MCP server: 4 tools for status, the saved lessons, a reflection template and a file-gate clearance. The bundled skills, be-ambitious among them, are guidance the agent reads. Only a hook refuses a call.",
   "tools": [
     {
       "name": "ci_status",
@@ -53,6 +53,6 @@
       "PostToolUse",
       "UserPromptSubmit"
     ],
-    "description": "Silently captures every tool call as observations and routes prompts to the matching skill via the route table. Lightweight and non-blocking."
+    "description": "Where the hooks are installed (the Claude Code plugin, or install --target <agent> --hooks; per agent in docs/AGENT-SUPPORT.md): hooks/gateguard.mjs denies destructive commands and blind edits before they run, and bin/observe.mjs logs each tool call that runs. The prompt hooks stay off until you set CI_ROUTE_PROMPT=1 or CI_RECALL_BRIEFING=1."
   }
 }

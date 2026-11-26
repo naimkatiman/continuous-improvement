@@ -19,11 +19,14 @@ const AUTHOR = {
     url: "https://github.com/naimkatiman",
 };
 const KEYWORDS = [
+    "coding-agents",
+    "ambition",
+    "be-ambitious",
+    "ai-discipline",
     "claude-code",
     "claude-code-skill",
     "ai-agent",
     "agent-skill",
-    "ai-discipline",
     "mulahazah",
     "instinct",
     "hooks",
@@ -33,7 +36,7 @@ const KEYWORDS = [
     "transcript-linter",
 ];
 const CLAUDE_PLUGIN_CATEGORY = "productivity";
-const SHARED_PLUGIN_DESCRIPTION = "Ambition and discipline for coding agents: the be-ambitious skill and a seven-step loop. A hook denies known destructive shell commands. Opt-in hooks deny pushes to protected branches and edits to the files that wire the guardrails, and hold a turn open on a failing typecheck. Tool calls go to a local searchable log; saved lessons load at session start. Ships 29 bundled skills and an MCP server.";
+const SHARED_PLUGIN_DESCRIPTION = "Ambition and discipline for coding agents: the be-ambitious skill and a seven-step loop. A hook denies known destructive shell commands. Opt-in hooks deny pushes to protected branches and edits to the files that wire the guardrails, and hold a turn open on a failing typecheck. Tool calls go to a local searchable log; saved lessons load by session hook. Ships 29 bundled skills and an MCP server.";
 // Four vendored upstream companions registered alongside the CI plugin.
 // Each entry points at a pinned-SHA snapshot under third-party/<name>/.
 // See third-party/MANIFEST.md for refresh recipes and per-snapshot
@@ -399,16 +402,19 @@ const EXPERT_TOOL_ENTRIES = [
         inputSchema: { type: "object", properties: {}, required: [] },
     },
 ];
+// The mode is the MCP server's; a skill is guidance, and only a hook refuses.
+// src/test/plugin-description.test.mts holds each sentence to the tools the
+// mode serves and the hooks the plugin registers.
 const MODE_METADATA = {
     beginner: {
-        description: "Beginner mode: see what your agent learned, list its instincts, and request a session reflection. Bundles the ship fast path plus grounding skills (gateguard, tdd-workflow, verification-loop) so one-defect delivery, research, tests, and verification happen by default — every edit starts from facts, not guesses.",
+        description: `Ambition and discipline for coding agents, beginner mode of the MCP server: ${BEGINNER_TOOL_ENTRIES.length} tools for status, the saved lessons, a reflection template and a file-gate clearance. The bundled skills, be-ambitious among them, are guidance the agent reads. Only a hook refuses a call.`,
         hooks: ["PreToolUse", "PostToolUse", "UserPromptSubmit"],
-        hookDescription: "Silently captures every tool call as observations and routes prompts to the matching skill via the route table. Lightweight and non-blocking.",
+        hookDescription: "Where the hooks are installed (the Claude Code plugin, or install --target <agent> --hooks; per agent in docs/AGENT-SUPPORT.md): hooks/gateguard.mjs denies destructive commands and blind edits before they run, and bin/observe.mjs logs each tool call that runs. The prompt hooks stay off until you set CI_ROUTE_PROMPT=1 or CI_RECALL_BRIEFING=1.",
     },
     expert: {
-        description: "Expert mode: tune confidence, manage instincts, and persist plans on disk. Adds safety, token-budget, and strategic-compact skills plus the /learn-eval command so long sessions stay sharp and learnings survive context resets.",
+        description: `Ambition and discipline for coding agents, expert mode of the MCP server: all ${BEGINNER_TOOL_ENTRIES.length + EXPERT_TOOL_ENTRIES.length} tools. Search the log (ci_recall), save and weigh lessons (ci_create_instinct, ci_reinforce), write the plan files (ci_plan_init) and score recent calls against the goal (ci_goal_check). The bundled skills, be-ambitious among them, are guidance the agent reads. Nothing applies a lesson for you.`,
         hooks: ["PreToolUse", "PostToolUse", "UserPromptSubmit", "SessionStart", "SessionEnd"],
-        hookDescription: "Full hook suite: observation capture, lazy prompt routing, session-level instinct loading, and auto-reflection.",
+        hookDescription: "The hooks of beginner mode: bin/observe.mjs logs each tool call that runs, and hooks/gateguard.mjs denies destructive commands and blind edits where it is installed. hooks/session.mjs also prints up to 10 saved lessons at session start, where the agent has a session hook, and writes a reminder to reflect at session end (debug log only).",
     },
 };
 function getToolCatalog(mode) {

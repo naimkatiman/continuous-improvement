@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /**
- * continuous-improvement installer (Claude Code)
+ * continuous-improvement installer
  *
  * Usage:
- *   npx continuous-improvement install                # beginner mode (default)
+ *   npx continuous-improvement install --target qwen --hooks  # hooks, skills and MCP for an agent
+ *   npx continuous-improvement install --target gemini,codex  # rules files only
+ *   npx continuous-improvement install                # Claude Code: the tool-call log, no guard
  *   npx continuous-improvement install --mode expert  # + MCP server + session hooks
  *   npx continuous-improvement install --pack react   # load starter instinct pack
- *   npx continuous-improvement install --target gemini,codex  # skill into other agents' rules files
- *   npx continuous-improvement install --target qwen --hooks  # hooks + MCP for another agent
- *   npx continuous-improvement install --uninstall    # remove everything
+ *   npx continuous-improvement install --uninstall    # remove the Claude Code install
  */
 import { chmodSync, copyFileSync, existsSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, readdirSync, renameSync, rmSync, statSync, writeFileSync, } from "node:fs";
 import { homedir } from "node:os";
@@ -20,6 +20,8 @@ import { resolveInstinctsRoot } from "../lib/agent-paths.mjs";
 import { readKnob } from "../lib/agent-env.mjs";
 import { TARGET_IDS, planTargetWrites, resolveTargets } from "../lib/install-targets.mjs";
 import { parseHookArgs } from "../lib/agent-install-plans.mjs";
+import { AGENT_SUPPORT, blocksPreTool, installFlags } from "../lib/agent-support.mjs";
+import { HEADLINE, LOOP_STAGES, PILLARS } from "../lib/loop-stages.mjs";
 import { resolveDocumentsDir, runHookInstall, runHookUninstall } from "../lib/install-runtime.mjs";
 import { evaluateUpdateCheck, fetchLatestNpmVersion, isThrottled, pendingNotice, } from "../lib/version-check.mjs";
 const __filename = fileURLToPath(import.meta.url);
@@ -689,37 +691,65 @@ function uninstallAll() {
         "  To remove learned data too: rm -rf ~/.claude/instincts/\n");
     return !failed;
 }
+const PLUGIN_COMMANDS = AGENT_SUPPORT.find((row) => row.id === "claude")?.install ?? [];
+// The ids `--target <id> --hooks` installs for, in the agent table's order,
+// each with the flag its own install command needs, on two lines.
+function agentIds(indent) {
+    const ids = AGENT_SUPPORT.filter((row) => row.id !== "claude" && blocksPreTool(row)).map((row) => {
+        const flags = installFlags(row);
+        return flags === "" ? row.id : `${row.id} (add ${flags})`;
+    });
+    const words = `${ids.slice(0, -1).join(", ")} or ${ids[ids.length - 1]}.`;
+    const cut = words.indexOf(", ", Math.floor(words.length / 2)) + 1;
+    return `${words.slice(0, cut)}\n${indent}${words.slice(cut + 1)}`;
+}
 function printUsage() {
     console.log(`
+continuous-improvement: ambition and discipline for coding agents.
+${HEADLINE}
+
+${PILLARS.map((pillar) => `  ${pillar.name}: ${pillar.claim}. ${pillar.ships} (${pillar.kind})`).join("\n")}
+
 Usage: npx continuous-improvement <subcommand> [options]
 
+In your project's git repository (add --dry-run to preview):
+  npx continuous-improvement install --target <agent> --hooks
+
+  <agent> is ${agentIds("  ")}
+  It writes that agent's hooks and skills, and writes or prints its MCP server
+  step. What the guard (hooks/gateguard.mjs) blocks on each agent, and the step
+  after the install: docs/AGENT-SUPPORT.md in the repository.
+
+Claude Code installs it as a plugin, from inside Claude Code:
+${PLUGIN_COMMANDS.map((line) => `  ${line}`).join("\n")}
+
 Subcommands:
-  install      Install the plugin (default subcommand)
+  install      Install for the agents --target names
   backfill     Tag legacy thin-schema rows in observations.jsonl files
-  --uninstall  Remove all installed files
+  --uninstall  Remove the npm install for Claude Code; keeps ~/.claude/instincts.
+               With --target <ids>: see the options
 
 Options for 'install':
-  --mode <mode>     Installation mode:
-                      beginner  — hooks + skills + commands (default)
-                      expert    — beginner + MCP server + session hooks
+  --target <names>  Comma-separated list (default: claude). With --hooks, the
+                    agent ids above. Without --hooks, each target but claude
+                    gets a rules file only, and nothing is blocked:
+                      claude    Claude Code without the plugin: the tool-call
+                                log, skills and commands. No guard
+                      gemini    GEMINI.md (Gemini CLI)
+                      codex     AGENTS.md (Codex CLI / agents.md standard)
+                      cursor    .cursor/rules/continuous-improvement.mdc
+                      windsurf  .windsurf/rules/continuous-improvement.md
+                      zed       .rules (no hook this package can use)
+                      aider     CONVENTIONS.md + .aider.conf.yml (the same)
+                      copilot   .github/copilot-instructions.md
+  --mode <mode>     For the claude target:
+                      beginner  tool-call log + skills + commands (default)
+                      expert    beginner + MCP server + session hooks
   --pack <name>     Load a starter instinct pack (react, python, go, meta)
-  --target <names>  Comma-separated platform list (default: claude):
-                      claude    — full install: hooks + skills + commands
-                      gemini    — GEMINI.md (Gemini CLI)
-                      codex     — AGENTS.md (Codex CLI / agents.md standard)
-                      cursor    — .cursor/rules/continuous-improvement.mdc
-                      windsurf  — .windsurf/rules/continuous-improvement.md
-                      zed       — .rules
-                      aider     — CONVENTIONS.md + .aider.conf.yml
-                      copilot   — .github/copilot-instructions.md
-                    Non-claude targets write the 7-Laws rules file into the
-                    current project; add --hooks to install the guard as well.
-  --hooks           With --target codex, qwen, grok, devin (windsurf), droid,
-                    gemini, cursor, copilot, kiro, auggie, junie, goose or cline:
-                    also install that agent's hooks and MCP server, pointing at
-                    a stable runtime copy under the instincts dir. With
-                    --target opencode or amp: write the agent's local plugin
-                    file, which runs the same hooks from that copy
+  --hooks           Install the agent's hooks, skills and MCP server, pointing
+                    at a stable runtime copy under the instincts dir. For
+                    opencode and amp: write the agent's local plugin file, which
+                    runs the same hooks from that copy. devin is also windsurf
   --scope <scope>   With --hooks: project (default) or user; user-level agent
                     config is written only with --scope user
   --dry-run         With --hooks: print what would be written and run; write nothing
@@ -740,13 +770,16 @@ Options for 'backfill':
   --help            Show backfill-specific help
 
 Examples:
-  npx continuous-improvement install                # beginner (default)
-  npx continuous-improvement install --mode expert  # full power
+  npx continuous-improvement install --target codex --hooks --dry-run  # preview every write
+  npx continuous-improvement install --target codex --hooks            # hooks, skills, MCP step
+  npx continuous-improvement install --uninstall --target codex        # undo what --hooks recorded
+  npx continuous-improvement install --target gemini,codex             # rules files only
+  npx continuous-improvement install                # Claude Code: the tool-call log, no guard
+  npx continuous-improvement install --mode expert  # the same + MCP server + session hooks
   npx continuous-improvement install --pack react   # load React instincts
-  npx continuous-improvement install --target gemini,codex  # other agents' rules files
+  npx continuous-improvement install --uninstall    # remove the Claude Code install
   npx continuous-improvement backfill --dry-run     # report thin/rich row counts
   npx continuous-improvement backfill               # tag rows in place
-  npx continuous-improvement install --uninstall    # remove everything
 `);
 }
 // The root a project-scope hook install writes in: an absolute, existing
@@ -895,17 +928,25 @@ if (nonClaudeTargets.length > 0) {
     }
 }
 console.log(`
-continuous-improvement (mode: ${INSTALL_MODE})
-Research → Plan → Execute → Verify → Reflect → Learn → Iterate
+continuous-improvement (mode: ${INSTALL_MODE}). ${HEADLINE}
+${LOOP_STAGES.map((stage) => stage.name).join(" → ")}
 `);
 warnOnMarketplaceCollision();
 console.log("Installing to Claude Code...\n");
 const installOutcome = installSkill();
 if (installOutcome === "failed")
     process.exitCode = 1;
+// What this path wired, and what it did not: patchClaudeSettings registers the
+// logger (and, with --mode expert, the session hook) and no PreToolUse guard.
+const pluginNote = `Nothing applies a lesson for you.
+
+This install wires no guard. The guard (hooks/gateguard.mjs) and the be-ambitious
+skill come with the plugin, from inside Claude Code:
+${PLUGIN_COMMANDS.map((line) => `  ${line}`).join("\n")}`;
 const modeInfo = {
-    beginner: "Hooks are capturing silently. System auto-levels as you use it.",
-    expert: `Full plugin active: hooks + MCP server + session hooks. ${getToolNames("expert").length} tools available.`,
+    beginner: `The hooks log tool calls on this machine. ${pluginNote}`,
+    expert: `The hooks log tool calls on this machine, hooks/session.mjs prints saved lessons at
+session start, and the MCP server has ${getToolNames("expert").length} tools. ${pluginNote}`,
 };
 const packIndex = rawArgs.indexOf("--pack");
 if (packIndex !== -1 && rawArgs[packIndex + 1]) {

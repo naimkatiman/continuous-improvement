@@ -18,7 +18,7 @@ What is enforced, step by step: [The loop](#the-loop). What it cannot do: [Limit
 npx continuous-improvement install --target <agent> --hooks
 ```
 
-`<agent>` is `codex`, `gemini`, `qwen`, `cursor`, `copilot`, `grok`, `devin`, `kiro`, `droid`, `auggie`, `junie`, `cline`, `goose`, `opencode` or `amp`. Claude Code installs it as a plugin ([Install](#install)).
+`<agent>` is `codex`, `gemini`, `qwen`, `cursor`, `copilot`, `grok`, `devin`, `kiro`, `droid`, `auggie`, `junie` (add `--scope user`), `cline`, `goose`, `opencode` or `amp`. Claude Code installs it as a plugin ([Install](#install)).
 
 It works in 16 coding agents: Claude Code, Codex CLI, Gemini CLI, Qwen Code, Cursor, GitHub Copilot CLI, Grok CLI, Devin Local, Kiro CLI, Factory Droid, Auggie, Junie CLI, Cline, Goose, OpenCode and Amp. Each has its own setup step and its own gaps ([agent table](#works-with-these-agents)).
 
@@ -28,7 +28,7 @@ Walkthrough: [QUICKSTART.md](QUICKSTART.md). Every agent's details: [docs/AGENT-
 
 ## The loop
 
-Seven steps, in the order the work happens. The third column is what the agent is told. The fourth is what code does, and where it says "None" there is no code.
+Seven steps, in the order the work happens. The third column is what the agent is told. The fourth is what code does, and where it says "None" no hook runs.
 
 <!-- loop-table:start -->
 | Step | Law | What the agent is given | What a hook does |
@@ -36,14 +36,14 @@ Seven steps, in the order the work happens. The third column is what the agent i
 | 1. Research | Law 1, Research Before Executing | The rule: find what exists, the constraints and what can break before acting. Skills `recall`, `reconcile`, `grill-me`, `roast`. The `ci_recall` MCP tool searches the log when called | **Refuses by default.** [`hooks/gateguard.mjs`](hooks/gateguard.mjs) denies an edit of an existing file when the session's log shows no read of it. It checks that one thing. Switch: `CI_GATEGUARD_FILE_GATE=off` |
 | 2. Plan | Law 2, Plan Is Sacred | The rule: state what you will build, what you will not, how you will verify, and the fallback. `be-ambitious` tells the agent to set the goal and a target first. `ci_plan_init` writes `task_plan.md`, and `ci_goal_check` scores recent calls against its `## Goal` | **Off until you switch it on.** [`hooks/goal-drift-stop.mjs`](hooks/goal-drift-stop.mjs) with `CI_GOAL_DRIFT_GATE=block` sends a drifted wrap-up back. Shown to work on Claude Code only: it reads the reply from a Claude Code transcript. No hook requires a plan before the first edit |
 | 3. Implement | Law 3, One Thing at a Time | The rule: finish and verify one task before the next. Skills `tdd-workflow`, `ship`, `worktree-safety` | **Refuses by default.** [`hooks/gateguard.mjs`](hooks/gateguard.mjs) denies destructive commands on every matching call, with no switch. With `CI_HOOKPACK_GATE=block`, [`hooks/hook-pack.mjs`](hooks/hook-pack.mjs) denies a push to `main`, `master` or `release/*` and a commit staging more than 15 files. No hook checks "one thing at a time" itself |
-| 4. Review | Law 4, Verify Before Reporting | The rule: done means the code ran and the result was checked. Skills `verification-loop`, `simplicity-review`, `audit` | **Off until you switch it on.** [`hooks/typecheck-stop.mjs`](hooks/typecheck-stop.mjs) with `CI_TYPECHECK_GATE=block` holds the turn open on a failing typecheck. TypeScript only, on the 12 agents with a Stop gate. No hook runs tests, lint or a build. After the run, the [transcript linter](#unattended-runs-and-ci) flags a code change with no test or build command |
+| 4. Review | Law 4, Verify Before Reporting | The rule: done means the code ran and the result was checked. Skills `verification-loop`, `simplicity-review`, `audit` | **Off until you switch it on.** [`hooks/typecheck-stop.mjs`](hooks/typecheck-stop.mjs) with `CI_TYPECHECK_GATE=block` holds the turn open on a failing typecheck. TypeScript only, on the 12 agents with a Stop gate (a hook that runs when the agent ends its turn and can send it back). No hook runs tests, lint or a build. After the run, the [transcript linter](#unattended-runs-and-ci) flags a code change with no test or build command |
 | 5. Contemplate | Law 5, Reflect After Every Session | The reflection block: what worked, what failed, what to do differently, the rule to add, the next three moves. The `ci_reflect` MCP tool returns the template and stores nothing | **None.** A written rule |
 | 6. Relearn and learn | Law 7, Learn From Every Session | Lessons you or the agent save with `ci_create_instinct` and strengthen or weaken with `ci_reinforce`. Skill `skill-distillation` | **Records and loads.** [`bin/observe.mjs`](bin/observe.mjs) logs each tool call that runs. [`hooks/session.mjs`](hooks/session.mjs) prints up to 10 saved lessons at session start (`CI_INSTINCT_LOAD=off` stops it): by hook on 11 agents, through a rules file you rewrite on 4, not at all on 1. Nothing saves, applies or fades a lesson for you |
 | 7. Iterate | Law 6, Iterate Means One Thing | The rule: one change, verify, next change. The three next moves from step 5 start the next pass | **None.** Nothing in the session. After a run, the [transcript linter](#unattended-runs-and-ci) flags more than 8 files edited |
 
-How to read the last column. **Refuses by default**: a hook answers deny before the call runs. **Off until you switch it on**: the hook ships and does nothing until you set the variable. **Records and loads**: a hook writes a log row or prints saved lessons, and cannot refuse anything. **None**: text the agent is given, and nothing checks it.
+How to read the last column. **Refuses by default**: a hook answers deny before the call runs. **Off until you switch it on**: the hook ships and refuses nothing until you set the variable. **Records and loads**: a hook writes a log row or prints saved lessons, and cannot refuse anything. **None**: text the agent is given, and nothing checks it during the session.
 
-Reach, from the [agent table](#works-with-these-agents): the skills go to all 16 agents, the core skill with these rules among them. Codex CLI, Gemini CLI, Cursor and GitHub Copilot CLI also load the rules as a rules file in every session. 12 have a Stop gate. Saved lessons load by hook on 11, through a rules file you rewrite on 4 (Grok CLI, Auggie, Junie CLI and Goose), and not on Cline.
+Reach, from the [agent table](#works-with-these-agents): the skills go to all 16 agents, the core skill with these rules among them. Codex CLI, Gemini CLI, Cursor and GitHub Copilot CLI also load the rules as a rules file in every session. 12 have a Stop gate: the 10 full-tier agents, Grok CLI and Goose. Saved lessons load by hook on 11, through a rules file you rewrite on 4 (Grok CLI, Auggie, Junie CLI and Goose), and not on Cline.
 <!-- loop-table:end -->
 
 Step 6 is the self-improvement step. The model does not change. What changes is what the next session starts with: a searchable log of what ran, and the lessons you kept.
@@ -96,7 +96,7 @@ You control the AI. The AI does not control you. "Full control" is the goal. Her
 
 <p><img src="assets/readme/demo-blind-edit.svg" width="640" alt="Codex CLI sends an apply_patch of src/app.ts before reading it and gets a deny saying the session's log shows no read of the file. After a cat of the file is logged, the same patch goes through with no output."></p>
 
-"Logged only" rules write a debug-log line and allow the call, so they are off in practice ([Limits](#limits)). The typecheck gate needs a Stop gate: a hook that runs when the agent ends its turn and can send it back. Every full-tier agent in the [agent table](#works-with-these-agents) has one. Some agents' edit tools already check for a prior read; Claude Code's does. The blind-edit gate repeats that check from a hook.
+"Logged only" rules write a debug-log line and refuse nothing, so they are off in practice ([Limits](#limits)). The two turn-end rows need a Stop gate: the reach line under [the loop table](#the-loop) names the agents that have one. Some agents' edit tools already check for a prior read; Claude Code's does. The blind-edit gate repeats that check from a hook.
 
 ### What it logs
 
@@ -104,23 +104,21 @@ One redacted row per tool call that runs, per repository, on your own disk ([`bi
 
 ### What you can switch
 
-Five things are on after install: the destructive-command deny, the blind-edit gate, the log, the lesson load and the MCP server. Every row above marked "Off" or "Logged only" waits for an environment variable, set where your agent starts. One command per agent turns the hooks off ([Install](#install)). Every hook, its default and its switch: [What turns on, what it costs, how to turn it off](#what-turns-on-what-it-costs-how-to-turn-it-off).
+Every row above marked "Off" or "Logged only" waits for an environment variable, set where your agent starts. One command per agent turns the hooks off ([Install](#install)). What is on after install, and every hook with its default and its switch: [What turns on, what it costs, how to turn it off](#what-turns-on-what-it-costs-how-to-turn-it-off).
 
 <p><img src="assets/readme/demo-push-gate.svg" width="640" alt="With CI_HOOKPACK_GATE=block set, Claude Code sends git push origin main to hooks/hook-pack.mjs and gets a deny whose reason says the push targets the protected branch main and to open a feature branch and a pull request instead."></p>
 
 ### Where it runs
 
-On your machine. Every hook is a Node process. None makes a model call or a network call, and the package has no runtime dependencies.
+On your machine, as Node processes that make no model call and no network call.
 
 <p><img src="assets/readme/hero-flow.svg" width="640" alt="Flow: the agent asks to run a tool call; the guard hook decides first; a refused call gets a reply naming the rule and does not run; an allowed call runs and gets one redacted log row; saved lessons load when the next session starts. The hooks make no model or network calls."></p>
 
-One hook file serves every agent: [`hooks/gateguard.mjs`](hooks/gateguard.mjs). Claude Code runs it from the plugin; an agent installed with `--hooks` runs it from a stable copy at `<instincts root>/runtime/<version>/`. [`lib/hook-io.mjs`](lib/hook-io.mjs) writes each answer in the format that agent reads.
-
-The instincts root holds the log, the lessons and the runtime copy for every agent. It is `CI_INSTINCTS_HOME` when set, else `~/.claude/instincts`: the directory is named `~/.claude` for historical reasons, and setting `CI_INSTINCTS_HOME` moves it. No hook writes inside your repository.
+One hook file serves every agent: [`hooks/gateguard.mjs`](hooks/gateguard.mjs). Claude Code runs it from the plugin; an agent installed with `--hooks` runs it from a stable copy under your home directory. [`lib/hook-io.mjs`](lib/hook-io.mjs) writes each answer in the format that agent reads. Where the copy, the log and the lessons are kept, and how to move them: the Disk line under [What turns on](#what-turns-on-what-it-costs-how-to-turn-it-off).
 
 ### What you do not control with it
 
-It is not a sandbox: the deny matches command text against a fixed rule list, and a write through shell redirection passes. A hook that crashes or times out lets the call through on agents that fail open. Contemplate and Iterate have no hook at all. No hook runs tests, lint or a build. It does not make the model better at code and it does not apply a lesson for you; `be-ambitious` changes the brief the model works from. The full list is under [Limits](#limits).
+It is not a sandbox: the deny matches command text against a fixed rule list, and a write through shell redirection passes. The full list, by step of the loop: [Limits](#limits).
 
 ## Install
 
@@ -231,18 +229,18 @@ Skip it if you:
 
 **Off switches** are under [Install](#install).
 
-- **On by default:** the destructive-command deny, the blind-edit gate, the log, the lesson load (silent until a lesson at 0.5 or higher exists) and the MCP server. Every other hook waits for a switch.
+- **On after install:** the destructive-command deny (with the `@{u}` quoting rule), the blind-edit gate, the log, the lesson load (silent until a lesson at 0.5 or higher exists) and the MCP server. Every other hook refuses nothing and sends the model nothing until you set its switch: an environment variable where your agent starts, or a settings key for companion-preference.
 - **Process starts:** every hook is one Node process per call. A hook that is switched off still starts, reads its switch and exits. Claude Code's count is under [What it costs on Claude Code](#what-it-costs-on-claude-code).
 - **Context:** the hooks add text only when one acts: a deny reason, or the lesson lines at session start.
 - **Network and model calls:** none, from any hook, the logger or the MCP server. The package has no runtime dependencies.
-- **Disk:** `<instincts root>/<project-hash>/`, which is `~/.claude/instincts/<project-hash>/` unless `CI_INSTINCTS_HOME` is set, for every agent. No hook writes inside your repository.
+- **Disk:** the instincts root, which is `~/.claude/instincts` for every agent (the name is historical) unless `CI_INSTINCTS_HOME` moves it. It holds the log and the lessons of each repository under `<project-hash>/`, and the copy of the hooks under `runtime/<version>/`. No hook writes inside your repository.
 
 <details>
 <summary><b>Every hook, its event, default and switch</b></summary>
 
 The plugin registers 13 hook scripts and one MCP server on Claude Code, and `--hooks` wires the same scripts for another agent on the events that agent has ([AGENT-SUPPORT](docs/AGENT-SUPPORT.md)). Events below use Claude Code's names: `PreToolUse` runs before a tool call, `PostToolUse` after it, `UserPromptSubmit` on each prompt, `Stop` at turn end, and `SessionStart` and `SessionEnd` at the edges of a session.
 
-On after install: the destructive-command deny (with the `@{u}` quoting rule), the blind-edit gate, the log, the lesson load and the MCP server with 19 tools. The goal-drift check runs without reaching the model and rewrites `goal-drift-state.json` at every turn end. Every other hook waits for a switch, which is an environment variable set where your agent starts. A `CI_*` name and its older `CLAUDE_*` twin do the same; when both are set, the `CLAUDE_*` one wins. "Debug log only" means a stderr line from a hook that exits 0. It is not part of the hook's answer, so treat it as unread.
+The goal-drift check runs without reaching the model and rewrites `goal-drift-state.json` at every turn end. On Claude Code, companion-preference writes its log row the same way. A `CI_*` name and its older `CLAUDE_*` twin do the same; when both are set, the `CLAUDE_*` one wins. "Debug log only" means a stderr line from a hook that exits 0. It is not part of the hook's answer, so treat it as unread.
 
 | What it does | File, event | Default | Switch | What reaches the model |
 |---|---|---|---|---|
@@ -263,7 +261,7 @@ On after install: the destructive-command deny (with the `@{u}` quoting rule), t
 | Runs the project typecheck when TypeScript files changed | `hooks/typecheck-stop.mjs`, `Stop` | Off | `CI_TYPECHECK_GATE` or `CLAUDE_TYPECHECK_GATE`: `block` or `warn` | In `block`, the last 15 lines of the output |
 | Reminds about query cost when SQL or migration files changed | `hooks/query-cost-nudge.mjs`, `Stop` | Off | `CI_QUERY_COST_NUDGE=on` or `CLAUDE_QUERY_COST_NUDGE=on` | One reminder per session |
 
-**Disk, in more detail.** The three-heading check, when switched on, writes `~/.claude/hook-telemetry/`. The log rotates at 10,000 rows and keeps the 10 newest archives. No hook writes inside your repository. Commands you run can: `/planning-with-files` and the `ci_plan_init` tool write `task_plan.md`, `findings.md` and `progress.md`, and `/grill-with-docs` updates `CONTEXT.md` and ADRs.
+**Disk, in more detail.** The three-heading check, when switched on, writes `~/.claude/hook-telemetry/`. The log rotates at 10,000 rows and keeps the 10 newest archives. Commands you run can write inside your repository: `/planning-with-files` and the `ci_plan_init` tool write `task_plan.md`, `findings.md` and `progress.md`, and `/grill-with-docs` updates `CONTEXT.md` and ADRs.
 
 </details>
 
@@ -290,6 +288,7 @@ Everything else:
 - **The log is partial.** Only tool calls that reach the post-tool event are logged, so denied and failed calls are absent. Prompts are never logged. Search reads the current log file, not the rotated archives, and it is lexical.
 - **Lessons are notes.** At most 10 lines and 1,500 characters load, lessons under 0.5 confidence are not shown, and nothing enforces them.
 - **Goal drift needs a goal file.** It does not score until `task_plan.md` has a `## Goal` section, or, when there is no `task_plan.md`, a `goal.md` sits in the repository's state directory. It still rewrites `goal-drift-state.json` at each turn end unless `CLAUDE_GOAL_DRIFT_GATE=off`. It scores keyword overlap, and it reads the repository's recent calls from any session.
+- **Some agents fail open.** There, a hook that crashes or times out lets the call through ([docs/AGENT-SUPPORT.md](docs/AGENT-SUPPORT.md)).
 - **Hooks need `node` on `PATH`.** Without it no hook runs and nothing is denied. CI runs Linux on Node 18, 20 and 22, the captures in this README were taken on Windows 11, and macOS has no CI job.
 - **Two commands need a clone of this repository.** `/harvest` and `/companion-preference` run `node bin/<script>.mjs` from the current directory, and the plugin bundle does not ship those two scripts: clone the repository (`git clone https://github.com/naimkatiman/continuous-improvement`) and run the command from inside it.
 

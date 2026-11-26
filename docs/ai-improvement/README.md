@@ -30,15 +30,17 @@ Code changes: none in this baseline.
 
 ## Product Thesis / User Value
 
+Positioning as of 2026-11-25: two pillars, ambition and discipline, for 16 coding agents ([plan](../plans/2026-11-25-two-pillars.md)). The rest of this baseline keeps its own date.
+
 ### Product purpose
 
-`continuous-improvement` helps Claude Code users and teams avoid common agentic coding failures: edits without context, bundled changes, unverified completion claims, forgotten lessons, and repeated mistakes across sessions.
+`continuous-improvement` helps people who run coding agents on two fronts. Ambition: the `be-ambitious` skill tells the agent to work on the goal behind the task, with a target and a check set first. Discipline: hooks, a local log and a seven-step loop against edits without context, bundled changes, unverified completion claims, forgotten lessons, and repeated mistakes across sessions.
 
 ### Likely users
 
-- Individual developers using Claude Code on real repositories.
+- Individual developers using a coding agent on real repositories, Claude Code among the 16 in `docs/AGENT-SUPPORT.md`.
 - Engineering teams that want AI agents to obey reviewable workflow discipline.
-- Maintainers distributing Claude Code skills/plugins and wanting repeatable agent behavior.
+- Maintainers distributing skills and plugins and wanting repeatable agent behavior.
 - CI users who want a GitHub Action to lint agent transcripts for skipped discipline.
 
 ### Core value proposition
@@ -53,7 +55,7 @@ The product turns discipline from a prompt preference into a product surface:
 
 ### Business value
 
-The package is positioned as an AI-agent reliability layer. Business value comes from reduced rollback/rework, better trust in AI-generated changes, lower onboarding friction for disciplined agent workflows, and a memorable category narrative: "Claude Code that gets sharper every session."
+The package is positioned on the two pillars, under the headline "Aim high. Stay in control." Business value comes from bigger goals handed to an agent with a target and a check, reduced rollback/rework, better trust in AI-generated changes, and lower onboarding friction for disciplined agent workflows.
 
 ## Current Repo Map
 

@@ -1,9 +1,9 @@
 /**
  * The loop is the spine of the two-pillar positioning (the owner's direction
  * of 2026-11-25), and lib/loop-stages.mjs is its one source. The README loop
- * table, the landing page's list of steps, assets/readme/pillars-loop.svg and
- * the loop line in SKILL.md are rendered from it. These tests tie the table
- * to what ships: each step's law is a heading of SKILL.md, each hook file
+ * table, the landing page's list of steps and assets/readme/pillars-loop.svg
+ * are rendered from it; SKILL.md's loop line is hand-written and held to it
+ * here. These tests tie the table to what ships: each step's law is a heading of SKILL.md, each hook file
  * exists and is registered on the event the table names, each mark agrees with
  * the hook's default, and every agent count comes from lib/agent-support.mjs.
  * The last four suites hold the landing page and the social card to the same
@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 
 import { pillarsLoop } from "../bin/render-readme-assets.mjs";
 import { HOOK_AGENT_IDS, PLUGIN_AGENT_IDS } from "../lib/agent-install-plans.mjs";
-import { AGENT_SUPPORT, blocksPreTool, type AgentSupport } from "../lib/agent-support.mjs";
+import { AGENT_SUPPORT, blocksPreTool, installFlags, supportTier, type AgentSupport } from "../lib/agent-support.mjs";
 import {
   HEADLINE,
   LOOP_MARKS,
@@ -68,6 +68,13 @@ describe("the loop's steps and the laws of the core skill", () => {
       const opening = text.slice(text.indexOf("\n# continuous-improvement\n"), text.indexOf("\n## Law 1"));
       for (const pillar of PILLARS) assert.ok(opening.includes(`**${pillar.name}:**`), `the opening names ${pillar.name}`);
       assert.match(opening, /`be-ambitious`/);
+    });
+
+    it(`${doc} says in its description, the line a skill list shows, which pillar it is and the steps in order`, () => {
+      const description = /^description: "(.*)"$/m.exec(read(doc))![1]!;
+      assert.match(description, /^The discipline pillar, beside the be-ambitious skill \(ambition\)\. Tells the agent /);
+      assert.ok(description.includes(`seven steps: ${loopWords()}.`), description);
+      assert.doesNotMatch(description, /Install structured|execute, verify|into a coding agent/);
     });
   }
 });
@@ -146,6 +153,9 @@ describe("the agent counts in the loop copy", () => {
     assert.equal(facts.agents, working.length);
     assert.equal(facts.stopGate, working.filter((r) => r.stopGate).length);
     assert.equal(facts.lessonsByHook + facts.lessonsByRulesFile.length + facts.lessonsNone.length, facts.agents);
+    assert.equal(facts.fullTier, working.filter((r) => supportTier(r) === "full").length);
+    assert.deepEqual(facts.stopGatePartial, working.filter((r) => r.stopGate && supportTier(r) !== "full").map((r) => r.names[0]));
+    assert.equal(facts.fullTier + facts.stopGatePartial.length, facts.stopGate, "every agent with a Stop gate is counted or named once");
     assert.deepEqual(facts.targetIds, working.filter((r) => r.id !== "claude").map((r) => r.id));
     assert.deepEqual([...facts.targetIds].sort(), [...HOOK_AGENT_IDS, ...PLUGIN_AGENT_IDS].sort(), "every agent --hooks installs for can block");
   });
@@ -159,7 +169,7 @@ describe("the agent counts in the loop copy", () => {
     assert.ok(text.includes(`go to all ${before.agents} agents`));
 
     const noStop = renderLoopTableMarkdown(change("codex", { stopGate: false }));
-    assert.ok(noStop.includes(`on the ${before.stopGate - 1} agents with a Stop gate`) && noStop.includes(`${before.stopGate - 1} have a Stop gate`));
+    assert.ok(noStop.includes(`on the ${before.stopGate - 1} agents with a Stop gate`) && noStop.includes(`${before.stopGate - 1} have a Stop gate: the ${before.fullTier - 1} full-tier agents, `));
     const clineHook = renderLoopTableMarkdown(change("cline", { lessons: "hook" }));
     assert.ok(clineHook.includes(`by hook on ${before.lessonsByHook + 1} agents`) && clineHook.includes("not at all on 0"));
     assert.ok(!clineHook.includes("not on Cline"));
@@ -200,6 +210,37 @@ describe("the README loop table", () => {
     for (const stage of LOOP_STAGES.filter((s) => s.mark === "none")) assert.doesNotMatch(stage.does(loopFacts()), /hooks\/|bin\//, `${stage.name} names no hook file`);
   });
 
+  // Plan carries the "off until you switch it on" mark, and its hook acts by
+  // default: hooks/goal-drift-stop.mjs scores the turn, prints a stderr line on
+  // drift and rewrites its state file. Iterate carries "none", and the
+  // transcript linter checks it after the run. A legend that says "does
+  // nothing" or "nothing checks it" is false for both.
+  it("says of a mark only what holds for every step that carries it", () => {
+    const plan = LOOP_STAGES.find((s) => s.mark === "off until you switch it on" && s.defaultMode === "warn");
+    assert.equal(plan?.name, "Plan");
+    assert.match(read(plan!.hooks[0]!.file), /goal-drift-state\.json/, "the hook writes a state file with no switch set");
+    assert.equal(MARK_MEANING["off until you switch it on"], "the hook ships and refuses nothing until you set the variable");
+    assert.ok(LOOP_STAGES.some((s) => s.mark === "none" && /transcript linter/.test(s.does(loopFacts()))), "a step with no hook is checked after the run");
+    assert.equal(MARK_MEANING.none, "text the agent is given, and nothing checks it during the session");
+    for (const meaning of Object.values(MARK_MEANING)) assert.doesNotMatch(meaning, /does nothing|nothing checks it$/);
+  });
+
+  // A reader meets "Stop gate" in the Review row first, so that row says what
+  // one is. The agent table has no Stop gate column, so the reach line says
+  // which agents the count is.
+  it("says what a Stop gate is in the Review row, and which agents have one under the table", () => {
+    const facts = loopFacts();
+    const text = renderLoopTableMarkdown();
+    const review = text.split("\n").find((line) => line.startsWith("| 4. Review "))!;
+    assert.ok(review.includes(`on the ${facts.stopGate} agents with a Stop gate (a hook that runs when the agent ends its turn and can send it back)`));
+    assert.equal(text.indexOf("Stop gate"), text.indexOf("Stop gate (a hook that runs when the agent ends its turn"), "the first mention defines it");
+    const others = facts.stopGatePartial;
+    assert.ok(others.length > 1);
+    const named = `${others.slice(0, -1).map((name) => `, ${name}`).join("")} and ${others[others.length - 1]}`;
+    assert.ok(text.includes(` ${facts.stopGate} have a Stop gate: the ${facts.fullTier} full-tier agents${named}.`), text.split("\n").pop());
+    assert.ok(read("README.md").indexOf("Stop gate") > read("README.md").indexOf(LOOP_TABLE_START), "nothing above the loop table uses the term");
+  });
+
   it("says where the Plan gate is shown to work, and that Review's gate is TypeScript only", () => {
     const facts = loopFacts();
     assert.match(LOOP_STAGES.find((s) => s.name === "Plan")!.does(facts), /Shown to work on Claude Code only/);
@@ -234,7 +275,13 @@ describe("the README first screen", () => {
   });
 
   it("lists the --target ids and the agents from the support table, in its order", () => {
-    const ids = facts.targetIds.map((id) => `\`${id}\``);
+    // An id whose own install command takes another flag (Junie, whose project
+    // config the agent does not read) carries it, as the agent table does.
+    const ids = facts.targetIds.map((id) => {
+      const flags = installFlags(AGENT_SUPPORT.find((row) => row.id === id)!);
+      return `\`${id}\`${flags === "" ? "" : ` (add \`${flags}\`)`}`;
+    });
+    assert.ok(ids.includes("`junie` (add `--scope user`)"));
     assert.ok(top.includes(`\`<agent>\` is ${ids.slice(0, -1).join(", ")} or ${ids[ids.length - 1]}.`), "the --target ids");
     const names = working.map((row) => row.names[0]!);
     assert.ok(top.includes(`It works in ${names.length} coding agents: ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}.`), "the agents");
@@ -243,6 +290,81 @@ describe("the README first screen", () => {
   it("stays short: the per-step caveats live in the loop table, not in a paragraph above it", () => {
     assert.doesNotMatch(top.replace(/<img\b[^>]*>/g, ""), /off until you switch it on|refuses by default|written rules?/i);
     assert.ok(top.split("\n").filter((line) => line.trim() !== "").length <= 20, "at most 20 lines above the first section");
+  });
+});
+
+// The README first screen gives every agent one command and links to
+// QUICKSTART.md as the walkthrough, so the walkthrough may not start by asking
+// for Claude Code.
+describe("the README Discipline section", () => {
+  const readme = read("README.md");
+  const section = (from: string, to: string): string => readme.slice(readme.indexOf(from), readme.indexOf(to));
+  const discipline = section("\n## Discipline\n", "\n## Install\n");
+
+  // "What turns on" and Limits hold the detail. Discipline says the point of
+  // each part and links there, so a fact is stated once.
+  it("says what each part is and leaves the detail to What turns on and Limits", () => {
+    assert.ok(discipline.includes("](#what-turns-on-what-it-costs-how-to-turn-it-off)") && discipline.includes("](#limits)"));
+    for (const repeat of [/are on after install:/, /No hook writes inside your repository/, /No hook runs tests, lint or a build/, /Contemplate and Iterate have no hook/, /no runtime dependencies/]) {
+      assert.doesNotMatch(discipline, repeat);
+      assert.match(readme.replace(discipline, ""), repeat.source.includes("after install") ? /\*\*On after install:\*\*/ : repeat, "it is still said, once, where the detail is");
+    }
+    for (const once of ["No hook writes inside your repository", "the blind-edit gate, the log, the lesson load", "no runtime dependencies"]) {
+      assert.equal(readme.split(once).length - 1, 1, once);
+    }
+  });
+
+  it("does not say that every other hook waits for a switch, since two of them write local state by default", () => {
+    assert.match(readme, /The goal-drift check runs without reaching the model and rewrites `goal-drift-state\.json`/);
+    for (const doc of [readme, read("QUICKSTART.md")]) {
+      assert.doesNotMatch(doc, /Every other hook waits for a switch/);
+      assert.match(doc, /Every other hook refuses nothing and sends the model nothing until you set its switch/);
+    }
+  });
+
+  it("defines a Stop gate once, in the loop table", () => {
+    assert.equal(readme.split("runs when the agent ends its turn").length - 1, 1);
+    assert.match(discipline, /Stop gate/);
+  });
+});
+
+describe("QUICKSTART.md, the walkthrough the first screen links to", () => {
+  const quick = read("QUICKSTART.md");
+  const facts = loopFacts();
+
+  it("opens with the two pillars and needs any agent of the table, not Claude Code", () => {
+    const intro = quick.slice(0, quick.indexOf("\n## 1. "));
+    assert.ok(intro.indexOf("ambition") !== -1 && intro.indexOf("ambition") < intro.indexOf("discipline"));
+    assert.ok(intro.includes(`You need one of the ${facts.agents} agents`), "the agent count");
+    assert.doesNotMatch(intro, /You need Claude Code|uses Claude Code/);
+  });
+
+  it("installs with --target first and the Claude Code plugin second, with the ids of the table", () => {
+    const install = quick.slice(quick.indexOf("\n## 1. "), quick.indexOf("\n## 2. "));
+    const command = install.indexOf("npx continuous-improvement install --target codex --hooks");
+    assert.ok(command !== -1 && command < install.indexOf("/plugin install"));
+    assert.ok(install.includes(`**For ${facts.targetIds.length} agents**`));
+    const ids = AGENT_SUPPORT.filter((row) => facts.targetIds.includes(row.id)).map((row) => `\`${row.id}\`${installFlags(row) === "" ? "" : ` (add \`${installFlags(row)}\`)`}`);
+    assert.ok(install.includes(`The ids are ${ids.slice(0, -1).join(", ")} and ${ids[ids.length - 1]}.`), ids.join(", "));
+  });
+
+  it("asks for nothing only Claude Code has without saying so", () => {
+    for (const block of quick.split("\n\n")) {
+      if (!/(?:^|[\s`])\/(?:plugin|recall|verify-install|be-ambitious|clear|continuous-improvement:recall)\b|claude plugin /m.test(block)) continue;
+      if (block.startsWith("```")) continue; // a code block takes the label of the paragraph above it
+      assert.match(block, /Claude Code/, block);
+    }
+    for (const command of ["/plugin marketplace add", "/verify-install", "claude plugin disable"]) {
+      const before = quick.slice(0, quick.indexOf(`\n${command}`)).split("\n\n");
+      assert.match(before[before.length - 2] ?? "", /\*\*(?:On )?Claude Code\*\*/, command);
+    }
+  });
+
+  it("names the agents that take lessons another way, from the support table, and tries the ambition side", () => {
+    const names = facts.lessonsByRulesFile;
+    assert.ok(quick.includes(`${names.slice(0, -1).join(", ")} and ${names[names.length - 1]} take lessons through a rules file instead`));
+    assert.ok(quick.includes(`${facts.lessonsNone.join(" and ")} gets none.`));
+    assert.match(quick, /Use the be-ambitious skill on this task/);
   });
 });
 
@@ -323,6 +445,10 @@ describe("the landing page's loop block", () => {
     }
     assert.equal(html.split("<dt>Switch</dt><dd>None</dd>").length - 1, LOOP_STAGES.filter((s) => s.switch === "").length);
     assert.equal(html.split("<dt>Default</dt><dd>No hook</dd>").length - 1, markCounts().none, "a step with no hook says so");
+    // The only step that warns by default runs at turn end, where there is no tool call to let through.
+    assert.deepEqual(LOOP_STAGES.filter((s) => s.defaultMode === "warn").flatMap((s) => s.hooks.map((hook) => hook.event)), ["Stop"]);
+    assert.equal(html.split("<dt>Default</dt><dd>Warns only: a debug-log line, and the turn ends</dd>").length - 1, 1);
+    assert.doesNotMatch(html, /the call goes through/);
     assert.equal(html.split("<details").length - 1, LOOP_STAGES.length, "one disclosure per step");
   });
 
@@ -347,10 +473,10 @@ describe("the landing page's loop block", () => {
   it("states the reach with the support table's counts, and they move when a row changes", () => {
     const text = plain(html);
     assert.ok(text.includes(`the skills go to all ${facts.agents} agents`));
-    assert.ok(text.includes(`${facts.stopGate} have a Stop gate.`));
+    assert.ok(text.includes(`${facts.stopGate} have a Stop gate: the ${facts.fullTier} full-tier agents, `));
     assert.ok(text.includes(`Saved lessons load by hook on ${facts.lessonsByHook}`));
     const fewer = plain(renderLoopStepsHtml(AGENT_SUPPORT.map((row) => (row.id === "codex" ? { ...row, stopGate: false } : row))));
-    assert.ok(fewer.includes(`${facts.stopGate - 1} have a Stop gate.`) && fewer.includes(`on the ${facts.stopGate - 1} agents with a Stop gate`));
+    assert.ok(fewer.includes(`${facts.stopGate - 1} have a Stop gate: the ${facts.fullTier - 1} full-tier agents, `) && fewer.includes(`on the ${facts.stopGate - 1} agents with a Stop gate`));
     const readmeReach = renderLoopTableMarkdown().split("\n").pop()!.replace(/\[agent table\]\([^)]*\)/, "agent table");
     assert.ok(text.endsWith(readmeReach), "the reach line is the README's");
   });

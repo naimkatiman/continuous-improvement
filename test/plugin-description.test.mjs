@@ -12,14 +12,15 @@
  */
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { AGENT_SUPPORT, blocksPreTool } from "../lib/agent-support.mjs";
 import { hashProjectRoot } from "../lib/gateguard-state.mjs";
-import { LOOP_STAGES, loopWords } from "../lib/loop-stages.mjs";
-import { getClaudePluginManifest, getPluginHooksConfig } from "../lib/plugin-metadata.mjs";
+import { MAX_LESSONS } from "../lib/lesson-render.mjs";
+import { LOOP_STAGES, loopFacts, loopWords } from "../lib/loop-stages.mjs";
+import { PLUGIN_MODES, getClaudePluginManifest, getPluginHooksConfig, getPluginManifest, getToolNames } from "../lib/plugin-metadata.mjs";
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const REPO_ROOT = join(__dirname, "..");
 const DESCRIPTION = getClaudePluginManifest().description;
@@ -35,7 +36,9 @@ const MECHANISMS = [
     { says: /guardrails/i, event: "PreToolUse", hook: "/hooks/config-guard.mjs" },
     { says: /typecheck/i, event: "Stop", hook: "/hooks/typecheck-stop.mjs" },
     { says: /searchable log/i, event: "PostToolUse", hook: "/bin/observe.mjs" },
-    { says: /session start/i, event: "SessionStart", hook: "/hooks/session.mjs" },
+    // Not "at session start": 5 of the 16 agents have no session hook, and the
+    // same description names all 16 in .cloudplugin/marketplace.json.
+    { says: /session hook/i, event: "SessionStart", hook: "/hooks/session.mjs" },
 ];
 // The three promises the old description made with no code behind them.
 const UNKEPT_PROMISES = [
@@ -73,11 +76,83 @@ describe("plugin description", () => {
         const manifest = JSON.parse(readRepoFile(".cloudplugin/marketplace.json"));
         assert.equal(manifest.description, DESCRIPTION);
     });
+    it("has keywords that carry both pillars, as package.json's do", () => {
+        const npm = JSON.parse(readRepoFile("package.json")).keywords;
+        const keywords = getClaudePluginManifest().keywords;
+        for (const word of ["coding-agents", "ambition", "be-ambitious", "ai-discipline"]) {
+            assert.ok(npm.includes(word), `package.json keywords: ${word}`);
+            assert.ok(keywords.includes(word), `plugin.json keywords: ${word}`);
+        }
+        assert.equal(new Set(keywords).size, keywords.length, "no keyword twice");
+    });
+});
+// The manifest's description leads with the be-ambitious skill and the loop,
+// so its own lists (kept by hand) must hold them, and only files that ship.
+describe(".cloudplugin/marketplace.json lists", () => {
+    const manifest = JSON.parse(readRepoFile(".cloudplugin/marketplace.json"));
+    it("list the be-ambitious skill first after the core skill, and its command", () => {
+        assert.deepEqual(manifest.skills.slice(0, 2).map((s) => [s.name, s.file]), [["continuous-improvement", "SKILL.md"], ["be-ambitious", "skills/be-ambitious.md"]]);
+        assert.ok(manifest.commands.some((c) => c.name === "be-ambitious"));
+        assert.ok(manifest.tags.includes("ambition") && manifest.tags.includes("discipline"));
+    });
+    it("name only skills and commands that ship", () => {
+        for (const skill of manifest.skills)
+            assert.ok(skill.file !== undefined && existsSync(join(REPO_ROOT, skill.file)), `${skill.name}: ${skill.file}`);
+        for (const command of manifest.commands)
+            assert.ok(existsSync(join(REPO_ROOT, "commands", `${command.name}.md`)), command.name);
+    });
+    it("describe the core skill by the loop's steps in order, and no skill as more than guidance", () => {
+        const [core, ambitious] = manifest.skills;
+        assert.ok(core.description.includes(loopWords()), core.description);
+        for (const skill of [core, ambitious])
+            assert.match(skill.description, /Guidance the agent reads\./, skill.name);
+        for (const entry of [...manifest.skills, ...manifest.commands])
+            assert.doesNotMatch(entry.description, /mandatory|any AI agent|enforce/i, entry.name);
+    });
+});
+// plugins/beginner.json and plugins/expert.json ship in the npm package. They
+// led with gateguard, carried no pillar, and said research, tests and
+// verification "happen by default". No hook runs tests, lint or a build.
+describe("mode manifests", () => {
+    const registered = JSON.stringify(getPluginHooksConfig().hooks);
+    for (const mode of PLUGIN_MODES) {
+        const manifest = getPluginManifest(mode);
+        const texts = [manifest.description, manifest.hooks.description];
+        it(`${mode} leads with the two pillars and the tools the mode serves, before any guard`, () => {
+            assert.ok(manifest.description.startsWith(`Ambition and discipline for coding agents, ${mode} mode`), manifest.description);
+            const tools = getToolNames(mode);
+            assert.ok(manifest.description.includes(`${tools.length} tools`));
+            const named = texts.flatMap((text) => text.match(/\bci_\w+/g) ?? []);
+            for (const name of named)
+                assert.ok(tools.includes(name), `${mode} serves no ${name}`);
+            assert.doesNotMatch(manifest.description, /gateguard/);
+            assert.match(manifest.description, /\bbe-ambitious\b/);
+        });
+        it(`${mode} calls a skill guidance, and says only what its hooks do`, () => {
+            assert.match(manifest.description, /guidance the agent reads/);
+            for (const text of texts)
+                assert.doesNotMatch(text, /happen by default|every tool call|every edit|auto-reflection|auto-level|silently|stay sharp|non-blocking|learnings survive|lazy/i);
+            assert.match(manifest.hooks.description, /bin\/observe\.mjs logs each tool call that runs/);
+            for (const [, file] of manifest.hooks.description.matchAll(/\b((?:hooks|bin)\/[\w-]+\.mjs)/g)) {
+                assert.ok(registered.includes(`/${file}`), `${file} is not registered by the plugin`);
+            }
+        });
+    }
+    it("expert states the lesson cap the session hook uses, and calls the session-end line a reminder", () => {
+        const text = getPluginManifest("expert").hooks.description;
+        assert.ok(text.includes(`up to ${MAX_LESSONS} saved lessons at session start`), text);
+        assert.match(text, /a reminder to reflect at session end/);
+        assert.match(readRepoFile("hooks/session.mjs"), /Session ending\. Run \/continuous-improvement to reflect/);
+    });
 });
 // npm and llms.txt are read by people who may install with npx instead of the
 // plugin, and src/bin/install.mts wires much less than the plugin's hooks.json:
 // the tool-call log (bin/observe.mjs) always, the session hook and the MCP
 // server only with --mode expert, and no PreToolUse guard at all.
+// The installer names hooks/gateguard.mjs in its help, to say it is not wired.
+// Wiring one takes the file name as a string of its own, as join(..., "hooks",
+// "session.mjs") does; src/test/install.test.mts reads the settings it writes.
+const wires = (installer, file) => new RegExp(`["'\`]${file.replace(".", "\\.")}["'\`]`).test(installer);
 describe("package description (npm and llms.txt)", () => {
     const pkg = JSON.parse(readRepoFile("package.json"));
     const installer = readRepoFile("bin/install.mjs");
@@ -94,8 +169,9 @@ describe("package description (npm and llms.txt)", () => {
         }
     });
     it("says what `npx continuous-improvement install` wires, which is what src/bin/install.mts wires", () => {
-        for (const guard of ["hooks/gateguard.mjs", "hooks/hook-pack.mjs", "hooks/config-guard.mjs", "hooks/typecheck-stop.mjs"]) {
-            assert.ok(!installer.includes(guard), `the installer now wires ${guard}; update the description`);
+        assert.ok(wires(installer, "session.mjs"), "the probe sees a hook the installer does wire");
+        for (const guard of ["gateguard.mjs", "hook-pack.mjs", "config-guard.mjs", "typecheck-stop.mjs"]) {
+            assert.ok(!wires(installer, guard), `the installer now wires hooks/${guard}; update the description`);
         }
         assert.match(installer, /if \(INSTALL_MODE === "expert"\) \{\s*setupMcpServer\(\);/);
         assert.match(pkg.description, /`npx continuous-improvement install` wires only the tool-call log for Claude Code \(with --mode expert, also the session-start loader and the MCP server\)/);
@@ -141,17 +217,42 @@ describe("package description (npm and llms.txt)", () => {
 describe("llms.txt install steps", () => {
     const llms = readRepoFile("llms.txt");
     it("does not say the npx install fires gateguard, which src/bin/install.mts never wires", () => {
-        assert.ok(!readRepoFile("bin/install.mjs").includes("hooks/gateguard.mjs"));
+        assert.ok(!wires(readRepoFile("bin/install.mjs"), "gateguard.mjs"));
         assert.deepEqual(llms
             .split(/\r?\n/)
             .filter((line) => /npx continuous-improvement install/.test(line) && /gateguard fires/i.test(line))
             .filter((line) => !/`npx continuous-improvement install` does not wire gateguard/.test(line)), []);
     });
-    it("gives the plugin install first, and marks the npx install as the narrower one", () => {
-        const install = llms.slice(llms.indexOf("## Install"));
-        assert.ok(install.indexOf("/plugin install") !== -1, "the plugin install is listed");
-        assert.ok(install.indexOf("/plugin install") < install.indexOf("npx continuous-improvement install"));
+    it("gives the --target install first, then the Claude Code plugin, and marks the plain npx install as the narrowest", () => {
+        const install = llms.slice(llms.indexOf("## Install"), llms.indexOf("## The 7 Laws"));
+        const target = install.indexOf("npx continuous-improvement install --target <agent> --hooks");
+        const plugin = install.indexOf("/plugin install");
+        const plain = install.indexOf("\nnpx continuous-improvement install\n");
+        assert.ok(target !== -1 && plugin > target && plain > plugin, `${target} ${plugin} ${plain}`);
         assert.match(install, /log only/);
+    });
+    // The README's first screen order: the goal, then what refuses, then what
+    // remembers. A slash command is Claude Code's, so it is named as such.
+    it("opens the benefit list with the ambition pillar, and puts every slash command under Claude Code", () => {
+        const list = llms.slice(llms.indexOf("How you actually benefit:"), llms.indexOf("## Install")).split("\n").filter((line) => /^\d\. /.test(line));
+        assert.match(list[0] ?? "", /^1\. Ask the agent to use the be-ambitious skill/);
+        assert.ok(list.findIndex((line) => line.includes("hooks/gateguard.mjs")) > 0, "the guard is not the first benefit");
+        for (const line of list)
+            if (/(?:^|[\s`])\/[a-z][a-z-]+/.test(line))
+                assert.match(line, /^\d\. On Claude Code /, line);
+    });
+    it("states how lessons reach each agent with the support table's counts, and the guard with its per-agent conditions", () => {
+        const facts = loopFacts();
+        const words = ["no", "one", "two", "three", "four", "five", "six"];
+        const discipline = llms.split("\n").find((line) => line.startsWith("Discipline: "));
+        assert.ok(discipline.includes(`at session start where the agent has a session hook (${facts.lessonsByHook} of the ${facts.agents})`), discipline);
+        const names = facts.lessonsByRulesFile;
+        const count = words[names.length];
+        assert.ok(discipline.includes(`${count.charAt(0).toUpperCase()}${count.slice(1)} agents (${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}) get them from a rules file`), discipline);
+        assert.ok(discipline.includes(`and ${facts.lessonsNone.join(" and ")} gets none`), discipline);
+        assert.match(discipline, /docs\/AGENT-SUPPORT\.md/);
+        const pkg = JSON.parse(readRepoFile("package.json"));
+        assert.match(pkg.description, /lessons at session start where the agent has a session hook/);
     });
 });
 const CORE_DOCS = [

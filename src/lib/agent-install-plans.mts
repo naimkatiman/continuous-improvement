@@ -110,7 +110,7 @@ export const HOOK_AGENT_IDS: readonly string[] = [
 ];
 /** PR 14: agents whose hooks are in-process plugins (OpenCode, Amp), one plugin file each. */
 export const PLUGIN_AGENT_IDS: readonly string[] = ["opencode", "amp"];
-// kiro-ide: the Kiro IDE row id in .cloudplugin compatibleWith; the IDE reads the Kiro hooks.
+// kiro-ide: the Kiro IDE row id in lib/agent-support.mjs; the IDE reads the Kiro hooks.
 const ALIASES: Readonly<Record<string, string>> = { windsurf: "devin", "kiro-ide": "kiro" };
 export const INSTALL_SCOPES = ["project", "user"] as const;
 export type InstallScope = (typeof INSTALL_SCOPES)[number];

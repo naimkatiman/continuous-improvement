@@ -18,8 +18,8 @@
  *     lib/loop-stages.mjs with their agent counts taken from the rows.
  *   - assets/readme/agents-map.svg, the README's map of those same rows, is
  *     rendered from them byte for byte.
- *   - .cloudplugin/marketplace.json carries compatibleWith from the rows and
- *     the package.json version (the build writes both).
+ *   - .cloudplugin/marketplace.json carries compatibleWith from the rows that
+ *     block, and the package.json version (the build writes both).
  *   - No sentence in README.md, QUICKSTART.md, llms.txt, docs/AGENT-SUPPORT.md
  *     or docs/landing/index.html, nor the bold lead of a CHANGELOG.md
  *     [Unreleased] entry, names an agent whose row cannot block a tool call
@@ -51,7 +51,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { argv, cwd, exit } from "node:process";
 import { HOOK_AGENT_IDS, PLUGIN_AGENT_IDS } from "../lib/agent-install-plans.mjs";
-import { AGENT_SUPPORT, blocksPreTool, renderCloudplugin, supportTier, } from "../lib/agent-support.mjs";
+import { AGENT_SUPPORT, blocksPreTool, installFlags, renderCloudplugin, supportTier, } from "../lib/agent-support.mjs";
 import { LOOP_TABLE_END, LOOP_TABLE_START, renderLoopStepsHtml, renderLoopTableMarkdown } from "../lib/loop-stages.mjs";
 import { IMAGE_WIDTH, PAD, charsFit, rect, richText, svgDocument, text, wrap } from "../lib/readme-svg.mjs";
 export const SUPPORT_DOC = "docs/AGENT-SUPPORT.md";
@@ -451,11 +451,11 @@ export function headingAnchor(heading) {
 }
 /** The README's `--target` cell: the id and any extra flag the install needs, or the plugin for Claude Code. */
 function targetCell(row) {
-    const match = /--target (\S+)(.*)$/.exec(row.install[0] ?? "");
-    if (!match)
+    const id = /--target (\S+)/.exec(row.install[0] ?? "")?.[1];
+    if (id === undefined)
         return "plugin, see [Install](#install)";
-    const extra = match[2].replace(/\s*--hooks\b/, "").trim();
-    return `\`${match[1]}\`${extra === "" ? "" : ` (add \`${extra}\`)`}`;
+    const flags = installFlags(row);
+    return `\`${id}\`${flags === "" ? "" : ` (add \`${flags}\`)`}`;
 }
 /**
  * The README tier table: only the rows that block a destructive command. Each
@@ -570,7 +570,10 @@ export function checkAgentMatrix(repoRoot, rows = AGENT_SUPPORT) {
             if (have.version !== version)
                 out.push(`${CLOUDPLUGIN}: version ${String(have.version)} is not the package version ${version}; run \`npm run build\``);
             if (JSON.stringify(have.compatibleWith) !== JSON.stringify(want.compatibleWith)) {
-                out.push(`${CLOUDPLUGIN}: compatibleWith is not ${JSON.stringify(want.compatibleWith)}; run \`npm run build\``);
+                const blind = rows.filter((row) => !blocksPreTool(row)).flatMap((row) => [row.id, ...row.compat]);
+                const extra = (Array.isArray(have.compatibleWith) ? have.compatibleWith : []).filter((id) => blind.includes(id));
+                const named = extra.length === 0 ? "" : ` (it lists ${extra.join(", ")}, whose row does not block)`;
+                out.push(`${CLOUDPLUGIN}: compatibleWith is not ${JSON.stringify(want.compatibleWith)}${named}; run \`npm run build\``);
             }
         }
         catch (error) {

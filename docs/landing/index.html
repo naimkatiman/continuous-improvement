@@ -620,7 +620,7 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
               <dl class="facts">
                 <div><dt>The agent is given</dt><dd>The rule: state what you will build, what you will not, how you will verify, and the fallback. <code>be-ambitious</code> tells the agent to set the goal and a target first. <code>ci_plan_init</code> writes <code>task_plan.md</code>, and <code>ci_goal_check</code> scores recent calls against its <code>## Goal</code>.</dd></div>
                 <div><dt>A hook</dt><dd><a href="https://github.com/naimkatiman/continuous-improvement/blob/main/hooks/goal-drift-stop.mjs"><code>hooks/goal-drift-stop.mjs</code></a> with <code>CI_GOAL_DRIFT_GATE=block</code> sends a drifted wrap-up back. Shown to work on Claude Code only: it reads the reply from a Claude Code transcript. No hook requires a plan before the first edit.</dd></div>
-                <div><dt>Default</dt><dd>Warns only: a debug-log line, and the call goes through</dd></div>
+                <div><dt>Default</dt><dd>Warns only: a debug-log line, and the turn ends</dd></div>
                 <div><dt>Switch</dt><dd><code>CI_GOAL_DRIFT_GATE=block</code></dd></div>
               </dl>
             </details>
@@ -649,7 +649,7 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
               <summary>What it is given, and what backs it</summary>
               <dl class="facts">
                 <div><dt>The agent is given</dt><dd>The rule: done means the code ran and the result was checked. Skills <code>verification-loop</code>, <code>simplicity-review</code>, <code>audit</code>.</dd></div>
-                <div><dt>A hook</dt><dd><a href="https://github.com/naimkatiman/continuous-improvement/blob/main/hooks/typecheck-stop.mjs"><code>hooks/typecheck-stop.mjs</code></a> with <code>CI_TYPECHECK_GATE=block</code> holds the turn open on a failing typecheck. TypeScript only, on the 12 agents with a Stop gate. No hook runs tests, lint or a build. After the run, the <a href="https://github.com/naimkatiman/continuous-improvement#unattended-runs-and-ci">transcript linter</a> flags a code change with no test or build command.</dd></div>
+                <div><dt>A hook</dt><dd><a href="https://github.com/naimkatiman/continuous-improvement/blob/main/hooks/typecheck-stop.mjs"><code>hooks/typecheck-stop.mjs</code></a> with <code>CI_TYPECHECK_GATE=block</code> holds the turn open on a failing typecheck. TypeScript only, on the 12 agents with a Stop gate (a hook that runs when the agent ends its turn and can send it back). No hook runs tests, lint or a build. After the run, the <a href="https://github.com/naimkatiman/continuous-improvement#unattended-runs-and-ci">transcript linter</a> flags a code change with no test or build command.</dd></div>
                 <div><dt>Default</dt><dd>Off</dd></div>
                 <div><dt>Switch</dt><dd><code>CI_TYPECHECK_GATE=block</code></dd></div>
               </dl>
@@ -704,12 +704,12 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
       </ol>
       <ul class="rulings marks" aria-label="What each mark means, and the steps that carry it">
         <li><span><i class="m deny" aria-hidden="true"></i> <b>Refuses by default</b>: a hook answers deny before the call runs</span> <span class="rv">Research, Implement</span></li>
-        <li><span><i class="m off" aria-hidden="true"></i> <b>Off until you switch it on</b>: the hook ships and does nothing until you set the variable</span> <span class="rv">Plan, Review</span></li>
+        <li><span><i class="m off" aria-hidden="true"></i> <b>Off until you switch it on</b>: the hook ships and refuses nothing until you set the variable</span> <span class="rv">Plan, Review</span></li>
         <li><span><i class="m on" aria-hidden="true"></i> <b>Records and loads</b>: a hook writes a log row or prints saved lessons, and cannot refuse anything</span> <span class="rv">Relearn and learn</span></li>
-        <li><span><i class="m none" aria-hidden="true"></i> <b>None</b>: text the agent is given, and nothing checks it</span> <span class="rv">Contemplate, Iterate</span></li>
+        <li><span><i class="m none" aria-hidden="true"></i> <b>None</b>: text the agent is given, and nothing checks it during the session</span> <span class="rv">Contemplate, Iterate</span></li>
       </ul>
       </div>
-      <p class="note">Reach, from the <a href="#agents">agent table</a>: the skills go to all 16 agents, the core skill with these rules among them. Codex CLI, Gemini CLI, Cursor and GitHub Copilot CLI also load the rules as a rules file in every session. 12 have a Stop gate. Saved lessons load by hook on 11, through a rules file you rewrite on 4 (Grok CLI, Auggie, Junie CLI and Goose), and not on Cline.</p>
+      <p class="note">Reach, from the <a href="#agents">agent table</a>: the skills go to all 16 agents, the core skill with these rules among them. Codex CLI, Gemini CLI, Cursor and GitHub Copilot CLI also load the rules as a rules file in every session. 12 have a Stop gate: the 10 full-tier agents, Grok CLI and Goose. Saved lessons load by hook on 11, through a rules file you rewrite on 4 (Grok CLI, Auggie, Junie CLI and Goose), and not on Cline.</p>
 <!-- loop-table:end -->
       <p class="note">Step 6 is the self-improvement step. The model does not change. What changes is what the next session starts with: a searchable log of what ran, and the lessons you kept. The law numbers are the package's own, so step 6 is Law 7 and step 7 is Law 6.</p>
     </div>
@@ -1577,7 +1577,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
     <ul class="colophon">
       <li><span class="v">29</span><span class="k">Bundled skills</span></li>
       <li><span class="v">0</span><span class="k">Runtime deps</span></li>
-      <li><span class="v">4,968</span><span class="k">Tests in the suite</span></li>
+      <li><span class="v">5,000</span><span class="k">Tests in the suite</span></li>
       <li><span class="v">MIT</span><span class="k">License</span></li>
       <li><span class="v">v3.28.0</span><span class="k">Current rev</span></li>
     </ul>
@@ -1586,7 +1586,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
       <div class="drawer">
         <p>The test line is a stated count, not a capture: CI compares it with the real run and fails when they differ. Three numbers above are pinned by a check: the version in four places (<code>verify:landing-version</code>), the skill count (<code>verify:skill-count</code>) and the test count in two (<code>verify:test-count</code>).</p>
 <pre class="tape">checks     20 invariants + typecheck
-tests      PASS  4968/4968
+tests      PASS  5000/5000
 ci         Node 18, 20, 22 on Linux</pre>
       </div>
     </details>
