@@ -32,6 +32,7 @@ Tier-2 skills layer on top of tier-1. They cover response-depth control and cont
 
 | Skill | What it does | When it pays off |
 |-------|--------------|------------------|
+| `be-ambitious` | Works a task at the goal behind it (Altitude, Depth, Range): a hard numeric target and an outside judge are set before the work. It tells the agent to deliver the literal ask and to wait for a yes on anything hard to reverse | A big goal where the task as typed would undershoot it |
 | `token-budget-advisor` | Heuristic input/output token estimator that offers 25%/50%/75%/100% depth choices before answering | Long sessions where response size matters |
 | `strategic-compact` | Manual phase-boundary checklist for deciding when to run `/compact` (research→plan, plan→implement, debug→next) instead of relying on arbitrary auto-compaction | Multi-phase tasks that approach context limits |
 | `wild-risa-balance` | Decision-framing lens that pairs WILD (Wild/Imaginative/Limitless/Disruptive) generation with RISA (Realistic/Important/Specific/Agreeable) execution, used to split recommendation lists into bold pilots above a safe baseline | Multi-item recommendation blocks where bold options keep losing to safe ones in a flat list |

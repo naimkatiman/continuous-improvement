@@ -737,7 +737,7 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
           <h3 style="margin-top:18px">Also in the bundle, not hooks.</h3>
           <ul class="plain">
             <li><b>An MCP server</b>, registered by the plugin and local to your machine: 19 tools for search, lessons, goal checks and planning files.</li>
-            <li><b>28 skills, 29 commands, 3 agents.</b> Prose the model reads on request. Only the hooks, the MCP server and the command-line tools execute.</li>
+            <li><b>29 skills, 30 commands, 3 agents.</b> Prose the model reads on request. Only the hooks, the MCP server and the command-line tools execute.</li>
             <li><b><code>ci-reconcile</code></b>: git ground truth as a command with an exit code (Exhibit G).</li>
             <li><b>A GitHub Action</b>, <code>naimkatiman/<wbr>continuous-improvement@v3</code>: lints an agent transcript in CI and outputs a score from 0 to 100.</li>
           </ul>
@@ -985,7 +985,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
         <div class="drawer">
           <ul class="plain">
             <li><b>Session start:</b> nothing when the repository has no lesson at 0.5 or above. Otherwise a header and up to 10 lines, 1,500 characters at most, about 375 tokens (Exhibit F).</li>
-            <li><b>Skill and command listing:</b> 41 names with descriptions. <code class="nb">claude plugin details</code> projects the always-on cost at about 4,500 tokens on Claude Code v2.1.325, MCP tools not counted, and counts <code>agents/README.md</code> as a fourth agent.</li>
+            <li><b>Skill and command listing:</b> 42 names with descriptions. <code class="nb">claude plugin details</code> projected the always-on cost at about 4,500 tokens on Claude Code v2.1.325 with 41 of them, MCP tools not counted, and counts <code>agents/README.md</code> as a fourth agent.</li>
             <li><b>MCP tool definitions:</b> 19 tools, 8,279 characters (about 2,070 tokens), unless your client defers tool schemas.</li>
             <li><b>Agent listing:</b> 3 agents, 574 characters.</li>
             <li><b>A denied call:</b> the deny reason. About 300 characters for a destructive command, two lines for a blind edit.</li>
@@ -1260,9 +1260,9 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
   <section class="colo" aria-labelledby="h-col">
     <h2 class="vh" id="h-col">Colophon</h2>
     <ul class="colophon">
-      <li><span class="v">28</span><span class="k">Bundled skills</span></li>
+      <li><span class="v">29</span><span class="k">Bundled skills</span></li>
       <li><span class="v">0</span><span class="k">Runtime deps</span></li>
-      <li><span class="v">4,903</span><span class="k">Tests in the suite</span></li>
+      <li><span class="v">4,905</span><span class="k">Tests in the suite</span></li>
       <li><span class="v">MIT</span><span class="k">License</span></li>
       <li><span class="v">v3.28.0</span><span class="k">Current rev</span></li>
     </ul>
@@ -1271,7 +1271,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
       <div class="drawer">
         <p>The test line is a stated count, not a capture: CI compares it with the real run and fails when they differ. Three numbers above are pinned by a check: the version in four places (<code>verify:landing-version</code>), the skill count (<code>verify:skill-count</code>) and the test count in two (<code>verify:test-count</code>).</p>
 <pre class="tape">checks     20 invariants + typecheck
-tests      PASS  4903/4903
+tests      PASS  4905/4905
 ci         Node 18, 20, 22 on Linux</pre>
       </div>
     </details>

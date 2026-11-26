@@ -30,7 +30,7 @@ npx continuous-improvement install --target codex --hooks --dry-run
 <details>
 <summary><b>What <code>--dry-run</code> prints</b></summary>
 
-<p><img src="assets/readme/demo-install-dry-run.svg" width="640" alt="The installer dry run for Gemini CLI, run through npx, lists the runtime copy, the settings.json, the GEMINI.md file and the 28 skills it would write, notes that Gemini CLI runs no hooks in an untrusted folder and copies no commands, and ends with nothing written."></p>
+<p><img src="assets/readme/demo-install-dry-run.svg" width="640" alt="The installer dry run for Gemini CLI, run through npx, lists the runtime copy, the settings.json, the GEMINI.md file and the 29 skills it would write, notes that Gemini CLI runs no hooks in an untrusted folder and copies no commands, and ends with nothing written."></p>
 
 </details>
 
@@ -116,7 +116,7 @@ Beyond the refusals:
 - **Git state as a command with exit codes.** `npx -p continuous-improvement ci-reconcile` prints branch, upstream, in-progress operations, working-tree drift, stashes and worktrees, and exits 0 when clear, 1 on a blocker and 2 outside a repository ([`bin/reconcile.mjs`](bin/reconcile.mjs)).
 - **A transcript linter for CI.** A GitHub Action reports edits made with no earlier lookup and code changes with no test or build run ([`action.yml`](action.yml), [`bin/lint-transcript.mjs`](bin/lint-transcript.mjs)). See [Unattended runs and CI](#unattended-runs-and-ci).
 
-It also ships 28 skills and 29 slash commands, which are prose the model reads. `--hooks` copies the skills to agents that read skills; the slash commands are Claude Code's, and an agent such as Gemini CLI keeps its own command files. Codex, GitHub Copilot CLI, Devin, Kiro, Goose and Amp have no command files, so they get the 13 commands without a same-name skill as skills. Only the hooks, the MCP server and the command-line tools execute.
+It also ships 29 skills and 30 slash commands, which are prose the model reads. `--hooks` copies the skills to agents that read skills; the slash commands are Claude Code's, and an agent such as Gemini CLI keeps its own command files. Codex, GitHub Copilot CLI, Devin, Kiro, Goose and Amp have no command files, so they get the 13 commands without a same-name skill as skills. Only the hooks, the MCP server and the command-line tools execute.
 
 What it does not do: it does not make the model better at code, it does not apply a lesson for you, it does not check your work unless you switch the typecheck gate on, and it is not a sandbox.
 
@@ -281,7 +281,7 @@ On Claude Code, the plugin and `npx continuous-improvement install` without `--t
 |---|---|---|
 | Guards: destructive deny, blind-edit gate, push gate, config guard, wrong-repository lock | Yes | No |
 | Turn-end hooks and prompt hooks | Yes | No |
-| Skills / commands | 28 / 29 | 2 / 14 |
+| Skills / commands | 29 / 30 | 2 / 14 |
 | Tool-call log | 1 row per successful call | 2 rows per call (start and complete) |
 | Lesson hook at session start and end | Registered | `--mode expert` only |
 | MCP server | Registered, 19 tools | `--mode expert` writes an `mcpServers` entry to `~/.claude/settings.json`. Not verified: that current Claude Code loads a server from that file (its docs name `~/.claude.json`) |
@@ -310,7 +310,7 @@ Then delete `~/.claude/instincts/` and `~/.claude/hook-telemetry/` by hand. The 
 
 **Process starts.** Each registration is one Node process: 14 registrations across the 13 scripts. That is 1 start for a Read, Grep, Glob or MCP tool call (the logger), 2 for a Skill call, 3 for an Edit or Write, 4 for a Bash, PowerShell or Monitor command, 2 for each prompt, 5 for each turn end, and 1 each for session start and end.
 
-**Context.** The plugin adds 41 names to the listing Claude Code carries on every turn: 28 skills and 29 commands, 16 of which share a name. Together they carry about 16,000 characters of names and descriptions, the 3 bundled agent definitions another 574, and the MCP server adds 19 tool definitions (8,279 characters as the server serializes them, about 2,070 tokens at 4 characters per token). `claude plugin details continuous-improvement@continuous-improvement` projects the always-on listing at about 4,500 tokens on Claude Code v2.1.325, MCP tools not counted. It counts `agents/README.md` as a fourth agent. Claude Code can load MCP tools on demand, so that part of the cost can be lower. Run the same command to see the projection for your client.
+**Context.** The plugin adds 42 names to the listing Claude Code carries on every turn: 29 skills and 30 commands, 17 of which share a name. Together they carry about 16,800 characters of names and descriptions, the 3 bundled agent definitions another 574, and the MCP server adds 19 tool definitions (8,279 characters as the server serializes them, about 2,070 tokens at 4 characters per token). `claude plugin details continuous-improvement@continuous-improvement` projected the always-on listing at about 4,500 tokens on Claude Code v2.1.325, MCP tools not counted. That projection was taken at 41 names, before `be-ambitious` added 762 characters (about 190 tokens). It counts `agents/README.md` as a fourth agent. Claude Code can load MCP tools on demand, so that part of the cost can be lower. Run the same command to see the projection for your client.
 
 **Beside Claude Code's own memory.** Auto memory is on by default, loads `MEMORY.md` into every conversation and already saves your corrections. The lesson store overlaps it. What auto memory does not keep is a record of tool calls with ranked search, which is items 1 and 2 under [Memory](#memory). If you want one place for notes, set `CI_INSTINCT_LOAD=off` and keep using auto memory. The log and the search work without lessons.
 
@@ -357,7 +357,7 @@ The plugin overlaps Claude Code in five places. The destructive-command deny ove
 ## Slash commands
 
 <details>
-<summary><b>All 29 commands, and what each one needs</b></summary>
+<summary><b>All 30 commands, and what each one needs</b></summary>
 
 They are Claude Code commands: they ship in the plugin, and the npm installer writes 14 of them for Claude Code. Other agents get the skills, not these commands. The agents with no command files (Codex, GitHub Copilot CLI, Devin, Kiro, Goose and Amp) get the 13 commands without a same-name skill as skills. Each command's full name is `/continuous-improvement:<name>`. Type it when another plugin has a command with the same short name. "The 7 Laws" is the plugin's name for its research, plan, execute, verify, reflect, learn, iterate loop, written out in [SKILL.md](SKILL.md).
 
@@ -380,6 +380,7 @@ Git, review and shipping
 /release-train                    Plan and run stacked single-concern PRs
 
 Planning and alignment
+/be-ambitious                     Work the goal behind a task: target and outside judge first
 /planning-with-files              Create and maintain task_plan.md, findings.md, progress.md
 /goal-check                       Score recent activity against the task_plan.md goal             [MCP]
 /intent-driven-development        Turn an ambiguous change into acceptance criteria
@@ -402,7 +403,7 @@ Reference and setup
 /companion-preference             Summarize companion-preference hook telemetry                   [clone]
 ```
 
-All 29 ship in the plugin bundle. `[MCP]` means the command calls an MCP tool; the plugin install registers the server, so it works after the two-command install. `[clone]` means the command runs `node bin/<script>.mjs` from the current directory and the plugin bundle does not ship that script, so run the command from inside a clone of this repository.
+All 30 ship in the plugin bundle. `[MCP]` means the command calls an MCP tool; the plugin install registers the server, so it works after the two-command install. `[clone]` means the command runs `node bin/<script>.mjs` from the current directory and the plugin bundle does not ship that script, so run the command from inside a clone of this repository.
 
 The npm installer writes 14 of them: continuous-improvement, dashboard, discipline, harvest, learn-eval, planning-with-files, proceed-with-the-recommendation, ralph, release-train, seven-laws, superpowers, swarm, verify-install and workspace-surface-audit.
 
@@ -411,9 +412,9 @@ The npm installer writes 14 of them: continuous-improvement, dashboard, discipli
 ## Reference
 
 <details>
-<summary><b>Skills: all 28, by tier, with the code behind each</b></summary>
+<summary><b>Skills: all 29, by tier, with the code behind each</b></summary>
 
-The plugin ships **28 skills**: 1 core + 1 featured + 7 tier-1 + 16 tier-2 + 3 always-bundled companions (frontmatter `tier: companion`). The tier is a catalogue label from each skill's frontmatter: every skill ships in the plugin bundle regardless of tier, and the tier does not change what is loaded. A skill is a Markdown file the model reads when it is invoked. "Prose" in the last column means no code backs it. U marks a skill only you can invoke, M one only the model can.
+The plugin ships **29 skills**: 1 core + 1 featured + 7 tier-1 + 17 tier-2 + 3 always-bundled companions (frontmatter `tier: companion`). The tier is a catalogue label from each skill's frontmatter: every skill ships in the plugin bundle regardless of tier, and the tier does not change what is loaded. A skill is a Markdown file the model reads when it is invoked. "Prose" in the last column means no code backs it. U marks a skill only you can invoke, M one only the model can.
 
 | Tier | Skill | What it describes | Backed by |
 |---|---|---|---|
@@ -427,6 +428,7 @@ The plugin ships **28 skills**: 1 core + 1 featured + 7 tier-1 + 16 tier-2 + 3 a
 | 1 | `tdd-workflow` | Red, green, refactor | prose |
 | 1 | `verification-loop` | Build, types, lint, tests, security and diff with a PASS/FAIL report | `scripts/resolve-verify-ladder.mjs` |
 | 2 | `audit` | Audit a commit window, confirm before fixing | prose |
+| 2 | `be-ambitious` | Work the goal behind the task: climb to the outcome, set a number and an outside judge first, then do the work | prose |
 | 2 | `goal-monitor` | Score activity against the stated goal | `ci_goal_check`, `hooks/goal-drift-stop.mjs` |
 | 2 | `grill-me` | Interview until the plan is understood | prose |
 | 2 | `grill-with-docs` | Interview that updates `CONTEXT.md` and ADRs | prose |
@@ -446,7 +448,7 @@ The plugin ships **28 skills**: 1 core + 1 featured + 7 tier-1 + 16 tier-2 + 3 a
 | companion | `superpowers` | Dispatcher across this plugin and four companion plugins | `hooks/companion-preference.mjs` |
 | companion | `workspace-surface-audit` | Audit the workspace, recommend skills | prose |
 
-Source files are in [`skills/`](skills/), plus [SKILL.md](SKILL.md) for the core skill. `--target <agent> --hooks` also copies the skills to agents that read them. Adding a 29th skill: [the recipe in CONTRIBUTING.md](CONTRIBUTING.md#evolution--adding-a-new-skill).
+Source files are in [`skills/`](skills/), plus [SKILL.md](SKILL.md) for the core skill. `--target <agent> --hooks` also copies the skills to agents that read them. Adding a 30th skill: [the recipe in CONTRIBUTING.md](CONTRIBUTING.md#evolution--adding-a-new-skill).
 
 </details>
 

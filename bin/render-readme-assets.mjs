@@ -252,7 +252,7 @@ function installCard(capture) {
     const demo = demoById(capture, "install-dry-run");
     const step = stepOf(demo, "dry run");
     const lines = step.stdout.split("\n").filter((l) => l.trim() !== "");
-    return card(`${ASSET_DIR}/demo-install-dry-run.svg`, demo, "What --dry-run prints for Gemini CLI", "The installer's dry run for --target gemini --hooks, run through npx: the runtime copy, settings.json, GEMINI.md and 28 skills it would write, two notes on Gemini CLI, and nothing written.", [
+    return card(`${ASSET_DIR}/demo-install-dry-run.svg`, demo, "What --dry-run prints for Gemini CLI", "The installer's dry run for --target gemini --hooks, run through npx: the runtime copy, settings.json, GEMINI.md and 29 skills it would write, two notes on Gemini CLI, and nothing written.", [
         { lines: [out(step.run, "tx", { prefix: "$ ", bold: true })] },
         { lines: lines.map((l) => out(l, l.includes("would") ? "tx" : l.startsWith("Dry run") ? "ok" : "mute")) },
         { lines: [label("Files in the project afterwards:", "mute"), out((step.files ?? []).join(", "), "ok")] },

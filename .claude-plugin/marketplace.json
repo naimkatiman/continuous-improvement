@@ -7,7 +7,7 @@
   "plugins": [
     {
       "name": "continuous-improvement",
-      "description": "Guard and memory plugin for Claude Code. A hook denies known destructive shell commands in every permission mode. Opt-in hooks also deny pushes to protected branches and edits to the files that wire the guardrails, and hold a turn open on a failing typecheck. Tool calls go to a local searchable log; up to 10 recorded lessons load at session start. Ships 28 bundled skills and an MCP server.",
+      "description": "Guard and memory plugin for Claude Code. A hook denies known destructive shell commands in every permission mode. Opt-in hooks also deny pushes to protected branches and edits to the files that wire the guardrails, and hold a turn open on a failing typecheck. Tool calls go to a local searchable log; up to 10 recorded lessons load at session start. Ships 29 bundled skills and an MCP server.",
       "version": "3.28.0",
       "source": "./plugins/continuous-improvement",
       "author": {
