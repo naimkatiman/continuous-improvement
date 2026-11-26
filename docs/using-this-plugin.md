@@ -4,7 +4,7 @@ A practical guide to getting the most out of this plugin. It is organized around
 
 ## What this plugin actually is
 
-The persistent-memory and runtime-discipline layer for Claude Code, built on the 7 Laws of AI Agent Discipline (research, plan, verify, reflect, learn). Three things do the work:
+Two pillars for a coding agent. Ambition is the `be-ambitious` skill: guidance for working on the goal behind a task, with a target and a check set first. Discipline is hooks, a local log and the 7 Laws of AI Agent Discipline, run as one loop (research, plan, implement, review, contemplate, relearn and learn, iterate). On the discipline side, three things do the work:
 
 - **Mulahazah instinct engine** — hooks log your tool calls, `/continuous-improvement` records a correction as an instinct when you run it, and `hooks/session.mjs` loads the instincts at 0.5 confidence and above (at most 10) into the next session's context. Nothing applies an instinct for you: it works because the model reads it.
 - **Boundary hooks** — `hooks/gateguard.mjs` blocks an edit of an existing file the session has not read and every destructive shell command (`CI_GATEGUARD_FILE_GATE=strict` asks for grounding facts first); `hooks/goal-drift-stop.mjs` flags drift at the Stop boundary.

@@ -239,6 +239,42 @@
           "stderr": ""
         }
       ]
+    },
+    {
+      "id": "goal-check",
+      "title": "ci_goal_check on a log that left the goal, then on one that follows it",
+      "how": "The MCP server over stdio in one temp HOME and project: ci_plan_init writes task_plan.md, then ci_goal_check runs against a four-row tool-call log written with fixed times, twice.",
+      "steps": [
+        {
+          "label": "ci_plan_init over MCP",
+          "run": "node bin/mcp-server.mjs --mode expert",
+          "stdin": "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"ci_plan_init\",\"arguments\":{\"goal\":\"Add retry with backoff to the payment webhook handler\"}}}",
+          "exit": 0,
+          "stdout": "{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"## Planning-With-Files Initialized\\n\\n**Project root:** ~/project\\n**Goal:** Add retry with backoff to the payment webhook handler\\n**Force overwrite:** no\\n\\n**Files:**\\n- task_plan.md: created\\n- findings.md: created\\n- progress.md: created\\n\\n**Phases:**\\n- [ ] Research\\n- [ ] Plan\\n- [ ] Execute\\n- [ ] Verify\\n- [ ] Reflect\"}]}}",
+          "stderr": "continuous-improvement MCP server v3.28.0 started (mode: expert)\n",
+          "files": [
+            "findings.md",
+            "progress.md",
+            "task_plan.md"
+          ]
+        },
+        {
+          "label": "ci_goal_check, four logged calls on other files",
+          "run": "node bin/mcp-server.mjs --mode expert",
+          "stdin": "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"ci_goal_check\",\"arguments\":{}}}",
+          "exit": 0,
+          "stdout": "{\"jsonrpc\":\"2.0\",\"id\":3,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"## Goal Check\\n\\n**Goal source:** ~/project/task_plan.md\\n\\n**Status:** DRIFT\\n**Score:** 0% (0/4 matched, threshold 30%)\\n**Reason:** Only 0/4 recent observations relate to the goal (threshold 0.3).\\n**Goal keywords:** retry, backoff, payment, webhook, handler\\n\\n**Top off-goal activity (most recent 4):**\\n- [2026-11-22T09:00:03Z] Read — src/theme/colors.ts\\n- [2026-11-22T09:00:02Z] Edit — README.md\\n- [2026-11-22T09:00:01Z] Bash — npm run lint\\n- [2026-11-22T09:00:00Z] Edit — docs/landing/index.html\\n\\n_Drift detected. Either steer back to the goal, or update the `## Goal` section in your plan if the goal has legitimately changed._\"}]}}",
+          "stderr": "continuous-improvement MCP server v3.28.0 started (mode: expert)\n"
+        },
+        {
+          "label": "ci_goal_check, four logged calls on the webhook handler",
+          "run": "node bin/mcp-server.mjs --mode expert",
+          "stdin": "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"ci_goal_check\",\"arguments\":{}}}",
+          "exit": 0,
+          "stdout": "{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"## Goal Check\\n\\n**Goal source:** ~/project/task_plan.md\\n\\n**Status:** ON GOAL\\n**Score:** 100% (4/4 matched, threshold 30%)\\n**Reason:** 4/4 recent observations relate to the goal (threshold 0.3).\\n**Goal keywords:** retry, backoff, payment, webhook, handler\"}]}}",
+          "stderr": "continuous-improvement MCP server v3.28.0 started (mode: expert)\n"
+        }
+      ]
     }
   ]
 }

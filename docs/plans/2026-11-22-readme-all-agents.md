@@ -1,7 +1,7 @@
 # README for every coding agent, with images from real runs
 
 - Date: 2026-11-22
-- Status: built on `docs/readme-visual`, not pushed
+- Status: built on `docs/readme-visual`, not pushed. Decisions 1 and 3 (the positioning and the first screen) are superseded by [2026-11-25-two-pillars.md](2026-11-25-two-pillars.md); the others stand
 - Supersedes for the README: [2026-11-20-frontier-model-refresh.md](2026-11-20-frontier-model-refresh.md), [2026-08-22-readme-still-useful.md](2026-08-22-readme-still-useful.md), [2026-06-28-readme-progressive-disclosure.md](2026-06-28-readme-progressive-disclosure.md)
 - Changes an owner decision in: [2026-11-21-all-agents.md](2026-11-21-all-agents.md) ("Positioning")
 

@@ -1,6 +1,6 @@
 # Quickstart
 
-Install the plugin, watch one guard refuse a command, look at what it logged, check the wiring, then undo all of it. [README.md](README.md) has the full list of what turns on and what it costs.
+continuous-improvement stands on two pillars: ambition (the `be-ambitious` skill, guidance the agent reads) and discipline (hooks, a local log and switches). This walkthrough takes the discipline side, because you can watch it act: install the plugin, watch one guard refuse a command, look at what it logged, check the wiring, then undo all of it. [README.md](README.md) has the loop step by step, the ambition side, and the full list of what turns on and what it costs.
 
 You need Claude Code and `node` 18 or newer on your `PATH`. The hooks are Node scripts. Without `node` none of them runs and nothing is denied.
 
@@ -173,6 +173,8 @@ Nothing in this walkthrough wrote inside your repository.
 
 ## Where next
 
+- The ambition side: ask the agent to use the `be-ambitious` skill on a task you already have, or type `/be-ambitious <task>` ([README, Ambition](README.md#ambition))
+- The loop, and what code backs each step: [README, The loop](README.md#the-loop)
 - Every hook, its default, its switch and its cost: [README, What turns on](README.md#what-turns-on-what-it-costs-how-to-turn-it-off)
 - What the guards do not catch: [README, Limits](README.md#limits)
 - Deny rules for unattended runs and the CI transcript linter: [README, Unattended runs and CI](README.md#unattended-runs-and-ci)

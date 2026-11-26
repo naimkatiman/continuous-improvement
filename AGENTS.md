@@ -4,7 +4,7 @@ Project-local rules for AI coding agents. Global rules live in `~/.codex/AGENTS.
 
 ## Repository
 
-- npm package `continuous-improvement` (Claude Code plugin first, hooks for other coding agents through `install --target <agent> --hooks`, plus a GitHub Action transcript linter; per-agent support in [docs/AGENT-SUPPORT.md](docs/AGENT-SUPPORT.md))
+- npm package `continuous-improvement` (two pillars for coding agents: the `be-ambitious` skill, and hooks, a local log and a seven-step loop; a Claude Code plugin, and `install --target <agent> --hooks` for the other agents, plus a GitHub Action transcript linter; per-agent support in [docs/AGENT-SUPPORT.md](docs/AGENT-SUPPORT.md))
 - Marketplace at `.claude-plugin/marketplace.json` ships 5 plugins: 1 native + 4 vendored companions (Obra superpowers, addy/agent-skills, ruflo-swarm, oh-my-claudecode). pm-skills is out-of-band per [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md).
 - Source layout: `skills/`, `commands/`, `hooks/`, `agents/`, `bin/`, `lib/`, `templates/`, `instinct-packs/`, `synthetic-checks/`, `third-party/`, `plugins/continuous-improvement/`.
 
