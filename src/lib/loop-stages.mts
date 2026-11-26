@@ -294,7 +294,7 @@ function reachSentences(facts: LoopFacts): string {
 
 const REPO_URL = "https://github.com/naimkatiman/continuous-improvement";
 
-// The class the landing page's mark square (`i.m`) takes for each mark.
+// The class the landing page's mark square (`i.m`) takes for each mark, and the step's data-mark, which docs/landing/landing.js reads.
 const MARK_CLASS: Readonly<Record<LoopMark, string>> = {
   "refuses by default": "deny",
   "off until you switch it on": "off",
@@ -335,7 +335,7 @@ export function renderLoopStepsHtml(rows: readonly AgentSupport[] = AGENT_SUPPOR
     return `${files.join(", ")}${stage.covers === "" ? "" : `: ${escapeHtml(stage.covers)}`}`;
   };
   const steps = stages.flatMap((stage) => [
-    `        <li>`,
+    `        <li data-loop="${escapeHtml(stage.name)}" data-mark="${MARK_CLASS[stage.mark]}">`,
     `          <div>`,
     `            <p class="step-top"><b>${escapeHtml(stage.name)}</b>${mark(stage)}</p>`,
     `            <p class="step-sub">Law ${stage.law}, ${escapeHtml(stage.lawTitle)} · ${backing(stage)}</p>`,

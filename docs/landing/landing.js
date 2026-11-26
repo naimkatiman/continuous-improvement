@@ -4,7 +4,11 @@
   instancing; light, reflections, contact shadows, glass and bloom are shaders in this file.
 
   What it shows is data from the page, never invented:
-    - the hero replays verdicts captured from hooks/gateguard.mjs (the chips carry them as data-*),
+    - the hero, the loop and Ambition show two pillars inside a ring of seven tablets, one per step of
+      the loop block (li[data-loop], data-mark), each edged in its mark. Ambition has as many blocks as
+      its section has steps, Discipline as many courses as its section has tiles,
+    - the gate stands in Discipline, where it replays verdicts captured from hooks/gateguard.mjs (the
+      chips carry them as data-*) while that section holds the camera. Agents keeps it in view, idle,
     - the lifecycle ring has one pylon per row of the hooks table (#installs), coloured by its default,
     - the cost columns are the process counts in the cost list (#cost).
   A refused call never reaches the log stack and an allowed one adds a row to it, as observe.mjs
@@ -30,6 +34,9 @@
   var hookRows = [].slice.call(d.querySelectorAll("tr[data-hook]"));
   var costItems = [].slice.call(d.querySelectorAll("[data-cost]"));
   var sections = [].slice.call(d.querySelectorAll("[data-cam]"));
+  var loopItems = [].slice.call(d.querySelectorAll("li[data-loop]"));
+  var blockCount = d.querySelectorAll("#ambition .steps > li").length || 5;
+  var courseCount = d.querySelectorAll("#discipline .tiles > li").length || 4;
   var hud = d.getElementById("hud");
   var live = d.getElementById("verdict-live");
 
@@ -165,6 +172,8 @@
     "}",
   ].join("\n");
 
+  // Multisampling can read a position from outside a sliver triangle, so a mirrored height is never taken
+  // as below the floor: exp() of it would be a white spot in the bloom.
   var BOX_FS = [
     "#version 300 es",
     "precision highp float;",
@@ -177,7 +186,7 @@
     "  if (!gl_FrontFacing) N = -N;",
     "  vec3 Wl = vW;",
     "  float mk = 1.0;",
-    "  if (uMirror > 0.5) { Wl.y = -Wl.y; N.y = -N.y; mk = 0.5 * exp(-Wl.y * 0.85); }",
+    "  if (uMirror > 0.5) { Wl.y = -Wl.y; N.y = -N.y; mk = 0.5 * exp(-max(Wl.y, 0.0) * 0.85); }",
     "  if (uGlass > 0.5) {",
     "    float edge = clamp(max(abs(vL.y), abs(vL.z)), 0.0, 1.0);",
     "    float band = 0.5 + 0.5 * sin(vL.y * 140.0);",
@@ -455,13 +464,32 @@
     return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, Math.atan2(b[1] - a[1], b[0] - a[0])];
   }
   var LOG = [4.6, 0, 0], RING = [-1.5, 0, -27], COST = [19, 0, -13], RR = 4.7;
+  // The two pillars and the ring of seven stand off to the side of the gate. Angles run from the side
+  // that faces the hero camera (LOOP_YAW) and grow to the right, so the steps read left to right in front.
+  var LOOP = [-24, 0, -6], LOOP_YAW = -24 * Math.PI / 180, TABLET_R = 3.35, TRACK_R = 4.25;
+  function loopAt(a, r, y) { return [LOOP[0] + Math.sin(LOOP_YAW + a) * r, y || 0, LOOP[2] + Math.cos(LOOP_YAW + a) * r]; }
+  var AMB = loopAt(-Math.PI / 2, 1.5), DIS = loopAt(Math.PI / 2, 1.6);
+  var AMB_TOP = 5.1, DIS_TOP = 3.35;
+  function loopPts(r, yTop) {
+    var pts = [];
+    for (var i = 0; i < 16; i++) pts.push(loopAt(i / 16 * Math.PI * 2, r), loopAt(i / 16 * Math.PI * 2, TABLET_R + 0.2, 1.9));
+    pts.push([AMB[0], yTop, AMB[2]], [DIS[0] + 0.9, DIS_TOP, DIS[2] + 0.9], [DIS[0] - 0.9, DIS_TOP, DIS[2] - 0.9]);
+    return pts;
+  }
   var SLAB = [0.95, 0.055, 0.62], CALL = [0.46, 0.24, 0.32], SLAB_STEP = SLAB[1] * 2 + 0.03;
 
-  // Each section: what to show (an axis-aligned box), from where (yaw, pitch in degrees: yaw 0
-  // looks toward -z), lens, and the screen rectangle [x0, y0, x1, y1] (0..1, y down) it may fill.
+  // Each section: what to show (an axis-aligned box, or the points in pts around its centre), from
+  // where (yaw, pitch in degrees: yaw 0 looks toward -z), lens, and the screen rectangle
+  // [x0, y0, x1, y1] (0..1, y down) it may fill. clear keeps that rectangle off the copy column; near
+  // widens the lens until the camera stands within that distance, so a narrow screen does not fog the set.
   var DESK = [0.5, 0.14, 0.95, 0.88], PHONE = [0.07, 0.1, 0.93, 0.5];
+  var GATE_BOX = [[-1.9, 0, -1.5], [5.6, 3.25, 1.5]];
   var SECT = {
-    hero:     { box: [[-1.9, 0, -1.5], [5.6, 3.25, 1.5]], yaw: -57, pitch: 19, fov: 28, spot: [0.6, 0.0, 4.5, 0.08], dim: 0, rect: [0.47, 0.1, 0.95, 0.84], phone: [-72, 15] },
+    hero:     { box: [[LOOP[0] - 4.2, 0, LOOP[2] - 4.2], [LOOP[0] + 4.2, 3.6, LOOP[2] + 4.2]], pts: loopPts(TRACK_R + 0.2, AMB_TOP + 0.6), yaw: -24, pitch: 19, fov: 40, spot: [LOOP[0], LOOP[2], 5.5, 0.07], dim: 0, rect: [0.51, 0.12, 0.97, 0.86], clear: true, near: 19, rectPhone: [0.06, 0.13, 0.94, 0.4], phone: [-24, 17] },
+    loop:     { box: [[LOOP[0] - 4.2, 0, LOOP[2] - 4.2], [LOOP[0] + 4.2, 2.6, LOOP[2] + 4.2]], pts: loopPts(TRACK_R + 1.2, AMB_TOP), yaw: -24, pitch: 46, fov: 40, spot: [LOOP[0], LOOP[2], 6, 0.06], dim: 0, rect: [0.51, 0.13, 0.97, 0.88], clear: true, near: 20 },
+    ambition: { box: [[LOOP[0] - 4.2, 0, LOOP[2] - 4.2], [LOOP[0] + 4.2, 3.9, LOOP[2] + 4.2]], pts: loopPts(TRACK_R + 0.2, AMB_TOP + 0.6), yaw: -75, pitch: 9, fov: 40, spot: [LOOP[0], LOOP[2], 5, 0.07], dim: 0, rect: [0.51, 0.12, 0.97, 0.88], clear: true, near: 19 },
+    gate:     { box: GATE_BOX, yaw: -57, pitch: 19, fov: 28, spot: [0.6, 0.0, 4.5, 0.08], dim: 0, rect: [0.47, 0.1, 0.95, 0.84], rectPhone: [0.07, 0.08, 0.93, 0.36], phone: [-72, 15] },
+    agents:   { box: GATE_BOX, yaw: -57, pitch: 19, fov: 28, spot: [0.6, 0.0, 4.5, 0.08], dim: 0, rect: [0.47, 0.1, 0.95, 0.84], rectPhone: [0.07, 0.08, 0.93, 0.36], phone: [-72, 15] },
     native:   { box: [[-1.0, 0, -1.7], [1.0, 6.1, 1.7]], yaw: -118, pitch: 14, fov: 24, spot: [1.5, 0, 5, 0.07], dim: 0, rect: [0.5, 0.12, 0.97, 0.88] },
     installs: { box: [[RING[0] - RR - 0.9, 0, RING[2] - RR - 0.9], [RING[0] + RR + 0.9, 2.0, RING[2] + RR + 0.9]], yaw: 20, pitch: 60, fov: 30, spot: [RING[0], RING[2], 7.5, 0.05], dim: 0, rect: [0.46, 0.1, 0.93, 0.93] },
     exhibits: { box: [[-1.5, 0, -1.7], [0.45, 3.25, 1.7]], yaw: -30, pitch: 4, fov: 20, spot: [1.5, 0, 5, 0.05], dim: 0.25, rect: [0.63, 0.14, 0.94, 0.86] },
@@ -483,8 +511,8 @@
   }
   var keys = {};
   function fitKey(s, narrow) {
-    var rect = narrow ? PHONE : (s.rect || DESK);
-    if (narrow && s === SECT.hero) rect = [0.07, 0.08, 0.93, 0.36];
+    var rect = narrow ? (s.rectPhone || PHONE) : (s.rect || DESK);
+    if (s.clear && !narrow) rect = [Math.min(Math.max(rect[0], (copyRight() + 24) / vw), rect[2] - 0.12), rect[1], rect[2], rect[3]];
     var dimK = narrow && s === SECT.exhibits ? 1 : s.dim;
     if (narrow && (s === SECT.exhibits || s === SECT.why)) rect = [0.05, 0.1, 0.95, 0.9];
     var b0 = s.box[0], b1 = s.box[1];
@@ -499,24 +527,30 @@
     var pts = narrow && s.ptsPhone ? s.ptsPhone : s.pts;
     var corners = pts || [];
     if (!pts) for (var i = 0; i < 8; i++) corners.push([i & 1 ? b1[0] : b0[0], i & 2 ? b1[1] : b0[1], i & 4 ? b1[2] : b0[2]]);
-    var proj = persp(fov * Math.PI / 180, asp, 0.1, 200, sx, sy);
-    var lo = 1, hi = 120;
-    for (var it = 0; it < 32; it++) {
-      var D = (lo + hi) / 2;
-      var eye = [c[0] + dir[0] * D, c[1] + dir[1] * D, c[2] + dir[2] * D];
-      var vp = mul(proj, lookAt(eye, c, [0, 1, 0]));
-      var ok = true;
-      for (var k = 0; k < corners.length && ok; k++) {
-        var n = projectNdc(vp, corners[k]);
-        if (n[2] <= 0.1) { ok = false; break; }
-        var x = (n[0] + sx) * 0.5, y = (n[1] + sy) * 0.5;
-        if (Math.abs(x) > hx / 2 || Math.abs(y) > hy / 2) ok = false;
+    var fit = function () {
+      var proj = persp(fov * Math.PI / 180, asp, 0.1, 200, sx, sy);
+      var lo = 1, hi = 120;
+      for (var it = 0; it < 32; it++) {
+        var D = (lo + hi) / 2;
+        var eye = [c[0] + dir[0] * D, c[1] + dir[1] * D, c[2] + dir[2] * D];
+        var vp = mul(proj, lookAt(eye, c, [0, 1, 0]));
+        var ok = true;
+        for (var k = 0; k < corners.length && ok; k++) {
+          var n = projectNdc(vp, corners[k]);
+          if (n[2] <= 0.1) { ok = false; break; }
+          var x = (n[0] + sx) * 0.5, y = (n[1] + sy) * 0.5;
+          if (Math.abs(x) > hx / 2 || Math.abs(y) > hy / 2) ok = false;
+        }
+        if (ok) hi = D; else lo = D;
       }
-      if (ok) hi = D; else lo = D;
-    }
-    var Df = hi;
+      return hi;
+    };
+    var Df = fit();
+    while (s.near && Df > s.near && fov < 84) { fov += 4; Df = fit(); }
     return { pos: [c[0] + dir[0] * Df, c[1] + dir[1] * Df, c[2] + dir[2] * Df], tgt: c, fov: fov, sx: sx, sy: sy, spot: s.spot, dim: dimK };
   }
+  // the right edge of the copy column, which every section shares
+  function copyRight() { var c = d.querySelector(".hero .copy"); return c ? c.getBoundingClientRect().right : 0; }
   // ?cam=hero:yaw,pitch,fov overrides a section's view; used to compare framings, harmless otherwise
   (function () {
     var m = /[?&]cam=([a-z]+):([-0-9.,]+)/.exec(location.search);
@@ -545,6 +579,16 @@
     });
   });
   var selectedHook = hooks.length ? hooks[0] : null;
+
+  /* ------------------------------------------------------------------ loop tablets data */
+  // The second and third steps flank the near side, so the first four read left to right in front of the
+  // pillars, and the sixth stands at the far side, in the gap between them. Each one is turned part of
+  // the way to the hero camera, so none is seen edge on.
+  var tablets = loopItems.map(function (li, i) {
+    var a = (i - 1.5) / loopItems.length * Math.PI * 2, back = Math.cos(a) < 0 ? Math.PI : 0;
+    var turn = Math.atan2(Math.sin(a - back), Math.cos(a - back));
+    return { name: li.getAttribute("data-loop"), mark: li.getAttribute("data-mark"), a: a, rot: LOOP_YAW + turn * 0.55 };
+  });
 
   /* ------------------------------------------------------------------ cost columns data */
   var costs = costItems.map(function (li, i) { return { el: li, n: +li.getAttribute("data-cost"), label: li.getAttribute("data-label"), i: i }; });
@@ -585,7 +629,16 @@
     selLabel = hudEl("sel", "", "installs", [0, 0, 0]);
     hudEl("split", "<b>This plugin</b> the rules", "native", [0, 5.95, 0], { noPart: true });
     hudEl("split", "<b>Claude Code</b> the hook it runs in", "native", [0, 0.1, -1.45], { noPart: true });
-    plusLabel = hudEl("plus", "+1 row", "hero", [LOG[0], 1.6, 0], { until: true });
+    tablets.forEach(function (b) {
+      var far = Math.cos(b.a) < -0.3;
+      hudEl(far ? "ev step far" : "ev step", "<span>" + b.name + "</span>", "loop", far ? loopAt(b.a, TABLET_R, 2.1) : loopAt(b.a, TRACK_R + 0.5, 0.02), { desktopOnly: true });
+    });
+    ["hero", "ambition"].forEach(function (set) {
+      var o = { desktopOnly: set === "ambition" };
+      hudEl("split pillar", "<b>Ambition</b> <span>a skill</span>", set, [AMB[0], AMB_TOP + 0.3, AMB[2]], o);
+      hudEl("split pillar", "<b>Discipline</b> <span>hooks</span>", set, [DIS[0], DIS_TOP + 0.55, DIS[2]], o);
+    });
+    plusLabel = hudEl("plus", "+1 row", "gate", [LOG[0], 1.6, 0], { until: true });
     partLabel = hudEl("part", "", "native", [0, 3.7, 0], { part: true });
     offLabel = hudEl("offl", "<b>Enabled</b> refused before it runs", "off", [0, 3.75, 0]);
     laneLabel = hudEl("lane", "<code>src/price.ts</code><span>written by echo, around the gate</span>", "limits", [BYPASS_END[0] + 0.55, 0.5, BYPASS_END[1]]);
@@ -613,7 +666,7 @@
     el.addEventListener("pointerenter", on); el.addEventListener("focus", on);
     el.addEventListener("pointerleave", off); el.addEventListener("blur", off);
   });
-  var pres = { ring: 0, cost: 0, gate: 1 };
+  var pres = { ring: 0, cost: 0, gate: 0, pillars: 1 };
   var tNow = 0;
   var DENY_HOLD = 1.6, scan = 1, plusUntil = 0;
   function fire(i, byUser) {
@@ -811,6 +864,83 @@
 
     sceneFar(t, dt);
   }
+  // The set behind the hero, the loop and Ambition: two pillars inside a ring of seven tablets.
+  // A tablet's edge is its step's mark: orange where a hook refuses by default, bare steel where a gate
+  // is off until switched on, paper white where a hook records and loads, an empty outline where no hook
+  // stands behind the step. It rises with its sections, like the lifecycle ring.
+  function sceneLoop(t) {
+    var pp = ease(pres.pillars), i;
+    if (pp < 0.01) return;
+    var still = state.reduced, seg = 40;
+    var pulse = (tablets.length ? tablets[0].a : 0) + (t * 0.6) % (Math.PI * 2);
+    for (i = 0; i < seg; i++) {
+      var a0 = i / seg * Math.PI * 2, tp = loopAt(a0, TRACK_R);
+      box([tp[0], 0.03, tp[2]], [0.345, 0.025, 0.1], { rot: LOOP_YAW + a0, col: C.steel, metal: true, gloss: 0.55, r: 0.02 });
+      box([tp[0], 0.058, tp[2]], [0.345, 0.004, 0.012], { rot: LOOP_YAW + a0, col: C.ink, r: 0.003, emi: scl(C.paper, (still ? 0.7 : 0.35) * pp) });
+    }
+    // the pulse runs the steps in order and starts over; with reduced motion the whole ring is lit instead
+    if (!still) for (i = 0; i < 4; i++) {
+      var pa = pulse - i * 0.085, pu = loopAt(pa, TRACK_R), ps = 1 - i * 0.22;
+      box([pu[0], 0.06 + 0.1 * ps, pu[2]], [0.17 * ps, 0.1 * ps, 0.13 * ps], { rot: LOOP_YAW + pa, col: C.paper, r: 0.05, gloss: 0.7, emi: scl(C.paper, 0.55 * ps * ps * pp) });
+    }
+    tablets.forEach(function (b) {
+      var da = Math.abs(((pulse - b.a) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI);
+      var lit = still ? 0 : Math.exp(-da * da * 14);
+      var c = loopAt(b.a, TABLET_R), rot = b.rot, tx = Math.cos(rot), tz = -Math.sin(rot);
+      var w = 0.74, h = 0.86 * pp, e = 0.035, th = 0.12, y = 0.14 + h;
+      var edge, body = null, line = null;
+      if (b.mark === "deny") {
+        edge = { col: scl(C.signal, 0.6), gloss: 0.4, r: 0.02, emi: scl(C.signal, 0.55 + 0.7 * lit) };
+        body = { col: C.ink2, gloss: 0.6, r: 0.04, emi: scl(C.signal, 0.015 + 0.05 * lit) };
+        line = scl(C.signal, 0.5 + 0.6 * lit);
+      } else if (b.mark === "on") {
+        edge = { col: C.paper, gloss: 0.5, r: 0.02, emi: scl(C.paper, 0.6 + 0.6 * lit) };
+        body = { col: C.ink2, gloss: 0.6, r: 0.04, emi: scl(C.paper, 0.01 + 0.03 * lit) };
+        line = scl(C.paper, 0.4 + 0.4 * lit);
+      } else if (b.mark === "off") {
+        edge = { col: C.steel, gloss: 0.45, r: 0.02 };
+        body = { col: scl(C.steel, 0.42), gloss: 0.45, r: 0.04 };
+        line = [0, 0, 0];
+      } else {
+        edge = { col: C.line, gloss: 0.3, r: 0.02, emi: scl(C.paper, 0.05 + 0.05 * lit) };
+        e = 0.02; th = 0.03;
+      }
+      box([c[0], 0.07, c[2]], [w + 0.1, 0.06, 0.26], { rot: rot, col: scl(C.graphite, body ? 0.6 : 0.3), metal: true, gloss: 0.45, r: 0.04 });
+      if (body) { body.rot = rot; box([c[0], y, c[2]], [w - e, h - e, th - 0.03], body); }
+      edge.rot = rot;
+      [1, -1].forEach(function (q) {
+        box([c[0] + tx * w * q, y, c[2] + tz * w * q], [e, h, th], edge);
+        box([c[0], y + (h - e) * q, c[2]], [w + e, e, th], edge);
+      });
+      // three engraved lines on each face, so a tablet reads as a written step
+      if (line) for (i = 0; i < 3; i++) [1, -1].forEach(function (q) {
+        var hw = 0.46 - 0.13 * i, off = -(0.46 - hw) * q, f = (th - 0.028) * q;
+        box([c[0] + tx * off + Math.sin(rot) * f, y + h * (0.42 - 0.34 * i), c[2] + tz * off + Math.cos(rot) * f], [hw, 0.022, 0.004], { rot: rot, col: C.ink, r: 0.003, emi: line });
+      });
+    });
+
+    // Ambition: blocks that narrow as they climb, with a lit joint above each and a bright cap. Both
+    // pillars stand a third lower in the loop section, where the ring has the stage.
+    var n = blockCount, bh = (AMB_TOP - 0.55) / n / 2;
+    pp *= 1 - 0.34 * ease(weights.loop || 0);
+    box([AMB[0], 0.1, AMB[2]], [0.78, 0.1, 0.78], { rot: LOOP_YAW, col: scl(C.graphite, 0.6), metal: true, gloss: 0.45, r: 0.05 });
+    for (i = 0; i < n; i++) {
+      var k = n > 1 ? i / (n - 1) : 0, bw = 0.52 - 0.24 * k;
+      var climb = still ? 0 : Math.max(0, Math.sin(t * 0.9 - i * 0.7));
+      box([AMB[0], (0.2 + bh * (2 * i + 1)) * pp, AMB[2]], [bw, (bh - 0.03) * pp, bw], { rot: LOOP_YAW, col: C.graphite, metal: true, gloss: 0.62, r: 0.05 });
+      box([AMB[0], (0.2 + bh * (2 * i + 2)) * pp, AMB[2]], [bw - 0.06, 0.02, bw - 0.06], { rot: LOOP_YAW, col: C.ink, r: 0.01, emi: scl(C.paper, (0.5 + 0.6 * k + 0.5 * climb) * pp) });
+    }
+    box([AMB[0], (AMB_TOP - 0.16) * pp, AMB[2]], [0.2, 0.16, 0.2], { rot: LOOP_YAW, col: C.paper, gloss: 0.6, r: 0.05, emi: scl(C.paper, 0.3 * pp) });
+
+    // Discipline: broad, even courses on a wide plinth under a flat cap
+    var m = courseCount, dh = (DIS_TOP - 0.48) / m / 2;
+    box([DIS[0], 0.1, DIS[2]], [1.12, 0.1, 1.12], { rot: LOOP_YAW, col: scl(C.graphite, 0.6), metal: true, gloss: 0.45, r: 0.05 });
+    for (i = 0; i < m; i++) {
+      box([DIS[0], (0.2 + dh * (2 * i + 1)) * pp, DIS[2]], [0.84, (dh - 0.025) * pp, 0.84], { rot: LOOP_YAW, col: C.graphite, metal: true, gloss: 0.62, r: 0.05 });
+      box([DIS[0], (0.2 + dh * (2 * i + 2)) * pp, DIS[2]], [0.8, 0.02, 0.8], { rot: LOOP_YAW, col: C.ink, r: 0.01, emi: scl(C.paper, 0.4 * pp) });
+    }
+    box([DIS[0], (DIS_TOP - 0.14) * pp, DIS[2]], [0.96, 0.13, 0.96], { rot: LOOP_YAW, col: C.graphite, metal: true, gloss: 0.62, r: 0.05 });
+  }
   function sceneFar(t, dt) {
     var i;
     // limits lane: a write by shell redirection slides past the gate on its own lane
@@ -847,6 +977,8 @@
         box([LOG[0] + q * (bx + 0.062), 0.105, 0], [0.004, 0.008, bz + 0.06], { col: C.ink, r: 0.003, emi: scl(C.paper, 0.9 * b) });
       });
     }
+
+    sceneLoop(t);
 
     // lifecycle ring: rises from the floor near its section
     var pr = ease(pres.ring);
@@ -961,13 +1093,16 @@
   var centers = [], weights = {};
   function measure() {
     var sy = W.scrollY, narrow = narrowMQ.matches;
-    centers = sections.map(function (s) {
-      var r = s.getBoundingClientRect(), top = r.top + sy;
+    centers = [];
+    sections.forEach(function (s) {
+      var r = s.getBoundingClientRect(), top = r.top + sy, name = s.getAttribute("data-cam");
       var y;
       if (s.hasAttribute("data-cam-top")) y = top;
       else if (narrow) y = top;
       else y = top + r.height / 2 - vh / 2;
-      return { name: s.getAttribute("data-cam"), y: y };
+      // a section taller than the screen holds its view from its first screenful to its last
+      if (s.hasAttribute("data-cam-hold") && r.height > vh) centers.push({ name: name, y: top }, { name: name, y: top + r.height - vh });
+      else centers.push({ name: name, y: y });
     });
   }
   function camTarget() {
@@ -1025,7 +1160,8 @@
   function frame(now) {
     W.requestAnimationFrame(frame);
     if (d.hidden) { last = now; return; }
-    var dt = Math.min(0.05, (now - last) / 1000); last = now;
+    // a frame's timestamp can be older than the script's own clock, so the first step is never negative
+    var dt = clamp((now - last) / 1000, 0, 0.05); last = now;
     var animating = !state.reduced;
     var busy = events.some(function (e) { return !e.done; }) || Math.abs(power - powerTarget) > 1e-3 || curtain > 0 || slabGlow > 0 || railPass > 0;
     if (!animating && !dirty && !busy && frameNo > 2) return;
@@ -1039,7 +1175,10 @@
     liftS += ((weights.native || 0) - liftS) * (state.reduced ? 1 : Math.min(1, dt * 2.5));
     var pk = state.reduced ? 1 : Math.min(1, dt * 2.2);
     pres.ring += (wr - pres.ring) * pk; pres.cost += (wcst - pres.cost) * pk;
-    var wg = 1 - clamp((weights.installs || 0) + (weights.cost || 0), 0, 1);
+    var wp = clamp((weights.hero || 0) + (weights.loop || 0) + (weights.ambition || 0), 0, 1);
+    // the pillars are down by the middle of the way to the gate, before the turn takes them under the text
+    pres.pillars += (clamp(wp * 2 - 1, 0, 1) - pres.pillars) * pk;
+    var wg = 1 - clamp((weights.installs || 0) + (weights.cost || 0) + wp, 0, 1);
     pres.gate += (wg - pres.gate) * pk;
     var k = state.reduced || !cam ? 1 : 1 - Math.exp(-dt * 5);
     if (!cam) cam = { pos: tg.pos.slice(), tgt: tg.tgt.slice(), fov: tg.fov, sx: tg.sx, sy: tg.sy, spot: tg.spot.slice(), dim: tg.dim };
@@ -1052,10 +1191,10 @@
     }
     power += (powerTarget - power) * (state.reduced ? 1 : Math.min(1, dt * 3));
 
-    // calls belong to the hero: once it is off screen the gate goes back to idle
-    if ((weights.hero || 0) < 0.15 && (weights.off || 0) < 0.15 && (weights.exhibits || 0) < 0.15 && events.length) { events.forEach(function (e) { e.done = true; }); events = []; curtain = 0; railHold = 0; flash = 0; }
-    // idle autoplay in the hero, paused 9 s after the visitor picks a call
-    if (animating && (weights.hero || 0) > 0.5 && tNow - lastUser > 9 && tNow > nextAuto && calls.length) {
+    // calls belong to Discipline: once it is off screen the gate goes back to idle
+    if ((weights.gate || 0) < 0.15 && (weights.off || 0) < 0.15 && (weights.exhibits || 0) < 0.15 && events.length) { events.forEach(function (e) { e.done = true; }); events = []; curtain = 0; railHold = 0; flash = 0; }
+    // idle autoplay while Discipline holds the camera, paused 9 s after the visitor picks a call
+    if (animating && (weights.gate || 0) > 0.5 && tNow - lastUser > 9 && tNow > nextAuto && calls.length) {
       var tries = 0;
       while (tries++ < calls.length && calls[autoIdx % calls.length].el.getAttribute("data-auto") === "no") autoIdx++;
       fire(autoIdx % calls.length, false);
@@ -1187,8 +1326,7 @@
   // A label shows only when its section owns the screen, its anchor is in front of the camera, and it
   // lands inside the stage: clear of the header, the copy column (desktop) or the copy below (phone).
   function placeHud(vp, narrow) {
-    var copyRight = 0;
-    if (!narrow) { var cp = d.querySelector(".hero .copy"); copyRight = cp ? cp.getBoundingClientRect().right + 20 : 0; }
+    var copyEdge = narrow ? 0 : copyRight() + 20;
     var stageBottom = narrow ? vh * 0.56 : vh - 16;
     var rows = [];
     for (var i = 0; i < hudEls.length; i++) {
@@ -1197,7 +1335,7 @@
       var p = project(vp, o.anchor);
       if (p[2] <= 0) vis = false;
       if (o.o.desktopOnly && narrow) vis = false;
-      if (o.o.until && tNow > plusUntil) vis = false;
+      if (o.o.until && tNow >= plusUntil) vis = false;
       if (o.o.noPart) { for (var pk4 in partHi) if (partHi[pk4] > 0.3) vis = false; }
       if (o.o.part) {
         var pt = null, best = 0.3;
@@ -1205,7 +1343,7 @@
         if (!pt) vis = false;
         else { o.anchor = PART_AT[pt](); if (o.part !== pt) { o.part = pt; o.el.innerHTML = PART_TEXT[pt]; } }
       }
-      var leftEdge = o.set === "cost" ? 16 : Math.max(16, copyRight);
+      var leftEdge = o.set === "cost" ? 16 : Math.max(16, copyEdge);
       if (p[0] < leftEdge || p[0] > vw - 16 || p[1] < 76 || p[1] > stageBottom) vis = false;
       if (o.vis !== vis) { o.vis = vis; o.el.classList.toggle("show", vis); o.el.tabIndex = vis ? 0 : -1; o.el.setAttribute("aria-hidden", vis ? "false" : "true"); }
       if (vis && o.o.row) rows.push([o, p]);
@@ -1217,11 +1355,11 @@
     rows.forEach(function (r) { r[0].el.style.transform = "translate3d(" + r[1][0].toFixed(1) + "px," + rowY.toFixed(1) + "px,0)"; });
     if (scrim) scrim.style.opacity = String(1 - clamp(((weights.cost || 0) - 0.2) * 1.6, 0, 1));
     if (card) {
-      var show = (weights.hero || 0) > 0.5 && !narrow;
+      var show = (weights.gate || 0) > 0.5 && !narrow;
       card.classList.toggle("float", show);
       if (show) {
         var cp2 = project(vp, [LOG[0] - 0.4, 0, 1.3]);
-        var cx = clamp(cp2[0] + 20, Math.max(16, copyRight), vw - 340 - 56), cy = clamp(cp2[1] + 70, 90, vh - 150);
+        var cx = clamp(cp2[0] + 20, Math.max(16, copyEdge), vw - 340 - 56), cy = clamp(cp2[1] + 70, 90, vh - 150);
         card.style.transform = "translate3d(" + cx.toFixed(1) + "px," + cy.toFixed(1) + "px,0)";
         // a hairline from the card to the foot of the gate it reports on
         if (leader) {
