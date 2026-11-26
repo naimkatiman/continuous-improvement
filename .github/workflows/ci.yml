@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+# A new push to a PR cancels that PR's stale run. Pushes to main group by SHA,
+# so no main run is ever cancelled or left pending: release.yml publishes a tag
+# only after this workflow's push run on the tagged commit has succeeded.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -30,10 +37,12 @@ jobs:
       # Capture the run so the stated test count can be checked against reality
       # without paying for a second suite run. `pipefail` keeps a test failure
       # failing the step, which `tee` would otherwise mask by returning 0.
+      # Calls the runner directly: `npm test` would rebuild what the step above
+      # just built.
       - name: Run tests
         run: |
           set -o pipefail
-          npm test 2>&1 | tee test-run.log
+          node --test test/*.test.mjs 2>&1 | tee test-run.log
 
       - name: Verify the stated test count matches the actual run
         run: node bin/check-test-count.mjs --actual-from test-run.log
