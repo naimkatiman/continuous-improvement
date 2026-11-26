@@ -14,11 +14,16 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  test:
+  # The suite is split in two per Node version: tests were ~45s of every ~70s
+  # job, and each half runs in parallel on its own runner. Shard 1 also runs the
+  # repo invariants below, which take ~2s and need to run once per Node version.
+  shard:
+    name: shard (${{ matrix.node-version }}, ${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
     strategy:
       matrix:
         node-version: [18, 20, 22]
+        shard: [1, 2]
 
     steps:
       - uses: actions/checkout@v4
@@ -42,19 +47,26 @@ jobs:
       - name: Run tests
         run: |
           set -o pipefail
-          node --test test/*.test.mjs 2>&1 | tee test-run.log
+          node --test --test-shard=${{ matrix.shard }}/2 test/*.test.mjs 2>&1 | tee test-run.log
 
-      - name: Verify the stated test count matches the actual run
-        run: node bin/check-test-count.mjs --actual-from test-run.log
+      - name: Keep the run log for the test count check
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-log-${{ matrix.node-version }}-${{ matrix.shard }}
+          path: test-run.log
+          retention-days: 1
 
       - name: Verify zero runtime dependencies
+        if: matrix.shard == 1
         run: |
           node -e "const pkg = require('./package.json'); const runtime = ['dependencies','optionalDependencies','bundleDependencies'].flatMap((key) => Object.keys(pkg[key] || {})); if (runtime.length) { console.error('ERROR: runtime dependencies must stay empty:', runtime.join(', ')); process.exit(1); }"
 
       - name: Verify generated artifacts are committed
+        if: matrix.shard == 1
         run: git diff --exit-code -- .claude-plugin bin hooks test lib plugins docs/skill-catalog.html
 
       - name: Verify SKILL.md contains all 7 laws
+        if: matrix.shard == 1
         run: |
           for law in "Law 1" "Law 2" "Law 3" "Law 4" "Law 5" "Law 6" "Law 7"; do
             if ! grep -q "$law" SKILL.md; then
@@ -64,17 +76,62 @@ jobs:
           done
 
       - name: Verify skill-mirror parity (plugin copy == standalone copy)
+        if: matrix.shard == 1
         run: npm run verify:skill-mirror
 
       - name: Verify docs-substring assertions match their target files
+        if: matrix.shard == 1
         run: npm run verify:docs-substrings
 
       - name: Verify instinct packs are valid JSON
+        if: matrix.shard == 1
         run: |
           for pack in instinct-packs/*.json; do
             node -e "JSON.parse(require('fs').readFileSync('$pack','utf8'))" || exit 1
             echo "✓ $pack is valid JSON"
           done
+
+  # Branch protection requires test (18), test (20) and test (22), so this job
+  # keeps those names and gates on the shards. A job skipped because a needed
+  # job failed reports "skipped", which GitHub counts as passing for a required
+  # check, so this runs whenever the run was not cancelled and fails explicitly
+  # when any shard did not succeed. It then checks the stated test count against
+  # the two shard logs summed, which also catches a Node that ignores
+  # --test-shard: both shards would run everything and the sum would double.
+  test:
+    needs: shard
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+
+    steps:
+      - name: Require every shard to have passed
+        if: needs.shard.result != 'success'
+        run: |
+          echo "ERROR: a test shard finished with '${{ needs.shard.result }}'. See the shard jobs in this run."
+          exit 1
+
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: test-log-${{ matrix.node-version }}-1
+          path: shard-1
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: test-log-${{ matrix.node-version }}-2
+          path: shard-2
+
+      - name: Verify the stated test count matches the actual run
+        run: node bin/check-test-count.mjs --actual-from shard-1/test-run.log --actual-from shard-2/test-run.log
 
   lint-transcript:
     runs-on: ubuntu-latest

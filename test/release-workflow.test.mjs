@@ -34,9 +34,22 @@ describe("ci workflow", () => {
         const workflow = readFileSync(ciPath, "utf8");
         assert.match(workflow, /^concurrency:\n  group: ci-\$\{\{ github\.event_name == 'pull_request' && github\.ref \|\| github\.sha \}\}\n  cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}$/m);
     });
-    it("runs the suite once, after the explicit build step", () => {
+    it("splits the suite into shards, after the explicit build step", () => {
         const workflow = readFileSync(ciPath, "utf8");
-        assert.match(workflow, /node --test test\/\*\.test\.mjs 2>&1 \| tee test-run\.log/);
+        assert.match(workflow, /node --test --test-shard=\$\{\{ matrix\.shard \}\}\/2 test\/\*\.test\.mjs 2>&1 \| tee test-run\.log/);
         assert.doesNotMatch(workflow, /npm test 2>&1/, "npm test rebuilds; the build step already ran");
+    });
+    it("keeps the required test (N) checks, and they fail rather than skip when a shard fails", () => {
+        const workflow = readFileSync(ciPath, "utf8");
+        const start = workflow.indexOf("\n  test:\n");
+        assert.notEqual(start, -1, "the test job must keep its id so its checks stay named test (N)");
+        const job = workflow.slice(start, workflow.indexOf("\n  lint-transcript:\n"));
+        assert.match(job, /needs: shard/);
+        // A job skipped because a dependency failed reports "skipped", which GitHub
+        // counts as passing for a required check. !cancelled() + an explicit result
+        // check turns a failed shard into a failed required check.
+        assert.match(job, /if: \$\{\{ !cancelled\(\) \}\}/);
+        assert.match(job, /needs\.shard\.result/);
+        assert.match(job, /--actual-from shard-1\/test-run\.log --actual-from shard-2\/test-run\.log/);
     });
 });
