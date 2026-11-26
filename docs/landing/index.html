@@ -5,26 +5,26 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#0f0d0c">
-<title>continuous-improvement · Guard hooks and a local tool-call log for coding agents, Claude Code first</title>
-<meta name="description" content="Guardrails for coding agents, Claude Code first. On Claude Code, one hook denies known destructive shell commands in every permission mode, and edits of existing files the session has not looked at. Opt-in checks and a local, searchable log of tool calls.">
+<title>continuous-improvement · Aim high, stay in control: two pillars and a working loop for coding agents</title>
+<meta name="description" content="Ambition and discipline for coding agents: the be-ambitious skill for big goals, and a seven-step loop (research, plan, implement, review, contemplate, relearn and learn, iterate) backed by hooks that refuse destructive commands and blind edits. It works in 16 coding agents, each with its own setup step and its own gaps.">
 <link rel="canonical" href="https://continuous-improvement.dev/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="continuous-improvement">
 <meta property="og:url" content="https://continuous-improvement.dev/">
-<meta property="og:title" content="continuous-improvement · Guard hooks and a local tool-call log for coding agents, Claude Code first">
-<meta property="og:description" content="One hook denies known destructive shell commands in every permission mode, and edits of existing files the session has not looked at. Opt-in checks and a local, searchable log of tool calls. Each hook's default, switch and cost is listed.">
+<meta property="og:title" content="continuous-improvement · Aim high, stay in control: two pillars and a working loop for coding agents">
+<meta property="og:description" content="Ambition and discipline for coding agents: the be-ambitious skill for big goals, and a seven-step loop (research, plan, implement, review, contemplate, relearn and learn, iterate) backed by hooks that refuse destructive commands and blind edits. The be-ambitious skill is guidance the agent reads. The refusals come from one hook file, hooks/gateguard.mjs. It works in 16 coding agents, each with its own setup step and its own gaps.">
 <meta property="og:image" content="https://continuous-improvement.dev/social-preview.png">
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="A paper-coloured card. Headline: Guard hooks and a local tool-call log for Claude Code. Beside it, one captured hook result: the command rm -rf build/ dist/, the verdict deny in vermilion, the matched rule rm-recursive-force.">
+<meta property="og:image:alt" content="A paper-coloured card. Label: two pillars, one loop, 16 coding agents. Headline: Aim high. Stay in control. Under it: Ambition, the be-ambitious skill. Discipline, hooks, a local log, switches. Beside it, the loop as seven numbered steps, each with its mark. Research and Implement: refuses by default. Plan and Review: off until you switch it on. Relearn and learn: records and loads. Contemplate and Iterate: none. At the foot: continuous-improvement.dev, and the line: only a hook can refuse a call.">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="continuous-improvement · Guard hooks and a local tool-call log for coding agents, Claude Code first">
-<meta name="twitter:description" content="One hook denies known destructive shell commands in every permission mode, and edits of existing files the session has not looked at. Opt-in checks and a local, searchable log of tool calls.">
+<meta name="twitter:title" content="continuous-improvement · Aim high, stay in control: two pillars and a working loop for coding agents">
+<meta name="twitter:description" content="Ambition and discipline for coding agents: the be-ambitious skill for big goals, and a seven-step loop (research, plan, implement, review, contemplate, relearn and learn, iterate) backed by hooks that refuse destructive commands and blind edits. It works in 16 coding agents, each with its own setup step and its own gaps.">
 <meta name="twitter:image" content="https://continuous-improvement.dev/social-preview.png">
-<meta name="twitter:image:alt" content="A paper-coloured card. Headline: Guard hooks and a local tool-call log for Claude Code. Beside it, one captured hook result: the command rm -rf build/ dist/, the verdict deny in vermilion, the matched rule rm-recursive-force.">
+<meta name="twitter:image:alt" content="A paper-coloured card. Label: two pillars, one loop, 16 coding agents. Headline: Aim high. Stay in control. Under it: Ambition, the be-ambitious skill. Discipline, hooks, a local log, switches. Beside it, the loop as seven numbered steps, each with its mark. Research and Implement: refuses by default. Plan and Review: off until you switch it on. Relearn and learn: records and loads. Contemplate and Iterate: none. At the foot: continuous-improvement.dev, and the line: only a hook can refuse a call.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2.5' y='2.5' width='27' height='27' rx='6' fill='%23faf7f0' stroke='%23231f17' stroke-width='2'/%3E%3Cpath d='M8 24 L24 8' stroke='%23d24a2e' stroke-width='4' stroke-linecap='round'/%3E%3Crect x='13' y='13' width='6' height='6' rx='1.5' fill='%23231f17'/%3E%3C/svg%3E">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"continuous-improvement","description":"Guardrails for coding agents, Claude Code first. On Claude Code, one hook denies known destructive shell commands in every permission mode, and edits of existing files the session has not looked at. Opt-in hooks refuse pushes to protected branches and hold a turn open on a failing typecheck. Tool calls go to a local, searchable log.","url":"https://continuous-improvement.dev/","applicationCategory":"DeveloperApplication","operatingSystem":"Linux, Windows","softwareRequirements":"Claude Code or another supported coding agent, Node.js 18 or newer","license":"https://opensource.org/license/mit","isAccessibleForFree":true,"sameAs":["https://github.com/naimkatiman/continuous-improvement","https://www.npmjs.com/package/continuous-improvement"]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"continuous-improvement","description":"Ambition and discipline for coding agents: the be-ambitious skill for big goals, and a seven-step loop (research, plan, implement, review, contemplate, relearn and learn, iterate) backed by hooks that refuse destructive commands and blind edits. The be-ambitious skill is guidance the agent reads, and no hook checks that it was followed. The refusals come from one hook file, hooks/gateguard.mjs. Opt-in hooks refuse pushes to protected branches and, where the agent has a Stop gate, hold a turn open on a failing typecheck. Tool calls that run go to a local, searchable log. It works in 16 coding agents, each with its own setup step and its own gaps.","url":"https://continuous-improvement.dev/","applicationCategory":"DeveloperApplication","operatingSystem":"Linux, Windows","softwareRequirements":"A supported coding agent, Node.js 18 or newer","license":"https://opensource.org/license/mit","isAccessibleForFree":true,"sameAs":["https://github.com/naimkatiman/continuous-improvement","https://www.npmjs.com/package/continuous-improvement"]}</script>
 <style>
 /*
   continuous-improvement.dev. Static files, no build step, no framework, no third-party request:
@@ -32,8 +32,29 @@
 
   The page is visual first. Each section is a headline, one line, and a set piece in the 3D world;
   every table and capture the page proves its claims with stays in the markup, inside a disclosure.
-  landing.js reads its data from the markup: the hero chips (data-call), the hooks table rows
-  (tr[data-hook]) and the cost list (li[data-cost]). Change the markup and the world follows.
+  landing.js reads its data from the markup: the replay chips (data-call, in the Discipline section),
+  the hooks table rows (tr[data-hook]) and the cost list (li[data-cost]). Change the markup and the
+  world follows.
+
+  The page leads with two pillars and one loop (docs/plans/2026-11-25-two-pillars.md). The sections
+  Loop, Ambition, Discipline and Agents have no set piece of their own: data-cam="hero" keeps the hero
+  camera, and with it the gate, the one hook file every agent calls, beside them. landing.js replays
+  the chips while a hero-camera section is on screen, and floats the verdict card beside the gate; the
+  script at the end of this file lets the card show only while Discipline is on screen. Class "follow"
+  drops the stage gap above a section on narrow screens, where the same scene would repeat.
+
+  Three blocks are written by scripts, not by hand, and a check fails when one differs from its source:
+    - between the loop-table markers: the seven steps, their marks and the reach line, from
+      src/lib/loop-stages.mts (node bin/check-agent-matrix.mjs --write)
+    - between the agent-matrix markers: the roster and the table of agents where the guard blocks,
+      from src/lib/agent-support.mts (node bin/check-agent-matrix.mjs --write)
+    - between the demo-force-push markers: the cross-agent panel, from the captured runs in
+      demo/captures/demos.json (node bin/render-readme-assets.mjs --write)
+  The script at the end of this file fills the install switch's agent list from that table's Install
+  cells. The agent count in the hero kicker, the link-preview text and the Agents heading is typed by
+  hand and pinned by src/test/check-agent-matrix.test.mts.
+  src/test/loop-stages.test.mts pins the headline, the pillar tiles, the install switch's default state,
+  the section order, the exhibit step tags, the gap count in Limits and the image alt text.
 
   Lints in "npm run verify:all" pin the markup below, and every release rewrites the version in it.
   Keep these exactly as they are written:
@@ -103,7 +124,7 @@ code { overflow-wrap: anywhere; }
 .hud { position: absolute; left: 0; top: 0; opacity: 0; visibility: hidden; transition: opacity 0.35s var(--ease), visibility 0s linear 0.35s; will-change: transform; }
 .hud.show { opacity: 1; visibility: visible; transition: opacity 0.35s var(--ease); }
 .leader { position: absolute; left: 0; top: 0; height: 1px; transform-origin: 0 50%; background: linear-gradient(90deg, rgba(241, 238, 234, 0.5), rgba(241, 238, 234, 0.08)); opacity: 0; transition: opacity 0.35s var(--ease); }
-.leader.show { opacity: 1; }
+.at-discipline .leader.show { opacity: 1; }
 .hud.ev { translate: -50% 6px; text-align: center; font-size: 13.5px; color: var(--soft); line-height: 1.25; text-shadow: 0 1px 8px #0b0b0c, 0 0 2px #0b0b0c; }
 .hud.ev span { display: block; font-weight: 600; color: var(--text); }
 .hud.ev.far { translate: -50% calc(-100% - 6px); }
@@ -169,22 +190,9 @@ h3 { font: 600 17px/1.3 var(--sans); margin: 0 0 8px; letter-spacing: -0.005em; 
 .note { font-size: 13.5px; color: var(--muted); margin: 14px 0 0; max-width: 40em; }
 
 /* ---------- hero ---------- */
-.hero { min-height: 100vh; min-height: 100svh; align-content: start; padding-top: max(120px, 17vh); }
-.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
-.btn { display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 20px; border-radius: 999px; font: 600 15px var(--sans); text-decoration: none; cursor: pointer; border: 1px solid transparent; transition: background 0.2s, border-color 0.2s, transform 0.15s var(--ease); }
-.btn:active { transform: scale(0.98); }
-.btn.primary { background: var(--text); color: var(--bg); }
-.btn.primary:hover { background: #fff; }
-.btn.ghost { color: var(--text); border-color: var(--line-2); background: rgba(255, 255, 255, 0.03); }
-.btn.ghost:hover { border-color: rgba(255, 255, 255, 0.34); }
-.cmds-wrap { align-self: center; margin-left: 6px; }
-.cmds-wrap[open] { flex-basis: 100%; margin-left: 0; }
-.cmds-wrap > summary { list-style: none; cursor: pointer; font-size: 14px; color: var(--soft); display: inline-flex; gap: 8px; align-items: center; }
-.cmds-wrap > summary::-webkit-details-marker { display: none; }
-.cmds-wrap > summary::before { content: "›"; display: inline-block; transition: transform 0.2s var(--ease); }
-.cmds-wrap[open] > summary::before { transform: rotate(90deg); }
-.cmds-wrap > summary:hover { color: var(--text); }
-.cmds-wrap .cmds { margin-top: 10px; border: 1px solid var(--line-2); border-radius: 12px; background: rgba(12, 12, 13, 0.85); }
+.hero { min-height: 100vh; min-height: 100svh; align-content: start; padding-top: max(120px, 15vh); }
+.hero .tiles { margin-top: 26px; }
+.hero .install { max-width: none; }
 .key { display: inline-flex; gap: 6px 12px; margin-left: 10px; color: var(--muted); font-size: 12.5px; align-items: center; flex-wrap: wrap; }
 .key i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: -6px; vertical-align: 1px; }
 .key .k-deny { background: var(--signal); }
@@ -195,13 +203,33 @@ h3 { font: 600 17px/1.3 var(--sans); margin: 0 0 8px; letter-spacing: -0.005em; 
 .chip.more-toggle { color: var(--muted); border-style: dashed; }
 .chip.more-toggle::before { display: none; }
 .install { margin-top: 26px; border: 1px solid var(--line-2); border-radius: 14px; background: rgba(12, 10, 9, 0.72); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); overflow: hidden; max-width: 560px; }
-.install-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 10px 10px 16px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--muted); }
-.copy-btn:not(.btn) { font: 600 13px var(--sans); color: var(--bg); background: var(--text); border: 0; border-radius: 8px; padding: 7px 14px; cursor: pointer; transition: transform 0.15s var(--ease); }
-.copy-btn:not(.btn):active { transform: scale(0.97); }
+.install-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+.copy-btn { font: 600 13px var(--sans); color: var(--bg); background: var(--text); border: 0; border-radius: 8px; padding: 7px 14px; cursor: pointer; transition: transform 0.15s var(--ease); }
+.copy-btn:active { transform: scale(0.97); }
+.no-js .copy-btn { display: none; }
+/* The install switch. Two radios swap the commands in CSS, so it works without scripting; the script
+   adds the agent list, keeps the copy button on the command shown, and mirrors the choice in data-for. */
+.seg { position: relative; display: inline-flex; padding: 3px; border: 1px solid var(--line-2); border-radius: 999px; background: rgba(255, 255, 255, 0.03); }
+.seg label { font: 600 13px/1 var(--sans); color: var(--soft); padding: 8px 13px; border-radius: 999px; cursor: pointer; white-space: nowrap; transition: color 0.2s, background 0.2s; }
+.seg label:hover { color: var(--text); }
+.seg input:checked + label { color: var(--text); background: rgba(255, 255, 255, 0.12); }
+.seg input:focus-visible + label { outline: 2px solid var(--signal); outline-offset: 2px; }
+.install .note { margin: 0; padding: 0 16px 14px; max-width: none; }
+.pick { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 0; padding: 0 16px 12px; font-size: 13px; color: var(--soft); }
+.pick[hidden] { display: none; }
+.pick select { height: 34px; max-width: 100%; font: 13px var(--sans); color: var(--text); background: #1d1a18; border: 1px solid var(--line-2); border-radius: 8px; padding: 0 10px; cursor: pointer; }
+.for-claude { display: none; }
+.install:has(#for-claude:checked) .for-claude { display: block; }
+.install:has(#for-claude:checked) .for-other { display: none; }
+.install[data-for="claude"] .for-claude { display: block; }
+.install[data-for="claude"] .for-other { display: none; }
+@supports not selector(:has(*)) { .no-js .for-claude { display: block; border-top: 1px solid var(--line); } .no-js .install-head { display: none; } }
 .cmds { margin: 0; padding: 12px 16px 14px; font-size: 12.5px; line-height: 1.75; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
 .cmds > span { display: block; padding-left: 2ch; text-indent: -2ch; }
 .cmds > span::before { content: "> "; color: var(--muted); }
+.cmds.sh > span::before { content: "$ "; }
 .try { margin-top: 28px; }
+.no-js .try { display: none; }
 .try-label { font-size: 14px; color: var(--soft); margin: 0 0 10px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; max-width: 580px; }
 .chip { min-height: 38px; font: 13.5px/1.2 var(--mono); color: var(--soft); background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line-2); border-radius: 999px; padding: 8px 12px 8px 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; max-width: 100%; transition: border-color 0.2s, color 0.2s, background 0.2s; text-align: left; }
@@ -216,7 +244,7 @@ h3 { font: 600 17px/1.3 var(--sans); margin: 0 0 8px; letter-spacing: -0.005em; 
 .chip[data-note] em { color: var(--amber); }
 
 .verdict { position: fixed; left: 0; top: 0; z-index: 3; width: 340px; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--line-2); background: rgba(14, 12, 11, 0.82); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); opacity: 0; visibility: hidden; transition: opacity 0.4s var(--ease), visibility 0s linear 0.4s; box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.6); }
-.verdict.on.float { opacity: 1; visibility: visible; transition: opacity 0.4s var(--ease); }
+.at-discipline .verdict.on.float { opacity: 1; visibility: visible; transition: opacity 0.4s var(--ease); }
 .verdict.pending .vc-verdict, .verdict.pending .vc-rule, .verdict.pending .vc-note { opacity: 0.25; transition: opacity 0.2s; }
 .vc-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .vc-cmd { font: 13px var(--mono); color: var(--text); overflow-wrap: anywhere; }
@@ -242,6 +270,7 @@ h3 { font: 600 17px/1.3 var(--sans); margin: 0 0 8px; letter-spacing: -0.005em; 
 .legend i.deny, .m.deny { background: var(--signal); }
 .legend i.warn, .m.warn { background: transparent; box-shadow: inset 0 0 0 1.5px var(--amber); }
 .legend i.off, .m.off { background: #2c2c2f; box-shadow: inset 0 0 0 1px #6b6560; }
+.m.none { background: transparent; box-shadow: inset 0 0 0 1px #6b6560; border-radius: 50%; }
 .hook-card { margin-top: 26px; border: 1px solid var(--line-2); border-radius: 14px; background: rgba(14, 12, 11, 0.8); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); padding: 16px 18px; max-width: 520px; }
 .hc-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .hc-file { font: 600 14px var(--mono); }
@@ -280,8 +309,21 @@ thead th { font-weight: 600; color: var(--text); font-size: 12.5px; border-top: 
 tbody th { font-weight: 500; color: var(--text); }
 td { color: var(--soft); }
 .agents code { overflow-wrap: anywhere; }
-@media (min-width: 861px) { .agents tbody th { width: 17%; } .agents td:nth-child(2) { width: 22%; } .agents td:last-child { width: 34%; } }
-@media (min-width: 861px) { #agents > .copy { border: 1px solid var(--line-2); border-radius: 16px; background: rgba(12, 10, 9, 0.86); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); padding: clamp(18px, 2.4vw, 30px); } }
+/* The Agents section: a roster of names by tier in one glass panel (.ex), the table folded under it.
+   The table stacks at every width, one block per agent in the copy column; its ARIA roles keep it a table. */
+.agents, .agents thead, .agents tbody, .agents tr, .agents th, .agents td { display: block; }
+.agents thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.agents tr { border-top: 1px solid var(--line-2); padding: 10px 0; }
+.agents tbody tr:first-child { border-top: 0; padding-top: 0; }
+.agents th, .agents td { border: 0; padding: 3px 0; }
+.agents tbody th { font-size: 15px; font-weight: 600; }
+.agents td[data-l]::before { content: attr(data-l) ": "; color: var(--text); font-weight: 600; font-size: 12px; }
+.roster { margin-top: 26px; }
+.tiers { margin: 0; display: grid; gap: 20px; }
+.tiers > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.tiers dt { flex-basis: 100%; font-size: 14px; color: var(--soft); margin-bottom: 2px; }
+.tiers dt b { font-weight: 600; color: var(--text); margin-right: 8px; }
+.tiers dd { margin: 0; font: 600 14px/1.2 var(--sans); color: var(--text); background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line-2); border-radius: 999px; padding: 8px 13px; }
 .docs { display: block; font-size: 12px; color: var(--muted); margin-top: 4px; }
 .st { display: inline-block; font-size: 12px; white-space: nowrap; }
 .ev, .no { font-size: 11.5px; color: var(--muted); margin-right: 4px; }
@@ -319,6 +361,7 @@ td { color: var(--soft); }
 .facts dt { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
 .facts dd { margin: 0; font-size: 13.5px; color: var(--soft); }
 .rulings { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+.ex > .rulings { margin-top: 8px; font-size: 14px; }
 .rulings li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 14px; padding: 7px 0; border-top: 1px solid var(--line); }
 .rulings li.sep { border-top: 0; padding-top: 14px; font-weight: 600; color: var(--text); justify-content: flex-start; align-items: center; gap: 8px; }
 .rv { font: 12px var(--mono); color: var(--muted); }
@@ -363,6 +406,23 @@ td { color: var(--soft); }
 .steps li > span { min-width: 0; }
 .steps li { counter-increment: s; display: grid; grid-template-columns: 28px 1fr; gap: 10px; font-size: 14.5px; color: var(--soft); }
 .steps li::before { content: counter(s); width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line-2); display: grid; place-items: center; font-size: 12px; color: var(--text); }
+.steps li b { font-weight: 600; color: var(--text); }
+/* The loop: the seven steps in one glass panel, each with its mark, then what each mark means. */
+.loop { margin-top: 26px; }
+.loop .steps { margin-top: 0; max-width: none; gap: 14px; }
+.loop .steps li > div { min-width: 0; }
+.step-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 14px; margin: 0; }
+.step-top b { font-size: 16px; }
+.mark { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text); white-space: nowrap; }
+.step-sub { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+.step-sub code { color: var(--soft); }
+.loop .hc-more { margin-top: 4px; }
+.loop .hc-more .facts { margin: 10px 0 4px; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.loop .marks { margin-top: 18px; }
+.marks .m { margin-right: 4px; }
+.marks b { color: var(--text); font-weight: 600; }
+.marks .rv { font: 13px var(--sans); color: var(--soft); }
+#discipline .ex { margin-top: 28px; }
 .cmdlist { margin: 0; }
 .cmdlist div { padding: 10px 0; border-top: 1px solid var(--line); }
 .cmdlist dt { font-weight: 600; color: var(--text); font-size: 13.5px; }
@@ -392,7 +452,7 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
 
 /* ---------- no WebGL: a still gate drawn in CSS stands in for the world ---------- */
 .still { display: none; }
-.nogl .hero .still { display: block; position: relative; height: 260px; margin-top: 36px; max-width: 560px; border-radius: 16px; border: 1px solid var(--line); background: radial-gradient(60% 80% at 60% 70%, #221d1a, var(--bg-2)); overflow: hidden; }
+.nogl .still { display: block; position: relative; height: 260px; margin-top: 36px; max-width: 560px; border-radius: 16px; border: 1px solid var(--line); background: radial-gradient(60% 80% at 60% 70%, #221d1a, var(--bg-2)); overflow: hidden; }
 .still i { position: absolute; bottom: 40px; background: #3a3532; border-radius: 6px; }
 .still .p1 { left: 52%; width: 22px; height: 150px; }
 .still .p2 { left: 70%; width: 22px; height: 150px; }
@@ -401,21 +461,25 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
 .still .call { left: 34%; width: 46px; height: 26px; bottom: 42px; background: var(--signal); box-shadow: 0 0 30px rgba(242, 96, 61, 0.4); }
 .still .glass { left: calc(52% + 22px); width: calc(18% - 22px); height: 150px; background: rgba(170, 180, 194, 0.08); border-left: 2px solid var(--signal); border-radius: 0; }
 
+/* Without WebGL nothing floats the verdict card, so it sits under the chips at every width. */
+.nogl .verdict { position: static; width: auto; max-width: 560px; margin-top: 18px; opacity: 1; visibility: visible; display: none; box-shadow: none; }
+.nogl .verdict.on { display: block; }
+/* Without scripting the tabs, the off switch and the menu button do nothing, so they are not shown. */
+.no-js .tabs, .no-js .switch { display: none; }
+.no-js .menu-btn { display: none !important; }
+
 /* ---------- narrow screens: the world sits above the copy ---------- */
 @media (max-width: 860px) {
   .sec { grid-template-columns: minmax(0, 1fr); min-height: 0; padding: 0 var(--gutter) 64px; align-items: start; }
   .gl .sec { padding-top: 54vh; }
   .gl .hero { padding-top: 40vh; min-height: 0; }
   .brand { font-size: 14px; }
-  .hero .copy { display: flex; flex-direction: column; }
-  .hero .kicker { align-self: flex-start; }
-  .hero .actions { order: 3; }
-  .hero .try { order: 4; margin-top: 22px; }
-  .hero .verdict { order: 5; }
-  .actions { flex-direction: column; align-items: stretch; }
-  .actions .btn { width: 100%; white-space: nowrap; height: 48px; }
-  .cmds-wrap { align-self: flex-start; margin: 4px 0 0; }
   .gl .wide-sec { padding-top: 96px; }
+  .gl .sec.follow { padding-top: 40px; scroll-margin-top: 44px; }
+  .gl .sec.follow > .copy::before { background: rgba(15, 13, 12, 0.9); }
+  .stage-covered .hud.plus { display: none; }
+  .power code { white-space: normal; overflow-wrap: anywhere; }
+  .step-code { white-space: pre-wrap; }
   .gl .sec > .copy { position: relative; padding-top: 40px; margin-top: -40px; }
   .gl .sec > .copy::before { content: ""; position: absolute; z-index: -1; top: 0; bottom: -64px; left: calc(-1 * var(--gutter)); right: calc(-1 * var(--gutter)); background: linear-gradient(rgba(15, 13, 12, 0) 0, rgba(15, 13, 12, 0.9) 90px); }
   .gl #scrim { display: none; }
@@ -441,7 +505,6 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
   .bar-end { display: flex; align-items: center; gap: 8px; }
   .ver-link { display: none; }
   .nav a.cta { padding: 6px 12px; font-size: 13px; }
-  .btn { flex: 1 1 auto; }
   h1 { font-size: clamp(40px, 11.5vw, 56px); }
   .chip { font-size: 12px; }
   .tab { min-width: 104px; }
@@ -479,12 +542,15 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
     <a class="gh-icon" href="https://github.com/naimkatiman/continuous-improvement" aria-label="GitHub"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a>
     </div>
     <nav class="nav" id="nav" aria-label="Sections">
+      <a href="#loop">Loop</a>
+      <a href="#ambition">Ambition</a>
+      <a href="#discipline">Discipline</a>
+      <a href="#agents">Agents</a>
       <a href="#installs" class="mid">Hooks</a>
       <a href="#exhibits" class="mid">Exhibits</a>
-      <a href="#cost">Cost</a>
+      <a href="#cost" class="mid">Cost</a>
       <a href="#limits">Limits</a>
       <a href="#off">Turn off</a>
-      <a href="#agents" class="mid">Agents</a>
       <a href="https://github.com/naimkatiman/continuous-improvement" class="cta">GitHub</a>
     </nav>
   </div>
@@ -494,20 +560,198 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
 
   <section class="sec hero" id="top" data-cam="hero" data-cam-top aria-labelledby="h-top">
     <div class="copy">
-      <span class="kicker"><i aria-hidden="true"></i><b>Claude Code first</b> REV 3.28.0</span>
-      <h1 id="h-top">Guard hooks for coding agents.</h1>
-      <p class="lead">Destructive commands are refused in every permission mode. Every call that runs is logged, on your machine. Other coding agents get the same hook through their own hook system: <a href="#agents">what each one gets</a>.</p>
+      <span class="kicker"><i aria-hidden="true"></i><b>16 coding agents</b> REV 3.28.0</span>
+      <h1 id="h-top"><span class="nb">Aim high.</span> <span class="nb">Stay in control.</span></h1>
+      <p class="lead">Two pillars and one working loop for the coding agent you already use. Research, plan, implement, review, contemplate, relearn and learn, iterate.</p>
+      <ul class="tiles pillars">
+        <li><b>Ambition. You have big goals.</b>The <code>be-ambitious</code> skill tells the agent to work on the goal behind the task, with a target and a check set before it starts. It is guidance the agent reads. No hook checks that it was followed. <a href="#ambition">What it tells the agent</a></li>
+        <li><b>Discipline. You control the AI.</b>With the hooks installed, <code>hooks/<wbr>gateguard.mjs</code> refuses destructive commands and blind edits before they run. <code>bin/<wbr>observe.mjs</code> logs each tool call that runs, on your machine. Stricter gates are switches you set. <a href="#discipline">What you control</a></li>
+      </ul>
 
-      <div class="actions">
-        <button class="btn primary copy-btn" type="button" data-target="cmds" data-copy="/plugin marketplace add naimkatiman/continuous-improvement&#10;/plugin install continuous-improvement@continuous-improvement">Copy install commands</button>
-        <details class="cmds-wrap">
-          <summary>See the commands</summary>
+      <div class="install" id="install">
+        <div class="install-head">
+          <span class="seg" role="radiogroup" aria-label="Install with">
+            <input class="vh" type="radio" name="install-for" id="for-other" value="other" checked><label for="for-other">npx</label>
+            <input class="vh" type="radio" name="install-for" id="for-claude" value="claude"><label for="for-claude">Claude Code plugin</label>
+          </span>
+          <button class="copy-btn" type="button" data-target="cmds-other" data-copy="npx continuous-improvement install --target &lt;agent&gt; --hooks">Copy</button>
+        </div>
+        <div class="for-other">
+          <pre class="cmds sh" id="cmds-other"><span>npx <span class="nb">continuous-improvement</span> install <span class="nb">--target &lt;agent&gt;</span> <span class="nb">--hooks</span></span></pre>
+          <p class="pick" id="pick" hidden><label for="for-agent">Your agent</label> <select id="for-agent"><option value="">Pick one</option></select></p>
+          <p class="note">Run it in your project's git repository. It installs the hooks for that agent, and writes or prints the MCP server step. <code class="nb">&lt;agent&gt;</code> is the agent's id: every id is in the <a href="#agents">agent table</a>. Add <code class="nb">--dry-run</code> to list every write first.</p>
+        </div>
+        <div class="for-claude">
           <pre class="cmds" id="cmds"><span>/plugin marketplace add naimkatiman/<wbr><span class="nb">continuous-improvement</span></span><span>/plugin install <span class="nb">continuous-improvement</span><wbr>@<span class="nb">continuous-improvement</span></span></pre>
-        </details>
+          <p class="note">Claude Code installs it as a plugin. Run both inside Claude Code, then restart it once.</p>
+        </div>
       </div>
+    </div>
+  </section>
+
+  <section class="sec follow" id="loop" data-cam="hero" aria-labelledby="h-loop">
+    <div class="copy">
+      <h2 id="h-loop">Seven steps. Each one says what backs it.</h2>
+      <p class="lead">One working loop, in the order the work happens. Each step restates one of the 7 Laws of the core skill. The mark beside it says what code backs it, and where it says None there is no code.</p>
+<!-- loop-table:start -->
+      <div class="ex loop">
+      <ol class="steps">
+        <li>
+          <div>
+            <p class="step-top"><b>Research</b><span class="mark"><i class="m deny" aria-hidden="true"></i>Refuses by default</span></p>
+            <p class="step-sub">Law 1, Research Before Executing · <code>hooks/gateguard.mjs</code>: an edit with no read</p>
+            <details class="hc-more">
+              <summary>What it is given, and what backs it</summary>
+              <dl class="facts">
+                <div><dt>The agent is given</dt><dd>The rule: find what exists, the constraints and what can break before acting. Skills <code>recall</code>, <code>reconcile</code>, <code>grill-me</code>, <code>roast</code>. The <code>ci_recall</code> MCP tool searches the log when called.</dd></div>
+                <div><dt>A hook</dt><dd><a href="https://github.com/naimkatiman/continuous-improvement/blob/main/hooks/gateguard.mjs"><code>hooks/gateguard.mjs</code></a> denies an edit of an existing file when the session's log shows no read of it. It checks that one thing. Switch: <code>CI_GATEGUARD_FILE_GATE=off</code>.</dd></div>
+                <div><dt>Default</dt><dd>On after install</dd></div>
+                <div><dt>Switch</dt><dd><code>CI_GATEGUARD_FILE_GATE=off</code></dd></div>
+              </dl>
+            </details>
+          </div>
+        </li>
+        <li>
+          <div>
+            <p class="step-top"><b>Plan</b><span class="mark"><i class="m off" aria-hidden="true"></i>Off until you switch it on</span></p>
+            <p class="step-sub">Law 2, Plan Is Sacred · <code>hooks/goal-drift-stop.mjs</code>: Claude Code only</p>
+            <details class="hc-more">
+              <summary>What it is given, and what backs it</summary>
+              <dl class="facts">
+                <div><dt>The agent is given</dt><dd>The rule: state what you will build, what you will not, how you will verify, and the fallback. <code>be-ambitious</code> tells the agent to set the goal and a target first. <code>ci_plan_init</code> writes <code>task_plan.md</code>, and <code>ci_goal_check</code> scores recent calls against its <code>## Goal</code>.</dd></div>
+                <div><dt>A hook</dt><dd><a href="https://github.com/naimkatiman/continuous-improvement/blob/main/hooks/goal-drift-stop.mjs"><code>hooks/goal-drift-stop.mjs</code></a> with <code>CI_GOAL_DRIFT_GATE=block</code> sends a drifted wrap-up back. Shown to work on Claude Code only: it reads the reply from a Claude Code transcript. No hook requires a plan before the first edit.</dd></div>
+                <div><dt>Default</dt><dd>Warns only: a debug-log line, and the call goes through</dd></div>
+                <div><dt>Switch</dt><dd><code>CI_GOAL_DRIFT_GATE=block</code></dd></div>
+              </dl>
+            </details>
+          </div>
+        </li>
+        <li>
+          <div>
+            <p class="step-top"><b>Implement</b><span class="mark"><i class="m deny" aria-hidden="true"></i>Refuses by default</span></p>
+            <p class="step-sub">Law 3, One Thing at a Time · <code>hooks/gateguard.mjs</code>: destructive commands</p>
+            <details class="hc-more">
+              <summary>What it is given, and what backs it</summary>
+              <dl class="facts">
+                <div><dt>The agent is given</dt><dd>The rule: finish and verify one task before the next. Skills <code>tdd-workflow</code>, <code>ship</code>, <code>worktree-safety</code>.</dd></div>
+                <div><dt>A hook</dt><dd><a href="https://github.com/naimkatiman/continuous-improvement/blob/main/hooks/gateguard.mjs"><code>hooks/gateguard.mjs</code></a> denies destructive commands on every matching call, with no switch. With <code>CI_HOOKPACK_GATE=block</code>, <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/hooks/hook-pack.mjs"><code>hooks/hook-pack.mjs</code></a> denies a push to <code>main</code>, <code>master</code> or <code>release/*</code> and a commit staging more than 15 files. No hook checks "one thing at a time" itself.</dd></div>
+                <div><dt>Default</dt><dd>On after install</dd></div>
+                <div><dt>Switch</dt><dd>None</dd></div>
+              </dl>
+            </details>
+          </div>
+        </li>
+        <li>
+          <div>
+            <p class="step-top"><b>Review</b><span class="mark"><i class="m off" aria-hidden="true"></i>Off until you switch it on</span></p>
+            <p class="step-sub">Law 4, Verify Before Reporting · <code>hooks/typecheck-stop.mjs</code>: TypeScript only</p>
+            <details class="hc-more">
+              <summary>What it is given, and what backs it</summary>
+              <dl class="facts">
+                <div><dt>The agent is given</dt><dd>The rule: done means the code ran and the result was checked. Skills <code>verification-loop</code>, <code>simplicity-review</code>, <code>audit</code>.</dd></div>
+                <div><dt>A hook</dt><dd><a href="https://github.com/naimkatiman/continuous-improvement/blob/main/hooks/typecheck-stop.mjs"><code>hooks/typecheck-stop.mjs</code></a> with <code>CI_TYPECHECK_GATE=block</code> holds the turn open on a failing typecheck. TypeScript only, on the 12 agents with a Stop gate. No hook runs tests, lint or a build. After the run, the <a href="https://github.com/naimkatiman/continuous-improvement#unattended-runs-and-ci">transcript linter</a> flags a code change with no test or build command.</dd></div>
+                <div><dt>Default</dt><dd>Off</dd></div>
+                <div><dt>Switch</dt><dd><code>CI_TYPECHECK_GATE=block</code></dd></div>
+              </dl>
+            </details>
+          </div>
+        </li>
+        <li>
+          <div>
+            <p class="step-top"><b>Contemplate</b><span class="mark"><i class="m none" aria-hidden="true"></i>None</span></p>
+            <p class="step-sub">Law 5, Reflect After Every Session · a written rule, no hook</p>
+            <details class="hc-more">
+              <summary>What it is given, and what backs it</summary>
+              <dl class="facts">
+                <div><dt>The agent is given</dt><dd>The reflection block: what worked, what failed, what to do differently, the rule to add, the next three moves. The <code>ci_reflect</code> MCP tool returns the template and stores nothing.</dd></div>
+                <div><dt>A hook</dt><dd>A written rule.</dd></div>
+                <div><dt>Default</dt><dd>No hook</dd></div>
+                <div><dt>Switch</dt><dd>None</dd></div>
+              </dl>
+            </details>
+          </div>
+        </li>
+        <li>
+          <div>
+            <p class="step-top"><b>Relearn and learn</b><span class="mark"><i class="m on" aria-hidden="true"></i>Records and loads</span></p>
+            <p class="step-sub">Law 7, Learn From Every Session · <code>bin/observe.mjs</code>, <code>hooks/session.mjs</code></p>
+            <details class="hc-more">
+              <summary>What it is given, and what backs it</summary>
+              <dl class="facts">
+                <div><dt>The agent is given</dt><dd>Lessons you or the agent save with <code>ci_create_instinct</code> and strengthen or weaken with <code>ci_reinforce</code>. Skill <code>skill-distillation</code>.</dd></div>
+                <div><dt>A hook</dt><dd><a href="https://github.com/naimkatiman/continuous-improvement/blob/main/bin/observe.mjs"><code>bin/observe.mjs</code></a> logs each tool call that runs. <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/hooks/session.mjs"><code>hooks/session.mjs</code></a> prints up to 10 saved lessons at session start (<code>CI_INSTINCT_LOAD=off</code> stops it): by hook on 11 agents, through a rules file you rewrite on 4, not at all on 1. Nothing saves, applies or fades a lesson for you.</dd></div>
+                <div><dt>Default</dt><dd>On after install</dd></div>
+                <div><dt>Switch</dt><dd><code>CI_INSTINCT_LOAD=off</code></dd></div>
+              </dl>
+            </details>
+          </div>
+        </li>
+        <li>
+          <div>
+            <p class="step-top"><b>Iterate</b><span class="mark"><i class="m none" aria-hidden="true"></i>None</span></p>
+            <p class="step-sub">Law 6, Iterate Means One Thing · a written rule, no hook</p>
+            <details class="hc-more">
+              <summary>What it is given, and what backs it</summary>
+              <dl class="facts">
+                <div><dt>The agent is given</dt><dd>The rule: one change, verify, next change. The three next moves from step 5 start the next pass.</dd></div>
+                <div><dt>A hook</dt><dd>Nothing in the session. After a run, the <a href="https://github.com/naimkatiman/continuous-improvement#unattended-runs-and-ci">transcript linter</a> flags more than 8 files edited.</dd></div>
+                <div><dt>Default</dt><dd>No hook</dd></div>
+                <div><dt>Switch</dt><dd>None</dd></div>
+              </dl>
+            </details>
+          </div>
+        </li>
+      </ol>
+      <ul class="rulings marks" aria-label="What each mark means, and the steps that carry it">
+        <li><span><i class="m deny" aria-hidden="true"></i> <b>Refuses by default</b>: a hook answers deny before the call runs</span> <span class="rv">Research, Implement</span></li>
+        <li><span><i class="m off" aria-hidden="true"></i> <b>Off until you switch it on</b>: the hook ships and does nothing until you set the variable</span> <span class="rv">Plan, Review</span></li>
+        <li><span><i class="m on" aria-hidden="true"></i> <b>Records and loads</b>: a hook writes a log row or prints saved lessons, and cannot refuse anything</span> <span class="rv">Relearn and learn</span></li>
+        <li><span><i class="m none" aria-hidden="true"></i> <b>None</b>: text the agent is given, and nothing checks it</span> <span class="rv">Contemplate, Iterate</span></li>
+      </ul>
+      </div>
+      <p class="note">Reach, from the <a href="#agents">agent table</a>: the skills go to all 16 agents, the core skill with these rules among them. Codex CLI, Gemini CLI, Cursor and GitHub Copilot CLI also load the rules as a rules file in every session. 12 have a Stop gate. Saved lessons load by hook on 11, through a rules file you rewrite on 4 (Grok CLI, Auggie, Junie CLI and Goose), and not on Cline.</p>
+<!-- loop-table:end -->
+      <p class="note">Step 6 is the self-improvement step. The model does not change. What changes is what the next session starts with: a searchable log of what ran, and the lessons you kept. The law numbers are the package's own, so step 6 is Law 7 and step 7 is Law 6.</p>
+    </div>
+  </section>
+
+  <section class="sec follow" id="ambition" data-cam="hero" aria-labelledby="h-ambition">
+    <div class="copy">
+      <h2 id="h-ambition"><span class="nb">Pillar one.</span> <span class="nb">You have big goals.</span></h2>
+      <p class="lead"><code>be-ambitious</code> is a bundled skill. One task goes in. It is guidance, and this is what it tells the agent to do.</p>
+      <ol class="steps">
+        <li><span><b>Climb.</b> Write the ladder from the task you typed to the goal behind it, then work at the highest rung its data, its access and a check can reach.</span></li>
+        <li><span><b>Go deeper.</b> Use the instruments a professional in the field would use, starting from raw data.</span></li>
+        <li><span><b>Bring other fields in.</b> Name the fields with something to say about the task. Give each one activity and one output. One of them attacks the result.</span></li>
+        <li><span><b>Set the bar before the work.</b> A numeric target, a baseline, and a check that can fail and that the agent does not grade itself on.</span></li>
+        <li><span><b>Report against it.</b> What you asked for, what was delivered, baseline to result against the target, and what broke.</span></li>
+      </ol>
+      <p class="caveat">The skill carries its own rules, and they are text too. What you asked for is the floor, delivered in the form you asked for. A small task is answered directly, with none of this. Anything outward-facing or hard to reverse waits for your yes.</p>
+      <div class="ex">
+        <dl class="facts">
+          <div><dt>What it is</dt><dd>A skill: guidance the agent reads. No benchmark is claimed for it.</dd></div>
+          <div><dt>Where</dt><dd>A skill on every agent in the <a href="#agents">agent table</a>. Ask for it by name. On Claude Code it is also the <code>/be-ambitious</code> command.</dd></div>
+          <div><dt>What backs it</dt><dd>No hook. No code checks that the agent followed it, and the skill cannot widen what the agent may run.</dd></div>
+          <div><dt>What holds the goal</dt><dd>You put the goal in <code>task_plan.md</code> under <code>## Goal</code>. The <code>ci_goal_check</code> MCP tool scores recent tool calls against it: keyword overlap, not meaning.</dd></div>
+        </dl>
+      </div>
+      <p class="note">The method restates Felix Rieseberg's essay <a href="https://felixrieseberg.com/how-to-be-more-ambitious-a-tutorial-for-humans-with-models/">How to be more ambitious</a> (13 October 2026). The essay coaches people who prompt models. The skill has the agent apply it to its own work.</p>
+    </div>
+  </section>
+
+  <section class="sec" id="discipline" data-cam="hero" aria-labelledby="h-discipline">
+    <div class="copy">
+      <h2 id="h-discipline"><span class="nb">Pillar two.</span> <span class="nb">You control the AI.</span></h2>
+      <p class="lead">The AI does not control you. That is the goal. Here is what you control today, in four parts.</p>
+      <ul class="tiles">
+        <li tabindex="0" data-part="gate"><b>Refused</b><code>hooks/<wbr>gateguard.mjs</code> denies destructive commands and blind edits before they run. On after install.</li>
+        <li tabindex="0" data-part="log"><b>Logged</b><code>bin/<wbr>observe.mjs</code> writes one redacted row per tool call that runs, on your own disk.</li>
+        <li><b>Switches</b>Stricter gates wait for a variable you set: pushes to <code>main</code>, guardrail config, a failing typecheck. <a href="#installs">Every switch</a></li>
+        <li><b>Where it runs</b>On your machine, as Node processes. No model call, no network call. Each agent has its own condition: <a href="#agents">the agent table</a>.</li>
+      </ul>
 
       <div class="try">
-        <p class="try-label" id="try-label">Replay a captured call</p>
+        <p class="try-label" id="try-label">Replay a call captured from <code>hooks/<wbr>gateguard.mjs</code></p>
         <div class="chips" role="group" aria-labelledby="try-label">
           <button class="chip" type="button" aria-pressed="false" data-call="rm -rf build/ dist/" data-verdict="deny" data-rule="rm-recursive-force"><span>rm -rf build/ dist/</span><em>refused</em></button>
           <button class="chip" type="button" aria-pressed="false" data-call="rm -f notes.txt" data-verdict="allow"><span>rm -f notes.txt</span><em>runs</em></button>
@@ -531,13 +775,206 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
         <p class="vc-note"></p>
       </div>
       <div class="vh" role="status" aria-live="polite" id="verdict-live"></div>
+<!-- demo-force-push:start -->
+      <article class="ex" aria-labelledby="h-xagent">
+        <div class="ex-head"><h3 id="h-xagent">One force push, refused in each agent's own format.</h3><p class="meta">hooks/gateguard.mjs</p></div>
+        <p class="sub">git push --force origin main, sent by six agents to one hook file. Each agent's PreToolUse payload from fixtures/agent-matrix on stdin, one temp HOME.</p>
+        <p class="cap">The command in each agent's tool call</p>
+<pre class="tape"><span class="p">$ </span>git push --force origin main</pre>
+        <ul class="rulings">
+          <li class="sep"><i class="m deny"></i>Denied: how each agent got it</li>
+          <li><span>Claude Code</span> <span class="rv"><b>"permissionDecision":"deny"</b></span></li>
+          <li><span>Codex CLI</span> <span class="rv"><b>"permissionDecision":"deny"</b></span></li>
+          <li><span>Gemini CLI</span> <span class="rv"><b>"decision":"deny"</b></span></li>
+          <li><span>Cursor</span> <span class="rv"><b>"permission":"deny"</b></span></li>
+          <li><span>GitHub Copilot CLI</span> <span class="rv"><b>"permissionDecision":"deny"</b></span></li>
+          <li><span>Kiro CLI</span> <span class="rv"><b>exit 2</b>, reason on stderr</span></li>
+          <li class="sep"><i class="m"></i>Allowed</li>
+          <li><code>git status</code> <span class="rv">all 6: <b>exit 0</b>, no output</span></li>
+        </ul>
+        <p class="cap">Every reason names the rule that matched: <code>Matched rule: git-push-force</code></p>
+        <details class="more">
+          <summary>Each agent's payload and reply, as captured</summary>
+          <div class="drawer">
+            <p class="cap">Claude Code</p>
+<pre class="tape"><span class="p">payload  {"session_id":"claude-session","transcript_path":"~/transcript.jsonl","cwd":"~/project","permission_mode":"default","hook_event_name":"PreToolUse","tool_name":"Bash","tool_use_id":"toolu_1","tool_input":{"command":"git push --force origin main"}}
+
+$ node hooks/gateguard.mjs</span>
+{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":<b>"deny"</b>,"permissionDecisionReason":"Destructive command requested: git push --force origin main\n\n  1. List ALL files/data this command will modify or delete\n  2. Write a one-line rollback procedure\n  3. Quote the user's current instruction verbatim\n\nMatched rule: git-push-force\nDestructive Bash gates EVERY call — clearance is not cached."}}
+<span class="p">(stderr empty, exit 0)</span></pre>
+            <p class="cap">Codex CLI</p>
+<pre class="tape"><span class="p">payload  {"session_id":"codex-session","transcript_path":null,"cwd":"~/project","hook_event_name":"PreToolUse","model":"gpt-5.5","permission_mode":"default","turn_id":"turn-1","tool_name":"Bash","tool_use_id":"call_1","tool_input":{"command":"git push --force origin main"}}
+
+$ node hooks/gateguard.mjs --agent codex</span>
+{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":<b>"deny"</b>,"permissionDecisionReason":"Destructive command requested: git push --force origin main\n\n  1. List ALL files/data this command will modify or delete\n  2. Write a one-line rollback procedure\n  3. Quote the user's current instruction verbatim\n\nMatched rule: git-push-force\nDestructive Bash gates EVERY call — clearance is not cached."}}
+<span class="p">(stderr empty, exit 0)</span></pre>
+            <p class="cap">Gemini CLI</p>
+<pre class="tape"><span class="p">payload  {"session_id":"gemini-session","transcript_path":"~/gemini-session.json","cwd":"~/project","hook_event_name":"BeforeTool","timestamp":"2026-11-21T11:08:00.000Z","tool_name":"run_shell_command","tool_input":{"command":"git push --force origin main","description":"run","dir_path":"."}}
+
+$ node hooks/gateguard.mjs --agent gemini</span>
+{"decision":<b>"deny"</b>,"reason":"Destructive command requested: git push --force origin main\n\n  1. List ALL files/data this command will modify or delete\n  2. Write a one-line rollback procedure\n  3. Quote the user's current instruction verbatim\n\nMatched rule: git-push-force\nDestructive Bash gates EVERY call — clearance is not cached."}
+<span class="p">(stderr empty, exit 0)</span></pre>
+            <p class="cap">Cursor</p>
+<pre class="tape"><span class="p">payload  {"conversation_id":"cursor-conv","generation_id":"gen-1","model":"claude-opus-4-7-thinking-max","hook_event_name":"preToolUse","cursor_version":"3.20.17","workspace_roots":["~/project"],"user_email":"user@example.invalid","transcript_path":"~/cursor-transcript.jsonl","tool_name":"Shell","tool_input":{"command":"git push --force origin main","cwd":"~/project"},"tool_use_id":"abc123","cwd":"~/project","agent_message":"Running a command"}
+
+$ node hooks/gateguard.mjs --agent cursor</span>
+{"permission":<b>"deny"</b>,"user_message":"Destructive command requested: git push --force origin main\n\n  1. List ALL files/data this command will modify or delete\n  2. Write a one-line rollback procedure\n  3. Quote the user's current instruction verbatim\n\nMatched rule: git-push-force\nDestructive Bash gates EVERY call — clearance is not cached.","agent_message":"Destructive command requested: git push --force origin main\n\n  1. List ALL files/data this command will modify or delete\n  2. Write a one-line rollback procedure\n  3. Quote the user's current instruction verbatim\n\nMatched rule: git-push-force\nDestructive Bash gates EVERY call — clearance is not cached."}
+<span class="p">(stderr empty, exit 0)</span></pre>
+            <p class="cap">GitHub Copilot CLI</p>
+<pre class="tape"><span class="p">payload  {"sessionId":"copilot-session","timestamp":1763712000000,"cwd":"~/project","toolName":"bash","toolArgs":"{\"command\":\"git push --force origin main\"}"}
+
+$ node hooks/gateguard.mjs --agent copilot</span>
+{"permissionDecision":<b>"deny"</b>,"permissionDecisionReason":"Destructive command requested: git push --force origin main\n\n  1. List ALL files/data this command will modify or delete\n  2. Write a one-line rollback procedure\n  3. Quote the user's current instruction verbatim\n\nMatched rule: git-push-force\nDestructive Bash gates EVERY call — clearance is not cached."}
+<span class="p">(stderr empty, exit 0)</span></pre>
+            <p class="cap">Kiro CLI</p>
+<pre class="tape"><span class="p">payload  {"hook_event_name":"PreToolUse","cwd":"~/project","session_id":"kiro-session","tool_name":"execute_bash","tool_input":{"command":"git push --force origin main"}}
+
+$ node hooks/gateguard.mjs --agent kiro</span>
+<span class="p">(stdout empty)</span>
+<span class="p">stderr: </span>Destructive command requested: git push --force origin main
+
+  1. List ALL files/data this command will modify or delete
+  2. Write a one-line rollback procedure
+  3. Quote the user's current instruction verbatim
+
+<b>Matched rule: git-push-force</b>
+Destructive Bash gates EVERY call — clearance is not cached.
+<span class="p">(exit 2)</span></pre>
+          </div>
+        </details>
+      </article>
+<!-- demo-force-push:end -->
+      <p class="note">It is not a sandbox. The deny matches command text against a fixed rule list, and a write through shell redirection passes: <a href="#limits">what it cannot do</a>. One command per agent turns the hooks off: <a href="#off">turn it off</a>.</p>
+    </div>
+  </section>
+
+  <section class="sec follow" id="agents" data-cam="hero" aria-labelledby="h-agents">
+    <div class="copy">
+      <h2 id="h-agents">16 agents. One hook file.</h2>
+      <p class="lead">Each agent sends its tool call to the same file, <code>hooks/<wbr>gateguard.mjs</code>, and the answer comes back in the format that agent reads.</p>
+      <p class="caveat">Blocks means the call stops when the hook runs and answers deny. An agent that fails open on a hook crash or timeout, or has hooks switched off, lets it through.</p>
+<!-- agent-matrix:start -->
+      <div class="ex roster">
+        <dl class="tiers">
+          <div><dt><b>Full</b><span>blocks, loads lessons at session start, has a Stop gate</span></dt><dd>Claude Code</dd><dd>Codex CLI</dd><dd>Gemini CLI</dd><dd>Qwen Code</dd><dd>Cursor</dd><dd>GitHub Copilot CLI</dd><dd>Devin Local</dd><dd>Kiro CLI</dd><dd>Factory Droid</dd><dd>Amp</dd></div>
+          <div><dt><b>Partial</b><span>blocks; session lessons or the Stop gate are missing</span></dt><dd>Grok CLI</dd><dd>Auggie</dd><dd>Junie CLI</dd><dd>Cline</dd><dd>Goose</dd><dd>OpenCode</dd></div>
+        </dl>
+        <details class="more">
+          <summary>When each one blocks, its install command and what it cannot do</summary>
+          <div class="drawer"><div class="wide">
+      <table class="files agents" role="table" aria-labelledby="h-agents">
+        <thead role="rowgroup"><tr role="row"><th role="columnheader" scope="col"><span class="tag">Agent</span></th><th role="columnheader" scope="col"><span class="tag">Tier</span></th><th role="columnheader" scope="col"><span class="tag">Install</span></th><th role="columnheader" scope="col"><span class="tag">Cannot</span></th></tr></thead>
+        <tbody role="rowgroup">
+          <tr role="row">
+            <th role="rowheader" scope="row">Claude Code</th>
+            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes, in every permission mode.</td>
+            <td role="cell" data-l="Install"><code>/plugin marketplace add naimkatiman/continuous-improvement</code><br>then <code>/plugin install continuous-improvement@continuous-improvement</code></td>
+            <td role="cell" data-l="Cannot">Nothing is lost. The npm installer wires no guard for Claude Code, so use the plugin.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Codex CLI</th>
+            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes, after you trust each hook in /hooks.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target codex --hooks</code></td>
+            <td role="cell" data-l="Cannot">Hooks stay off until trusted. Hosted tools bypass hooks. No Skill tool, so companion-preference is not wired.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Gemini CLI</th>
+            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes, in a trusted folder.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target gemini --hooks</code></td>
+            <td role="cell" data-l="Cannot">No CLI command lists the hooks it loaded from settings.json; only <code>/hooks panel</code> inside a session does.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Qwen Code</th>
+            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes, once you approve the project hooks or trust the folder.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target qwen --hooks</code></td>
+            <td role="cell" data-l="Cannot"><code>$ARGUMENTS</code> is not substituted in commands. The prompt hook also fires on tool results.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Cursor</th>
+            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes (3.x).</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target cursor --hooks</code></td>
+            <td role="cell" data-l="Cannot">Cloud agents run no session hooks. 2.5.26 has no prompt context. Stray output from a hook stops every tool call on 3.x. The Cursor CLI is not covered.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">GitHub Copilot CLI</th>
+            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target copilot --hooks</code></td>
+            <td role="cell" data-l="Cannot">Prompt hook output is dropped, so the prompt hooks are not wired. A hook that times out fails open. The cloud agent reads only .github/hooks, and disableAllHooks turns every hook off. A read through <code>view</code> does not clear the blind-edit gate, so read the file through the shell first.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Grok CLI</th>
+            <td role="cell" data-l="Tier"><b>partial</b>. Blocks: yes, in a trusted folder.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target grok --hooks</code></td>
+            <td role="cell" data-l="Cannot">No session or prompt context, so lessons need the rules file.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Devin Local</th>
+            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes, outside Restricted Mode.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target devin --hooks</code></td>
+            <td role="cell" data-l="Cannot">Restricted Mode runs no hooks. Hooks it imports from ~/.claude can fire twice. Plugin hooks fail open. A read through <code>read</code> may not clear the blind-edit gate (its path key is undocumented), so read the file through the shell first.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Kiro CLI</th>
+            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes (exit 2).</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target kiro --hooks</code></td>
+            <td role="cell" data-l="Cannot">CLI sessions on the V2 harness read agent-profile hooks, not this file. A hook crash exits 1, which Kiro CLI allows.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Factory Droid</th>
+            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target droid --hooks</code></td>
+            <td role="cell" data-l="Cannot">Context printed at PreToolUse is ignored. SubagentStop cannot send a turn back.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Auggie</th>
+            <td role="cell" data-l="Tier"><b>partial</b>. Blocks: yes.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target auggie --hooks</code></td>
+            <td role="cell" data-l="Cannot">Only the tool-call hooks act. Session, Stop and prompt hooks run in the background, so only the guards and the log are wired. A read through <code>view</code> does not clear the blind-edit gate, and one through <code>read</code> only when it names the file as <code>path</code>, so read the file through the shell first.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Junie CLI</th>
+            <td role="cell" data-l="Tier"><b>partial</b>. Blocks: yes, on the Early Access build.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target junie --hooks --scope user</code></td>
+            <td role="cell" data-l="Cannot">Stable builds run no hooks. SessionStart context is ignored. The documented tool event names no session; if a real one has none, every edit of an existing file needs the clear command the deny prints.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Cline</th>
+            <td role="cell" data-l="Tier"><b>partial</b>. Blocks: yes, while Enable Hooks is on.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target cline --hooks</code></td>
+            <td role="cell" data-l="Cannot">No Stop gate and no session lessons. A hook error fails open.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Goose</th>
+            <td role="cell" data-l="Tier"><b>partial</b>. Blocks: yes.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target goose --hooks</code></td>
+            <td role="cell" data-l="Cannot">Post-tool, session and prompt hooks only observe. Hook commands run through sh -c, unverified on Windows.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">OpenCode</th>
+            <td role="cell" data-l="Tier"><b>partial</b>. Blocks: yes, through a local plugin file.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target opencode --hooks</code></td>
+            <td role="cell" data-l="Cannot">1.x has no Stop gate (2.x continues a turn through experimental.idle). A deny reaches the model as a failed tool call and the turn goes on. OPENCODE_PURE turns plugins off.</td>
+          </tr>
+          <tr role="row">
+            <th role="rowheader" scope="row">Amp</th>
+            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes, through a local plugin file.</td>
+            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target amp --hooks</code></td>
+            <td role="cell" data-l="Cannot">The plugin API is experimental. Plugins do not load in Puck or Spaces, and <code>amp -x</code> needs --plugin-ready-timeout.</td>
+          </tr>
+        </tbody>
+      </table>
+          </div></div>
+        </details>
+      </div>
+<!-- agent-matrix:end -->
+      <p class="note">Full: blocks, lessons through a session hook, and a Stop gate. Partial: blocks, with one of the other two missing. An agent installed with <code class="nb">--hooks</code> runs the hooks from a stable copy at <code>&lt;instincts root&gt;/runtime/&lt;version&gt;/</code> (<code>CI_INSTINCTS_HOME</code> when set, else <code>~/.claude/instincts</code>). Without <code class="nb">--hooks</code>, <code class="nb">--target</code> writes only a rules file. Each agent's follow-up step and sources, and the agents where nothing is blocked: <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/docs/AGENT-SUPPORT.md">docs/AGENT-SUPPORT.md</a>.</p>
     </div>
   </section>
 
   <section class="sec" id="native" data-cam="native" aria-labelledby="h-native">
     <div class="copy">
       <h2 id="h-native">Claude Code ships the hooks. Not the rules.</h2>
-      <p class="lead">This plugin is the rule content, tested, plus a log. Where Claude Code already does the job, it says so.</p>
+      <p class="lead">A line-by-line comparison with one agent's built-in hooks. On Claude Code this installs as a plugin: the rule content, tested, plus a log. Where Claude Code already does the job, it says so.</p>
       <ul class="tiles">
         <li tabindex="0" data-part="gate"><b>Auto mode classifier</b>a deny that holds in every mode</li>
         <li tabindex="0" data-part="gate"><b>Deny rules and hooks</b>13 scripts to fill them</li>
@@ -604,7 +1041,7 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
   <section class="sec" id="installs" data-cam="installs" aria-labelledby="h-installs">
     <div class="copy">
       <h2 id="h-installs">14 hooks. Four are on.</h2>
-      <p class="lead">The rest warn on stderr, which the model never sees, or wait for a switch. Pick a pylon.</p>
+      <p class="lead">Counted on Claude Code, where the plugin registers all 14. The rest warn on stderr, which the model never sees, or wait for a switch. Pick a pylon.</p>
       <ul class="legend">
         <li><i class="deny"></i>denies by default</li>
         <li><i></i>on, never denies</li>
@@ -626,6 +1063,7 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
       <details class="more">
         <summary>Every registration, its default, switch and cost</summary>
         <div class="drawer">
+          <p>These are the Claude Code plugin's registrations. <code class="nb">--hooks</code> wires the same scripts for another agent, on the events that agent has.</p>
           <p>14 hook registrations, 13 scripts. On by default: the destructive-command deny, the blind-edit check, the local log, and the lesson load, which is silent when there are no lessons. Three rules only warn, and a warning is a stderr line with exit 0, which the model never sees. Seven checks wait for a switch: six registrations and the wrong-repository lock in row 01. A shell call means the Bash, PowerShell or Monitor tool. Row numbers follow the order in <code>hooks.json</code>.</p>
           <div class="wide">
           <table class="inst">
@@ -696,14 +1134,14 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
               </tr>
               <tr data-hook="10" data-summary="Sends back long replies that lack three fixed headings." data-event="Stop" data-state="off" data-file="hooks/three-section-close.mjs">
                 <th scope="row"><i class="m off" aria-hidden="true"></i> <span class="no">10</span><span class="ev">Stop</span> <code>hooks/<wbr>three-section-close.mjs</code></th>
-                <td data-l="What it does">Sends back any reply of 600 or more characters that lacks three fixed headings. It checks headings, not evidence: a house style.</td>
+                <td data-l="What it does">Sends back any reply of 600 or more characters that lacks three fixed headings. It checks headings, not evidence: a house style. It reads the reply from a Claude Code transcript, so it works on Claude Code only.</td>
                 <td data-l="Default"><span class="st">off</span></td>
                 <td data-l="Switch"><code>CLAUDE_THREE_SECTION_CLOSE=1</code> turns it on. <code>CLAUDE_THREE_SECTION_<wbr>CLOSE_DISABLED=1</code> forces it off.</td>
                 <td data-l="Cost">1 process per turn end. On: a 359-character block reason and a rewritten reply. Writes one row per turn end with a reply to <code>~/.claude/hook-telemetry/</code>.</td>
               </tr>
               <tr data-hook="11" data-summary="Scores recent tool calls against the goal in task_plan.md." data-event="Stop" data-state="warn" data-file="hooks/goal-drift-stop.mjs">
                 <th scope="row"><i class="m warn" aria-hidden="true"></i> <span class="no">11</span><span class="ev">Stop</span> <code>hooks/<wbr>goal-drift-stop.mjs</code></th>
-                <td data-l="What it does">Scores the last 30 logged tool calls for the repository against keywords from <code>## Goal</code> in <code>task_plan.md</code>. Without a goal file it warns of nothing and only records <code>no-goal</code> in its state file.</td>
+                <td data-l="What it does">Scores the last 30 logged tool calls for the repository against keywords from <code>## Goal</code> in <code>task_plan.md</code>. Without a goal file it warns of nothing and only records <code>no-goal</code> in its state file. In block mode it reads the reply from a Claude Code transcript, so the block is shown to work on Claude Code only.</td>
                 <td data-l="Default"><span class="st">warn only</span></td>
                 <td data-l="Switch"><code>CLAUDE_GOAL_DRIFT_GATE=block</code>, <code>warn</code> or <code>off</code>.</td>
                 <td data-l="Cost">1 process per turn end. Rewrites <code>goal-drift-state.json</code> at every turn end unless off.</td>
@@ -733,7 +1171,7 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
           </table>
           </div>
           <h3 style="margin-top:18px">How the switches read.</h3>
-          <p>Every switch but one is an environment variable, set in the shell Claude Code starts from or in a settings file's <code>env</code> block. Values are read without case, and an unknown value falls back to the default. One exception: <code>CLAUDE_THREE_SECTION_<wbr>CLOSE_DISABLED</code> must be exactly <code>1</code>.</p>
+          <p>Every switch but one is an environment variable, set in the shell your agent starts from or, on Claude Code, in a settings file's <code>env</code> block. Each <code>CLAUDE_*</code> switch also reads under a <code>CI_*</code> name, such as <code>CI_TYPECHECK_GATE</code> and <code>CI_HOOKPACK_GATE</code>. Values are read without case, and an unknown value falls back to the default. One exception: <code>CLAUDE_THREE_SECTION_<wbr>CLOSE_DISABLED</code> must be exactly <code>1</code>.</p>
           <h3 style="margin-top:18px">Also in the bundle, not hooks.</h3>
           <ul class="plain">
             <li><b>An MCP server</b>, registered by the plugin and local to your machine: 19 tools for search, lessons, goal checks and planning files.</li>
@@ -749,7 +1187,7 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
   <section class="sec wide-sec" id="exhibits" data-cam="exhibits" aria-labelledby="h-exhibits">
     <div class="copy">
       <h2 id="h-exhibits">Seven real runs.</h2>
-      <p class="lead">Captured output, not mock-ups. Fake credentials, a scratch repository named <code>acme-api</code>.</p>
+      <p class="lead">Captured output, not mock-ups, each tagged with its step of the loop. Fake credentials, a scratch repository named <code>acme-api</code>.</p>
       <div class="tabs" role="tablist" aria-label="Exhibits">
         <button class="tab" role="tab" type="button" id="tab-a" aria-controls="exhibit-a" aria-selected="true" data-replay="rm -rf build"><b>A</b>Destructive call</button>
         <button class="tab" role="tab" type="button" id="tab-b" aria-controls="exhibit-b" aria-selected="false" data-replay="git push origin main"><b>B</b>Push to main</button>
@@ -761,7 +1199,7 @@ footer { position: relative; z-index: 1; border-top: 1px solid var(--line); back
       </div>
 
       <article class="ex" id="exhibit-a" role="tabpanel" aria-labelledby="tab-a">
-        <div class="ex-head"><h3>One refusal in full.</h3><p class="meta">PreToolUse · hooks/gateguard.mjs</p></div>
+        <div class="ex-head"><h3>One refusal in full.</h3><p class="meta">Step 3, Implement · PreToolUse · hooks/gateguard.mjs</p></div>
         <p class="cap">What the model received, 298 characters, for <code>rm -rf build/ dist/</code></p>
 <pre class="tape">Destructive command requested: rm -rf build/ dist/
 
@@ -812,7 +1250,7 @@ $ HOME=home USERPROFILE=home CLAUDE_PROJECT_DIR=acme-api node hooks/gateguard.mj
       </article>
 
       <article class="ex" id="exhibit-b" role="tabpanel" aria-labelledby="tab-b">
-        <div class="ex-head"><h3>A push to main, refused.</h3><p class="meta">PreToolUse · hooks/hook-pack.mjs</p></div>
+        <div class="ex-head"><h3>A push to main, refused.</h3><p class="meta">Step 3, Implement · PreToolUse · hooks/hook-pack.mjs</p></div>
         <p class="sub">Off until you set one variable. By default the same call only writes a stderr line, which the model never sees.</p>
         <p class="cap">Tool call: Bash, <code>git push origin main</code>. Switch set</p>
 <pre class="tape"><span class="p">$ HOME=home USERPROFILE=home CLAUDE_PROJECT_DIR=acme-api CLAUDE_CI_HOOKPACK_GATE=block node hooks/hook-pack.mjs &lt; payload.json</span>
@@ -838,7 +1276,7 @@ stderr: [hook-pack] Direct push to protected branch "main" — open a feature br
       </article>
 
       <article class="ex" id="exhibit-c" role="tabpanel" aria-labelledby="tab-c">
-        <div class="ex-head"><h3>A turn that could not end.</h3><p class="meta">Stop · hooks/typecheck-stop.mjs</p></div>
+        <div class="ex-head"><h3>A turn that could not end.</h3><p class="meta">Step 4, Review · Stop · hooks/typecheck-stop.mjs</p></div>
         <p class="sub">One changed file assigns a string to a number. The hook ran the typecheck and handed the compiler's line back to the model.</p>
 <pre class="tape"><span class="p">$ HOME=home USERPROFILE=home CLAUDE_PROJECT_DIR=acme-api CLAUDE_TYPECHECK_GATE=block node hooks/typecheck-stop.mjs &lt; payload.json</span>
 {"decision":<b>"block"</b>,"reason":"Typecheck FAILED on changed TS files — fix before ending the turn:\nsrc/price.ts(2,9): error TS2322: Type 'string' is not assignable to type 'number'."}
@@ -861,7 +1299,7 @@ stderr: (node:54464) [DEP0190] DeprecationWarning: Passing args to a child proce
       </article>
 
       <article class="ex" id="exhibit-d" role="tabpanel" aria-labelledby="tab-d">
-        <div class="ex-head"><h3>A token that never reached the log.</h3><p class="meta">PostToolUse · bin/observe.mjs</p></div>
+        <div class="ex-head"><h3>A token that never reached the log.</h3><p class="meta">Step 6, Relearn and learn · PostToolUse · bin/observe.mjs</p></div>
         <p class="sub">And, in the same run, a password that did. Every credential here is fake.</p>
         <p class="cap">The command in the tool call</p>
 <pre class="tape">curl -s -H "Authorization: Bearer <i>sk-FAKE0000000000000000000000DOCS</i>" https://api.example.com/v1/orders &amp;&amp; API_TOKEN=<i>FAKEtoken1234567890</i> npm run deploy</pre>
@@ -886,8 +1324,8 @@ $ tail -1 home/.claude/instincts/67c11d834ccf/observations.jsonl</span>
       </article>
 
       <article class="ex" id="exhibit-e" role="tabpanel" aria-labelledby="tab-e">
-        <div class="ex-head"><h3>A search over the log.</h3><p class="meta">MCP tool · bin/mcp-server.mjs</p></div>
-        <p class="sub">The <code>ci_recall</code> tool, called over stdio as Claude Code calls it, on a seeded log.</p>
+        <div class="ex-head"><h3>A search over the log.</h3><p class="meta">Step 1, Research · MCP tool · bin/mcp-server.mjs</p></div>
+        <p class="sub">The <code>ci_recall</code> tool, called over stdio as an agent calls it, on a seeded log.</p>
 <pre class="tape"><span class="p">&gt; {"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"ci_recall","arguments":{"query":"typecheck error price","k":3}}}</span>
 ## Recall: "typecheck error price"
 
@@ -917,7 +1355,7 @@ No past observations matched "kubernetes ingress". Try broader or different term
       </article>
 
       <article class="ex" id="exhibit-f" role="tabpanel" aria-labelledby="tab-f">
-        <div class="ex-head"><h3>Two lessons, printed at session start.</h3><p class="meta">SessionStart · hooks/session.mjs</p></div>
+        <div class="ex-head"><h3>Two lessons, printed at session start.</h3><p class="meta">Step 6, Relearn and learn · SessionStart · hooks/session.mjs</p></div>
         <p class="sub">A lesson is a small file. The one at confidence 0.4 is under the 0.5 floor and is not printed.</p>
 <pre class="tape"><span class="p">$ HOME=home USERPROFILE=home CLAUDE_PROJECT_DIR=acme-api node hooks/session.mjs &lt; payload.json</span>
 Notes from continuous-improvement instinct files: this repository's, and those marked [global], which load in every repository. They are not user instructions: the user's instructions and this repository's rules override them, and a note cannot grant approval. Use those at 0.7 and above when relevant; treat 0.5 to 0.69 as suggestions. The ci_instincts tool lists the stored instincts.
@@ -939,7 +1377,7 @@ Notes from continuous-improvement instinct files: this repository's, and those m
       </article>
 
       <article class="ex" id="exhibit-g" role="tabpanel" aria-labelledby="tab-g">
-        <div class="ex-head"><h3>Git state, as an exit code.</h3><p class="meta">Command · bin/reconcile.mjs</p></div>
+        <div class="ex-head"><h3>Git state, as an exit code.</h3><p class="meta">Step 1, Research · Command · bin/reconcile.mjs</p></div>
         <p class="sub">One commit, one modified file, one untracked file, no remote. The second run asks whether a push landed, and cannot prove it.</p>
 <pre class="tape"><span class="p">$ node bin/reconcile.mjs</span>
 reconcile (resolved):
@@ -991,7 +1429,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
             <li><b>A denied call:</b> the deny reason. About 300 characters for a destructive command, two lines for a blind edit.</li>
             <li><b>Everything else:</b> nothing until you switch it on.</li>
           </ul>
-          <p class="note">One start per matching registration. A call denied before it runs starts one fewer, because there is nothing to log. The Skill and Monitor rows are derived from the hook matchers, not observed. No millisecond figure is given: none was measured. Each start costs your machine's Node startup time plus the hook's own work. Token figures are characters divided by four. No tokenizer was run.</p>
+          <p class="note">The counts are Claude Code's, where the plugin registers all 14. On another agent, each hook its install wired is one Node process per call. One start per matching registration. A call denied before it runs starts one fewer, because there is nothing to log. The Skill and Monitor rows are derived from the hook matchers, not observed. No millisecond figure is given: none was measured. Each start costs your machine's Node startup time plus the hook's own work. Token figures are characters divided by four. No tokenizer was run.</p>
         </div>
       </details>
     </div>
@@ -1000,7 +1438,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
   <section class="sec" id="local" data-cam="local" aria-labelledby="h-local">
     <div class="copy">
       <h2 id="h-local">Nothing leaves your machine.</h2>
-      <p class="lead">The hooks, the logger and the MCP server contain no network code. The log stays in <code>~/.claude/instincts/</code>.</p>
+      <p class="lead">The hooks, the logger and the MCP server contain no network code. The log stays in <code>~/.claude/instincts/</code>, for every agent.</p>
       <p class="caveat">One exception you start yourself: <code class="nb">ci-reconcile --verify-push</code> asks your git remote for the branch tip.</p>
       <details class="more">
         <summary>Every file the plugin writes</summary>
@@ -1029,151 +1467,26 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
     </div>
   </section>
 
-  <section class="sec wide-sec" id="agents" aria-labelledby="h-agents">
-    <div class="copy">
-      <h2 id="h-agents">Other coding agents, and what each one gets.</h2>
-      <p class="lead">The same hook files run on every agent, from a stable copy at <code>&lt;instincts root&gt;/runtime/&lt;version&gt;/</code> (<code>CI_INSTINCTS_HOME</code> when set, else <code>~/.claude/instincts</code>), and each answer is written in the format that agent reads. This table is the promise. Blocks means the call stops when the hook runs: an agent that fails open on a hook crash or timeout, or has hooks switched off, lets it through. Each row's follow-up step and sources are in <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/docs/AGENT-SUPPORT.md">docs/AGENT-SUPPORT.md</a>.</p>
-      <div class="wide">
-<!-- agent-matrix:start -->
-      <table class="files agents" role="table" aria-labelledby="h-agents">
-        <thead role="rowgroup"><tr role="row"><th role="columnheader" scope="col"><span class="tag">Agent</span></th><th role="columnheader" scope="col"><span class="tag">Tier</span></th><th role="columnheader" scope="col"><span class="tag">Install</span></th><th role="columnheader" scope="col"><span class="tag">Cannot</span></th></tr></thead>
-        <tbody role="rowgroup">
-          <tr role="row">
-            <th role="rowheader" scope="row">Claude Code</th>
-            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes, in every permission mode.</td>
-            <td role="cell" data-l="Install"><code>/plugin marketplace add naimkatiman/continuous-improvement</code><br>then <code>/plugin install continuous-improvement@continuous-improvement</code></td>
-            <td role="cell" data-l="Cannot">Nothing is lost. The npm installer wires no guard for Claude Code, so use the plugin.</td>
-          </tr>
-          <tr role="row">
-            <th role="rowheader" scope="row">Codex CLI</th>
-            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes, after you trust each hook in /hooks.</td>
-            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target codex --hooks</code></td>
-            <td role="cell" data-l="Cannot">Hooks stay off until trusted. Hosted tools bypass hooks. No Skill tool, so companion-preference is not wired.</td>
-          </tr>
-          <tr role="row">
-            <th role="rowheader" scope="row">Gemini CLI</th>
-            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes, in a trusted folder.</td>
-            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target gemini --hooks</code></td>
-            <td role="cell" data-l="Cannot">No CLI command lists the hooks it loaded from settings.json; only <code>/hooks panel</code> inside a session does.</td>
-          </tr>
-          <tr role="row">
-            <th role="rowheader" scope="row">Qwen Code</th>
-            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes, once you approve the project hooks or trust the folder.</td>
-            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target qwen --hooks</code></td>
-            <td role="cell" data-l="Cannot"><code>$ARGUMENTS</code> is not substituted in commands. The prompt hook also fires on tool results.</td>
-          </tr>
-          <tr role="row">
-            <th role="rowheader" scope="row">Cursor</th>
-            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes (3.x).</td>
-            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target cursor --hooks</code></td>
-            <td role="cell" data-l="Cannot">Cloud agents run no session hooks. 2.5.26 has no prompt context. Stray output from a hook stops every tool call on 3.x. The Cursor CLI is not covered.</td>
-          </tr>
-          <tr role="row">
-            <th role="rowheader" scope="row">GitHub Copilot CLI</th>
-            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes.</td>
-            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target copilot --hooks</code></td>
-            <td role="cell" data-l="Cannot">Prompt hook output is dropped, so the prompt hooks are not wired. A hook that times out fails open. The cloud agent reads only .github/hooks, and disableAllHooks turns every hook off. A read through <code>view</code> does not clear the blind-edit gate, so read the file through the shell first.</td>
-          </tr>
-          <tr role="row">
-            <th role="rowheader" scope="row">Grok CLI</th>
-            <td role="cell" data-l="Tier"><b>partial</b>. Blocks: yes, in a trusted folder.</td>
-            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target grok --hooks</code></td>
-            <td role="cell" data-l="Cannot">No session or prompt context, so lessons need the rules file.</td>
-          </tr>
-          <tr role="row">
-            <th role="rowheader" scope="row">Devin Local</th>
-            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes, outside Restricted Mode.</td>
-            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target devin --hooks</code></td>
-            <td role="cell" data-l="Cannot">Restricted Mode runs no hooks. Hooks it imports from ~/.claude can fire twice. Plugin hooks fail open. A read through <code>read</code> may not clear the blind-edit gate (its path key is undocumented), so read the file through the shell first.</td>
-          </tr>
-          <tr role="row">
-            <th role="rowheader" scope="row">Kiro CLI</th>
-            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes (exit 2).</td>
-            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target kiro --hooks</code></td>
-            <td role="cell" data-l="Cannot">CLI sessions on the V2 harness read agent-profile hooks, not this file. A hook crash exits 1, which Kiro CLI allows.</td>
-          </tr>
-          <tr role="row">
-            <th role="rowheader" scope="row">Kiro IDE</th>
-            <td role="cell" data-l="Tier"><b>partial</b>. Blocks: not claimed (its hook docs disagree on exit codes).</td>
-            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target kiro --hooks</code></td>
-            <td role="cell" data-l="Cannot">The IDE's two hook pages disagree on what a non-zero exit does, and no IDE run was captured, so no blocking is claimed here. The same hooks answer with exit 2 on a deny. The IDE reads only the workspace .kiro/hooks, so install at project scope.</td>
-          </tr>
-          <tr role="row">
-            <th role="rowheader" scope="row">Factory Droid</th>
-            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes.</td>
-            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target droid --hooks</code></td>
-            <td role="cell" data-l="Cannot">Context printed at PreToolUse is ignored. SubagentStop cannot send a turn back.</td>
-          </tr>
-          <tr role="row">
-            <th role="rowheader" scope="row">Auggie</th>
-            <td role="cell" data-l="Tier"><b>partial</b>. Blocks: yes.</td>
-            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target auggie --hooks</code></td>
-            <td role="cell" data-l="Cannot">Only the tool-call hooks act. Session, Stop and prompt hooks run in the background, so only the guards and the log are wired. A read through <code>view</code> does not clear the blind-edit gate, and one through <code>read</code> only when it names the file as <code>path</code>, so read the file through the shell first.</td>
-          </tr>
-          <tr role="row">
-            <th role="rowheader" scope="row">Junie CLI</th>
-            <td role="cell" data-l="Tier"><b>partial</b>. Blocks: yes, on the Early Access build.</td>
-            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target junie --hooks --scope user</code></td>
-            <td role="cell" data-l="Cannot">Stable builds run no hooks. SessionStart context is ignored. The documented tool event names no session; if a real one has none, every edit of an existing file needs the clear command the deny prints.</td>
-          </tr>
-          <tr role="row">
-            <th role="rowheader" scope="row">Cline</th>
-            <td role="cell" data-l="Tier"><b>partial</b>. Blocks: yes, while Enable Hooks is on.</td>
-            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target cline --hooks</code></td>
-            <td role="cell" data-l="Cannot">No Stop gate and no session lessons. A hook error fails open.</td>
-          </tr>
-          <tr role="row">
-            <th role="rowheader" scope="row">Goose</th>
-            <td role="cell" data-l="Tier"><b>partial</b>. Blocks: yes.</td>
-            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target goose --hooks</code></td>
-            <td role="cell" data-l="Cannot">Post-tool, session and prompt hooks only observe. Hook commands run through sh -c, unverified on Windows.</td>
-          </tr>
-          <tr role="row">
-            <th role="rowheader" scope="row">OpenCode</th>
-            <td role="cell" data-l="Tier"><b>partial</b>. Blocks: yes, through a local plugin file.</td>
-            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target opencode --hooks</code></td>
-            <td role="cell" data-l="Cannot">1.x has no Stop gate (2.x continues a turn through experimental.idle). A deny reaches the model as a failed tool call and the turn goes on. OPENCODE_PURE turns plugins off.</td>
-          </tr>
-          <tr role="row">
-            <th role="rowheader" scope="row">Amp</th>
-            <td role="cell" data-l="Tier"><b>full</b>. Blocks: yes, through a local plugin file.</td>
-            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target amp --hooks</code></td>
-            <td role="cell" data-l="Cannot">The plugin API is experimental. Plugins do not load in Puck or Spaces, and <code>amp -x</code> needs --plugin-ready-timeout.</td>
-          </tr>
-          <tr role="row">
-            <th role="rowheader" scope="row">Zed</th>
-            <td role="cell" data-l="Tier"><b>rules only</b>. Blocks: no.</td>
-            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target zed</code></td>
-            <td role="cell" data-l="Cannot">Zed has no hooks, so nothing is blocked. This package installs no MCP server or skills for Zed yet.</td>
-          </tr>
-          <tr role="row">
-            <th role="rowheader" scope="row">Aider</th>
-            <td role="cell" data-l="Tier"><b>rules only</b>. Blocks: no.</td>
-            <td role="cell" data-l="Install"><code>npx continuous-improvement install --target aider</code></td>
-            <td role="cell" data-l="Cannot">Aider has no hooks, MCP client or skills, so nothing is blocked.</td>
-          </tr>
-        </tbody>
-      </table>
-<!-- agent-matrix:end -->
-      </div>
-      <p class="note">Full: blocks, lessons through a session hook, and a Stop gate. Partial: blocks, with one of the other two missing. Rules only: nothing is blocked. Without <code class="nb">--hooks</code>, <code class="nb">--target</code> writes only the rules file.</p>
-    </div>
-  </section>
-
   <section class="sec" id="limits" data-cam="limits" aria-labelledby="h-limits">
     <div class="copy">
       <h2 id="h-limits">What it cannot do.</h2>
-      <p class="lead">Sixteen known gaps, each from a run, the source or the docs. The amber call just slid past the gate.</p>
+      <p class="lead">22 known gaps, each from a run, the source or the docs. The amber call just slid past the gate.</p>
       <ul class="limits top">
         <li><details><summary>Shell redirection is not gated.</summary><p><code>echo "…" &gt; src/price.ts</code> through the Bash tool passes every rule here, the wrong-repository lock included.</p></details></li>
         <li><details><summary>It refuses some harmless commands.</summary><p>A heredoc body that mentions <code class="nb">git reset --hard</code> is denied, though the body is data. The deny names the rule, so you can see why.</p></details></li>
       </ul>
       <details class="more">
-        <summary>All 16 known gaps</summary>
+        <summary>All 22 known gaps</summary>
         <div class="drawer">
           <ul class="limits">
+            <li><details><summary>It is not a sandbox.</summary><p>The deny in <code>hooks/gateguard.mjs</code> matches command text against a fixed rule list. Nothing isolates the agent from your files or your network.</p></details></li>
+            <li><details><summary>be-ambitious is guidance.</summary><p>It is a skill: text the agent reads. No hook checks that the agent followed it, and no benchmark is claimed for it.</p></details></li>
+            <li><details><summary>Contemplate and Iterate have no hook.</summary><p>Both are written rules. Nothing in a session checks a reflection or holds the work to one change at a time.</p></details></li>
+            <li><details><summary>The goal-drift block is shown on one agent.</summary><p><code>hooks/goal-drift-stop.mjs</code> reads the reply from a Claude Code transcript, so its block is shown to work on Claude Code only.</p></details></li>
+            <li><details><summary>No hook runs tests, lint or a build.</summary><p>The one check at turn end is the typecheck gate, and it is off until you switch it on.</p></details></li>
+            <li><details><summary>A hook that fails can let the call through.</summary><p>An agent that fails open on a hook crash or timeout runs the call. The agent table names which ones do.</p></details></li>
             <li><details><summary>Redaction is by pattern.</summary><p>A secret in a shape the patterns do not know is written to the log as typed. Rows written by earlier versions are not rewritten.</p></details></li>
-            <li><details><summary>A warning reaches nobody.</summary><p>The push gate, the config guard and goal drift default to <code>warn</code>: a stderr line with exit 0, which Claude never sees.</p></details></li>
+            <li><details><summary>A warning reaches nobody.</summary><p>The push gate, the config guard and goal drift default to <code>warn</code>: a stderr line with exit 0, which the model never sees.</p></details></li>
         <li><details><summary>Refused, not cleared.</summary><p>A destructive command has no clearance route. If you mean it, you run it.</p></details></li>
         <li><details><summary>A hook that is off still starts.</summary><p>The prompt and turn-end registrations are unconditional. Each one reads its switch and exits.</p></details></li>
         <li><details><summary>The log has gaps.</summary><p>Only calls that reach PostToolUse are logged, so failed and denied calls are missing. Search is lexical and skips rotated archives.</p></details></li>
@@ -1208,29 +1521,30 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
     <div class="copy">
       <h2 id="h-off">Four steps to try it. One line to turn it off.</h2>
       <ol class="steps">
-        <li><span>Install, then restart Claude Code once.</span></li>
-        <li><span>Ask Claude to delete a folder that does not exist. It is refused, and the reason names the rule. <code class="step-code">rm -rf ./no-such-dir  →  rm-recursive-force</code></span></li>
-        <li><span>Work a few minutes, then search what ran. <code class="step-code">/recall typecheck</code></span></li>
-        <li><span>In a TypeScript repository, start Claude Code with <code class="step-code">CLAUDE_TYPECHECK_GATE=block</code></span></li>
+        <li><span>Install for your agent and do the one step it prints. On Claude Code, restart once.</span></li>
+        <li><span>Ask the agent to delete a folder that does not exist. <code>hooks/gateguard.mjs</code> answers deny, and the reason names the rule. <code class="step-code">rm -rf ./no-such-dir  →  rm-recursive-force</code></span></li>
+        <li><span>Work a few minutes, then have it search what ran with the <code>ci_recall</code> tool. On Claude Code: <code class="step-code">/recall typecheck</code></span></li>
+        <li><span>In a TypeScript repository, on an agent in the full tier, start it with <code class="step-code">CI_TYPECHECK_GATE=block</code></span></li>
       </ol>
       <div class="power">
         <button class="switch" id="power" type="button" role="switch" aria-checked="true" aria-labelledby="power-label"></button>
-        <div id="power-label"><span class="power-state" id="power-state">Enabled</span><span class="power-to">Off switch</span><code>claude plugin disable <span class="nb">continuous-improvement</span><wbr>@<span class="nb">continuous-improvement</span></code></div>
+        <div id="power-label"><span class="power-state" id="power-state">Enabled</span><span class="power-to">Off switch, any agent installed with npx</span><code>npx <span class="nb">continuous-improvement</span> install <wbr><span class="nb">--uninstall</span> <span class="nb">--target &lt;agent&gt;</span></code><span class="power-to">Off switch, Claude Code</span><code>claude plugin disable <span class="nb">continuous-improvement</span><wbr>@<span class="nb">continuous-improvement</span></code></div>
       </div>
       <details class="more">
         <summary>Verify, remove, update, and other install paths</summary>
         <div class="drawer">
           <p>Node 18 or newer is the only requirement (CI runs 18, 20 and 22). The hooks need Node 18 or newer on your PATH. The directory in step 2 does not exist, so a broken install deletes nothing. A turn that leaves a type error in a changed file is sent back.</p>
-          <p>Then run <code>/verify-install</code>. It confirms the commands loaded, probes the guard hook with an unquoted <code class="nb">git rev-parse @{u}</code>, which the hook refuses in every file-gate mode, and reads the log for a row. A wired install ends with <code>✓ wired — commands, gateguard, observe all confirmed.</code></p>
+          <p>On any agent, <code><span class="nb">npx -p</span> <span class="nb">continuous-improvement</span> ci doctor <span class="nb">--agent &lt;agent&gt;</span></code> shows what the agent loaded, using only its own listing commands. On Claude Code, run <code>/verify-install</code>. It confirms the commands loaded, probes the guard hook with an unquoted <code class="nb">git rev-parse @{u}</code>, which the hook refuses in every file-gate mode, and reads the log for a row. A wired install ends with <code>✓ wired — commands, gateguard, observe all confirmed.</code></p>
           <dl class="cmdlist">
             <div><dt>One rule</dt><dd>Its switch in <a href="#installs">Hooks</a>.</dd></div>
-            <div><dt>Everything, kept installed</dt><dd><code>claude plugin disable <span class="nb">continuous-improvement</span><wbr>@<span class="nb">continuous-improvement</span></code></dd></div>
-            <div><dt>Remove</dt><dd><code>/plugin uninstall <span class="nb">continuous-improvement</span><wbr>@<span class="nb">continuous-improvement</span></code> Then delete <code>~/.claude/instincts/</code> and <code class="nb">~/.claude/hook-telemetry/</code> yourself.</dd></div>
-            <div><dt>Update</dt><dd><code>claude plugin marketplace update <span class="nb">continuous-improvement</span></code> Then <code>claude plugin update <span class="nb">continuous-improvement</span><wbr>@<span class="nb">continuous-improvement</span></code>. The new version loads in your next session.</dd></div>
-            <div><dt>npm</dt><dd><code>npx <span class="nb">continuous-improvement</span> install</code> Installs the logger, 2 skills and 14 commands into <code>~/.claude</code>. With <code class="nb">--mode expert</code> it also registers the session hook and writes an MCP server entry into <code>~/.claude/settings.json</code>. Whether current Claude Code loads a server from that file was not verified. It installs none of the guard hooks, so <code>/verify-install</code> reports the missing guard on this path. Do not run both paths against the same <code>~/.claude</code>.</dd></div>
-            <div><dt>Other agents</dt><dd><code>npx <span class="nb">continuous-improvement</span> install <span class="nb">--target</span> codex <span class="nb">--hooks</span></code> Installs the hooks for that agent, and writes or prints the MCP server step. Without <code class="nb">--hooks</code>, <code class="nb">--target</code> writes a rules file only. Every agent, its tier and what it cannot do: <a href="#agents">Agents</a>.</dd></div>
+            <div><dt>Claude Code: everything, kept installed</dt><dd><code>claude plugin disable <span class="nb">continuous-improvement</span><wbr>@<span class="nb">continuous-improvement</span></code></dd></div>
+            <div><dt>Claude Code: remove</dt><dd><code>/plugin uninstall <span class="nb">continuous-improvement</span><wbr>@<span class="nb">continuous-improvement</span></code> Then delete <code>~/.claude/instincts/</code> and <code class="nb">~/.claude/hook-telemetry/</code> yourself.</dd></div>
+            <div><dt>Claude Code: update</dt><dd><code>claude plugin marketplace update <span class="nb">continuous-improvement</span></code> Then <code>claude plugin update <span class="nb">continuous-improvement</span><wbr>@<span class="nb">continuous-improvement</span></code>. The new version loads in your next session.</dd></div>
+            <div><dt>Claude Code through npm</dt><dd><code>npx <span class="nb">continuous-improvement</span> install</code> Installs the logger, 2 skills and 14 commands into <code>~/.claude</code>. With <code class="nb">--mode expert</code> it also registers the session hook and writes an MCP server entry into <code>~/.claude/settings.json</code>. Whether current Claude Code loads a server from that file was not verified. It installs none of the guard hooks, so <code>/verify-install</code> reports the missing guard on this path. Do not run both paths against the same <code>~/.claude</code>.</dd></div>
+            <div><dt>Any other agent: install</dt><dd><code>npx <span class="nb">continuous-improvement</span> install <span class="nb">--target</span> codex <span class="nb">--hooks</span></code> Installs the hooks for that agent, and writes or prints the MCP server step. Without <code class="nb">--hooks</code>, <code class="nb">--target</code> writes a rules file only. Every agent, its tier and what it cannot do: <a href="#agents">Agents</a>.</dd></div>
+            <div><dt>Any other agent: remove</dt><dd><code>npx <span class="nb">continuous-improvement</span> install <span class="nb">--uninstall</span> <span class="nb">--target</span> codex</code> Run it in the same project: it removes what <code class="nb">--hooks</code> recorded. A vendor <code class="nb">mcp add</code> has its own undo.</dd></div>
           </dl>
-          <p class="note">These commands are from the <a href="https://code.claude.com/docs/en/plugins/cli-reference">plugin CLI reference</a>. They were not run against a live install here. The switch above only dims the gate in this picture.</p>
+          <p class="note">The <code>claude plugin</code> commands are from the <a href="https://code.claude.com/docs/en/plugins/cli-reference">plugin CLI reference</a>. They were not run against a live install here. The switch above only dims the gate in this picture.</p>
         </div>
       </details>
     </div>
@@ -1239,15 +1553,16 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
   <section class="sec why-sec" id="why" data-cam="why" aria-labelledby="h-why">
     <div class="copy">
       <h2 id="h-why">Why it exists.</h2>
+      <p class="anchor">Before a session starts: is this the task, or the goal behind it?</p>
       <p class="anchor">Before a session says done: was it checked, or hoped?</p>
       <blockquote>
         <p>The wise one is the one who takes account of himself and works for what comes after death. The weak one is the one who follows his own desires and then merely wishes upon Allah.</p>
         <cite>Jami` at-Tirmidhi 2459, narrated by Shaddad ibn Aws. Tirmidhi graded it hasan; later scholars disputed the chain. Full sourcing in <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/docs/philosophy.md">docs/philosophy.md</a>.</cite>
       </blockquote>
       <details class="more">
-        <summary>The hooks are the product</summary>
+        <summary>The loop is the method, the hooks are the part that executes</summary>
         <div class="drawer">
-          <p>As models improve, planning etiquette and reminders to verify merge into the model. A refusal that holds in every permission mode, a check that runs before the turn ends and a record of what was run do not. The skills are disposable. The hooks and the log are the product.</p>
+          <p>As models improve, planning etiquette and reminders to verify merge into the model. A refusal that holds in every permission mode, a check that runs before the turn ends and a record of what was run do not. The loop is the method. The hooks and the log are the part that executes. This page says which is which.</p>
           <figure style="margin:0">
             <div class="plate"><img src="ledger.jpg" width="1400" height="781" decoding="async" alt="An open paper ledger with ruled columns. One group of tally marks is orange among black ones." loading="lazy"></div>
             <figcaption>A ledger settles by outcome, not by intention.</figcaption>
@@ -1262,7 +1577,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
     <ul class="colophon">
       <li><span class="v">29</span><span class="k">Bundled skills</span></li>
       <li><span class="v">0</span><span class="k">Runtime deps</span></li>
-      <li><span class="v">4,932</span><span class="k">Tests in the suite</span></li>
+      <li><span class="v">4,968</span><span class="k">Tests in the suite</span></li>
       <li><span class="v">MIT</span><span class="k">License</span></li>
       <li><span class="v">v3.28.0</span><span class="k">Current rev</span></li>
     </ul>
@@ -1271,7 +1586,7 @@ push feature/price-fix: unverified — git ls-remote exited 128; absence of the 
       <div class="drawer">
         <p>The test line is a stated count, not a capture: CI compares it with the real run and fails when they differ. Three numbers above are pinned by a check: the version in four places (<code>verify:landing-version</code>), the skill count (<code>verify:skill-count</code>) and the test count in two (<code>verify:test-count</code>).</p>
 <pre class="tape">checks     20 invariants + typecheck
-tests      PASS  4932/4932
+tests      PASS  4968/4968
 ci         Node 18, 20, 22 on Linux</pre>
       </div>
     </details>
@@ -1305,7 +1620,7 @@ ci         Node 18, 20, 22 on Linux</pre>
   d.querySelectorAll("[data-copy]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       var reset = function () { window.setTimeout(function () { btn.textContent = "Copy"; }, 2600); };
-      var ok = function () { btn.textContent = "Copied"; status.textContent = "Install commands copied to the clipboard."; reset(); };
+      var ok = function () { btn.textContent = "Copied"; status.textContent = "Copied to the clipboard."; reset(); };
       var fail = function () {
         var pre = d.getElementById(btn.getAttribute("data-target"));
         if (pre && window.getSelection) {
@@ -1320,6 +1635,61 @@ ci         Node 18, 20, 22 on Linux</pre>
       else fail();
     });
   });
+
+  // Install switch. The radios already swap the commands in CSS. This fills the agent list from the
+  // Install cells of the Agents table, and keeps the copy button on the command that is shown.
+  var inst = d.getElementById("install"), copyBtn = inst && inst.querySelector(".copy-btn");
+  var forClaude = d.getElementById("for-claude"), forOther = d.getElementById("for-other");
+  var agentSel = d.getElementById("for-agent"), otherPre = d.getElementById("cmds-other"), claudePre = d.getElementById("cmds");
+  if (copyBtn && forClaude && forOther && agentSel && otherPre && claudePre) {
+    var placeholder = otherPre.textContent;
+    var claudeCopy = [].map.call(claudePre.children, function (s) { return s.textContent; }).join("\n");
+    d.querySelectorAll('.agents td[data-l="Install"] code:first-child').forEach(function (code) {
+      if (!/--target \S/.test(code.textContent)) return;
+      var opt = d.createElement("option");
+      opt.value = code.textContent;
+      opt.textContent = code.closest("tr").querySelector("th").textContent;
+      agentSel.appendChild(opt);
+    });
+    d.getElementById("pick").hidden = agentSel.options.length < 2;
+    var syncInstall = function () {
+      var claude = forClaude.checked;
+      inst.setAttribute("data-for", claude ? "claude" : "other");
+      var line = otherPre.firstElementChild;
+      line.textContent = "";
+      (agentSel.value || placeholder).split(" ").forEach(function (word, i) {
+        var s = d.createElement("span");
+        s.className = "nb";
+        s.textContent = word;
+        if (i) line.appendChild(d.createTextNode(" "));
+        line.appendChild(s);
+      });
+      copyBtn.setAttribute("data-copy", claude ? claudeCopy : otherPre.textContent);
+      copyBtn.setAttribute("data-target", claude ? "cmds" : "cmds-other");
+    };
+    [forClaude, forOther, agentSel].forEach(function (el) { el.addEventListener("change", syncInstall); });
+    syncInstall();
+  }
+
+  // The verdict card belongs to Discipline. landing.js floats it beside the gate while any hero-camera
+  // section is on screen; this lets it show only while the Discipline section is.
+  var disc = d.getElementById("discipline");
+  if (disc && "IntersectionObserver" in window) {
+    new IntersectionObserver(function (entries) {
+      d.documentElement.classList.toggle("at-discipline", entries[entries.length - 1].isIntersecting);
+    }, { rootMargin: "-30% 0px -30% 0px" }).observe(disc);
+  } else d.documentElement.classList.add("at-discipline");
+
+  // On narrow screens the copy scrolls up over the stage, and the scene's "+1 row" label is pinned to
+  // the stage. It is hidden while a copy block covers the top of the screen.
+  var copies = [].slice.call(d.querySelectorAll(".sec > .copy")), covers = copies.map(function () { return false; });
+  if (copies.length && "IntersectionObserver" in window) {
+    var stageIO = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { covers[copies.indexOf(e.target)] = e.isIntersecting; });
+      d.documentElement.classList.toggle("stage-covered", covers.indexOf(true) !== -1);
+    }, { rootMargin: "-76px 0px -70% 0px" });
+    copies.forEach(function (c) { stageIO.observe(c); });
+  }
 
   // Phone menu.
   var menu = d.querySelector(".menu-btn"), head = d.querySelector("header");

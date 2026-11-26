@@ -8,14 +8,15 @@
  */
 
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { AGENT_MAP_SVG } from "../bin/check-agent-matrix.mjs";
 import { CAPTURE_FILE, capture, type Capture } from "../bin/capture-readme-demos.mjs";
-import { ASSET_DIR, demoCorpus, readCapture, renderReadmeAssets, staleAssets } from "../bin/render-readme-assets.mjs";
+import { ASSET_DIR, LANDING_DEMO_END, LANDING_DEMO_START, LANDING_PAGE, demoCorpus, readCapture, renderLandingForcePush, renderReadmeAssets, staleAssets } from "../bin/render-readme-assets.mjs";
 import { DARK, IMAGE_WIDTH, LIGHT, MIN_PHONE_PX, smallestPhonePx } from "../lib/readme-svg.mjs";
 
 const REPO_ROOT = join(fileURLToPath(new URL(".", import.meta.url)), "..");
@@ -128,6 +129,107 @@ describe("the README's use of the images", () => {
     const next = readme.indexOf("\n## ", discipline + 1);
     assert.ok(discipline !== -1 && demo > discipline && demo < next, "the six-agent demo sits in the Discipline section");
     assert.ok(demo > readme.indexOf("\n## "), "and below the first section heading");
+  });
+});
+
+// The landing page shows the force-push capture as markup, in its own exhibit
+// components. The panel is written from the capture like the images are.
+describe("the landing page's cross-agent panel", () => {
+  const html = renderLandingForcePush(committed);
+  const push = committed.demos.find((d) => d.id === "force-push")!;
+  const status = committed.demos.find((d) => d.id === "git-status")!;
+  const corpus = `${demoCorpus(push)}\n${demoCorpus(status)}`;
+  const unescape = (t: string): string => t.replace(/<[^>]*>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+  const page = readFileSync(join(REPO_ROOT, LANDING_PAGE), "utf8").replace(/\r\n/g, "\n");
+
+  it("is in the page between its one marker pair, as the capture draws it now", () => {
+    assert.ok(page.includes(`${LANDING_DEMO_START}\n${html}\n${LANDING_DEMO_END}`), "run `node bin/render-readme-assets.mjs --write`");
+    assert.equal(page.split(LANDING_DEMO_START).length, 2);
+    assert.equal(page.split(LANDING_DEMO_END).length, 2);
+  });
+
+  // The owner's direction of 2026-11-25: the guard is one proof under Discipline, not the first thing the page shows.
+  it("sits in the Discipline section, below the hero, the loop and Ambition", () => {
+    const section = page.lastIndexOf("<section", page.indexOf(LANDING_DEMO_START));
+    assert.match(page.slice(section, page.indexOf(">", section)), /id="discipline"/);
+    for (const id of ["top", "loop", "ambition"]) {
+      const at = page.search(new RegExp(`<section[^>]* id="${id}"`));
+      assert.ok(at !== -1 && at < section, `#${id} comes first`);
+    }
+  });
+
+  it("gives each agent one row with the decision pair or exit code it got, and one tape with its payload and command line", () => {
+    assert.equal(push.steps.length, 6);
+    const rows = [...html.matchAll(/<li><span>([^<]+)<\/span> <span class="rv"><b>([^<]+)<\/b>([^<]*)<\/span><\/li>/g)];
+    assert.deepEqual(rows.map((r) => r[1]), push.steps.map((s) => s.label));
+    for (const [i, step] of push.steps.entries()) {
+      const [, , reply, note] = rows[i]!;
+      if (step.stdout === "") {
+        assert.equal(reply, `exit ${step.exit}`);
+        assert.equal(note, ", reason on stderr");
+        assert.ok(step.stderr.includes("Matched rule: git-push-force"));
+      } else {
+        assert.ok(step.stdout.includes(reply!), `${step.label}: ${reply}`);
+        assert.match(reply!, /:"deny"$/);
+        assert.equal(note, "");
+      }
+      assert.equal(html.split(`<p class="cap">${step.label}</p>`).length, 2, `${step.label} tape`);
+      assert.ok(unescape(html).includes(`payload  ${step.stdin}\n\n$ ${step.run}\n`), `${step.label} payload and command line`);
+    }
+    assert.match(html, /<code>git status<\/code> <span class="rv">all 6: <b>exit 0<\/b>, no output<\/span>/);
+  });
+
+  it("shows no line in a tape that the capture does not hold", () => {
+    const tapes = [...html.matchAll(/<pre class="tape">([\s\S]*?)<\/pre>/g)].map((m) => unescape(m[1]!));
+    assert.equal(tapes.length, 1 + push.steps.length);
+    for (const tape of tapes) {
+      for (const line of tape.split("\n")) {
+        if (line.trim() === "" || /^\((?:stdout empty|(?:stderr empty, )?exit \d+)\)$/.test(line)) continue;
+        const shown = line.replace(/^(?:payload {2}|\$ |stderr: )/, "");
+        assert.ok(corpus.includes(shown), `not in the capture: "${shown.slice(0, 80)}"`);
+      }
+    }
+    for (const step of push.steps) assert.ok(tapes.some((t) => t.includes(step.stdout === "" ? step.stderr.trimEnd() : step.stdout.trimEnd())), `${step.label} reply`);
+  });
+
+  it("names the hook file every agent ran, and the capture's own title", () => {
+    assert.match(html, /<p class="meta">hooks\/gateguard\.mjs<\/p>/);
+    for (const step of push.steps) assert.ok(step.run.includes("hooks/gateguard.mjs"), step.label);
+    assert.ok(unescape(html).includes(`${push.title}. ${push.how}`));
+  });
+
+  it("refuses to draw when an agent sent another command, a reply names another rule, or git status was not a quiet allow", () => {
+    const copy = (): Capture => JSON.parse(JSON.stringify(committed)) as Capture;
+    const other = copy();
+    const gemini = other.demos.find((d) => d.id === "force-push")!.steps.find((s) => s.label === "Gemini CLI")!;
+    gemini.stdin = gemini.stdin!.replace("git push --force origin main", "git push origin main");
+    assert.throws(() => renderLandingForcePush(other), /Gemini CLI did not send/);
+    const ruled = copy();
+    const cursor = ruled.demos.find((d) => d.id === "force-push")!.steps.find((s) => s.label === "Cursor")!;
+    cursor.stdout = cursor.stdout.replaceAll("Matched rule: git-push-force", "Matched rule: substring:git push");
+    assert.throws(() => renderLandingForcePush(ruled), /name 2 rules/);
+    const noisy = copy();
+    noisy.demos.find((d) => d.id === "git-status")!.steps[0]!.stdout = "{}";
+    assert.throws(() => renderLandingForcePush(noisy), /git-status/);
+  });
+
+  it("is covered by the drift check: a page whose panel differs, or has lost a marker, is reported stale", () => {
+    const root = mkdtempSync(join(tmpdir(), "landing-panel-"));
+    try {
+      for (const dir of [ASSET_DIR, dirname(CAPTURE_FILE), dirname(LANDING_PAGE)]) mkdirSync(join(root, dir), { recursive: true });
+      for (const file of readdirSync(join(REPO_ROOT, ASSET_DIR))) copyFileSync(join(REPO_ROOT, ASSET_DIR, file), join(root, ASSET_DIR, file));
+      copyFileSync(join(REPO_ROOT, CAPTURE_FILE), join(root, CAPTURE_FILE));
+      writeFileSync(join(root, LANDING_PAGE), page);
+      assert.deepEqual(staleAssets(root), []);
+      const edited = page.replace('"decision":<b>"deny"</b>', '"decision":<b>"allow"</b>');
+      assert.notEqual(edited, page);
+      writeFileSync(join(root, LANDING_PAGE), edited);
+      assert.deepEqual(staleAssets(root), [LANDING_PAGE]);
+      writeFileSync(join(root, LANDING_PAGE), page.replace(LANDING_DEMO_END, ""));
+      assert.deepEqual(staleAssets(root), [LANDING_PAGE]);
+    } finally {
+      rmSync(root, { recursive: true, force: true, maxRetries: 3 });
+    }
   });
 });
 

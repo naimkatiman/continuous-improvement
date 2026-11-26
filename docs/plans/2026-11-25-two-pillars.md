@@ -1,7 +1,7 @@
 # Two pillars and the loop
 
 - Date: 2026-11-25
-- Status: PR 1 (the `be-ambitious` skill and command) and PR 2 (README, npm description, llms.txt, manifests, images) built. PR 3 (landing page) follows. This file is updated in place as each lands.
+- Status: PR 1 (the `be-ambitious` skill and command), PR 2 (README, npm description, llms.txt, manifests, images) and PR 3 (landing page and link preview) built. This file is updated in place as each lands.
 - Supersedes for positioning: [2026-11-22-readme-all-agents.md](2026-11-22-readme-all-agents.md) decisions 1 and 3 ("Guardrails for coding agents", the six-agent demo on the first screen) and the "Positioning" decision in [2026-11-21-all-agents.md](2026-11-21-all-agents.md). Their other decisions stand: every coding agent, and only the agents where it verifiably works.
 
 ## Owner's direction
@@ -84,6 +84,50 @@ counts cannot drift. The npm lead says "backed by hooks that refuse destructive
 commands and blind edits", not "refuse on two of its steps". The keywords and
 marketplace descriptions of the Claude plugin manifests stay Claude-worded:
 they describe Claude plugin manifests.
+
+## What PR 3 built: the landing page
+
+- Hero: the headline, two pillar tiles and an install switch. The switch
+  shows the `--target <agent> --hooks` command by default and the Claude Code
+  `/plugin` commands as its other state. Two radios and CSS do the swap, so it
+  works without scripting; the script adds the agent list from the generated
+  table and keeps the copy button on the command shown.
+- Sections after the hero, in order: `#loop`, `#ambition`, `#discipline`,
+  `#agents`. All four carry `data-cam="hero"`, so `docs/landing/landing.js` is
+  unchanged and the camera holds one view until the native comparison.
+- Three generated blocks. The loop steps (`renderLoopStepsHtml`, loop-table
+  markers) and the agent roster with its table (`renderTierHtml`, agent-matrix
+  markers, the 16 rows that block) are checked by `verify:agent-matrix`. The
+  six-agent force-push panel (`renderLandingForcePush`, demo-force-push
+  markers) is checked by `staleAssets`, which the image test runs.
+- The replay chips and the verdict card sit under Discipline. landing.js still
+  floats the card whenever a hero-camera section is on screen, so the page
+  shows it only while `#discipline` is (an IntersectionObserver sets a class).
+- `demo/social-card.html` and both PNGs: headline, pillars, seven steps with
+  their marks, 1200x630, no version. Tests hold the card and the alt text to
+  `src/lib/loop-stages.mts`.
+
+Where the build differs from the design:
+
+- Discipline is two sections, `#discipline` (four tiles, chips, the six-agent
+  panel) and `#agents` (the roster). One section would have put the chips in
+  the lower half of a tall block, where the camera is already leaving the hero
+  view and landing.js stops replaying calls.
+- The loop's lead does not count steps by mark. The generated block lists each
+  mark with the steps that carry it, so no count is typed.
+- The exhibits stay at seven: the push gate was already Exhibit B. Each is
+  tagged with its loop step.
+- On narrow screens `#loop`, `#ambition` and `#agents` drop the stage gap
+  (class `follow`): the same gate would repeat above each one.
+
+Known gap, not in this change: the 3D stage behind the hero is still the gate.
+A set piece for the loop needs a new view in landing.js. The page's `.more`
+rule also makes every `details.more` render as `display: contents`, which
+predates this change.
+
+Manual steps after merge, each needing the owner's yes: the Cloudflare Pages
+deploy, the GitHub social preview upload, and `gh repo edit` for the
+description and topics.
 
 ## The `be-ambitious` port (PR 1)
 
