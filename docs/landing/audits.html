@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0f0d0c">
+<title>Agent audits · A reliability audit and a read-only MCP install for Claude Code</title>
+<meta name="description" content="Two fixed-price services for teams running Claude Code. A 72-hour reliability audit of your agent setup for $750, and a read-only install of Google's Ads, Analytics and Merchant Center MCP servers for $500.">
+<link rel="canonical" href="https://continuous-improvement.dev/audits">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="continuous-improvement">
+<meta property="og:url" content="https://continuous-improvement.dev/audits">
+<meta property="og:title" content="Agent audits · A reliability audit and a read-only MCP install for Claude Code">
+<meta property="og:description" content="A 72-hour reliability audit of your Claude Code setup for $750. A read-only install of Google's Ads, Analytics and Merchant Center MCP servers for $500.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2.5' y='2.5' width='27' height='27' rx='6' fill='%23faf7f0' stroke='%23231f17' stroke-width='2'/%3E%3Cpath d='M8 24 L24 8' stroke='%23d24a2e' stroke-width='4' stroke-linecap='round'/%3E%3Crect x='13' y='13' width='6' height='6' rx='1.5' fill='%23231f17'/%3E%3C/svg%3E">
+<!--
+  OWNER: before this page goes live, replace every placeholder link:
+    - href="#upwork-listing-a"  -> the Upwork listing for the reliability audit (Offer A)
+    - href="#upwork-listing-b"  -> the Upwork listing for the MCP connector install (Offer B)
+    - href="mailto:REPLACE_ME"  -> your real contact address
+  Search this file for "upwork-listing" and "REPLACE_ME" to find them all.
+  The write-up link ./blog/google-ads-mcp-read-only must resolve: publish that post first.
+-->
+<style>
+/*
+  continuous-improvement.dev/audits. Static file, no build step, no framework, no third-party request.
+  Tokens, fonts, header, buttons and footer are copied from index.html so the two pages match.
+  The fonts load from ./fonts/, the same folder index.html uses.
+*/
+
+/* ---------- fonts: self-hosted subsets, same files as index.html ---------- */
+@font-face { font-family: "Newsreader Display"; font-style: normal; font-weight: 400 600; font-display: swap; src: url(./fonts/newsreader-display.woff2) format("woff2"); }
+@font-face { font-family: "Newsreader"; font-style: normal; font-weight: 400 650; font-display: swap; src: url(./fonts/newsreader-text.woff2) format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 400 700; font-display: swap; src: url(./fonts/jetbrains-mono.woff2) format("woff2"); }
+@font-face { font-family: "Newsreader Fallback"; src: local("Georgia"); size-adjust: 93.6%; ascent-override: 78.5%; descent-override: 28.3%; line-gap-override: 0%; }
+@font-face { font-family: "JetBrains Mono Fallback"; src: local("Consolas"); size-adjust: 109.1%; ascent-override: 93.5%; descent-override: 27.5%; line-gap-override: 0%; }
+
+/* ---------- tokens: one dark stage, warm ink, one signal colour ---------- */
+:root {
+  color-scheme: dark;
+  --bg: #0f0d0c;
+  --bg-2: #171413;
+  --panel: rgba(23, 20, 19, 0.72);
+  --text: #f1eeea;
+  --soft: #c9c3bd;
+  --muted: #8f8882;
+  --line: rgba(255, 255, 255, 0.09);
+  --line-2: rgba(255, 255, 255, 0.16);
+  --signal: #f2603d;
+  --signal-soft: rgba(242, 96, 61, 0.14);
+  --amber: #d9a441;
+  --paper: #e9e7e3;
+  --display: "Newsreader Display", "Newsreader", "Newsreader Fallback", Georgia, serif;
+  --serif: "Newsreader", "Newsreader Fallback", Georgia, serif;
+  --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", "JetBrains Mono Fallback", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --gutter: clamp(16px, 4vw, 56px);
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { background: var(--bg); -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-top: 76px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--text); font: 400 16px/1.55 var(--sans); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; overflow-x: hidden; }
+a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 3px; text-decoration-color: var(--line-2); }
+a:hover { text-decoration-color: currentColor; }
+code { font-family: var(--mono); font-size: 0.86em; overflow-wrap: anywhere; }
+.vh { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+:focus-visible { outline: 2px solid var(--signal); outline-offset: 3px; border-radius: 6px; }
+.skip { position: absolute; left: 12px; top: -60px; z-index: 50; background: var(--text); color: var(--bg); padding: 8px 12px; border-radius: 8px; }
+.skip:focus { top: 12px; }
+
+/* ---------- header ---------- */
+header { position: fixed; top: 0; left: 0; right: 0; z-index: 20; backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2); background: linear-gradient(rgba(15, 13, 12, 0.78), rgba(15, 13, 12, 0.5)); border-bottom: 1px solid var(--line); }
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 60px; padding: 0 var(--gutter); max-width: 1440px; margin: 0 auto; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 600; font-size: 15px; letter-spacing: -0.01em; min-width: 0; }
+.brand svg { width: 24px; height: 24px; flex: none; color: var(--text); }
+.brand .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav { display: flex; align-items: center; gap: 4px; }
+.nav a { text-decoration: none; font-size: 14px; color: var(--soft); padding: 7px 11px; border-radius: 999px; transition: color 0.2s, background 0.2s; }
+.nav a:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+.nav a.cta { color: var(--bg); background: var(--text); font-weight: 600; margin-left: 6px; }
+.nav a.cta:hover { background: #fff; color: var(--bg); }
+
+/* ---------- sections ---------- */
+main { position: relative; z-index: 1; }
+.sec { max-width: 1440px; margin: 0 auto; padding: 96px var(--gutter) 24px; }
+.sec .copy { max-width: 1040px; }
+h1, h2 { font-family: var(--display); font-weight: 500; letter-spacing: -0.025em; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(46px, 5.2vw, 78px); line-height: 0.98; }
+h2 { font-size: clamp(34px, 4vw, 58px); line-height: 1.03; }
+h3 { font: 600 17px/1.3 var(--sans); margin: 0 0 8px; letter-spacing: -0.005em; }
+.lead { font-size: clamp(17px, 1.35vw, 19.5px); line-height: 1.5; color: var(--soft); margin: 22px 0 0; max-width: 34em; }
+.kicker { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--soft); border: 1px solid var(--line-2); background: rgba(255, 255, 255, 0.03); border-radius: 999px; padding: 5px 12px 5px 8px; margin-bottom: 26px; }
+.kicker b { font-weight: 500; color: var(--text); }
+.kicker i { width: 8px; height: 8px; border-radius: 50%; background: var(--signal); box-shadow: 0 0 0 3px var(--signal-soft); }
+.caveat { font-size: 14.5px; color: var(--soft); margin: 18px 0 0; padding-left: 14px; border-left: 2px solid var(--amber); max-width: 38em; }
+.note { font-size: 13.5px; color: var(--muted); margin: 14px 0 0; max-width: 40em; }
+.hero { padding-top: 128px; padding-bottom: 40px; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 20px; border-radius: 999px; font: 600 15px var(--sans); text-decoration: none; cursor: pointer; border: 1px solid transparent; transition: background 0.2s, border-color 0.2s, transform 0.15s var(--ease); }
+.btn:active { transform: scale(0.98); }
+.btn.primary { background: var(--text); color: var(--bg); }
+.btn.primary:hover { background: #fff; }
+.btn.ghost { color: var(--text); border-color: var(--line-2); background: rgba(255, 255, 255, 0.03); }
+.btn.ghost:hover { border-color: rgba(255, 255, 255, 0.34); }
+
+/* ---------- offer cards ---------- */
+.offers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 34px; align-items: stretch; }
+.offer { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--line-2); border-radius: 16px; background: rgba(12, 10, 9, 0.86); padding: clamp(18px, 2.4vw, 30px); }
+.offer .tag { font: 12px var(--mono); color: var(--muted); margin: 0; }
+.offer h3 { font: 500 clamp(26px, 2.6vw, 36px)/1.1 var(--display); letter-spacing: -0.02em; margin: 8px 0 0; }
+.price { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; margin: 18px 0 0; }
+.price b { font: 500 52px/1 var(--display); letter-spacing: -0.02em; }
+.price span { font-size: 14px; color: var(--soft); }
+.offer .sub { color: var(--soft); font-size: 15px; margin: 14px 0 0; }
+.offer h4 { font: 600 12.5px var(--sans); color: var(--text); margin: 22px 0 8px; text-transform: uppercase; letter-spacing: 0.06em; }
+.offer ul { margin: 0; padding-left: 18px; font-size: 14.5px; color: var(--soft); }
+.offer li { margin: 6px 0; }
+.offer li::marker { color: var(--muted); }
+.retainer { margin: 20px 0 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); font-size: 14px; color: var(--soft); }
+.retainer b { color: var(--text); }
+.offer .push { margin-top: auto; padding-top: 24px; }
+.offer .push .btn { width: 100%; }
+.offer .caveat { margin-top: 20px; }
+
+/* ---------- checks ---------- */
+.checks { list-style: none; margin: 30px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.checks li { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 4px 14px; border: 1px solid var(--line); background: var(--panel); border-radius: 12px; padding: 14px 16px; font-size: 14.5px; color: var(--soft); }
+.checks .id { grid-row: span 2; font: 600 26px/1 var(--display); color: var(--signal); letter-spacing: -0.02em; padding-top: 2px; }
+.checks b { font-weight: 600; color: var(--text); font-size: 15px; }
+.checks b small { font: 12px var(--mono); color: var(--muted); font-weight: 400; margin-left: 6px; }
+
+/* ---------- steps ---------- */
+.steps { margin: 30px 0 0; padding: 0; list-style: none; counter-reset: s; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.steps li { counter-increment: s; border: 1px solid var(--line); background: var(--panel); border-radius: 12px; padding: 16px; font-size: 14.5px; color: var(--soft); min-width: 0; }
+.steps li::before { content: counter(s); display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line-2); font-size: 12.5px; color: var(--text); margin-bottom: 12px; }
+.steps b { display: block; font-weight: 600; color: var(--text); margin-bottom: 4px; font-size: 15px; }
+
+/* ---------- never ---------- */
+.never { list-style: none; margin: 30px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.never li { border: 1px solid var(--line); background: var(--panel); border-radius: 12px; padding: 16px; font-size: 14.5px; color: var(--soft); }
+.never b { display: block; font: 500 22px/1.2 var(--display); letter-spacing: -0.01em; color: var(--text); margin-bottom: 6px; }
+.never b::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--signal); margin-right: 10px; vertical-align: 2px; }
+
+/* ---------- call to action ---------- */
+.cta-sec { padding-bottom: 80px; }
+.cta-box { border: 1px solid var(--line-2); border-radius: 16px; background: rgba(12, 10, 9, 0.86); padding: clamp(22px, 3vw, 40px); max-width: 1040px; }
+.cta-box h2 { font-size: clamp(30px, 3.4vw, 46px); }
+
+/* ---------- footer ---------- */
+footer { position: relative; z-index: 1; border-top: 1px solid var(--line); background: var(--bg); }
+.foot { max-width: 1440px; margin: 0 auto; padding: 22px var(--gutter) 30px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 14px; font-size: 13px; color: var(--muted); }
+.foot-links { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.foot-links a { text-decoration: none; }
+.foot-links a:hover { color: var(--text); }
+
+@media (max-width: 860px) {
+  .offers { grid-template-columns: minmax(0, 1fr); }
+  .checks { grid-template-columns: minmax(0, 1fr); }
+  .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .never { grid-template-columns: minmax(0, 1fr); }
+  .brand { font-size: 14px; }
+  .nav a.mid { display: none; }
+}
+@media (max-width: 620px) {
+  .nav a.mid { display: none; }
+  .nav a.cta { padding: 6px 12px; font-size: 13px; }
+  h1 { font-size: clamp(40px, 11.5vw, 56px); }
+  .actions { flex-direction: column; align-items: stretch; }
+  .actions .btn { width: 100%; height: 48px; }
+  .steps { grid-template-columns: minmax(0, 1fr); }
+  .price b { font-size: 44px; }
+  .sec { padding-top: 72px; }
+  .hero { padding-top: 104px; }
+}
+@media print {
+  header { display: none; }
+  body { background: #fff; color: #000; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header>
+  <div class="bar">
+    <a class="brand" href="./" aria-label="continuous-improvement, home">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="2.5" y="2.5" width="27" height="27" rx="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 24 L24 8" stroke="var(--signal)" stroke-width="4" stroke-linecap="round"/><rect x="13" y="13" width="6" height="6" rx="1.5" fill="currentColor"/></svg>
+      <span class="name">continuous-improvement</span>
+    </a>
+    <nav class="nav" aria-label="Sections">
+      <a href="#offers" class="mid">Offers</a>
+      <a href="#checks" class="mid">Checks</a>
+      <a href="#how" class="mid">How it works</a>
+      <a href="#never" class="mid">Limits</a>
+      <a href="./">Plugin</a>
+      <a href="#book" class="cta">Book</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" tabindex="-1">
+
+  <section class="sec hero" id="top" aria-labelledby="h-top">
+    <div class="copy">
+      <span class="kicker"><i aria-hidden="true"></i><b>Agent audits</b> fixed price, read-only</span>
+      <h1 id="h-top">Your agent says done. Is it?</h1>
+      <p class="lead">Agents skip steps, edit files they never read, push to the wrong branch and stall on a prompt overnight. I find where your Claude Code setup does that, and fix the worst of it.</p>
+      <div class="actions">
+        <a class="btn primary" href="#offer-a">Reliability audit, $750</a>
+        <a class="btn ghost" href="#offer-b">Read-only MCP install, $500</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="offers" aria-labelledby="h-offers">
+    <div class="copy">
+      <h2 id="h-offers">Two services, two prices.</h2>
+      <p class="lead">Both are fixed price and start from a written scope. Nothing here needs production credentials.</p>
+    </div>
+
+    <div class="offers">
+      <article class="offer" id="offer-a" aria-labelledby="h-a">
+        <p class="tag">OFFER A &middot; 72 HOURS FROM ACCESS</p>
+        <h3 id="h-a">Agent reliability audit</h3>
+        <p class="price"><b>$750</b><span>fixed, one setup</span></p>
+        <p class="sub">For teams and solo operators running Claude Code or the Claude Agent SDK on real work: scheduled tasks, headless <code>claude -p</code> jobs, CI agents, long unattended sessions.</p>
+        <h4>What you get</h4>
+        <ul>
+          <li>A read-only review of your agent setup against a 35-point checklist: permissions, hooks, MCP servers, unattended runs, instructions files, verification gates, secrets.</li>
+          <li>A written report. Every finding has a checklist ID, the evidence (file and line), the failure it causes and the fix, ranked by what breaks first.</li>
+          <li>The top 3 fixes applied on a branch, as a pull request you review and merge.</li>
+          <li>A 20-minute walkthrough call, if you want one.</li>
+        </ul>
+        <p class="retainer"><b>Retainer, $400 a month.</b> A monthly re-run of the checklist after Claude Code updates, hook and connector upkeep, and one fix PR per month.</p>
+        <div class="push"><a class="btn primary" href="#upwork-listing-a">Book the audit</a></div>
+      </article>
+
+      <article class="offer" id="offer-b" aria-labelledby="h-b">
+        <p class="tag">OFFER B &middot; GOOGLE ADS, GA4, MERCHANT CENTER</p>
+        <h3 id="h-b">Read-only MCP connector install</h3>
+        <p class="price"><b>$500</b><span>per business</span></p>
+        <p class="sub">For businesses that want Claude to read their own Google Ads, Google Analytics 4 and Merchant Center data, and no AI tool that can change ad spend.</p>
+        <h4>What you get</h4>
+        <ul>
+          <li>Google's official MCP servers installed for the accounts you choose, wired into Claude Code and/or Claude Desktop.</li>
+          <li>Locked to read-only in two layers: the server's own access settings, plus Claude Code deny rules for any tool that can change data.</li>
+          <li>Proof it is read-only: the list of exposed tools and one attempted change that is refused.</li>
+          <li>A handover doc: what was installed, where the credentials live, how to revoke and rotate them.</li>
+        </ul>
+        <p class="retainer"><b>Scope, $500.</b> One Google Ads account, one GA4 property and one Merchant Center account. More accounts are quoted before work starts. You own every credential.</p>
+        <p class="caveat">Google's Merchant Center server is an experimental alpha with no read-only mode. There, the lock is the deny rules plus a read-only user, and I tell you so before installing it.</p>
+        <p class="note">Write-up: <a href="./google-ads-mcp-read-only">how the read-only lock works</a>.</p>
+        <div class="push"><a class="btn primary" href="#upwork-listing-b">Book the install</a></div>
+      </article>
+    </div>
+  </section>
+
+  <section class="sec" id="checks" aria-labelledby="h-checks">
+    <div class="copy">
+      <h2 id="h-checks">What the audit checks.</h2>
+      <p class="lead">35 checks in 8 groups. Each finding in your report cites its check ID.</p>
+    </div>
+    <ul class="checks">
+      <li><span class="id" aria-hidden="true">P</span><b>Permissions <small>6 checks</small></b><span>Bypass modes, shell-wide allow rules, missing deny rules for force push and <code>rm -rf</code>, unattended permission skips.</span></li>
+      <li><span class="id" aria-hidden="true">H</span><b>Hooks <small>7 checks</small></b><span>Guard scripts that point nowhere, crash on empty input, print invalid JSON, or have no timeout, and hooks switched off.</span></li>
+      <li><span class="id" aria-hidden="true">M</span><b>MCP servers <small>5 checks</small></b><span>Auto-approved project servers, write tools with no deny rule, literal secrets, unpinned packages.</span></li>
+      <li><span class="id" aria-hidden="true">R</span><b>Unattended runs <small>5 checks</small></b><span>Scheduled, headless and CI jobs with no turn limit, no kept output, no alert on failure, or a host that can kill them.</span></li>
+      <li><span class="id" aria-hidden="true">I</span><b>Instructions <small>4 checks</small></b><span>Oversized or conflicting <code>CLAUDE.md</code> files, broken imports, and rules that claim enforcement that does not exist.</span></li>
+      <li><span class="id" aria-hidden="true">V</span><b>Verification <small>3 checks</small></b><span>No test or typecheck command, no named proof of done, no CI on the agent's pull requests.</span></li>
+      <li><span class="id" aria-hidden="true">G</span><b>Git <small>2 checks</small></b><span>An unprotected default branch, and several sessions sharing one checkout.</span></li>
+      <li><span class="id" aria-hidden="true">S</span><b>Secrets <small>3 checks</small></b><span>Literal secrets in settings or MCP config, uncommitted-file hygiene, and secrets in agent logs.</span></li>
+    </ul>
+  </section>
+
+  <section class="sec" id="how" aria-labelledby="h-how">
+    <div class="copy">
+      <h2 id="h-how">How the audit works.</h2>
+      <p class="lead">Four steps. You stay in control of what leaves your machine.</p>
+    </div>
+    <ol class="steps">
+      <li><b>You run the collector.</b>A script from my kit inventories your agent config. It redacts secrets before anything is shared.</li>
+      <li><b>I review, read-only.</b>I check the inventory and your repo against the checklist. I do not run anything in your systems.</li>
+      <li><b>Report and fix PR.</b>You get the ranked report and the top 3 fixes as a pull request on a branch.</li>
+      <li><b>Optional call.</b>A 20-minute walkthrough of the findings, if you want one.</li>
+    </ol>
+  </section>
+
+  <section class="sec" id="never" aria-labelledby="h-never">
+    <div class="copy">
+      <h2 id="h-never">What I never do.</h2>
+    </div>
+    <ul class="never">
+      <li><b>Touch production credentials.</b>No production credentials, no write access to live systems, no customer data.</li>
+      <li><b>Push to your main branch.</b>Fixes arrive as a pull request. Nothing lands without your review and merge.</li>
+      <li><b>Keep a copy of your tokens.</b>You own every credential. I work over a screen share or with temporary access you grant and revoke.</li>
+    </ul>
+  </section>
+
+  <section class="sec cta-sec" id="book" aria-labelledby="h-book">
+    <div class="cta-box">
+      <h2 id="h-book">Book an audit or an install.</h2>
+      <p class="lead">Pick the listing that fits, or write first if you are not sure which one you need.</p>
+      <!-- OWNER: replace the three placeholder hrefs below before publishing: #upwork-listing-a, #upwork-listing-b, mailto:REPLACE_ME -->
+      <div class="actions">
+        <a class="btn primary" href="#upwork-listing-a">Reliability audit, $750</a>
+        <a class="btn primary" href="#upwork-listing-b">MCP install, $500</a>
+        <a class="btn ghost" href="mailto:REPLACE_ME">Email me first</a>
+      </div>
+      <p class="note">I maintain the open-source <a href="./">continuous-improvement</a> guardrails plugin that these audits are built around.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="foot">
+    <span class="foot-doc">CONTINUOUS-IMPROVEMENT &middot; AGENT AUDITS</span>
+    <div class="foot-links">
+      <a href="./">Plugin</a>
+      <a href="https://github.com/naimkatiman/continuous-improvement">GitHub</a>
+      <a href="https://www.npmjs.com/package/continuous-improvement">npm</a>
+      <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/SECURITY.md">Security</a>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

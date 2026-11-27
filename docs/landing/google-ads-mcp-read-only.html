@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0f0d0c">
+<title>Making Claude's Google Ads connector actually read-only</title>
+<meta name="description" content="Google's official Google Ads MCP server is not read-only by default. How to turn the mutate tools off, add a second lock in Claude Code, and prove both locks work.">
+<link rel="canonical" href="https://continuous-improvement.dev/google-ads-mcp-read-only">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="continuous-improvement">
+<meta property="og:url" content="https://continuous-improvement.dev/google-ads-mcp-read-only">
+<meta property="og:title" content="Making Claude's Google Ads connector actually read-only">
+<meta property="og:description" content="Google's official Google Ads MCP server is not read-only by default. How to turn the mutate tools off, add a second lock in Claude Code, and prove both locks work.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2.5' y='2.5' width='27' height='27' rx='6' fill='%23faf7f0' stroke='%23231f17' stroke-width='2'/%3E%3Cpath d='M8 24 L24 8' stroke='%23d24a2e' stroke-width='4' stroke-linecap='round'/%3E%3Crect x='13' y='13' width='6' height='6' rx='1.5' fill='%23231f17'/%3E%3C/svg%3E">
+<style>
+/*
+  continuous-improvement.dev/google-ads-mcp-read-only. Static article, no build step, no framework, no third-party request.
+  Tokens, fonts, header and footer are copied from audits.html so the pages match.
+*/
+
+/* ---------- fonts: self-hosted subsets, same files as index.html ---------- */
+@font-face { font-family: "Newsreader Display"; font-style: normal; font-weight: 400 600; font-display: swap; src: url(./fonts/newsreader-display.woff2) format("woff2"); }
+@font-face { font-family: "Newsreader"; font-style: normal; font-weight: 400 650; font-display: swap; src: url(./fonts/newsreader-text.woff2) format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 400 700; font-display: swap; src: url(./fonts/jetbrains-mono.woff2) format("woff2"); }
+@font-face { font-family: "Newsreader Fallback"; src: local("Georgia"); size-adjust: 93.6%; ascent-override: 78.5%; descent-override: 28.3%; line-gap-override: 0%; }
+@font-face { font-family: "JetBrains Mono Fallback"; src: local("Consolas"); size-adjust: 109.1%; ascent-override: 93.5%; descent-override: 27.5%; line-gap-override: 0%; }
+
+/* ---------- tokens ---------- */
+:root {
+  color-scheme: dark;
+  --bg: #0f0d0c;
+  --bg-2: #171413;
+  --panel: rgba(23, 20, 19, 0.72);
+  --text: #f1eeea;
+  --soft: #c9c3bd;
+  --muted: #8f8882;
+  --line: rgba(255, 255, 255, 0.09);
+  --line-2: rgba(255, 255, 255, 0.16);
+  --signal: #f2603d;
+  --signal-soft: rgba(242, 96, 61, 0.14);
+  --amber: #d9a441;
+  --paper: #e9e7e3;
+  --display: "Newsreader Display", "Newsreader", "Newsreader Fallback", Georgia, serif;
+  --serif: "Newsreader", "Newsreader Fallback", Georgia, serif;
+  --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", "JetBrains Mono Fallback", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --gutter: clamp(16px, 4vw, 56px);
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { background: var(--bg); -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-top: 76px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--text); font: 400 16px/1.55 var(--sans); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; overflow-x: hidden; }
+a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 3px; text-decoration-color: var(--line-2); }
+a:hover { text-decoration-color: currentColor; }
+:focus-visible { outline: 2px solid var(--signal); outline-offset: 3px; border-radius: 6px; }
+.skip { position: absolute; left: 12px; top: -60px; z-index: 50; background: var(--text); color: var(--bg); padding: 8px 12px; border-radius: 8px; }
+.skip:focus { top: 12px; }
+
+/* ---------- header ---------- */
+header { position: fixed; top: 0; left: 0; right: 0; z-index: 20; backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2); background: linear-gradient(rgba(15, 13, 12, 0.78), rgba(15, 13, 12, 0.5)); border-bottom: 1px solid var(--line); }
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 60px; padding: 0 var(--gutter); max-width: 1440px; margin: 0 auto; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 600; font-size: 15px; letter-spacing: -0.01em; min-width: 0; }
+.brand svg { width: 24px; height: 24px; flex: none; color: var(--text); }
+.brand .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav { display: flex; align-items: center; gap: 4px; }
+.nav a { text-decoration: none; font-size: 14px; color: var(--soft); padding: 7px 11px; border-radius: 999px; transition: color 0.2s, background 0.2s; }
+.nav a:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+.nav a.cta { color: var(--bg); background: var(--text); font-weight: 600; margin-left: 6px; }
+.nav a.cta:hover { background: #fff; color: var(--bg); }
+
+/* ---------- article ---------- */
+main { position: relative; z-index: 1; }
+article { width: 100%; max-width: calc(68ch + 2 * var(--gutter)); margin: 0 auto; padding: 120px var(--gutter) 72px; font: 400 19px/1.65 var(--serif); color: var(--soft); min-width: 0; }
+article > * { min-width: 0; }
+h1, h2 { font-family: var(--display); font-weight: 500; letter-spacing: -0.025em; color: var(--text); text-wrap: balance; }
+h1 { font-size: clamp(36px, 5vw, 56px); line-height: 1.04; margin: 0 0 28px; overflow-wrap: break-word; }
+h2 { font-size: clamp(27px, 3vw, 36px); line-height: 1.12; margin: 56px 0 16px; }
+article p { margin: 0 0 1.1em; overflow-wrap: break-word; }
+article p.checked { font: 13.5px/1.5 var(--mono); color: var(--soft); margin: 0 0 1.6em; padding: 10px 14px; border-left: 2px solid var(--amber); background: var(--panel); border-radius: 0 8px 8px 0; }
+article ol { margin: 0 0 1.1em; padding-left: 1.4em; }
+article li { margin: 0 0 0.6em; padding-left: 0.2em; overflow-wrap: break-word; }
+article li::marker { color: var(--muted); font-family: var(--mono); font-size: 0.85em; }
+article a { color: var(--text); text-decoration-color: var(--signal); text-decoration-thickness: 1px; overflow-wrap: anywhere; }
+article a:hover { color: #fff; text-decoration-thickness: 2px; }
+code { font-family: var(--mono); font-size: 0.82em; color: var(--text); background: rgba(255, 255, 255, 0.07); border-radius: 5px; padding: 0.12em 0.4em; overflow-wrap: anywhere; }
+pre { margin: 0 0 1.4em; padding: 16px 18px; max-width: 100%; overflow-x: auto; background: #0a0908; border: 1px solid var(--line-2); border-radius: 10px; font: 400 13.5px/1.6 var(--mono); color: var(--text); -webkit-overflow-scrolling: touch; }
+pre code { font: inherit; background: none; padding: 0; border-radius: 0; color: inherit; overflow-wrap: normal; white-space: pre; }
+.tablewrap { max-width: 100%; overflow-x: auto; margin: 0 0 1.4em; border: 1px solid var(--line-2); border-radius: 10px; }
+table { width: 100%; border-collapse: collapse; font: 400 13px/1.5 var(--mono); color: var(--soft); }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--text); font-weight: 600; background: var(--panel); white-space: nowrap; }
+td:first-child { color: var(--text); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td code { background: none; padding: 0; font-size: 1em; overflow-wrap: normal; }
+
+/* ---------- footer ---------- */
+footer { position: relative; z-index: 1; border-top: 1px solid var(--line); background: var(--bg); }
+.foot { max-width: 1440px; margin: 0 auto; padding: 22px var(--gutter) 30px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 14px; font-size: 13px; color: var(--muted); }
+.foot > * { min-width: 0; }
+.foot-links { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.foot-links a { text-decoration: none; }
+.foot-links a:hover { color: var(--text); }
+
+@media (max-width: 620px) {
+  .nav a.mid { display: none; }
+  .nav a.cta { padding: 6px 12px; font-size: 13px; }
+  .brand { font-size: 14px; }
+  article { font-size: 18px; padding-top: 96px; }
+  pre { font-size: 12.5px; padding: 14px; }
+}
+@media print {
+  header { display: none; }
+  body { background: #fff; color: #000; }
+  article, article a, h1, h2 { color: #000; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header>
+  <div class="bar">
+    <a class="brand" href="./" aria-label="continuous-improvement, home">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="2.5" y="2.5" width="27" height="27" rx="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 24 L24 8" stroke="var(--signal)" stroke-width="4" stroke-linecap="round"/><rect x="13" y="13" width="6" height="6" rx="1.5" fill="currentColor"/></svg>
+      <span class="name">continuous-improvement</span>
+    </a>
+    <nav class="nav" aria-label="Sections">
+      <a href="./audits" class="mid">Audits</a>
+      <a href="./">Plugin</a>
+      <a href="./audits" class="cta">Book</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" tabindex="-1">
+<article>
+
+<h1>Making Claude's Google Ads connector actually read-only</h1>
+
+<p>Google ships an official Google Ads MCP server. It is not read-only out of the box. If you connect it to Claude with the default settings, Claude can create assets, upload videos to YouTube and edit account labels. This post shows how to turn that off, how to add a second lock in Claude Code, and how to prove both locks work.</p>
+
+<p class="checked">Checked against Google's docs on 2026-11-27. Anything I could not confirm is marked "unverified".</p>
+
+<h2 id="exposes">What the server exposes by default</h2>
+
+<p>Google's page lists the mode as "Read and partial mutate", with a "configurable read-only mode" as the alternative (<a href="https://developers.google.com/google-ads/api/docs/developer-toolkit/mcp-server">docs</a>). The bundled config enables all five tool categories: <code>customers</code>, <code>search</code>, <code>metadata</code>, <code>labels</code> and <code>assets</code> (<a href="https://developers.google.com/google-ads/api/docs/developer-toolkit/mcp-server.md.txt">docs</a>).</p>
+
+<p>The seven tools, from the project README (<a href="https://github.com/googleads/google-ads-mcp">GitHub</a>):</p>
+
+<div class="tablewrap">
+<table>
+<thead>
+<tr><th>Tool</th><th>Type</th></tr>
+</thead>
+<tbody>
+<tr><td><code>search_search</code></td><td>Read (GAQL queries)</td></tr>
+<tr><td><code>metadata_get_resource_metadata</code></td><td>Read</td></tr>
+<tr><td><code>customers_list_accessible_customers</code></td><td>Read</td></tr>
+<tr><td><code>assets_create_asset</code></td><td>Mutate</td></tr>
+<tr><td><code>assets_upload_video_asset</code></td><td>Mutate (stdio only)</td></tr>
+<tr><td><code>labels_manage_labels</code></td><td>Mutate</td></tr>
+<tr><td><code>labels_manage_label_associations</code></td><td>Mutate</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>The mutating tools are narrow. Per the docs, the server cannot link assets to campaigns, ad groups or asset groups, and it cannot create or change campaigns, ads, budgets or bids (<a href="https://developers.google.com/google-ads/api/docs/developer-toolkit/mcp-server">docs</a>). Mutations use a propose-then-confirm flow: the first call defaults to <code>validate_only=True</code> and returns a checksum. The docs say the checksum "does not replace access control" (<a href="https://developers.google.com/google-ads/api/docs/developer-toolkit/mcp-server.md.txt">docs</a>). Treat the confirm step as a seat belt, not a lock.</p>
+
+<h2 id="lock-1">Lock 1: turn the mutate namespaces off</h2>
+
+<p>The docs' recommendation is to disable the <code>labels</code> and <code>assets</code> namespaces in <code>tools_config.yaml</code> (<a href="https://developers.google.com/google-ads/api/docs/developer-toolkit/mcp-server.md.txt">docs</a>). Save this as <code>tools_config.yaml</code>:</p>
+
+<pre><code>namespaces:
+  customers: true
+  search: true
+  metadata: true
+  labels: false
+  assets: false</code></pre>
+
+<p>If <code>namespaces</code> is non-empty, any omitted category is disabled (<a href="https://developers.google.com/google-ads/api/docs/developer-toolkit/mcp-server.md.txt">docs</a>). I still write all five lines so the intent is visible to the next person.</p>
+
+<p>Config lookup order, per the docs: the path in <code>GOOGLE_ADS_MCP_TOOLS_CONFIG</code>, then <code>tools_config.yaml</code> in the working directory, then the bundled default. A missing or invalid file stops startup instead of falling back (<a href="https://developers.google.com/google-ads/api/docs/developer-toolkit/mcp-server">docs</a>). Set the environment variable to an absolute path. Do not rely on the working directory, because the bundled default is the all-enabled one.</p>
+
+<h2 id="add">Add it to Claude Code</h2>
+
+<p>Google's README gives an <code>mcpServers</code> JSON block and points Claude Code users at <code>~/.claude/settings.json</code>; it does not document a <code>claude mcp add</code> command (<a href="https://github.com/googleads/google-ads-mcp">GitHub</a>). The command below is my composition from Claude Code's documented syntax (<a href="https://code.claude.com/docs/en/mcp">Claude Code MCP docs</a>), and the pinned version <code>0.0.6</code> is the one Google's page uses:</p>
+
+<pre><code>claude mcp add --env GOOGLE_APPLICATION_CREDENTIALS=/path/to/adc.json \
+  --env GOOGLE_CLOUD_PROJECT=your-project-id \
+  --env GOOGLE_ADS_MCP_TOOLS_CONFIG=/path/to/tools_config.yaml \
+  --transport stdio google-ads-mcp \
+  -- pipx run --spec "google-ads-mcp==0.0.6" google-ads-mcp</code></pre>
+
+<p>Claude Code's docs say <code>--env</code> must not sit directly before the server name, which is why <code>--transport stdio</code> is in between (<a href="https://code.claude.com/docs/en/mcp">Claude Code MCP docs</a>). For a manager account, add <code>GOOGLE_ADS_LOGIN_CUSTOMER_ID</code> (10 digits, no hyphens) (<a href="https://developers.google.com/google-ads/api/docs/developer-toolkit/mcp-server.md.txt">docs</a>).</p>
+
+<p>Credentials come from Application Default Credentials. Google's command requests the <code>adwords</code> and <code>cloud-platform</code> scopes (<a href="https://github.com/googleads/google-ads-mcp">GitHub</a>). The docs I read name no read-only Google Ads scope, so the scope does not protect you. The tool layer and the account permissions do. Google's page also says developer tokens were sunset on September 9, 2026, while another section still describes access levels; re-check the current token requirement at install time (unverified).</p>
+
+<p>Claude Desktop uses the same <code>mcpServers</code> JSON block. I did not test the Desktop file location (unverified).</p>
+
+<h2 id="lock-2">Lock 2: deny the mutating tools in Claude Code</h2>
+
+<p>Claude Code evaluates permission rules in the order deny, ask, allow, and the first match wins (<a href="https://code.claude.com/docs/en/permissions">permissions docs</a>). <code>mcp__&lt;server&gt;__&lt;tool&gt;</code> names one tool, and <code>mcp__&lt;server&gt;__*</code> matches a whole server (<a href="https://code.claude.com/docs/en/permissions">permissions docs</a>). Put this in the project's <code>.claude/settings.json</code>:</p>
+
+<pre><code>{
+  "permissions": {
+    "deny": [
+      "mcp__google-ads-mcp__labels_manage_labels",
+      "mcp__google-ads-mcp__labels_manage_label_associations",
+      "mcp__google-ads-mcp__assets_create_asset",
+      "mcp__google-ads-mcp__assets_upload_video_asset"
+    ]
+  }
+}</code></pre>
+
+<p>The server segment must match the name you gave <code>claude mcp add</code>. I found no per-server tool allowlist in Claude Code's MCP docs, so deny rules are the documented mechanism (absence of an allowlist: unverified, the page was too long to read in full). If the first lock is on, these rules are redundant today. They matter if someone later edits <code>tools_config.yaml</code>.</p>
+
+<h2 id="prove">Prove it</h2>
+
+<p>Do both checks. Neither needs a real mutation to succeed.</p>
+
+<ol>
+<li>List what is exposed. In Claude Code, run <code>/mcp</code>, open <code>google-ads-mcp</code> and read the tool list. Expected: three tools (<code>customers_list_accessible_customers</code>, <code>search_search</code>, <code>metadata_get_resource_metadata</code>). If any <code>labels_</code> or <code>assets_</code> tool appears, Lock 1 is not loaded. Check the <code>GOOGLE_ADS_MCP_TOOLS_CONFIG</code> path.</li>
+<li>Attempt one mutation. Ask Claude: "Create a label called read-only-test in account 1234567890." Expected: Claude reports it has no such tool, or Claude Code blocks the call by deny rule. I have not run this against a live account, so the exact refusal wording is unverified. Record whatever you see.</li>
+<li>Prove the deny rule alone. Temporarily set <code>labels: true</code> in the YAML, restart, and repeat step 2. The deny rule should still stop the call. Revert the YAML afterwards.</li>
+</ol>
+
+<p>The strongest third lock is the identity itself. Google Ads has a Read-only access level that cannot edit campaigns or billing (<a href="https://support.google.com/google-ads/answer/9978556">Google Ads Help</a>). Connect with a user that has that level and even a misconfigured server cannot change campaigns. Whether every tool call is limited by that level when run through this server is unverified.</p>
+
+<h2 id="ga4">GA4 in short</h2>
+
+<p>Google's analytics server (<code>googleanalytics/google-analytics-mcp</code>) asks for credentials that "must include the Google Analytics read-only scope", <code>https://www.googleapis.com/auth/analytics.readonly</code> (<a href="https://github.com/googleanalytics/google-analytics-mcp">GitHub</a>). Its three write tools (<code>create_property_annotation</code>, <code>create_custom_dimension</code>, <code>create_key_event</code>) need the <code>--allow-write</code> flag and the <code>analytics.edit</code> scope, so they are off unless you turn them on (<a href="https://github.com/googleanalytics/google-analytics-mcp">GitHub</a>). Its Claude Code command:</p>
+
+<pre><code>claude mcp add analytics-mcp --scope user \
+  -e "GOOGLE_APPLICATION_CREDENTIALS=PATH_TO_CREDENTIALS_JSON" \
+  -e "GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID" \
+  -- pipx run analytics-mcp</code></pre>
+
+<p>Request only <code>analytics.readonly</code> and <code>cloud-platform</code> at login, and give the connecting user the Viewer role ("Can see settings and data", <a href="https://support.google.com/analytics/answer/9305587">Analytics Help</a>). Add the same deny pattern for the three <code>create_</code> tools under <code>mcp__analytics-mcp__</code>.</p>
+
+<h2 id="merchant">What about Merchant Center</h2>
+
+<p>Google has an official Merchant API MCP Access Service, but it is an "experimental alpha version subject to change at any time without prior notice" and hosted-only (<a href="https://developers.google.com/merchant/api/guides/agentic-tools/merchant-data-mcp">Merchant API docs</a>). It has no read-only mode. <code>create_data_source</code> writes, and <code>fetch_data_source</code> most likely triggers a fetch that changes data (my reading of the tool name; the page does not say). Deny both. The page only names the <code>content</code> scope, which is not read-only (no read-only scope found, unverified).</p>
+
+<h2 id="setup">Need it set up?</h2>
+
+<p>I install and lock down these connectors for $500, using credentials you own, and hand you the read-only proof. <a href="./audits">See the read-only MCP install</a></p>
+
+</article>
+</main>
+
+<footer>
+  <div class="foot">
+    <span class="foot-doc">CONTINUOUS-IMPROVEMENT &middot; AGENT AUDITS</span>
+    <div class="foot-links">
+      <a href="./">Plugin</a>
+      <a href="https://github.com/naimkatiman/continuous-improvement">GitHub</a>
+      <a href="https://www.npmjs.com/package/continuous-improvement">npm</a>
+      <a href="https://github.com/naimkatiman/continuous-improvement/blob/main/SECURITY.md">Security</a>
+    </div>
+  </div>
+</footer>
+</body>
+</html>
