@@ -43,7 +43,7 @@ Run these steps in order:
      git worktree add --no-track --lock --reason "owner=<session-id>; purpose=/ship" -b "<feature-branch>" "<worktree-path>" "<base-sha>"
      ```
    - Use the current harness session ID as `<session-id>`. If it is unavailable, generate a unique recorded run token before creating the worktree and reuse that exact token through handoff and cleanup. Treat the lock reason as an advisory coordination ledger for compliant sessions, not as a filesystem write lock. Run `worktree-safety` in the new checkout and confirm its resolved root, `.git` pointer, registration, branch, pinned HEAD, and lock reason all match the current session. A missing or foreign owner blocks work. Recheck that envelope and observable branch, HEAD, and diff state before every source mutation. Halt when another writer cannot be excluded.
-3. **Reproduce (RED)**: use `tdd-workflow` to write a failing test that reproduces the defect and watch it fail. Delete any pre-test implementation code.
+3. **Reproduce (RED)**: use `tdd-workflow` to reproduce the defect with a failing test and watch it fail. For a review finding, follow [Review findings](#review-findings) when choosing the check. Delete any pre-test implementation code.
 4. **Fix (GREEN)**: write the minimal change that makes the failing test pass, then watch it pass. Keep one concern only.
 5. **Verify**: use `verification-loop` to run the project's verify ladder, including build, types, and relevant tests. A green build proves only the mechanism. Confirm the original defect no longer reproduces.
 6. **Commit**: make one single-concern commit, staged by explicit filename. Never use `git add -A` or `git add .`. Recheck the branch, HEAD, owner lock, and real diff immediately before staging and committing. Use a Windows-safe commit message with a single-line `-m`, repeated `-m` paragraphs, or `git commit -F <tempfile>`. Do not use multi-line here-docs or here-strings.
@@ -79,7 +79,7 @@ Run these steps in order:
      If the initiating checkout is already on `<base>`, require ancestry and use `git merge --ff-only "origin/<base>"`; a non-fast-forward halts without switching branches. Verify local `<base>` equals `origin/<base>`. If the fetch, remote-base validation, checked-out-elsewhere check, ancestry preflight, branch update, branch creation, fast-forward, or switch fails, leave the initiating checkout's branch and files unchanged and report the blocker. Never switch first and pull afterward.
    - When `return_allowed=false`, leave the initiating checkout's branch and path unchanged even if it appears clean later. Another task may own that state. Report the recorded reason instead of switching it.
    - A dirty initiating checkout is the exception: leave its branch and files exactly as found. Return the shell to that path, but do not carry its changes onto `<base>`. Report that default-branch return is intentionally blocked by preserved local work.
-   - During PR review, only the recorded owner or an explicit operator-confirmed handoff may change the retained fix worktree. After every authorized review-fix commit and push, rerun the verification ladder, require a clean worktree, verify the remote feature tip equals local HEAD, and query the same PR again for base, head, and `headRefOid`. Atomically replace the receipt's feature tip SHA with that verified `headRefOid`, then read and parse the receipt back. Halt and retain the worktree if any verification or receipt refresh fails.
+   - During PR review, only the recorded owner or an explicit operator-confirmed handoff may change the retained fix worktree. Apply [Review findings](#review-findings) to each reproducible defect within the PR's scope. After every authorized review-fix commit and push, rerun the verification ladder, require a clean worktree, verify the remote feature tip equals local HEAD, and query the same PR again for base, head, and `headRefOid`. Atomically replace the receipt's feature tip SHA with that verified `headRefOid`, then read and parse the receipt back. Halt and retain the worktree if any verification or receipt refresh fails.
    - Stop with the PR open for human review. Keep an isolated fix worktree registered and owner-locked until the PR is merged so review fixes remain safe.
 9. **Clean up after the PR merges**: run cleanup from the initiating checkout or another retained worktree, never from inside the worktree being removed. Refresh remote state and verify the actual PR merge commit is contained in the detected base, including for squash merges:
    ```
@@ -125,6 +125,14 @@ Run these steps in order:
 - **Deploy**: never run a deploy. `deploy-receipt` only verifies after a human merges and deploys.
 - **Bypass**: never use `--admin`, `--force`, or `--no-verify`.
 - **Bundled concerns**: log unrelated defects as deferred follow-ups instead of adding them to the commit.
+
+## Review findings
+
+Reproduce what the reviewer observed and inspect the checks that run on each PR. Reuse a check that catches the defect. If it missed the case, add the smallest input or assertion that exposes it. If the check already failed locally but CI skipped it, fix its invocation.
+
+Prefer a fix that makes the invalid state impossible. If agents copied a faulty example, workaround, or comment, correct its source as part of the fix. Use a behavior test for an incorrect result. Propose a lint rule only when the same code pattern is consistently wrong and the rule can distinguish a nearby valid use.
+
+Run the same check on the buggy revision and on the fix. Confirm it fails for the reported reason, passes after the change, and accepts a nearby valid case. Keep the check in the project's normal PR suite. Record the command and observed results in the PR description or review reply. For a visible UI defect, include before-and-after screenshots at the affected viewport.
 
 ## Composition
 
